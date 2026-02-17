@@ -1,0 +1,78 @@
+
+{
+  "name": "muebleria-la-economica",
+  "services": [
+    {
+      "type": "postgres",
+      "name": "muebleria-postgres",
+      "version": "17-alpine",
+      "config": {
+        "database": "muebleria",
+        "username": "postgres",
+        "password": "${DB_PASSWORD}",
+        "port": 5432
+      },
+      "volumes": [
+        {
+          "name": "postgres_data",
+          "mountPath": "/var/lib/postgresql/data"
+        }
+      ]
+    },
+    {
+      "type": "app",
+      "name": "muebleria-app",
+      "source": {
+        "type": "github",
+        "repository": "tu-usuario/muebleria_la_economica",
+        "branch": "main"
+      },
+      "build": {
+        "type": "dockerfile",
+        "dockerfilePath": "./Dockerfile",
+        "context": "."
+      },
+      "deploy": {
+        "port": 3000,
+        "healthcheck": "/api/health",
+        "replicas": 1,
+        "resources": {
+          "memory": "512Mi",
+          "cpu": "500m"
+        }
+      },
+      "env": [
+        {
+          "key": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "key": "PORT",
+          "value": "3000"
+        },
+        {
+          "key": "DATABASE_URL",
+          "value": "postgresql://postgres:${DB_PASSWORD}@muebleria-postgres:5432/muebleria"
+        },
+        {
+          "key": "NEXTAUTH_URL",
+          "value": "${APP_URL}"
+        },
+        {
+          "key": "NEXTAUTH_SECRET",
+          "value": "${NEXTAUTH_SECRET}"
+        },
+        {
+          "key": "JWT_SECRET",
+          "value": "${JWT_SECRET}"
+        }
+      ],
+      "domains": [
+        {
+          "domain": "app.mueblerialaeconomica.com",
+          "ssl": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VertexERP Cobrador</string>
+    <string name="title_activity_main">VertexERP Cobrador</string>
+    <string name="package_name">com.vertexerp.cobrador</string>
+    <string name="custom_url_scheme">com.vertexerp.cobrador</string>
+</resources>

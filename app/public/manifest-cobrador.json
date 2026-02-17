@@ -1,0 +1,52 @@
+{
+    "name": "VertexERP Cobrador",
+    "short_name": "Cobrador",
+    "version": "1.0.0",
+    "description": "App de cobranza en campo para VertexERP Muebles",
+    "theme_color": "#0F172A",
+    "background_color": "#0F172A",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "scope": "/",
+    "start_url": "/cobrador-app?source=native",
+    "icons": [
+        {
+            "src": "/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": [
+        "business",
+        "productivity"
+    ],
+    "shortcuts": [
+        {
+            "name": "Mis Clientes",
+            "url": "/cobrador-app?source=shortcut",
+            "icons": [
+                {
+                    "src": "/icon-192x192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Caja Diaria",
+            "url": "/dashboard/caja?source=shortcut",
+            "icons": [
+                {
+                    "src": "/icon-192x192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ]
+}

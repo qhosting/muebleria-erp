@@ -1,0 +1,44 @@
+
+{
+  "name": "MUEBLERIA LA ECONOMICA",
+  "short_name": "LaEconomica",
+  "description": "Sistema integral de gestión de clientes y cobranza en campo",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#0F172A",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/dashboard",
+      "description": "Ver panel principal"
+    },
+    {
+      "name": "Clientes",
+      "url": "/dashboard/clientes",
+      "description": "Gestionar clientes"
+    },
+    {
+      "name": "Cobranza",
+      "url": "/dashboard/cobranza",
+      "description": "Realizar cobranza"
+    }
+  ],
+  "prefer_related_applications": false
+}

@@ -1,0 +1,4 @@
+
+nombreCompleto,telefono,vendedor,direccionCompleta,descripcionProducto,diaPago,montoPago,periodicidad,saldoActual,importe1,importe2,importe3,importe4,fechaVenta
+Juan Pérez,1234567890,María González,Calle 123 Colonia Centro,Sala de madera,1,500.00,semanal,2000.00,500.00,500.00,500.00,500.00,2024-01-15
+Ana López,9876543210,Carlos Ruiz,Avenida Principal 456,Comedor 6 sillas,3,750.00,quincenal,1500.00,750.00,750.00,,,2024-01-10

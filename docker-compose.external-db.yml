@@ -1,0 +1,31 @@
+
+# Configuración para usar base de datos externa (la que ya tienes configurada)
+version: '3.8'
+
+services:
+  app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL_EXTERNAL}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NODE_ENV=production
+      - PORT=3000
+    restart: unless-stopped
+    networks:
+      - app-network
+    volumes:
+      - app-data:/app/.next/cache
+
+volumes:
+  app-data:
+
+networks:
+  app-network:
+    driver: bridge

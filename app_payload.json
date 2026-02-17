@@ -1,0 +1,24 @@
+{
+    "name": "muebleria-la-economica",
+    "description": "Sistema de gestión MUEBLERIA LA ECONOMICA",
+    "git_repository": "https://github.com/qhosting/muebleria-la-economica.git",
+    "git_branch": "main",
+    "build_pack": "dockerfile",
+    "dockerfile_location": "./Dockerfile",
+    "server_id": "0",
+    "destination_id": "0",
+    "environment_variables": {
+        "NODE_ENV": "production",
+        "PORT": "3000",
+        "NEXTAUTH_URL": "https://app.mueblerialaeconomica.com",
+        "NEXTAUTH_SECRET": "MUFpad0LjZBgStRCwGL3iONH6zVwjNU9",
+        "JWT_SECRET": "Xn5AuYJekNw9GugD7vioBVuAvk82B0oA",
+        "DATABASE_URL": "postgres://postgres:pIQvF7rSuUolA2UiieVkgeGLOCOGDmERMYd7AVO2SEPNBQU37wxoBkct1da5zXuI@gkc04ocwkck084kgcw804sc8:5432/postgres"
+    },
+    "domains": [
+        {
+            "domain": "app.mueblerialaeconomica.com",
+            "path": "/"
+        }
+    ]
+}

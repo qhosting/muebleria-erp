@@ -1,0 +1,22 @@
+
+# 🚀 COMANDOS PARA CONECTAR CON GITHUB
+
+# 1. Navegar al directorio del proyecto
+cd /home/ubuntu/muebleria_la_economica
+
+# 2. Cambiar a rama main (estándar moderno)
+git branch -M main
+
+# 3. Agregar todos los archivos de Coolify
+git add .
+
+# 4. Hacer commit de la configuración de Coolify
+git commit -m "feat: Configuración completa para Coolify deployment"
+
+# 5. Conectar con tu repositorio GitHub (REEMPLAZA TU-USUARIO)
+git remote add origin https://github.com/TU-USUARIO/muebleria-la-economica.git
+
+# 6. Push inicial
+git push -u origin main
+
+# ✅ ¡Listo! Tu código está en GitHub
