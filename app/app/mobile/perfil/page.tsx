@@ -1,11 +1,24 @@
 'use client';
+
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { signOut, useSession } from 'next-auth/react';
 import { Settings, Printer, LogOut, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { toast } from 'sonner';
 
 export default function MobilePerfilPage() {
     const { data: session } = useSession();
+    const [pendingCount, setPendingCount] = useState(0);
+
+    useEffect(() => {
+        const loadPending = async () => {
+            const { obtenerTamañoCola } = await import('@/lib/native/sync');
+            const size = await obtenerTamañoCola();
+            setPendingCount(size);
+        };
+        loadPending();
+    }, []);
 
     return (
         <div className="space-y-6">
@@ -38,11 +51,31 @@ export default function MobilePerfilPage() {
                 </Button>
 
                 <Button
-                    className="w-full bg-slate-900 border border-slate-800 hover:bg-slate-800 text-white justify-start h-12"
+                    onClick={async () => {
+                        const { sincronizarCola } = await import('@/lib/native/sync');
+                        toast.info('Sincronizando datos...');
+                        const result = await sincronizarCola();
+                        if (result.procesados > 0) {
+                            toast.success(`Se sincronizaron ${result.procesados} elementos`);
+                            setPendingCount(0);
+                        } else if (result.offline) {
+                            toast.error('Sin conexión a internet');
+                        } else {
+                            toast.info('No hay datos pendientes de sincronizar');
+                        }
+                    }}
+                    className="w-full bg-slate-900 border border-slate-800 hover:bg-slate-800 text-white justify-between h-12"
                     variant="outline"
                 >
-                    <RefreshCw className="w-5 h-5 mr-3 text-slate-400" />
-                    Sincronizar Datos
+                    <div className="flex items-center">
+                        <RefreshCw className="w-5 h-5 mr-3 text-slate-400" />
+                        Sincronizar Datos
+                    </div>
+                    {pendingCount > 0 && (
+                        <span className="bg-amber-600 text-[10px] font-bold px-2 py-0.5 rounded-full text-white">
+                            {pendingCount} Pendientes
+                        </span>
+                    )}
                 </Button>
             </div>
 

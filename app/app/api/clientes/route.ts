@@ -93,6 +93,8 @@ export async function GET(request: NextRequest) {
       importe2: cliente.importe2 ? parseFloat(cliente.importe2.toString()) : null,
       importe3: cliente.importe3 ? parseFloat(cliente.importe3.toString()) : null,
       importe4: cliente.importe4 ? parseFloat(cliente.importe4.toString()) : null,
+      ingresosMensuales: cliente.ingresosMensuales ? parseFloat(cliente.ingresosMensuales.toString()) : null,
+      limiteCredito: cliente.limiteCredito ? parseFloat(cliente.limiteCredito.toString()) : null,
     }));
 
     return NextResponse.json({
@@ -216,16 +218,50 @@ export async function POST(request: NextRequest) {
           cobradorAsignadoId: cobradorId || null,
           productoId: productoId || null,
           sucursalId: sucursalId || null,
-          direccionCompleta,
+
+          // Dirección detallada
+          direccionCompleta: direccionCompleta || `${body.calle || ''} ${body.numeroExterior || ''}, ${body.colonia || ''}`, // Fallback
+          calle: body.calle,
+          numeroExterior: body.numeroExterior,
+          numeroInterior: body.numeroInterior,
+          colonia: body.colonia,
+          ciudad: body.ciudad,
+          estado: body.estado,
+          codigoPostal: body.codigoPostal,
+          referenciaDireccion: body.referenciaDireccion,
+
+          // Identificación
+          dni: body.dni,
+          email: body.email,
+
+          // Datos Personales y Laborales
+          fechaNacimiento: body.fechaNacimiento ? new Date(body.fechaNacimiento) : null,
+          estadoCivil: body.estadoCivil,
+          genero: body.genero,
+          ocupacion: body.ocupacion,
+          empresaTrabajo: body.empresaTrabajo,
+          telefonoTrabajo: body.telefonoTrabajo,
+
+          // Datos de Venta y Cobranza
           descripcionProducto,
           diaPago: diaPago,
           montoPago: parseFloat(montoPago),
           periodicidad,
           saldoActual: parseFloat(saldoActual || montoPago),
+
+          // Importes extra
           importe1: importe1 ? parseFloat(importe1) : null,
           importe2: importe2 ? parseFloat(importe2) : null,
           importe3: importe3 ? parseFloat(importe3) : null,
           importe4: importe4 ? parseFloat(importe4) : null,
+
+          // Datos Financieros y Otros
+          ingresosMensuales: body.ingresosMensuales ? parseFloat(body.ingresosMensuales) : null,
+          limiteCredito: body.limiteCredito ? parseFloat(body.limiteCredito) : null,
+          formaPago: body.formaPago,
+          datosBancarios: body.datosBancarios || null,
+          observaciones: body.observaciones,
+          zona: body.zona,
         },
         include: {
           cobradorAsignado: {

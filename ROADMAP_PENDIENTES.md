@@ -6,29 +6,25 @@ Este documento detalla las características planificadas, mejoras técnicas y nu
 
 ### 🔴 Prioridad Alta (Q1 2026)
 
-#### 1. Aplicación Nativa Android 📱 (Solo Cobradores)
+#### 1. Aplicación Nativa Android 📱 (Solo Cobradores) [✅ EN PROGRESO - 90%]
 - **Alcance:** App exclusiva para cobradores en campo (no incluye módulos administrativos).
-- **Compatibilidad Universal:** Funciona en Android 5.0+ (vs PWA que requiere Android 8.0+).
-- **Distribución Play Store:** Mayor alcance y credibilidad con app oficial.
-- **Plugins Nativos:** Bluetooth para impresoras térmicas, GPS para navegación, almacenamiento offline.
-- **Funcionalidades:** Lista de clientes, registro de pagos, motararios, caja diaria, impresión de tickets.
-- **Mejor Rendimiento:** App ligera (~25 MB) optimizada para dispositivos de gama baja.
-- **Documentación:** Plan completo en `PLAN-APP-COBRADOR-ANDROID.md` y script `setup-capacitor-cobrador.sh`.
-- **Tiempo estimado:** 7-10 días de implementación.
+- **Plugins Nativos:** Bluetooth para impresoras, GPS, almacenamiento offline (Dexie/Preferences).
+- **Funcionalidades:** Lista de clientes, registro de pagos con WhatsApp, caja diaria, mapas.
+- **Estado:** Vistas móviles creadas, lógica de sincronización offline implementada. Pendiente: Notificaciones Push.
 
-#### 2. Optimización Inteligente de Rutas
-- **Visualización en Mapa:** Integración con servicios de mapas (Google Maps / Mapbox) para ver la ubicación de los clientes de una ruta.
-- **Planificación de Recorrido:** Algoritmo para sugerir el orden óptimo de visita basado en la ubicación geográfica para ahorrar tiempo y combustible.
-- **Navegación:** Botón directo para iniciar navegación GPS hacia el domicilio del cliente.
+#### 2. Optimización Inteligente de Rutas [🟡 EN PROGRESO - 50%]
+- **Visualización en Mapa:** ✅ Implementado componente de mapa con Leaflet para la app móvil.
+- **Planificación de Recorrido:** ⏳ Pendiente algoritmo de optimización (TSP).
+- **Navegación:** ✅ Implementado botón para abrir Google Maps/Waze nativo.
 
-#### 3. Notificaciones y Comunicación
-- **Integración con WhatsApp:** Envío automático de recibos de pago digitales y recordatorios de cobro a través de WhatsApp API.
-- **Notificaciones Push:** Alertas a los cobradores sobre cambios en la ruta o avisos urgentes.
-- **Recordatorios SMS:** Envío programado de recordatorios de pago a clientes.
+#### 3. Notificaciones y Comunicación [🟡 EN PROGRESO - 40%]
+- **Integración con WhatsApp:** ✅ Implementado envío de recibos digitales vía wa.me desde la app móvil.
+- **Notificaciones Push:** ⏳ Pendiente configuración de Firebase Cloud Messaging (FCM).
+- **Recordatorios SMS:** ⏳ Pendiente integración con Twilio o similar.
 
-#### 4. Mejoras en Importación de Datos
-- **Asistente de Migración:** Herramienta robusta para importar clientes y saldos históricos desde Excel/CSV con validación de datos en tiempo real.
-- **Exportación Avanzada:** Capacidad de exportar reportes personalizados en múltiples formatos (PDF, Excel, JSON).
+#### 4. Mejoras en Importación de Datos [✅ COMPLETADO]
+- **Asistente de Migración:** ✅ Implementada herramienta de carga masiva desde Excel con vista previa y validación.
+- **Exportación Avanzada:** ⏳ Pendiente reportes personalizados en PDF/Excel.
 
 ### 🟡 Prioridad Media (Q2 2026)
 

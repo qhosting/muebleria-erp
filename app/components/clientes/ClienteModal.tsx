@@ -34,7 +34,8 @@ export function ClienteModal({
   readOnly = false
 }: ClienteModalProps) {
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
+  const [activeTab, setActiveTab] = useState('general');
+  const [formData, setFormData] = useState<any>({
     codigoCliente: '',
     nombreCompleto: '',
     telefono: '',
@@ -42,7 +43,6 @@ export function ClienteModal({
     cobradorAsignadoId: 'sin-asignar',
     productoId: '',
     sucursalId: '',
-    direccionCompleta: '',
     descripcionProducto: '',
     diaPago: '1',
     montoPago: '',
@@ -53,7 +53,30 @@ export function ClienteModal({
     importe3: '',
     importe4: '',
     fechaVenta: new Date().toISOString().split('T')[0],
-    statusCuenta: 'activo'
+    statusCuenta: 'activo',
+
+    // Nuevos campos
+    dni: '',
+    email: '',
+    calle: '',
+    numeroExterior: '',
+    numeroInterior: '',
+    colonia: '',
+    ciudad: '',
+    estado: '',
+    codigoPostal: '',
+    referenciaDireccion: '',
+    fechaNacimiento: '',
+    estadoCivil: '',
+    genero: '',
+    ocupacion: '',
+    empresaTrabajo: '',
+    telefonoTrabajo: '',
+    ingresosMensuales: '',
+    limiteCredito: '',
+    formaPago: '',
+    observaciones: '',
+    zona: ''
   });
 
   const isEditMode = !!cliente;
@@ -68,7 +91,6 @@ export function ClienteModal({
         cobradorAsignadoId: cliente.cobradorAsignadoId || 'sin-asignar',
         productoId: cliente.productoId || '',
         sucursalId: cliente.sucursalId || '',
-        direccionCompleta: cliente.direccionCompleta || '',
         descripcionProducto: cliente.descripcionProducto || '',
         diaPago: cliente.diaPago.toString() || '1',
         montoPago: cliente.montoPago.toString() || '',
@@ -79,9 +101,33 @@ export function ClienteModal({
         importe3: cliente.importe3?.toString() || '',
         importe4: cliente.importe4?.toString() || '',
         fechaVenta: cliente.fechaVenta ? new Date(cliente.fechaVenta).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        statusCuenta: cliente.statusCuenta || 'activo'
+        statusCuenta: cliente.statusCuenta || 'activo',
+
+        // Mapeo de nuevos campos
+        dni: cliente.dni || '',
+        email: cliente.email || '',
+        calle: cliente.calle || '',
+        numeroExterior: cliente.numeroExterior || '',
+        numeroInterior: cliente.numeroInterior || '',
+        colonia: cliente.colonia || '',
+        ciudad: cliente.ciudad || '',
+        estado: cliente.estado || '',
+        codigoPostal: cliente.codigoPostal || '',
+        referenciaDireccion: cliente.referenciaDireccion || '',
+        fechaNacimiento: cliente.fechaNacimiento ? new Date(cliente.fechaNacimiento).toISOString().split('T')[0] : '',
+        estadoCivil: cliente.estadoCivil || '',
+        genero: cliente.genero || '',
+        ocupacion: cliente.ocupacion || '',
+        empresaTrabajo: cliente.empresaTrabajo || '',
+        telefonoTrabajo: cliente.telefonoTrabajo || '',
+        ingresosMensuales: cliente.ingresosMensuales?.toString() || '',
+        limiteCredito: cliente.limiteCredito?.toString() || '',
+        formaPago: cliente.formaPago || '',
+        observaciones: cliente.observaciones || '',
+        zona: cliente.zona || ''
       });
     } else {
+      // Reset completo para nuevo cliente
       setFormData({
         codigoCliente: '',
         nombreCompleto: '',
@@ -90,7 +136,6 @@ export function ClienteModal({
         cobradorAsignadoId: 'sin-asignar',
         productoId: '',
         sucursalId: '',
-        direccionCompleta: '',
         descripcionProducto: '',
         diaPago: '1',
         montoPago: '',
@@ -101,7 +146,28 @@ export function ClienteModal({
         importe3: '',
         importe4: '',
         fechaVenta: new Date().toISOString().split('T')[0],
-        statusCuenta: 'activo'
+        statusCuenta: 'activo',
+        dni: '',
+        email: '',
+        calle: '',
+        numeroExterior: '',
+        numeroInterior: '',
+        colonia: '',
+        ciudad: '',
+        estado: '',
+        codigoPostal: '',
+        referenciaDireccion: '',
+        fechaNacimiento: '',
+        estadoCivil: '',
+        genero: '',
+        ocupacion: '',
+        empresaTrabajo: '',
+        telefonoTrabajo: '',
+        ingresosMensuales: '',
+        limiteCredito: '',
+        formaPago: '',
+        observaciones: '',
+        zona: ''
       });
     }
   }, [cliente, open]);
@@ -109,15 +175,15 @@ export function ClienteModal({
   const handleProductChange = (prodId: string) => {
     const producto = productos.find(p => p.id === prodId);
     if (producto) {
-      setFormData(prev => ({
+      setFormData((prev: any) => ({
         ...prev,
         productoId: prodId,
         descripcionProducto: producto.nombre,
         montoPago: producto.precioVenta.toString(),
-        saldoActual: producto.precioVenta.toString() // Inicializa saldo con precio venta
+        saldoActual: producto.precioVenta.toString()
       }));
     } else {
-      setFormData(prev => ({ ...prev, productoId: prodId }));
+      setFormData((prev: any) => ({ ...prev, productoId: prodId }));
     }
   };
 
@@ -129,7 +195,6 @@ export function ClienteModal({
       const url = isEditMode ? `/api/clientes/${cliente.id}` : '/api/clientes';
       const method = isEditMode ? 'PUT' : 'POST';
 
-      // Prepare data with proper null handling for cobrador assignment
       const submitData = {
         ...formData,
         cobradorAsignadoId: formData.cobradorAsignadoId === 'sin-asignar' ? null : formData.cobradorAsignadoId
@@ -137,25 +202,21 @@ export function ClienteModal({
 
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(submitData),
       });
 
       if (response.ok) {
-        toast.success(
-          isEditMode ? 'Cliente actualizado exitosamente' : 'Cliente creado exitosamente'
-        );
+        toast.success(isEditMode ? 'Cliente actualizado' : 'Cliente creado');
         onSuccess();
         onOpenChange(false);
       } else {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al procesar la solicitud');
+        throw new Error(errorData.error || 'Error al procesar');
       }
     } catch (error) {
       console.error('Error:', error);
-      toast.error(error instanceof Error ? error.message : 'Error al procesar la solicitud');
+      toast.error(error instanceof Error ? error.message : 'Error desconocido');
     } finally {
       setLoading(false);
     }
@@ -169,351 +230,246 @@ export function ClienteModal({
   ];
 
   const diasSemana = [
-    { value: '1', label: 'Lunes' },
-    { value: '2', label: 'Martes' },
-    { value: '3', label: 'Miércoles' },
-    { value: '4', label: 'Jueves' },
-    { value: '5', label: 'Viernes' },
-    { value: '6', label: 'Sábado' },
+    { value: '1', label: 'Lunes' }, { value: '2', label: 'Martes' },
+    { value: '3', label: 'Miércoles' }, { value: '4', label: 'Jueves' },
+    { value: '5', label: 'Viernes' }, { value: '6', label: 'Sábado' },
     { value: '7', label: 'Domingo' },
   ];
 
+  // Helper para renderizar Inputs
+  const renderInput = (id: string, label: string, type = 'text', required = false, placeholder = '', colSpan = 1) => (
+    <div className={`space-y-2 ${colSpan > 1 ? `col-span-${colSpan}` : ''}`}>
+      <Label htmlFor={id}>{label} {required && '*'}</Label>
+      <Input
+        id={id}
+        type={type}
+        value={formData[id]}
+        onChange={(e) => setFormData({ ...formData, [id]: e.target.value })}
+        required={!readOnly && required}
+        placeholder={placeholder}
+        disabled={readOnly}
+      />
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {readOnly ? 'Detalles del Cliente' : (isEditMode ? 'Editar Cliente' : 'Nuevo Cliente')}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={readOnly ? (e) => e.preventDefault() : handleSubmit} className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="codigoCliente">Código de Cliente {!isEditMode && '*'}</Label>
-              <Input
-                id="codigoCliente"
-                value={formData.codigoCliente}
-                onChange={(e) => setFormData({ ...formData, codigoCliente: e.target.value.toUpperCase() })}
-                required={!readOnly && !isEditMode}
-                placeholder="Ej: CLI25090949"
-                disabled={readOnly}
-              />
-              {!isEditMode && (
-                <p className="text-xs text-gray-500">
-                  Si se deja vacío, se generará automáticamente
-                </p>
-              )}
-            </div>
+        <form onSubmit={readOnly ? (e) => e.preventDefault() : handleSubmit} className="flex flex-col h-full">
 
-            <div className="space-y-2">
-              <Label htmlFor="nombreCompleto">Nombre Completo *</Label>
-              <Input
-                id="nombreCompleto"
-                value={formData.nombreCompleto}
-                onChange={(e) => setFormData({ ...formData, nombreCompleto: e.target.value })}
-                required={!readOnly}
-                placeholder="Nombre completo del cliente"
-                disabled={readOnly}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="telefono">Teléfono</Label>
-              <Input
-                id="telefono"
-                value={formData.telefono}
-                onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                placeholder="Número de teléfono"
-                disabled={readOnly}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vendedor">Vendedor</Label>
-              <Input
-                id="vendedor"
-                value={formData.vendedor}
-                onChange={(e) => setFormData({ ...formData, vendedor: e.target.value })}
-                placeholder="Nombre del vendedor"
-                disabled={readOnly}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="cobradorAsignadoId">Cobrador Asignado</Label>
-              <Select
-                value={formData.cobradorAsignadoId}
-                onValueChange={(value) => setFormData({ ...formData, cobradorAsignadoId: value })}
-                disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar cobrador" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sin-asignar">Sin asignar</SelectItem>
-                  {cobradores.map((cobrador) => (
-                    <SelectItem key={cobrador.id} value={cobrador.id}>
-                      {cobrador.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="direccionCompleta">Dirección Completa *</Label>
-            <Textarea
-              id="direccionCompleta"
-              value={formData.direccionCompleta}
-              onChange={(e) => setFormData({ ...formData, direccionCompleta: e.target.value })}
-              required={!readOnly}
-              placeholder="Dirección completa del cliente"
-              rows={2}
-              disabled={readOnly}
-            />
-          </div>
-
-          {/* Selección de Sucursal y Producto (Solo modo creación) */}
-          {!isEditMode && !readOnly && (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="sucursalId">Sucursal de Venta</Label>
-                <Select
-                  value={formData.sucursalId}
-                  onValueChange={(v) => setFormData({ ...formData, sucursalId: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar sucursal..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sucursales.map((s: any) => (
-                      <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="productoId">Producto (Inventario)</Label>
-                <Select
-                  value={formData.productoId}
-                  onValueChange={handleProductChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Buscar en inventario..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {productos.map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.codigo} - {p.nombre} (${p.precioVenta})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="descripcionProducto">Descripción del Producto *</Label>
-            <Textarea
-              id="descripcionProducto"
-              value={formData.descripcionProducto}
-              onChange={(e) => setFormData({ ...formData, descripcionProducto: e.target.value })}
-              required={!readOnly}
-              placeholder="Descripción del producto vendido"
-              rows={2}
-              disabled={readOnly}
-            />
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="diaPago">Día de Pago *</Label>
-              <Select
-                value={formData.diaPago}
-                onValueChange={(value) => setFormData({ ...formData, diaPago: value })}
-                disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar día" />
-                </SelectTrigger>
-                <SelectContent>
-                  {diasSemana.map((dia) => (
-                    <SelectItem key={dia.value} value={dia.value}>
-                      {dia.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="periodicidad">Periodicidad *</Label>
-              <Select
-                value={formData.periodicidad}
-                onValueChange={(value) => setFormData({ ...formData, periodicidad: value })}
-                disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {periodicidadOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="montoPago">Monto de Pago *</Label>
-              <Input
-                id="montoPago"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.montoPago}
-                onChange={(e) => setFormData({ ...formData, montoPago: e.target.value })}
-                required={!readOnly}
-                placeholder="0.00"
-                disabled={readOnly}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="saldoActual">Saldo Actual</Label>
-              <Input
-                id="saldoActual"
-                type="number"
-                step="0.01"
-                value={formData.saldoActual}
-                onChange={(e) => setFormData({ ...formData, saldoActual: e.target.value })}
-                placeholder="0.00"
-                disabled={readOnly}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="fechaVenta">Fecha de Venta</Label>
-              <Input
-                id="fechaVenta"
-                type="date"
-                value={formData.fechaVenta}
-                onChange={(e) => setFormData({ ...formData, fechaVenta: e.target.value })}
-                disabled={readOnly}
-              />
-            </div>
-          </div>
-
-          {isEditMode && (
-            <div className="space-y-2">
-              <Label htmlFor="statusCuenta">Estado de Cuenta</Label>
-              <Select
-                value={formData.statusCuenta}
-                onValueChange={(value) => setFormData({ ...formData, statusCuenta: value })}
-                disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="activo">Activo</SelectItem>
-                  <SelectItem value="inactivo">Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="space-y-2">
-              <Label htmlFor="importe1">Importe 1</Label>
-              <Input
-                id="importe1"
-                type="number"
-                step="0.01"
-                value={formData.importe1}
-                onChange={(e) => setFormData({ ...formData, importe1: e.target.value })}
-                placeholder="0.00"
-                disabled={readOnly}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="importe2">Importe 2</Label>
-              <Input
-                id="importe2"
-                type="number"
-                step="0.01"
-                value={formData.importe2}
-                onChange={(e) => setFormData({ ...formData, importe2: e.target.value })}
-                placeholder="0.00"
-                disabled={readOnly}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="importe3">Importe 3</Label>
-              <Input
-                id="importe3"
-                type="number"
-                step="0.01"
-                value={formData.importe3}
-                onChange={(e) => setFormData({ ...formData, importe3: e.target.value })}
-                placeholder="0.00"
-                disabled={readOnly}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="importe4">Importe 4</Label>
-              <Input
-                id="importe4"
-                type="number"
-                step="0.01"
-                value={formData.importe4}
-                onChange={(e) => setFormData({ ...formData, importe4: e.target.value })}
-                placeholder="0.00"
-                disabled={readOnly}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-2 pt-4">
-            {readOnly ? (
-              <Button
+          {/* TABS DE NAVEGACIÓN */}
+          <div className="flex border-b mb-4 overflow-x-auto">
+            {['general', 'direccion', 'personal', 'facturacion', 'observaciones'].map(tab => (
+              <button
+                key={tab}
                 type="button"
-                onClick={() => onOpenChange(false)}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap ${activeTab === tab
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
               >
-                <X className="h-4 w-4 mr-2" />
-                Cerrar
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-4 pb-4">
+
+            {/* --- PESTAÑA GENERAL --- */}
+            {activeTab === 'general' && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="codigoCliente">Código {!isEditMode && '*'}</Label>
+                  <Input
+                    id="codigoCliente"
+                    value={formData.codigoCliente}
+                    onChange={(e) => setFormData({ ...formData, codigoCliente: e.target.value.toUpperCase() })}
+                    required={!readOnly && !isEditMode}
+                    placeholder="Auto-generado si vacío"
+                    disabled={readOnly}
+                  />
+                  {!isEditMode && <p className="text-xs text-gray-500">Dejar vacío para auto-generar</p>}
+                </div>
+
+                {renderInput('nombreCompleto', 'Nombre Completo', 'text', true)}
+                {renderInput('dni', 'DNI / INE / CURP')}
+                {renderInput('telefono', 'Teléfono Celular')}
+                {renderInput('email', 'Email', 'email')}
+
+                <div className="space-y-2">
+                  <Label>Cobrador Asignado</Label>
+                  <Select
+                    value={formData.cobradorAsignadoId}
+                    onValueChange={(val) => setFormData({ ...formData, cobradorAsignadoId: val })}
+                    disabled={readOnly}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sin-asignar">Sin asignar</SelectItem>
+                      {cobradores.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {!isEditMode && !readOnly && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Sucursal</Label>
+                      <Select value={formData.sucursalId} onValueChange={(v) => setFormData({ ...formData, sucursalId: v })}>
+                        <SelectTrigger><SelectValue placeholder="Sucursal..." /></SelectTrigger>
+                        <SelectContent>
+                          {sucursales.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Producto (Stock)</Label>
+                      <Select value={formData.productoId} onValueChange={handleProductChange}>
+                        <SelectTrigger><SelectValue placeholder="Buscar en inventario..." /></SelectTrigger>
+                        <SelectContent>
+                          {productos.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.codigo} - {p.nombre}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+
+                <div className="md:col-span-2 space-y-2">
+                  <Label>Descripción del Producto *</Label>
+                  <Textarea
+                    value={formData.descripcionProducto}
+                    onChange={(e) => setFormData({ ...formData, descripcionProducto: e.target.value })}
+                    required={!readOnly}
+                    rows={2}
+                    disabled={readOnly}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* --- PESTAÑA DIRECCIÓN --- */}
+            {activeTab === 'direccion' && (
+              <div className="grid gap-4 md:grid-cols-2">
+                {renderInput('calle', 'Calle')}
+                <div className="grid grid-cols-2 gap-2">
+                  {renderInput('numeroExterior', 'No. Exterior')}
+                  {renderInput('numeroInterior', 'No. Interior')}
+                </div>
+                {renderInput('colonia', 'Colonia')}
+                {renderInput('codigoPostal', 'Código Postal')}
+                {renderInput('ciudad', 'Ciudad/Municipio')}
+                {renderInput('estado', 'Estado')}
+                {renderInput('zona', 'Zona/Ruta')}
+
+                <div className="md:col-span-2 space-y-2">
+                  <Label>Referencia / Entre calles</Label>
+                  <Textarea
+                    value={formData.referenciaDireccion}
+                    onChange={(e) => setFormData({ ...formData, referenciaDireccion: e.target.value })}
+                    rows={2}
+                    disabled={readOnly}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* --- PESTAÑA PERSONAL / LABORAL --- */}
+            {activeTab === 'personal' && (
+              <div className="grid gap-4 md:grid-cols-2">
+                {renderInput('fechaNacimiento', 'Fecha de Nacimiento', 'date')}
+                {renderInput('genero', 'Género')}
+                {renderInput('estadoCivil', 'Estado Civil')}
+                {renderInput('ocupacion', 'Ocupación')}
+                {renderInput('empresaTrabajo', 'Empresa donde trabaja')}
+                {renderInput('telefonoTrabajo', 'Teléfono Trabajo')}
+                {renderInput('ingresosMensuales', 'Ingresos Mensuales Aprox.', 'number')}
+              </div>
+            )}
+
+            {/* --- PESTAÑA FACTURACIÓN / CRÉDITO --- */}
+            {activeTab === 'facturacion' && (
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Día de Pago *</Label>
+                  <Select value={formData.diaPago} onValueChange={(v) => setFormData({ ...formData, diaPago: v })} disabled={readOnly}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {diasSemana.map(d => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Periodicidad *</Label>
+                  <Select value={formData.periodicidad} onValueChange={(v) => setFormData({ ...formData, periodicidad: v })} disabled={readOnly}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {periodicidadOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {renderInput('montoPago', 'Monto de Pago *', 'number', true)}
+                {renderInput('saldoActual', 'Saldo Actual', 'number')}
+                {renderInput('limiteCredito', 'Límite de Crédito', 'number')}
+                {renderInput('fechaVenta', 'Fecha Venta', 'date')}
+
+                {renderInput('importe1', 'Importe Extra 1', 'number')}
+                {renderInput('importe2', 'Importe Extra 2', 'number')}
+                {renderInput('importe3', 'Importe Extra 3', 'number')}
+                {renderInput('importe4', 'Importe Extra 4', 'number')}
+
+                {isEditMode && (
+                  <div className="space-y-2">
+                    <Label>Estado de Cuenta</Label>
+                    <Select value={formData.statusCuenta} onValueChange={(v) => setFormData({ ...formData, statusCuenta: v })} disabled={readOnly}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="activo">Activo</SelectItem>
+                        <SelectItem value="inactivo">Inactivo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* --- PESTAÑA OBSERVACIONES --- */}
+            {activeTab === 'observaciones' && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Observaciones Generales</Label>
+                  <Textarea
+                    value={formData.observaciones}
+                    onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
+                    rows={6}
+                    disabled={readOnly}
+                    placeholder="Notas internas sobre el cliente..."
+                  />
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-4 border-t mt-auto">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+              <X className="h-4 w-4 mr-2" /> {readOnly ? 'Cerrar' : 'Cancelar'}
+            </Button>
+            {!readOnly && (
+              <Button type="submit" disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                {isEditMode ? 'Guardar Cambios' : 'Registrar Cliente'}
               </Button>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  disabled={loading}
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-2" />
-                  )}
-                  {isEditMode ? 'Actualizar' : 'Crear'} Cliente
-                </Button>
-              </>
             )}
           </div>
         </form>

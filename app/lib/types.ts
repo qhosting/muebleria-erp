@@ -34,6 +34,35 @@ export interface Cliente {
   importe2?: number;
   importe3?: number;
   importe4?: number;
+
+  // Nuevos campos extendidos
+  dni?: string;
+  email?: string;
+
+  calle?: string;
+  numeroExterior?: string;
+  numeroInterior?: string;
+  colonia?: string;
+  ciudad?: string;
+  estado?: string;
+  codigoPostal?: string;
+  referenciaDireccion?: string;
+
+  fechaNacimiento?: Date;
+  estadoCivil?: string;
+  genero?: string;
+  ocupacion?: string;
+  empresaTrabajo?: string;
+  telefonoTrabajo?: string;
+
+  ingresosMensuales?: number;
+  limiteCredito?: number;
+  formaPago?: string;
+  datosBancarios?: any;
+
+  observaciones?: string;
+  zona?: string;
+
   cobradorAsignado?: User;
   createdAt: Date;
   updatedAt: Date;
