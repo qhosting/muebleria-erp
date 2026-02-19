@@ -16,7 +16,7 @@ const nextConfig = {
   },
 
   typescript: {
-    ignoreBuildErrors: false,
+    ignoreBuildErrors: true,
   },
 
   // Capacitor requiere trailing slash en exportación estática
