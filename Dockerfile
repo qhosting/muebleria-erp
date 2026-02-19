@@ -161,8 +161,8 @@ COPY --chown=nextjs:nodejs start.sh ./start.sh
 RUN sed -i 's/\r$//' start.sh && chmod +x start.sh
 
 # Copy optional shell scripts (ignore if missing)
-COPY --chown=nextjs:nodejs seed-admin.sh* backup-manual.sh* restore-backup.sh* ./
-RUN chmod +x *.sh 2>/dev/null || true
+COPY --chown=nextjs:nodejs seed-admin.sh* backup-manual.sh* restore-backup.sh* reset-db.sh* ./
+RUN sed -i 's/\r$//' *.sh 2>/dev/null; chmod +x *.sh 2>/dev/null || true
 
 # Create backup directory
 RUN mkdir -p /backup && chown nextjs:nodejs /backup
