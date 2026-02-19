@@ -19,13 +19,13 @@ RUN set -ex && \
     npm ci --legacy-peer-deps 2>&1 | tee /tmp/npm-install.log && \
     echo "📦 Verifying installation..." && \
     if [ ! -d "node_modules" ]; then \
-        echo "❌ ERROR: node_modules not created!" && \
-        cat /tmp/npm-install.log && \
-        exit 1; \
+    echo "❌ ERROR: node_modules not created!" && \
+    cat /tmp/npm-install.log && \
+    exit 1; \
     fi && \
     if [ ! -d "node_modules/@prisma" ]; then \
-        echo "⚠️ WARNING: @prisma not found in node_modules" && \
-        ls -la node_modules/ | head -20; \
+    echo "⚠️ WARNING: @prisma not found in node_modules" && \
+    ls -la node_modules/ | head -20; \
     fi && \
     echo "✅ Dependencies installed successfully"
 
@@ -84,19 +84,19 @@ RUN echo "📦 Generating Prisma client..." && \
     echo "" && \
     echo "📂 Verifying generated client..." && \
     if [ -d "node_modules/.prisma/client/" ]; then \
-        ls -la node_modules/.prisma/client/ | head -10; \
-        echo "✅ Prisma client directory exists"; \
+    ls -la node_modules/.prisma/client/ | head -10; \
+    echo "✅ Prisma client directory exists"; \
     else \
-        echo "❌ ERROR: Prisma client directory not found!"; \
-        exit 1; \
+    echo "❌ ERROR: Prisma client directory not found!"; \
+    exit 1; \
     fi && \
     echo "" && \
     echo "🔍 Verifying enums in generated client..." && \
     if [ -f "node_modules/.prisma/client/index.d.ts" ]; then \
-        echo "📄 Checking for UserRole enum..." && \
-        grep "export.*UserRole" node_modules/.prisma/client/index.d.ts | head -1 || echo "⚠️  UserRole not found"; \
-        echo "📄 Checking for StatusCuenta enum..." && \
-        grep "export.*StatusCuenta" node_modules/.prisma/client/index.d.ts | head -1 || echo "⚠️  StatusCuenta not found"; \
+    echo "📄 Checking for UserRole enum..." && \
+    grep "export.*UserRole" node_modules/.prisma/client/index.d.ts | head -1 || echo "⚠️  UserRole not found"; \
+    echo "📄 Checking for StatusCuenta enum..." && \
+    grep "export.*StatusCuenta" node_modules/.prisma/client/index.d.ts | head -1 || echo "⚠️  StatusCuenta not found"; \
     fi && \
     echo "✅ Prisma client generated successfully!"
 
@@ -113,12 +113,12 @@ RUN echo "🔨 Building Next.js application (NORMAL mode, no standalone)..." && 
 # Verify build output
 RUN echo "🔍 Verifying build output..." && \
     if [ -f ".next/BUILD_ID" ]; then \
-        echo "✅ Build ID found: $(cat .next/BUILD_ID)"; \
+    echo "✅ Build ID found: $(cat .next/BUILD_ID)"; \
     else \
-        echo "❌ BUILD_ID not found!"; \
-        echo "Contents of .next directory:"; \
-        ls -la .next/ || echo "No .next directory!"; \
-        exit 1; \
+    echo "❌ BUILD_ID not found!"; \
+    echo "Contents of .next directory:"; \
+    ls -la .next/ || echo "No .next directory!"; \
+    exit 1; \
     fi
 
 # Production image
@@ -156,9 +156,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 # Copy scripts directory for seed-admin
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 
-# Copy shell scripts
-COPY --chown=nextjs:nodejs seed-admin.sh backup-manual.sh restore-backup.sh start.sh ./
-RUN chmod +x seed-admin.sh backup-manual.sh restore-backup.sh start.sh
+# Copy start script (required)
+COPY --chown=nextjs:nodejs start.sh ./start.sh
+RUN chmod +x start.sh
+
+# Copy optional shell scripts (ignore if missing)
+COPY --chown=nextjs:nodejs seed-admin.sh* backup-manual.sh* restore-backup.sh* ./
+RUN chmod +x *.sh 2>/dev/null || true
 
 # Create backup directory
 RUN mkdir -p /backup && chown nextjs:nodejs /backup
@@ -167,10 +171,10 @@ RUN mkdir -p /backup && chown nextjs:nodejs /backup
 RUN echo "🔍 Verifying production files..." && \
     ls -la /app/.next/ && \
     if [ -f "/app/.next/BUILD_ID" ]; then \
-        echo "✅ Production build verified: $(cat /app/.next/BUILD_ID)"; \
+    echo "✅ Production build verified: $(cat /app/.next/BUILD_ID)"; \
     else \
-        echo "❌ BUILD_ID missing in production image!"; \
-        exit 1; \
+    echo "❌ BUILD_ID missing in production image!"; \
+    exit 1; \
     fi
 
 USER nextjs
