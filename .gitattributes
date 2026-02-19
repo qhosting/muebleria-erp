@@ -1,0 +1,3 @@
+# Force shell scripts to use Unix line endings (LF) in Git
+*.sh text eol=lf
+Dockerfile text eol=lf

@@ -156,9 +156,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 # Copy scripts directory for seed-admin
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 
-# Copy start script (required)
+# Copy start script (required) and fix line endings (Windows CRLF -> Unix LF)
 COPY --chown=nextjs:nodejs start.sh ./start.sh
-RUN chmod +x start.sh
+RUN sed -i 's/\r$//' start.sh && chmod +x start.sh
 
 # Copy optional shell scripts (ignore if missing)
 COPY --chown=nextjs:nodejs seed-admin.sh* backup-manual.sh* restore-backup.sh* ./
