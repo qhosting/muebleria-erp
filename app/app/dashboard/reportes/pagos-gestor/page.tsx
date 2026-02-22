@@ -89,18 +89,47 @@ export default function PagosGestorPage() {
         const prefijo = tipoFiltro === "DQ" ? "Prestamos-" : tipoFiltro === "DP" ? "Muebles-" : "General-";
 
         const csvContent = [
-            ["Fecha de Pago", "Cobrador", "Codigo Cliente", "Nombre Cliente", "Monto", "Estatus"],
-            ...detallado.map(p => [
-                p.fechaPago.split("T")[0],
-                p.cobrador?.name || "-",
-                p.cliente?.codigoCliente || "-",
-                `"${p.cliente?.nombreCompleto || "-"}"`,
-                p.monto,
-                p.estatus
-            ])
+            [
+                "ID", "Fecha de pago", "Fecha y Hora", "Código Cliente",
+                "Nombre Cliente", "Referencia de pago", "Monto", "Agente",
+                "Concepto", "Periodicidad", "Día Cobro", "Teléfono",
+                "Moratorio", "Tipo"
+            ],
+            ...detallado.map(p => {
+                // Formateo de fechas
+                const fechaPagoSolo = new Date(p.fechaPago).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                const fechaYHora = new Date(p.fechaPago).toISOString().replace("T", " ").substring(0, 19);
+
+                // Referencia
+                let referencia = p.numeroRecibo || p.ticket?.referencia || p.ticket?.folio || "PENDIENTE";
+
+                // Moratorio (Solo si el tipoPago es explícitamente moratorio)
+                const moratorioStr = p.tipoPago === "moratorio" ? formatCurrency(p.monto) : "$0.00";
+
+                // Limpieza de campos problemáticos por las comas
+                const nombreLimpio = `"${p.cliente?.nombreCompleto || "-"}"`;
+                const conceptoLimpio = `"${p.concepto || "ABONO"}"`;
+
+                return [
+                    p.id,
+                    fechaPagoSolo,
+                    fechaYHora,
+                    p.cliente?.codigoCliente || "-",
+                    nombreLimpio,
+                    `"${referencia}"`,
+                    formatCurrency(p.monto),
+                    p.cobrador?.name?.toUpperCase() || "SISTEMA",
+                    conceptoLimpio,
+                    p.cliente?.periodicidad?.toUpperCase() || "-",
+                    p.cliente?.diaPago?.toUpperCase() || "-",
+                    p.cliente?.telefono || "-",
+                    moratorioStr,
+                    p.metodoPago?.toUpperCase() || "EFECTIVO"
+                ];
+            })
         ].map(e => e.join(",")).join("\n");
 
-        const blob = new Blob([csvContent], { type: "text/csv" });
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: "text/csv;charset=utf-8;" }); // BOM for Excel UTF-8
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;

@@ -50,11 +50,21 @@ export async function GET(request: NextRequest) {
             where,
             include: {
                 cliente: {
-                    select: { nombreCompleto: true, codigoCliente: true, direccionCompleta: true },
+                    select: {
+                        nombreCompleto: true,
+                        codigoCliente: true,
+                        direccionCompleta: true,
+                        periodicidad: true,
+                        diaPago: true,
+                        telefono: true
+                    },
                 },
                 cobrador: {
                     select: { name: true, codigoGestor: true },
                 },
+                ticket: {
+                    select: { folio: true, referencia: true }
+                }
             },
             orderBy: { fechaPago: 'asc' },
         });
