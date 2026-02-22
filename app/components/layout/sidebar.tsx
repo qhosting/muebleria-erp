@@ -99,6 +99,10 @@ const navigation = [
     href: '/dashboard/reportes',
     icon: BarChart3,
     roles: ['admin', 'gestor_cobranza', 'reporte_cobranza'],
+    subItems: [
+      { name: 'General', href: '/dashboard/reportes', icon: FileText },
+      { name: 'Pagos Gestor (DP/DQ)', href: '/dashboard/reportes/pagos-gestor', icon: Users },
+    ]
   },
   {
     name: 'Morosidad',
