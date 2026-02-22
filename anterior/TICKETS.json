@@ -1,0 +1,4495 @@
+{
+  "name": "TICKETS",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64",
+        "binaryPropertyName": "=data",
+        "options": {
+          "mimeType": "={{ $json.mimetype }}"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1616,
+        784
+      ],
+      "id": "a7d11f04-bf4f-4bd6-a570-3fd5b38c36d7",
+      "name": "IMAGEN"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "text": "=Tu única función es actuar como un API de extracción de datos de recibos de pago y comprobantes digitales. Analiza la imagen y devuelve **exclusivamente un objeto JSON válido**. Si un campo no se encuentra, su valor debe ser `null`. No inventes datos ni incluyas texto adicional.\n\n**INSTRUCCIONES POR CAMPO:**\n\n-   `contrato`: Este valor se proporciona externamente, no lo busques en la imagen.\n-   `monto`: El importe principal de la transacción, ignorando siempre comisiones, IVA o el \"PAGO TOTAL\".\n-   `referencia`: Busca el número de \"REFERENCIA\". Si está oculto con asteriscos (ej: `**********1858`), extrae solo la parte numérica. Si el campo no existe, el valor es `null`.\n-   `folio`: **INSTRUCCIÓN ACTUALIZADA:**\n    1.  **Prioridad 1 (Depósitos en efectivo):** Busca un campo etiquetado como \"# DE AFILIACION\" o \"AFILIACION\". Este es el valor más importante para los tickets de OXXO o tiendas similares.\n    2.  **Prioridad 2 (Otros comprobantes):** Si no encuentras una afiliación, busca el número de \"AUTORIZACION\".\n    3.  **Prioridad 3 (Último recurso):** Si ninguno de los anteriores existe, busca \"FOLIO DE VENTA\".\n    4.  Si no encuentras ninguno de los tres, el valor debe ser `null`.\n-   `fecha`: La fecha de la operación, formateada obligatoriamente como `AAAA-MM-DD`.\n-   `hr`: La hora de la operación, formateada obligatoriamente como `HH:MM:SS` (completa con `:00` si es necesario).\n-   `claverastreo`: **INSTRUCCIÓN ACTUALIZADA:** Busca un campo explícitamente llamado \"CLAVE DE RASTREO\". **Si el valor aparece en dos líneas o párrafos, júntalos en una sola cadena de texto sin espacios ni guiones en medio.** Si el campo no está claramente presente en la imagen, el valor **debe ser `null`**.\n\n**EJEMPLOS DE RESPUESTAS ESPERADAS:**\n\n1.  **Para un depósito en efectivo (OXXO, con # DE AFILIACION):**\n    `{\"contrato\":\"DQ2506016\",\"monto\":500.00,\"referencia\":\"1858\",\"folio\":\"4090400\",\"fecha\":\"2025-08-11\",\"hr\":\"11:25:00\",\"claverastreo\":null}`\n\n2.  **Para una transferencia digital simple (sin folio ni referencia):**\n    `{\"contrato\":\"DQ2506016\",\"monto\":200.00,\"referencia\":null,\"folio\":null,\"fecha\":\"2025-08-08\",\"hr\":\"07:29:09\",\"claverastreo\":null}`\n    \n3.  **Para una transferencia SPEI de Spin (con clave de rastreo en dos líneas):**\n    `{\"contrato\":\"DQ2411240\",\"monto\":460.00,\"referencia\":\"9135156\",\"folio\":null,\"fecha\":\"2025-09-06\",\"hr\":\"18:30:00\",\"claverastreo\":\"SPIN20250906183029308UEQ0SSPJC\"}`\n\n4.  **Para una transferencia SPEI completa (ejemplo hipotético):**\n    `{\"contrato\":\"DQ2506016\",\"monto\":123.45,\"referencia\":\"98765\",\"folio\":\"99887766\",\"fecha\":\"2025-08-12\",\"hr\":\"15:30:10\",\"claverastreo\":\"STP012345ABC67890DEF\"}`",
+        "inputType": "base64",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1840,
+        784
+      ],
+      "id": "92a5f21e-ac50-45b8-ac37-a4fe35512bf4",
+      "name": "Analyze image",
+      "credentials": {
+        "openAiApi": {
+          "id": "oMqWboRin5sLcHQv",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;\n\nSTART TRANSACTION;\n\n-- Obtenemos todas las variables\nSET @remitente = '{{ $(\"EXTRAE_DATOS\").item.json.remitente }}';\nSET @contrato = '{{ $(\"EXTRAE_DATOS\").item.json.contrato }}';\nSET @monto = '{{ $(\"EXTRAE_DATOS\").item.json.monto }}';\n\n-- Truncamos valores para evitar errores de longitud (Data too long)\nSET @referencia = LEFT('{{ $(\"EXTRAE_DATOS\").item.json.referencia }}', 50);\nSET @folio = LEFT('{{ $(\"EXTRAE_DATOS\").item.json.folio }}', 50);\nSET @fecha = '{{ $(\"EXTRAE_DATOS\").item.json.fecha }}';\nSET @hr = '{{ $(\"EXTRAE_DATOS\").item.json.hr }}';\nSET @claverastreo = LEFT('{{ $(\"EXTRAE_DATOS\").item.json.claverastreo }}', 50);\n\n-- --- Nueva lógica de validación (más robusta) ---\nSET @existing_ticket_id = (\n    SELECT id FROM ticket\n    WHERE\n        -- Opción 1: La clave de rastreo ya existe (para SPEI/transferencias)\n        (@claverastreo IS NOT NULL AND @claverastreo != '' AND @claverastreo != 'null' AND claverastreo = @claverastreo COLLATE utf8mb4_general_ci)\n        OR\n        -- Opción 2: Coincide la combinación única (para efectivo u otros)\n        (contrato = @contrato COLLATE utf8mb4_general_ci AND fecha = @fecha AND monto = @monto AND hr = @hr)\n    LIMIT 1\n);\n-- --------------------------------------------------\n\nIF @existing_ticket_id IS NULL THEN\n    -- Si no existe, insertamos el nuevo ticket\n    INSERT INTO ticket (contrato, monto, referencia, folio, fecha, hr, claverastreo, remitente, concepto, cuentaorigen, cuentadestino)\n    VALUES (@contrato, @monto, @referencia, @folio, @fecha, @hr, @claverastreo, @remitente, 'TICKET WHATSAPP', 'NO IDENTIFICADO', 'NO IDENTIFICADO');\n\n    UPDATE cat_clientes SET bancos = 'NOCONCILIADO', pagar = '1' WHERE cod_cliente = @contrato COLLATE utf8mb4_general_ci;\n    SELECT LAST_INSERT_ID() AS ticket_id, 0 as ya_existe;\nELSE\n    -- Si ya existe, solo devolvemos su ID\n    SELECT @existing_ticket_id AS ticket_id, 1 as ya_existe;\nEND IF;\n\nCOMMIT;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        2224,
+        784
+      ],
+      "id": "01db9b1e-612f-4431-8512-1c61f339cd75",
+      "name": "Insertar_Ticket",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nodo: EXTRAE_DATOS (Versión final que maneja bloques de código)\n\n// PASO 1: OBTENER EL CONTRATO Y EL REMITENTE\n// Intenta obtener el contrato y el remitente de la ruta normal (con caption).\nlet contratoInicial = null;\nlet remitenteInicial = null;\ntry {\n  contratoInicial = $('Enrutador Principal').item.json.contrato;\n  remitenteInicial = $('Enrutador Principal').item.json.body.data.key.remoteJid;\n} catch (e) {\n  // Ignora el error si el nodo no se ejecutó.\n}\n\n// Si no los encontramos ahí, los buscamos en la ruta de \"búsqueda por teléfono\".\nif (!contratoInicial) {\n  try {\n    // Asegúrate de que tu nodo se llame \"Unir Datos de Búsqueda\"\n    contratoInicial = $('Unir Datos de Busqueda').item.json.contrato;\n    remitenteInicial = $('Unir Datos de Busqueda').item.json.remitente;\n  } catch (e) {\n    // Si este nodo tampoco se ejecutó, los valores se quedan como null.\n  }\n}\n\n// PASO 2: OBTENER Y LIMPIAR LA RESPUESTA DE LA IA\nconst iaResponseString = $('Analyze image').first().json.content;\nlet jsonText = iaResponseString;\n\nconst jsonMatch = iaResponseString.match(/{[\\s\\S]*}/);\nif (jsonMatch) {\n  jsonText = jsonMatch[0];\n}\n\n// PASO 3: PARSEAR EL JSON LIMPIO\nlet parsedJson = {};\ntry {\n  parsedJson = JSON.parse(jsonText);\n} catch (error) {\n  return [{ json: { validData: false, error: \"Formato de IA inválido.\" } }];\n}\n\n// PASO 4: CONSTRUIR EL OBJETO DE DATOS FINAL\nconst extractedData = {\n  contrato: contratoInicial,\n  remitente: remitenteInicial, // <-- MODIFICACIÓN AÑADIDA\n  monto: parsedJson.monto || null,\n  referencia: parsedJson.referencia || null,\n  folio: parsedJson.folio || null,\n  fecha: parsedJson.fecha || null,\n  hr: parsedJson.hr || null,\n  claverastreo: parsedJson.claverastreo || null,\n  validData: false\n};\n\n// PASO 5: VALIDACIÓN DE LOS DATOS\nif (extractedData.monto && extractedData.fecha) {\n  const montoNumerico = parseFloat(extractedData.monto);\n  const fechaValida = /^\\d{4}-\\d{2}-\\d{2}$/.test(extractedData.fecha);\n  const horaValida = !extractedData.hr || /^\\d{2}:\\d{2}:\\d{2}$/.test(extractedData.hr);\n\n  if (!isNaN(montoNumerico) && fechaValida && horaValida) {\n    extractedData.monto = montoNumerico.toFixed(2);\n    extractedData.validData = true;\n  }\n}\n\nreturn [{ json: extractedData }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2032,
+        784
+      ],
+      "id": "f8212705-11c5-4776-9818-84ce4f6e8932",
+      "name": "EXTRAE_DATOS"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Asegura que sqlResult sea un array\nconst sqlResult = Array.isArray($json) ? $json : [$json];\n\n// Obtiene los datos de EXTRAE_DATOS de forma segura\nconst ticketDataNode = $('EXTRAE_DATOS').first();\nconst ticketData = ticketDataNode ? ticketDataNode.json : {};\n\n// Variables iniciales\nlet mensajeBase = '❌ Error: No se pudo insertar el ticket.';\nlet ticketId = null;\nlet yaExiste = false;\n\n// Procesa el resultado SQL\nif (sqlResult.length > 0) {\n  const resultRow = sqlResult[0];\n  yaExiste = !!resultRow.ya_existe;\n  ticketId = resultRow.ticket_id || null;\n\n  if (ticketId) {\n    mensajeBase = yaExiste\n      ? `⚠️ Este comprobante ya existe con ID ${ticketId}.`\n      : '✅ ¡Comprobante EN PROCESO de VALIDACIÓN!';\n  }\n}\n\n// Construye el mensaje con formato para WhatsApp\nlet mensajeFinal = mensajeBase;\n\nif (ticketId) {\n  mensajeFinal +=\n    `\\n\\n📌 *Detalles del Ticket*` +\n    `\\n- 🆔 ID: ${ticketId}` +\n    `\\n- 📄 Contrato: ${ticketData.contrato || 'N/A'}` +\n    `\\n- 📅 Fecha: ${ticketData.fecha || 'N/A'}` +\n    `\\n- ⏰ Hora: ${ticketData.hr || 'N/A'}` + // <-- LÍNEA AÑADIDA\n    `\\n- 💰 Monto: $${parseFloat(ticketData.monto).toFixed(2) || '0.00'}` +\n    `\\n- 🔢 Referencia: ${ticketData.referencia || 'N/A'}` +\n    `\\n- 📝 Folio: ${ticketData.folio || 'N/A'}` +\n    `\\n- 📦 Clave de rastreo: ${ticketData.claverastreo || 'N/A'}` +\n    `\\n\\n⚡ *TICKET EN PROCESO DE CONCILIACION* ⚡`;\n}\n\n// Devuelve el objeto listo para el siguiente nodo, incluyendo la hora.\nreturn [{\n  json: {\n    mensaje: mensajeFinal,\n    ticketId,\n    yaExiste,\n    contrato: ticketData.contrato || null,\n    fecha: ticketData.fecha || null,\n    monto: ticketData.monto || null,\n    hr: ticketData.hr || null, // <-- LÍNEA AÑADIDA\n    referencia: ticketData.referencia || null,\n    folio: ticketData.folio || null,\n    claverastreo: ticketData.claverastreo || null,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2432,
+        784
+      ],
+      "id": "84e5ab5f-4739-4545-a427-9d1d0488077a",
+      "name": "MENSAJE"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body;\nconst tipoMensaje = body.data.messageType;\nlet accion = ''; // Variable para decidir la ruta a seguir\nlet contrato = null; // Variable para guardar el contrato\n\n// --- ESCENARIO 1: El mensaje es una IMAGEN ---\nif (tipoMensaje === 'imageMessage') {\n  // Limpiamos y pasamos a mayúsculas el caption\n  const caption = (body.data.message.imageMessage.caption || '').trim().toUpperCase();\n  \n  if (caption !== '') {\n    // A. SI HAY CAPTION: Validamos el formato\n    const formatoValido = /^(DQ|DP)\\d{7}$/.test(caption);\n\n    if (formatoValido) {\n      // A1. Formato VÁLIDO: Guardamos el contrato y continuamos.\n      accion = 'CONTINUAR_CON_CAPTION';\n      contrato = caption; // <-- ¡CORRECCIÓN CLAVE! Guardamos el contrato aquí.\n    } else {\n      // A2. Formato INVÁLIDO: Activamos la ruta para notificar el error.\n      accion = 'FORMATO_CAPTION_INVALIDO';\n    }\n  } else {\n    // B. SI NO HAY CAPTION: Activamos la búsqueda por teléfono.\n    accion = 'BUSCAR_POR_TELEFONO';\n  }\n} \n// --- ESCENARIO 2: El mensaje es TEXTO ---\nelse if (tipoMensaje === 'conversation' || tipoMensaje === 'extendedTextMessage') {\n  // Si es un mensaje de texto, lo guardamos como 'contrato' para su posterior validación\n  contrato = (body.data.message.conversation || body.data.message.extendedTextMessage.text || '').trim().toUpperCase();\n  accion = 'VERIFICAR_PENDIENTE';\n} \n// --- ESCENARIO 3: Otro tipo de mensaje ---\nelse {\n  // Cualquier otro tipo (audio, sticker, etc.) se ignora.\n  accion = 'IGNORAR';\n}\n\n// Devolvemos la acción y el contrato para que los siguientes nodos puedan usarlos.\nreturn [{\n  json: {\n    ...$json, // Pasamos todos los datos originales\n    accion: accion,\n    contrato: contrato // <-- ¡CORRECCIÓN CLAVE! Devolvemos el contrato.\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1392,
+        832
+      ],
+      "id": "43744ccf-e360-4994-b156-96c68cb744ed",
+      "name": "Enrutador Principal"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "=CONTINUAR_CON_CAPTION",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "9e4ddaa6-9e9a-4cb1-b5d0-1478f864ca1e"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "2eddb45d-4cc6-4fc8-923c-c807c3bc1156",
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "BUSCAR_POR_TELEFONO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "f72ca788-c811-4f44-a7cd-e57d97ed2cbc",
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "VERIFICAR_PENDIENTE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b5644131-d2b6-4d3c-962a-bdd3837e9c4a",
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "FORMATO_CAPTION_INVALIDO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -1232,
+        800
+      ],
+      "id": "7fb4520f-3d0b-42e8-bb93-b58a0c61b07d",
+      "name": "Selector de Acción",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pending_tickets (remitente, base64_data, tipo_archivo)\nVALUES (\n  '{{ $('Enrutador Principal').item.json.body.data.key.remoteJid }}',\n  '{{ $('Enrutador Principal').item.json.body.data.message.base64 }}',\n  '{{ $('Enrutador Principal').item.json.body.data.message.imageMessage.mimetype }}'\n)\nON DUPLICATE KEY UPDATE\n  base64_data = VALUES(base64_data),\n  tipo_archivo = VALUES(tipo_archivo);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        112,
+        896
+      ],
+      "id": "1cf6f3e7-fc8d-4ea4-bc5c-da76a66e0290",
+      "name": "Guardar Ticket Pendiente",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const mensaje = \"✅ Imagen recibida. Para continuar, por favor envía ahora tu número de cliente Ejemplo es algo como DQ1234567;\"\n\nreturn [{\n  json: {\n    mensaje: mensaje\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        896
+      ],
+      "id": "4bdfc171-739e-4960-9aed-f0f68849f94f",
+      "name": "Generar Mensaje de Petición"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT base64_data, tipo_archivo\nFROM pending_tickets\nWHERE remitente = '{{ $json.body.data.key.remoteJid }}';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -96,
+        1040
+      ],
+      "id": "2abcaa64-eab6-41b2-b6de-bd6e140e9bf6",
+      "name": "Buscar Ticket Pendiente",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ed558fad-5def-481b-b800-a1f0ee171431",
+              "leftValue": "={{ $json.base64_data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        640,
+        1040
+      ],
+      "id": "74c9342d-ecda-4fc7-a24d-1dff9d288f93",
+      "name": "¿Se Encontró Pendiente?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM pending_tickets WHERE remitente = '{{ $json.remitente }}';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        928,
+        1024
+      ],
+      "id": "db0a04b3-d82a-4980-89e7-c4d7fdf0a2b5",
+      "name": "Eliminar Pendiente",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;\n\nSTART TRANSACTION;\nSET time_zone = '-06:00';\nSET lc_time_names = 'es_ES';\n\n-- PASO 1: OBTENER DATOS DEL TICKET\nSET @ticketId = '{{ $json.ticketId }}';\nSET @contrato = '{{ $json.contrato }}';\nSET @montoPago = '{{ $json.monto }}';\nSET @fechaPago = CURDATE();\nSET @hr = '{{ $json.hr }}';\nSET @claverastreo = '{{ $json.claverastreo }}';\nSET @remitente = '{{ $(\"EXTRAE_DATOS\").item.json.remitente }}';\n\n-- VALIDACIÓN: Si ticketId o contrato son inválidos, no hacer nada\nIF @ticketId IS NOT NULL AND @ticketId != '' AND @ticketId != 'undefined' AND @contrato IS NOT NULL AND @contrato != '' AND @contrato != 'undefined' THEN\n\n    -- PASO 2: OBTENER DATOS DEL CLIENTE\n    SELECT nombre_ccliente, codigo_gestor, periodicidad_cliente, saldo_actualcli, id_ges, tel1_cliente\n    INTO @nombreCliente, @codigoGestor, @periodicidadCliente, @saldoActual, @idGes, @tel1Cliente\n    FROM cat_clientes WHERE cod_cliente = @contrato COLLATE utf8mb4_general_ci LIMIT 1;\n\n    SET @nuevoSaldo = ROUND(CAST(@saldoActual AS DECIMAL(10,2)) - CAST(@montoPago AS DECIMAL(10,2)), 2);\n\n    -- PASO 3: INTENTAR LA CONCILIACIÓN\n    SET @movimientoId = (\n        SELECT ec.id FROM estado_de_cuenta ec\n        WHERE ec.clave_rastreo IS NOT NULL AND ec.clave_rastreo != '' AND ec.clave_rastreo = @claverastreo COLLATE utf8mb4_general_ci\n        AND (ec.ticket_id IS NULL OR ec.ticket_id = @ticketId)\n        LIMIT 1\n    );\n\n    -- PASO 4: APLICAR EL PAGO\n    SET @refPago = IF(@movimientoId IS NOT NULL, CONCAT('TICKET ID: ', @ticketId, ' / MOV. ID: ', @movimientoId), CONCAT('TICKET ID: ', @ticketId, ' / PENDIENTE'));\n\n    INSERT IGNORE INTO pagos (\n        ticket_id_origen, ref_pago, fechap, fechahora, cod_cliente, nombre_ccliente,\n        montop, codigo_gestor, sucursal, periodicidad_cliente,\n        dia_cobro, tel1_cliente, mora, tipocap, saldo_actualcli, id_ges\n    ) VALUES (\n        @ticketId, @refPago, @fechaPago, NOW(), @contrato, @nombreCliente,\n        @montoPago, @codigoGestor, 'PC QUERETARO', @periodicidadCliente,\n        UPPER(DAYNAME(@fechaPago)), @tel1Cliente, 0, 'BANCARIO', @nuevoSaldo, @idGes\n    );\n\n    -- PASO 5: LÓGICA DE ACTUALIZACIÓN\n    IF ROW_COUNT() > 0 THEN\n        SET @new_payment_id = LAST_INSERT_ID();\n        UPDATE ticket SET idpago = @new_payment_id WHERE id = @ticketId;\n        UPDATE cat_clientes SET saldo_actualcli = @nuevoSaldo WHERE cod_cliente = @contrato COLLATE utf8mb4_general_ci;\n    ELSE\n        SELECT idpag INTO @new_payment_id FROM pagos WHERE ticket_id_origen = @ticketId LIMIT 1;\n    END IF;\n\n    -- PASO 6: ACTUALIZAR ESTADOS DE CONCILIACIÓN\n    IF @movimientoId IS NOT NULL THEN\n        UPDATE ticket SET conciliado = 1, idbancos = @movimientoId WHERE id = @ticketId;\n        UPDATE estado_de_cuenta SET ticket_id = @ticketId, cod_cliente = @contrato, gestor = @codigoGestor, fecha_identificado = NOW() WHERE id = @movimientoId;\n        UPDATE cat_clientes SET bancos = 'CONCILIADO' WHERE cod_cliente = @contrato COLLATE utf8mb4_general_ci;\n        \n        SELECT 'EXITO' AS estado, @new_payment_id AS idPagoGenerado, @ticketId as ticketId, @contrato as cod_cliente, @nuevoSaldo as saldo_actual, @movimientoId as movimientoId;\n    ELSE\n        SELECT 'FALLO' AS estado, @new_payment_id AS idPagoGenerado, @ticketId as ticketId, @contrato as cod_cliente, @nuevoSaldo as saldo_actual, NULL as movimientoId;\n    END IF;\n\nELSE\n    -- Datos inválidos, devolvemos error sin tocar la BD\n    SELECT 'ERROR_DATOS' AS estado, NULL AS idPagoGenerado, @ticketId as ticketId, @contrato as cod_cliente, NULL as saldo_actual, NULL as movimientoId;\nEND IF;\n\nCOMMIT;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        2640,
+        784
+      ],
+      "id": "e7085d02-ce4a-43e7-9660-1645239a4c0a",
+      "name": "Intentar Conciliación Inteligente",
+      "alwaysOutputData": false,
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.whatscloud.site/message/sendText/{{ $('Webhook1').item.json.body.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Webhook1').item.json.body.apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Webhook1').item.json.body.data.key.remoteJid }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $('Code1').item.json.razon }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "cb56fa15-ffd3-4958-b6c8-aa5bda0f8e04",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// La única variable que necesitas actualizar con tus propios números\nconst numerosPermitidos = ['5214425060999', '5214271914642', '5215512345678','5214424793320']; \n\nconst body = $json.body;\n\n// Validar que el cuerpo del mensaje y la clave existan para evitar errores.\nif (!body || !body.data || !body.data.key) {\n  return [{ \n    json: {\n      validar: false,\n      razon: 'Datos de webhook incompletos o en formato inesperado. No se puede procesar.'\n    }\n  }];\n}\n\nconst numeroRemitente = body.data.key.remoteJid.replace('@s.whatsapp.net', '');\nconst mensajeDeTexto = (body.data.message.conversation || '').toLowerCase();\n\n// *** MODIFICACIÓN AQUÍ ***\n// Agregamos explicitamente chatId al objeto resultado inicial\nlet resultado = {\n  chatId: body.data.key.remoteJid, // <--- ESTO ES LO QUE FALTABA (ID completo con @s.whatsapp.net)\n  validar: false,\n  razon: 'Acceso denegado.'\n};\n\n// ** Extracción de datos del archivo y del mensaje general **\nconst message = body.data.message;\nconst documentMessage = message.documentMessage;\n\nif (documentMessage) {\n  resultado.mimetype = documentMessage.mimetype;\n  resultado.caption = (documentMessage.caption || '').toLowerCase();\n  resultado.filename = documentMessage.fileName;\n}\n\n// Extraer el base64 del mensaje, si existe\nresultado.base64 = message.base64;\n\n// Lógica de validación\nif (!numerosPermitidos.includes(numeroRemitente)) {\n  resultado.razon = `Número de teléfono no autorizado 🚫: ${numeroRemitente}`;\n  return [{ json: resultado }];\n}\n\nif (mensajeDeTexto.includes('autorizar')) {\n  resultado.validar = true;\n  resultado.razon = 'Autorizado. 😉 Por favor, envía el archivo para actualizar (CSV o Excel).';\n  resultado.accion = 'autorizar';\n  return [{ json: resultado }];\n}\n\nconst captionDelArchivo = resultado.caption;\nconst tipoDeArchivo = resultado.mimetype;\n// Validamos CSV o Excel (xls y xlsx)\nconst tipoDeArchivoValido = (tipoDeArchivo === 'text/csv' || tipoDeArchivo === 'application/vnd.ms-excel' || tipoDeArchivo === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');\n\nif (captionDelArchivo && captionDelArchivo.includes('actualizar') && tipoDeArchivoValido) {\n  resultado.validar = true;\n  resultado.razon = 'Archivo recibido. Procesando actualización...';\n  resultado.accion = 'actualizar';\n  // Pasamos también el body original por si el siguiente nodo necesita más datos crudos\n  resultado.originalBody = body; \n  return [{ json: resultado }];\n}\n\nif (captionDelArchivo && captionDelArchivo.includes('actualizar') && !tipoDeArchivoValido) {\n  resultado.razon = `Archivo incorrecto. Solo se aceptan archivos CSV y Excel. Tipo de archivo recibido: ${tipoDeArchivo}`;\n  return [{ json: resultado }];\n}\n\nresultado.razon = 'Frase de activación incorrecta o no se adjuntó un archivo válido. 😕';\nreturn [{ json: resultado }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -864,
+        224
+      ],
+      "id": "f2cbd29c-0b2e-4100-a552-8e9ad937850e",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8746b4b1-9d99-4cd2-a20d-16f3c3c6ba24",
+              "leftValue": "={{ $json.accion }}",
+              "rightValue": "=autorizar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "4cfb6e34-48f3-49a4-ac2a-734e0a0d009b",
+              "leftValue": "={{ $json.accion }}",
+              "rightValue": "actualizar",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "593e540c-cc07-4465-bcc7-1e32b8a786b2",
+              "leftValue": "={{ $json.validar }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -656,
+        224
+      ],
+      "id": "4aa23079-1238-41c4-a6d6-5d152263b941",
+      "name": "Validacion exitosa"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO usuarios_autorizados (numero_whatsapp, fecha_autorizacion)\nVALUES ('{{ $json.key.remoteJid.replace('@s.whatsapp.net', '') }}', CURRENT_TIMESTAMP())\nON DUPLICATE KEY UPDATE fecha_autorizacion = CURRENT_TIMESTAMP();",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        320,
+        0
+      ],
+      "id": "07a807ec-47fe-453a-86ae-fa0718c1d030",
+      "name": "Execute a SQL query",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.filename }}",
+                    "rightValue": "=santander.csv",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "7ef71d22-3131-4f34-912e-afda9df026b0"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a712ba66-7cba-47a4-8cf3-23a69c231a44",
+                    "leftValue": "={{ $json.filename }}",
+                    "rightValue": "banorte.csv",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c017f439-8a65-40e3-8a6c-b1aaa0775194",
+                    "leftValue": "=",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "empty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        48,
+        384
+      ],
+      "id": "70569040-2e39-48fc-897e-48c441965da8",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64",
+        "binaryPropertyName": "=data {{ $json.filename }}",
+        "options": {
+          "mimeType": "={{ $json.mimetype }}"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        336,
+        224
+      ],
+      "id": "60ceae94-48ba-440e-808f-b33fa6ec9ca3",
+      "name": "santander.csv"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64",
+        "binaryPropertyName": "=data {{ $json.filename }}",
+        "options": {
+          "mimeType": "={{ $json.mimetype }}"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        336,
+        400
+      ],
+      "id": "f657a246-a044-4d8e-8233-e0f879de5084",
+      "name": "banorte.csv"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Obtenemos todas las filas del CSV que nos llegan en el array 'items'.\nconst allItems = items;\n\n// --- Funciones Auxiliares (las definimos una sola vez) ---\n\nfunction extractDetail(regex, text) {\n  if (!text) return null;\n  const match = text.match(regex);\n  return match ? match[1].trim() : null;\n}\n\nfunction cleanCurrency(value) {\n  if (!value || value.trim() === '-') return null;\n  const cleaned = value.replace(/[$,\\sMXN]/g, '');\n  return parseFloat(cleaned) || null;\n}\n\n// --- Lógica Principal de Transformación ---\n\nconst resultados = allItems.map(inputItem => {\n  const item = inputItem.json;\n  const descripcionDetallada = item['DESCRIPCIÓN DETALLADA'] || \"\";\n  \n  let fecha = item['FECHA DE OPERACIÓN'];\n  if (fecha) {\n    const partes = fecha.split('/');\n    if (partes.length === 3) {\n      fecha = `${partes[2]}-${partes[1]}-${partes[0]}`;\n    }\n  }\n\n  const abono = cleanCurrency(item['DEPÓSITOS']);\n  const cargo = cleanCurrency(item['RETIROS']);\n\n  // Creamos un objeto base para el resultado.\n  const resultado = {\n    json: {\n      fecha: fecha,\n      hora: null,\n      tipoOperacion: item['DESCRIPCIÓN'],\n      abono: abono,\n      cargo: cargo,\n      concepto: null,\n      claveRastreo: null,\n      bancoEmisor: null,\n      bank: 'banorte'\n    }\n  };\n\n  // --- Lógica Diferenciada por Tipo de Movimiento ---\n\n  // CASO 1: Es una transferencia SPEI recibida\n  if (descripcionDetallada.includes('SPEI RECIBIDO')) {\n    resultado.json.claveRastreo = extractDetail(/CVE RAST: ([\\w.\\/-]+)/, descripcionDetallada);\n    resultado.json.concepto = extractDetail(/CONCEPTO: (.*?)(?:, REFERENCIA:|, DEL CLIENTE:|, DE LA CLABE)/, descripcionDetallada);\n    resultado.json.bancoEmisor = extractDetail(/BCO:\\d+\\s(.*?):/, descripcionDetallada)?.replace(/\\s+/g, ' ');\n    resultado.json.hora = extractDetail(/HR LIQ: (\\d{2}:\\d{2}:\\d{2})/, descripcionDetallada);\n  \n  // CASO 2: Es un TRASPASO interno\n  } else if (item['DESCRIPCIÓN'] === 'TRASPASO') {\n    resultado.json.tipoOperacion = 'TRASPASO INTERNO';\n    // Para traspasos, el concepto está en la descripción detallada.\n    resultado.json.concepto = extractDetail(/DE LA CUENTA: \\d+, (.*)/, descripcionDetallada);\n    // La clave de rastreo es la referencia del CSV.\n    resultado.json.claveRastreo = item['REFERENCIA'];\n    resultado.json.bancoEmisor = 'BANORTE'; // Es una operación interna.\n  }\n  \n  return resultado;\n});\n\n// Devolvemos el array completo con todos los registros procesados.\nreturn resultados;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        400
+      ],
+      "id": "8e0f6054-5f10-455e-b500-283a514d2242",
+      "name": "Code2",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "function cleanNumber(val) {\n  const cleaned = (val || '0').toString().replace(/[$,'\\- ]/g, '');\n  return parseFloat(cleaned) || 0;\n}\n\nfunction cleanString(val) {\n  if (!val) return null;\n  return val.replace(/['\\u0000-\\u001F]/g, '').trim();\n}\n\nfunction formatDate(dateString) {\n  const cleaned = cleanString(dateString);\n  if (!cleaned || !/^\\d{8}$/.test(cleaned)) return null;\n  const day = cleaned.substring(0, 2);\n  const month = cleaned.substring(2, 4);\n  const year = cleaned.substring(4, 8);\n  return `${year}-${month}-${day}`;\n}\n\n// Mapa para evitar duplicados por referencia + clave_rastreo + fecha_operacion\nconst seen = new Set();\n\nconst cleanedItems = [];\n\nfor (const item of items) {\n  const json = item.json;\n\n  const referencia = cleanString(json['Referencia']) || 'N/A';\n  const claveRastreo = cleanString(json['Clave de Rastreo']) || 'N/A'; // <-- Aquí se fuerza que nunca sea null\n  const fechaOperacion = formatDate(json['Fecha']) || 'N/A';\n\n  const uniqueKey = `${referencia}-${claveRastreo}-${fechaOperacion}`;\n  if (seen.has(uniqueKey)) continue;\n  seen.add(uniqueKey);\n\n  const cargoAbono = cleanString(json['Cargo/Abono']);\n  const importe = cleanNumber(json['Importe']);\n  const cargo = cargoAbono === '-' ? importe : 0;\n  const abono = cargoAbono === '+' ? importe : 0;\n\n  const descripcionGeneral = cleanString(json['Descripcion']);\n  const concepto = cleanString(json['Concepto']);\n  const nombreOrdenante = cleanString(json['Nombre Ordenante']);\n  const bancoParticipante = cleanString(json['Banco Participante']);\n\n  const descripcionDetallada = `${descripcionGeneral} | `\n    + `Concepto: ${concepto} | `\n    + `Origen: ${nombreOrdenante || 'N/A'} (${bancoParticipante || 'N/A'})`;\n\n  cleanedItems.push({\n    json: {\n      bank: \"santander\",\n      banco_origen: bancoParticipante || 'N/A',\n      fecha_operacion: fechaOperacion,\n      hora_operacion: cleanString(json['Hora']) || '00:00',\n      descripcion_general: descripcionGeneral,\n      cargo: cargo,\n      abono: abono,\n      saldo: cleanNumber(json['Saldo']),\n      referencia: referencia,\n      clave_rastreo: claveRastreo,\n      concepto: concepto,\n      descripcion_detallada: descripcionDetallada\n    }\n  });\n}\n\nreturn cleanedItems;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        224
+      ],
+      "id": "41c5b36e-8cc6-4dc3-a4c7-107d3c1b099a",
+      "name": "Code_Santander"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.whatscloud.site/message/sendText/{{ $('Webhook1').item.json.body.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Webhook1').item.json.body.apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Webhook1').item.json.body.data.key.remoteJid }}"
+            },
+            {
+              "name": "text",
+              "value": "=⚠️ No se encontraron datos para procesar o no se reconoció el archivo de origen (**Santander** o **Banorte**)."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        352,
+        592
+      ],
+      "id": "cf00bee6-fcc3-4f8c-b510-4f2489c9dce6",
+      "name": "Mensaje_Error"
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "data santander.csv",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        576,
+        224
+      ],
+      "id": "238ce0e4-060d-4a58-a631-3dc8bf957570",
+      "name": "Extraer datos Santander"
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "data banorte.csv",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        576,
+        400
+      ],
+      "id": "1e768f29-3c2a-43c8-b492-7ea79cf38eed",
+      "name": "Extraer datos Banorte"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "autorizar",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "47f1a22f-f921-4156-8a5b-6a0bd9136c6e"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "27a1eeae-c8d6-4858-b56b-fc3e538f78fe",
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "actualizar",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "allMatchingOutputs": false
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -400,
+        208
+      ],
+      "id": "07a31d72-d0ab-401e-a536-71adea881a4a",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT IGNORE INTO estado_de_cuenta (\n    bank,\n    banco_origen,\n    fecha_operacion,\n    hora_operacion,\n    descripcion_general,\n    cargo,\n    abono,\n    referencia,\n    clave_rastreo,\n    concepto,\n    fecha_ingreso\n) VALUES (\n    '{{ $json.bank }}',\n    '{{ $json.bancoEmisor }}',  -- Corregido\n    '{{ $json.fecha }}',        -- Corregido\n    '{{ $json.hora }}',         -- Corregido\n    '{{ $json.tipoOperacion }}',-- Corregido\n    {{ $json.cargo || 0 }},      -- Corregido\n    {{ $json.abono || 0 }},      -- Corregido\n    '{{ $json.referencia }}',\n    '{{ $json.claveRastreo }}', -- Corregido\n    '{{ $json.concepto }}',\n    NOW()\n);INSERT IGNORE INTO estado_de_cuenta (\n  bank,\n  banco_origen,\n  fecha_operacion,\n  hora_operacion,\n  descripcion_general,\n  cargo,\n  abono,\n  saldo,\n  referencia,\n  clave_rastreo,\n  concepto,\n  descripcion_detallada,\n  fecha_ingreso\n) VALUES (\n  '{{ $json.bank }}',\n  '{{ $json.banco_origen }}',\n  '{{ $json.fecha_operacion }}',\n  '{{ $json.hora_operacion }}',\n  '{{ $json.descripcion_general }}',\n  '{{ $json.cargo }}',\n  '{{ $json.abono }}',\n  '{{ $json.saldo }}',\n  '{{ $json.referencia }}',\n  '{{ $json.clave_rastreo }}',\n  '{{ $json.concepto }}',\n  '{{ $json.descripcion_detallada }}',\n  NOW()\n);\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        992,
+        400
+      ],
+      "id": "c65d6a28-e365-4cf9-99f2-7053375d2910",
+      "name": "Insertar_Banorte",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT IGNORE INTO estado_de_cuenta (\n  bank,\n  banco_origen,\n  fecha_operacion,\n  hora_operacion,\n  descripcion_general,\n  cargo,\n  abono,\n  saldo,\n  referencia,\n  clave_rastreo,\n  concepto,\n  descripcion_detallada,\n  fecha_ingreso\n) VALUES (\n  '{{ $json.bank }}',\n  '{{ $json.banco_origen }}',\n  '{{ $json.fecha_operacion }}',\n  '{{ $json.hora_operacion }}',\n  '{{ $json.descripcion_general }}',\n  {{ $json.cargo }},\n  {{ $json.abono }},\n  {{ $json.saldo }},\n  '{{ $json.referencia }}',\n  '{{ $json.clave_rastreo }}',\n  '{{ $json.concepto }}',\n  '{{ $json.descripcion_detallada }}',\n  NOW()\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        992,
+        224
+      ],
+      "id": "474e835d-ca3d-4fc1-946c-01d36526206e",
+      "name": "Inserta_Santander",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lista de números autorizados para operaciones de Tesorería.\nconst numerosTesoreria = ['5214271914642', '5215512345678','5214424793320','5214425060999']; \n\nconst body = $json.body;\nconst remitenteCompleto = body.data.key.remoteJid;\nconst remitenteCorto = remitenteCompleto.replace('@s.whatsapp.net', '');\nconst tipoMensaje = body.data.messageType;\nconst textoMensaje = (body.data.message.conversation || '').toLowerCase();\n\n// Por defecto, la acción es para el sistema de tickets.\nlet ruta = 'RUTA_TICKET';\n\n// Verificamos si es una operación de Tesorería.\nconst esUsuarioTesoreria = numerosTesoreria.includes(remitenteCorto);\nconst esMensajeTesoreria = tipoMensaje === 'documentMessage' || textoMensaje.includes('autorizar') || (body.data.message.documentMessage && body.data.message.documentMessage.caption.toLowerCase().includes('actualizar'));\n\nif (esUsuarioTesoreria && esMensajeTesoreria) {\n  // Si cumple las condiciones, cambiamos la ruta.\n  ruta = 'RUTA_TESORERIA';\n}\n\n// Devolvemos la ruta decidida y toda la información original para los siguientes nodos.\nreturn [{\n  json: {\n    ...$json, // Pasamos todos los datos originales\n    accion: ruta // Añadimos nuestra decisión\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1728,
+        816
+      ],
+      "id": "94096b5f-2352-44cd-a797-cb2edf1cf3a2",
+      "name": "Gran Enrutador"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "RUTA_TESORERIA",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "ec00b754-581e-4371-9f55-432dc67628be"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "03ce4a90-c726-4947-add8-e752c7fc4a97",
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "RUTA_TICKET",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -1568,
+        816
+      ],
+      "id": "91961f65-b4f1-485c-9c93-59611b054281",
+      "name": "Gran Enrutador2"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "START TRANSACTION;\n\n-- ====================================================================\n-- PASO 1: OBTENER DATOS DEL TICKET QUE SE ESTÁ PROCESANDO\n-- ====================================================================\nSET @ticketId = '{{ $json.id }}';\nSET @contrato = '{{ $json.contrato }}';\nSET @claverastreo = '{{ $json.claverastreo }}';\n\n-- Limpiamos la clave de rastreo para una coincidencia más segura\nSET @safeClaveRastreo = TRIM(IFNULL(@claverastreo, ''));\n\n-- ====================================================================\n-- PASO 2: BUSCAR LA COINCIDENCIA EN EL ESTADO DE CUENTA\n-- ====================================================================\n-- Buscamos una coincidencia exacta por clave de rastreo que no esté vacía\n-- y que no haya sido ya conciliada con otro ticket.\nSET @movimientoId = (\n    SELECT ec.id FROM estado_de_cuenta ec\n    WHERE \n        ec.clave_rastreo IS NOT NULL \n        AND TRIM(ec.clave_rastreo) = @safeClaveRastreo\n        AND @safeClaveRastreo != ''\n        AND ec.ticket_id IS NULL -- ¡Muy importante para no reasignar movimientos!\n    LIMIT 1\n);\n\n-- ====================================================================\n-- PASO 3: ACTUALIZAR ESTADOS SI LA CONCILIACIÓN FUE EXITOSA\n-- ====================================================================\nIF @movimientoId IS NOT NULL THEN\n    -- ¡ÉXITO! Se encontró una coincidencia por SPEI.\n    \n    -- 3A: Obtenemos el código del gestor para el reporte\n    SELECT codigo_gestor INTO @codigoGestor FROM cat_clientes WHERE cod_cliente = @contrato LIMIT 1;\n\n    -- 3B: Actualizamos el ticket para marcarlo como conciliado\n    UPDATE ticket SET conciliado = 1, idbancos = @movimientoId WHERE id = @ticketId;\n    \n    -- 3C: Vinculamos el movimiento en el estado de cuenta\n    UPDATE estado_de_cuenta \n    SET \n        ticket_id = @ticketId, \n        cod_cliente = @contrato, \n        gestor = @codigoGestor, \n        fecha_identificado = NOW() \n    WHERE id = @movimientoId;\n    \n    -- 3D: Actualizamos el estado del cliente a 'CONCILIADO'\n    UPDATE cat_clientes SET bancos = 'CONCILIADO' WHERE cod_cliente = @contrato;\n    \n    -- Devolvemos un resultado de éxito\n    SELECT 'EXITO_SPEI' AS estado, @movimientoId AS movimientoId, @ticketId AS ticketId;\n\nELSE\n    -- FALLO: No se encontró coincidencia bancaria.\n    SELECT 'FALLO_SPEI' AS estado, NULL AS movimientoId, @ticketId AS ticketId;\nEND IF;\n\nCOMMIT;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -1504,
+        1488
+      ],
+      "id": "5188f6f7-1a53-46f8-9d39-1d274f0342b9",
+      "name": "Intentar Conciliación por Ticket",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0baa5522-1179-4adc-adf3-2d7db51b541d",
+              "leftValue": "={{ $items(\"Obtener Tickets con Clave de Rastreo\")[0].json.id }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1728,
+        1504
+      ],
+      "id": "0915c3a1-c71a-40e9-8909-79635a179531",
+      "name": "¿Hay Tickets por Conciliar?",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const fechaHora = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });\nconst mensaje = `✅ Tarea de conciliación ejecutada a las ${fechaHora}.` +\n                `\\n\\nNo se encontraron tickets pendientes por procesar.`;\n\nreturn [{ json: { mensaje: mensaje } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1504,
+        1744
+      ],
+      "id": "82bf18fb-e4c1-4d1d-9554-45da367f2ed1",
+      "name": "Generar Mensaje \"Sin Novedades\""
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f4cce7a2-e0bd-49fe-8df6-3ad6670682a5",
+              "leftValue": "={{ $json.estado }}",
+              "rightValue": "EXITO",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1296,
+        1392
+      ],
+      "id": "2667ad24-5f60-4cc3-ac57-434112bca132",
+      "name": "¿Conciliación Exitosa?1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.whatscloud.site/message/sendText/CobranzaDASO",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=708EA971097C-48EC-9B1A-830B4F416880"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "=5214425060999@s.whatsapp.net"
+            },
+            {
+              "name": "=text",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1296,
+        1744
+      ],
+      "id": "3fc2aa84-2713-421c-a791-7e342383a426",
+      "name": "Enviar Mensaje al Admin"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.whatscloud.site/message/sendText/CobranzaDASO",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=708EA971097C-48EC-9B1A-830B4F416880"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $(\"Obtener Tickets con Clave de Rastreo\").item.json.remitente }}"
+            },
+            {
+              "name": "=text",
+              "value": "=    ✅ ¡Buenas noticias! Tu ticket ha sido conciliado exitosamente.\n\n    📌 *Detalles del Ticket*\n    - 🆔 ID: {{ $(\"Obtener Tickets con Clave de Rastreo\").item.json.id }}\n    - 📄 Contrato: {{ $(\"Obtener Tickets con Clave de Rastreo\").item.json.contrato }}\n    - 📅 Fecha: {{ new Date($(\"Obtener Tickets con Clave de Rastreo\").item.json.fecha).toLocaleDateString('es-MX') }}\n    - 💰 Monto: ${{ parseFloat($(\"Obtener Tickets con Clave de Rastreo\").item.json.monto).toFixed(2) }}\n    - 🔢 Referencia: {{ $(\"Obtener Tickets con Clave de Rastreo\").item.json.referencia || 'N/A' }}\n    - 📝 Folio: {{ $(\"Obtener Tickets con Clave de Rastreo\").item.json.folio || 'N/A' }}\n    - 📦 Clave de rastreo: {{ $(\"Obtener Tickets con Clave de Rastreo\").item.json.claverastreo || 'N/A' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1088,
+        1376
+      ],
+      "id": "aabbdddd-acc9-4975-98cf-b4a8d8350561",
+      "name": "Mensaje_Remitente",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Obtenemos todos los resultados de los intentos de conciliación.\nconst todosLosIntentos = $items(\"Intentar Conciliación por Ticket\");\n\n// Filtramos solo los que tuvieron éxito.\nconst conciliadosExitosos = todosLosIntentos.filter(item => item.json.estado === 'EXITO');\n\nconst totalProcesados = todosLosIntentos.length;\nconst totalExitosos = conciliadosExitosos.length;\nconst fechaHora = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });\n\n// Creamos la base del mensaje.\nlet mensaje = `✅ Tarea de conciliación finalizada a las ${fechaHora}.` +\n              `\\n\\nSe procesaron *${totalProcesados}* tickets pendientes.` +\n              `\\nSe conciliaron con éxito: *${totalExitosos}*.`;\n\n// Si hubo al menos una conciliación exitosa, añadimos el detalle.\nif (totalExitosos > 0) {\n  mensaje += \"\\n\\n*Detalle de Conciliaciones:*\";\n  // Creamos una línea por cada ticket conciliado.\n  conciliadosExitosos.forEach(item => {\n    const ticketId = item.json.ticketId;\n    const movimientoId = item.json.movimientoId;\n    mensaje += `\\n- Ticket ID \\`${ticketId}\\` -> Movimiento ID \\`${movimientoId}\\``;\n  });\n}\n\nreturn [{ json: { mensaje: mensaje } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1296,
+        1568
+      ],
+      "id": "b9210d90-3619-4517-8557-7e5f21ef0384",
+      "name": "Generar Resumen para Admin"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.whatscloud.site/message/sendText/CobranzaDASO",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=708EA971097C-48EC-9B1A-830B4F416880"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "=5214425060999@s.whatsapp.net"
+            },
+            {
+              "name": "=text",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1088,
+        1568
+      ],
+      "id": "68cf947d-a2b2-43a5-8c1c-1238d7744893",
+      "name": "Enviar Mensaje al Admin1"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        192,
+        2352
+      ],
+      "id": "855b8486-90d5-4cfd-a6e9-a9f98deff97b",
+      "name": "Ejecutar Seguimiento de Pagos (Vie, Lun-Mie)",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ new Date().getDay() }}",
+                    "rightValue": 5,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    },
+                    "id": "95e7c3b1-7b9a-420b-bf77-568047eae0b2"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c73cc1dd-734c-49e9-889a-78765538f3e2",
+                    "leftValue": "={{ new Date().getDay() }}",
+                    "rightValue": 1,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "2f250c35-714b-4bae-b1ed-4465c73bb583",
+                    "leftValue": "={{ new Date().getDay() }}",
+                    "rightValue": 2,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ed1b58d8-53c5-43f0-9e9e-87138572dc21",
+                    "leftValue": "={{ new Date().getDay() }}",
+                    "rightValue": 3,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        400,
+        2320
+      ],
+      "id": "383e657f-0ce5-43d0-8d65-d03ddfe0a09f",
+      "name": "¿Qué Día es Hoy?"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        192,
+        1440
+      ],
+      "id": "9cbd107a-1744-4f0a-a5d7-19fa15ce8024",
+      "name": "Viernes 6PM - Recordatorio a No Pagos",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    cc.cod_cliente,\n    cc.nombre_ccliente,\n    cc.tel1_cliente\nFROM\n    cat_clientes cc\nJOIN\n    cobranzaruta cr ON cc.periodicidad_cliente = cr.periodicidad\nWHERE\n    -- Condición 1: El periodo de pago debe estar activo hoy\n    cr.status = 'ACTIVO'\n    AND CURDATE() BETWEEN cr.fecha_inicio_periodo AND cr.fecha_fin_periodo\n    -- Condición 2: El cliente debe tener estatus de \"NO PAGO\"\n    AND cc.pagar = '0';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        448,
+        1440
+      ],
+      "id": "69fe1ed9-a6d4-4766-87f6-d2bdd6932826",
+      "name": "Obtener Clientes Activos sin Pago",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const clientes = $items;\n\n// Este es el mensaje base, ajustado para no exceder 160 caracteres.\nconst mensajeBase = 'Cliente DASO, le recordamos que comenzamos semana de pago. Envie su comprobante al whats 4424793320 para aplicarlo. Si ya lo realizo, ignore este mensaje.';\n\n// Crea el array de mensajes en el formato que pide LabsMobile.\nconst mensajesParaAPI = clientes.map(cliente => {\n  return {\n    to: '52' + cliente.json.tel1_cliente,\n    message: mensajeBase\n  };\n});\n\n// El cuerpo ahora solo contiene la lista de mensajes.\nconst bodyLabsMobile = {\n  messages: mensajesParaAPI\n};\n\n// (Opcional) Prepara el resumen para el administrador.\nconst cantidad = clientes.length;\nconst costoPorMensaje = 0.60;\nconst costoTotal = cantidad * costoPorMensaje;\nconst fechaHora = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });\nconst mensajeAdmin = `📊 Resumen de Envío (Recordatorio Semanal):\\n\\n` +\n                   `- Fecha: ${fechaHora}\\n` +\n                   `- Mensajes Enviados: ${cantidad}\\n` +\n                   `- Costo Total Estimado: $${costoTotal.toFixed(2)} MXN`;\n\n// Devuelve todo lo que necesitamos para los siguientes pasos.\nreturn {\n  json: {\n    bodyLabsMobile: bodyLabsMobile,\n    resumen: {\n      cantidad: cantidad,\n      costoTotal: costoTotal.toFixed(2),\n      mensajeAdmin: mensajeAdmin\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        1440
+      ],
+      "id": "4ca9f279-5db6-4522-b817-0faba6fdc30d",
+      "name": "Formatear Lote para Campaña SMS"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.labsmobile.com/json/send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "labsMobileApi",
+        "sendQuery": true,
+        "specifyQuery": "json",
+        "jsonQuery": "={{ JSON.stringify($json.bodyLabsMobile) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        1440
+      ],
+      "id": "77ee91e9-9f4c-4ed7-81eb-829e40b727a3",
+      "name": "Enviar Campaña SMS (LabsMobile)",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO log_envios_sms (fecha_ejecucion, cantidad_sms, tipo_mensaje, costo_total)\nVALUES (\n    NOW(),\n    {{ $(\"Formatear Lote para Campaña SMS\").item.json.resumen.cantidad }},\n    'CORTE NP',\n    {{ $(\"Formatear Lote para Campaña SMS\").item.json.resumen.costoTotal }}\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        1088,
+        1440
+      ],
+      "id": "34b404e3-c0b1-4770-84e8-680f81376c12",
+      "name": "Guardar Resumen en BD",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.whatscloud.site/message/sendText/CobranzaDASO",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=708EA971097C-48EC-9B1A-830B4F416880"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "=5214425060999@s.whatsapp.net"
+            },
+            {
+              "name": "=text",
+              "value": "={{ $(\"Formatear Lote para Campaña SMS\").item.json.resumen.mensajeAdmin }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1344,
+        1440
+      ],
+      "id": "5900fcd8-84be-4716-a16d-51af5a83659d",
+      "name": "Enviar Mensaje al Admin2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const clientes = $items;\n\n// Este es el mensaje base, ajustado para no exceder 160 caracteres.\nconst mensajeBase = 'Cliente DASO, le recordamos que comenzamos semana de pago. Envie su comprobante al whats 4424793320 para aplicarlo.Si ya lo realizo,ignore este mensaje.';\n\n// Crea el array de mensajes en el formato que pide LabsMobile.\nconst mensajesParaAPI = clientes.map(cliente => {\n  return {\n    to: '52' + cliente.json.tel1_cliente,\n    message: mensajeBase\n  };\n});\n\n// El cuerpo ahora solo contiene la lista de mensajes.\nconst bodyLabsMobile = {\n  messages: mensajesParaAPI\n};\n\n// (Opcional) Prepara el resumen para el administrador.\nconst cantidad = clientes.length;\nconst costoPorMensaje = 0.60;\nconst costoTotal = cantidad * costoPorMensaje;\nconst fechaHora = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });\nconst mensajeAdmin = `📊 Resumen de Envío (Recordatorio Semanal):\\n\\n` +\n                   `- Fecha: ${fechaHora}\\n` +\n                   `- Mensajes Enviados: ${cantidad}\\n` +\n                   `- Costo Total: $${costoTotal.toFixed(2)} MXN`;\n\n// Devuelve todo lo que necesitamos para los siguientes pasos.\nreturn {\n  json: {\n    bodyLabsMobile: bodyLabsMobile,\n    resumen: {\n      cantidad: cantidad,\n      costoTotal: costoTotal.toFixed(2),\n      mensajeAdmin: mensajeAdmin\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        1648
+      ],
+      "id": "6c6c0e6a-e947-43e8-a73d-56809b063bc2",
+      "name": "Formatear Lote para Campaña SMS1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.labsmobile.com/json/send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "labsMobileApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "messages",
+              "value": "={{ $json.bodyLabsMobile.messages }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        848,
+        1648
+      ],
+      "id": "ced36bac-7698-4746-8db0-8ddce66ff5ca",
+      "name": "Enviar Campaña SMS (LabsMobile)1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO log_envios_sms (fecha_ejecucion, cantidad_sms, tipo_mensaje, costo_total)\nVALUES (\n    NOW(),\n    {{ $(\"Formatear Lote para Campaña SMS\").item.json.resumen.cantidad }},\n    'RECORDATORIO SEMANAL',\n    {{ $(\"Formatear Lote para Campaña SMS\").item.json.resumen.costoTotal }}\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        1072,
+        1648
+      ],
+      "id": "327ae570-d567-419c-8ecf-155486253719",
+      "name": "Guardar Resumen en BD1",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.whatscloud.site/message/sendText/CobranzaDASO",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=708EA971097C-48EC-9B1A-830B4F416880"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "=5214425060999@s.whatsapp.net"
+            },
+            {
+              "name": "=text",
+              "value": "={{ $(\"Formatear Lote para Campaña SMS1\").item.json.resumen.mensajeAdmin }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1328,
+        1648
+      ],
+      "id": "9231b33a-0fd6-4ca4-8ebc-f87dd0d9dc54",
+      "name": "Enviar Mensaje al Admin3"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    cc.cod_cliente,\n    cc.nombre_ccliente,\n    cc.tel1_cliente\nFROM\n    cat_clientes cc\nJOIN\n    cobranzaruta cr ON cc.periodicidad_cliente = cr.periodicidad\nWHERE\n    -- Condición 1: El periodo de pago debe estar activo hoy\n    cr.status = 'ACTIVO'\n    AND CURDATE() BETWEEN cr.fecha_inicio_periodo AND cr.fecha_fin_periodo;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        432,
+        1648
+      ],
+      "id": "7cf189d1-5fcb-47e8-982b-0f48829ddd80",
+      "name": "Obtener Clientes en Periodo de Pago",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const clientes = $items;\n\n// Este es el mensaje base, que ya está dentro de los 160 caracteres.\nconst mensajeBase = 'Cliente Daso NO recibimos su pago, por favor deposite hoy mismo envie su comprobante de pago evite cobro de intereses moratorios.';\n\nconst mensajesParaAPI = clientes.map(cliente => {\n  return {\n    to: '52' + cliente.json.tel1_cliente,\n    message: mensajeBase\n  };\n});\n\nconst bodyLabsMobile = {\n  messages: mensajesParaAPI\n};\n\n// Prepara el resumen para el administrador.\nconst cantidad = clientes.length;\nconst costoPorMensaje = 0.60;\nconst costoTotal = cantidad * costoPorMensaje;\nconst fechaHora = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });\nconst mensajeAdmin = `📊 Resumen de Envío (Cobranza Diaria):\\n\\n` +\n                   `- Fecha: ${fechaHora}\\n` +\n                   `- Mensajes Enviados: ${cantidad}\\n` +\n                   `- Costo Total Estimado: $${costoTotal.toFixed(2)} MXN`;\n\nreturn {\n  json: {\n    bodyLabsMobile: bodyLabsMobile,\n    resumen: {\n      cantidad: cantidad,\n      costoTotal: costoTotal.toFixed(2),\n      mensajeAdmin: mensajeAdmin\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        1888
+      ],
+      "id": "cb255549-00ac-4474-9da8-375567c6adb5",
+      "name": "Formatear Lote para Campaña SMS2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.labsmobile.com/json/send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "labsMobileApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "messages",
+              "value": "={{ $json.bodyLabsMobile.messages }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        864,
+        1888
+      ],
+      "id": "a45412e8-7320-41d6-b64b-3bb774dc9c46",
+      "name": "Enviar Campaña SMS (LabsMobile)2",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO log_envios_sms (fecha_ejecucion, cantidad_sms, tipo_mensaje, costo_total)\nVALUES (\n    NOW(),\n    {{ $(\"Formatear Lote para Campaña SMS\").item.json.resumen.cantidad }},\n    'COBRANZA NO PAGO DIARIO',\n    {{ $(\"Formatear Lote para Campaña SMS\").item.json.resumen.costoTotal }}\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        1088,
+        1888
+      ],
+      "id": "2007081b-a230-4712-83ec-5d9df80ba6bb",
+      "name": "Guardar Resumen en BD2",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.whatscloud.site/message/sendText/CobranzaDASO",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=708EA971097C-48EC-9B1A-830B4F416880"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "=5214425060999@s.whatsapp.net"
+            },
+            {
+              "name": "=text",
+              "value": "={{ $(\"Formatear Lote para Campaña SMS2\").item.json.resumen.mensajeAdmin }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1344,
+        1888
+      ],
+      "id": "79dc14af-275a-495c-a141-0788cd5805dd",
+      "name": "Enviar Mensaje al Admin4"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        1888
+      ],
+      "id": "b2d98ca9-2022-4fe0-8c5f-b9c45101f931",
+      "name": "Diario - Cobranza Acumulada Semanal",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    cod_cliente,\n    nombre_ccliente,\n    tel1_cliente\nFROM\n    cat_clientes\nWHERE\n    periodicidad_cliente = 'SEMANAL'\n    AND pagar = '0'\n    AND\n    -- El CASE revisa el día de la semana actual y ajusta el filtro\n    CASE DAYOFWEEK(CURDATE())\n        -- Si es Domingo (1), busca los no-pago del Sábado\n        WHEN 1 THEN dia_pago IN ('SABADO')\n        -- Si es Lunes (2), busca los no-pago del Sábado y Domingo\n        WHEN 2 THEN dia_pago IN ('SABADO', 'DOMINGO')\n        -- Si es Martes (3), busca los no-pago del Sábado, Domingo y Lunes\n        WHEN 3 THEN dia_pago IN ('SABADO', 'DOMINGO', 'LUNES')\n        -- Si es Miércoles (4), busca Sáb, Dom, Lun, Mar\n        WHEN 4 THEN dia_pago IN ('SABADO', 'DOMINGO', 'LUNES', 'MARTES')\n        -- Si es Jueves (5), busca Sáb, Dom, Lun, Mar, Mie\n        WHEN 5 THEN dia_pago IN ('SABADO', 'DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES')\n        -- Si es Viernes (6), busca Sáb, Dom, Lun, Mar, Mie, Jue\n        WHEN 6 THEN dia_pago IN ('SABADO', 'DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES')\n        -- Si es Sábado (7), la semana de cobro apenas empieza, no busca a nadie.\n        ELSE 1=0\n    END;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        448,
+        1888
+      ],
+      "id": "b1bd3a0e-42dc-4918-8995-af31c3ad00b1",
+      "name": "Obtener Clientes sin Pago Acumulado",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        192,
+        1648
+      ],
+      "id": "a8534bea-f3fb-4024-9fad-f57de4d2c8db",
+      "name": "Sábado 10AM - Recordatorio Inicio de Semana",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM ticket WHERE conciliado = 0 AND remitente IS NOT NULL;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -2176,
+        2000
+      ],
+      "id": "40d64fd3-b75d-400e-8e90-f5fa8689ddf8",
+      "name": "Obtener Tickets Pendientes1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0baa5522-1179-4adc-adf3-2d7db51b541d",
+              "leftValue": "={{ $items(\"Obtener Tickets Pendientes1\")[0].json.id }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1968,
+        2000
+      ],
+      "id": "40682bba-a35d-4310-9e27-2409b824eb65",
+      "name": "¿Hay Tickets por Conciliar?1",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const fechaHora = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });\nconst mensaje = `✅ Tarea de conciliación ejecutada a las ${fechaHora}.` +\n                `\\n\\nNo se encontraron tickets pendientes por procesar.`;\n\nreturn [{ json: { mensaje: mensaje } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1744,
+        2144
+      ],
+      "id": "b8fc4bc9-3886-4b31-b214-1e8a0d831f00",
+      "name": "Generar Mensaje \"Sin Novedades\"1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f4cce7a2-e0bd-49fe-8df6-3ad6670682a5",
+              "leftValue": "={{ $json.estado }}",
+              "rightValue": "EXITO",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1536,
+        1984
+      ],
+      "id": "7d108ff3-900e-4d83-aab3-af9dc6cb100e",
+      "name": "¿Conciliación Exitosa?2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.whatscloud.site/message/sendText/CobranzaDASO",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=708EA971097C-48EC-9B1A-830B4F416880"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "=5214425060999@s.whatsapp.net"
+            },
+            {
+              "name": "=text",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1536,
+        2144
+      ],
+      "id": "0b61a4bb-bd2b-4dad-a6f5-c4fe16bd7fa7",
+      "name": "Enviar Mensaje al Admin5"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Obtenemos todos los resultados de los intentos de conciliación.\nconst todosLosIntentos = $items(\"Intentar Conciliación Deposito Efectivo\");\n\n// Filtramos solo los que tuvieron éxito.\nconst conciliadosExitosos = todosLosIntentos.filter(item => item.json.estado === 'EXITO');\n\nconst totalProcesados = todosLosIntentos.length;\nconst totalExitosos = conciliadosExitosos.length;\nconst fechaHora = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });\n\n// Creamos la base del mensaje.\nlet mensaje = `✅ Tarea de conciliación finalizada a las ${fechaHora}.` +\n              `\\n\\nSe procesaron *${totalProcesados}* tickets pendientes.` +\n              `\\nSe conciliaron con éxito: *${totalExitosos}*.`;\n\n// Si hubo al menos una conciliación exitosa, añadimos el detalle.\nif (totalExitosos > 0) {\n  mensaje += \"\\n\\n*Detalle de Conciliaciones:*\";\n  // Creamos una línea por cada ticket conciliado.\n  conciliadosExitosos.forEach(item => {\n    const ticketId = item.json.ticketId;\n    const movimientoId = item.json.movimientoId;\n    mensaje += `\\n- Ticket ID \\`${ticketId}\\` -> Movimiento ID \\`${movimientoId}\\``;\n  });\n}\n\nreturn [{ json: { mensaje: mensaje } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1152,
+        2000
+      ],
+      "id": "256d585e-2386-4023-887f-02baf9102818",
+      "name": "Generar Resumen para Admin1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.whatscloud.site/message/sendText/CobranzaDASO",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=708EA971097C-48EC-9B1A-830B4F416880"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "=5214425060999@s.whatsapp.net"
+            },
+            {
+              "name": "=text",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -912,
+        2000
+      ],
+      "id": "7d8e5447-f5cb-49cf-8934-8592d0f37e50",
+      "name": "Enviar Mensaje al Admin6",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9,
+              "triggerAtMinute": 30
+            },
+            {
+              "triggerAtHour": 16,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2144,
+        1504
+      ],
+      "id": "2d013765-0b2f-4719-910e-121db7bea1f6",
+      "name": "Diario - Conciliación SPEI",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM ticket WHERE conciliado = 0 AND claverastreo IS NOT NULL AND claverastreo != '';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -1936,
+        1504
+      ],
+      "id": "41be118d-defc-479c-b308-9631170ad276",
+      "name": "Obtener Tickets con Clave de Rastreo",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1824,
+        3040
+      ],
+      "id": "e2d9a44a-e1b9-41b5-9b55-14f445b8cbe2",
+      "name": "Schedule Trigger",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "options": {}
+      },
+      "id": "5bb7cf4e-b7bd-4f09-9f0a-71976c036ffb",
+      "name": "Generar Excel",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        3072
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "servicios@mueblesdaso.com",
+        "toEmail": "rbautista@mueblesdaso.com",
+        "ccEmail": "arovira@mueblesdaso.com,ezapote@mueblesdaso.com,jefecobranza@mueblesdaso.com,",
+        "subject": "=Reporte de TICKETS ({{ new Date().toLocaleDateString('es-MX') }})",
+        "attachments": "data",
+        "options": {}
+      },
+      "id": "8ea58fc0-6af5-47b2-94e8-0e0d0ca379a5",
+      "name": "Enviar Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        -912,
+        3072
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM ticket;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -1584,
+        3040
+      ],
+      "id": "f6e65ae4-3fd7-4990-8ee8-5c3be6f1a6b5",
+      "name": "Obtener Tickets",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Obtiene TODOS los items (filas) que vienen del nodo anterior.\nconst allItems = items;\n\n// Generamos el nombre del archivo una sola vez.\nconst now = DateTime.now().setZone('America/Mexico_City');\nconst fechaFormateada = now.toFormat('yyyy-MM-dd');\nconst nombreArchivo = `ReporteTickets_${fechaFormateada}.csv`;\n\n// Usamos un bucle para recorrer CADA item y agregarle el nombre del archivo.\nfor (const item of allItems) {\n  item.json.fileName = nombreArchivo;\n}\n\n// Devolvemos la lista COMPLETA de items, ahora con el nombre del archivo en cada uno.\nreturn allItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1376,
+        3040
+      ],
+      "id": "d2b21991-6e4d-4b9b-8e24-9a85c7c05fdc",
+      "name": "Prepara Datos Excel"
+    },
+    {
+      "parameters": {
+        "jsCode": "const mensaje = '❌ El código de cliente que enviaste no tiene el formato correcto. Por favor, asegúrate de que sea \"DQ\" seguido de 7 números (ejemplo: DQ1234567) y vuelve a enviar tu comprobante. **De lo contrario no prodra ser procesado y aplicado a tu SALDO. NOTA: Clave de Rastreo debe ser Visible, Preferente en Concepto agrega tu cuenta que comienza con DQ, no capturas de patalla del comprobante o fotos de otro telefono**';\n\n// Pasamos el mensaje y el remitente al siguiente nodo\nreturn [{\n  json: {\n    mensaje: mensaje,\n    remitente: $('Enrutador Principal').first().json.body.data.key.remoteJid\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1344,
+        1200
+      ],
+      "id": "a6f97f6d-5eca-48e3-9d06-d276fdab3cda",
+      "name": "Generar Mensaje de Formato Inválido"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.whatscloud.site/message/sendText/{{ $('Webhook').item.json.body.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Webhook').item.json.body.apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Webhook').item.json.body.data.key.remoteJid }}"
+            },
+            {
+              "name": "=text",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1184,
+        1200
+      ],
+      "id": "ff092dde-97f6-4f9c-aa96-39c88501e1a3",
+      "name": "Enviar Mensaje de Error de Formato"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Obtenemos el número completo que llega de WhatsApp\nSET @remitenteJid = '{{ $(\"Enrutador Principal\").item.json.body.data.key.remoteJid }}';\n\n-- Limpiamos el número para quedarnos solo con los últimos 10 dígitos\nSET @telefonoDiezDigitos = RIGHT(SUBSTRING_INDEX(@remitenteJid, '@', 1), 10);\n\n-- Buscamos en la base de datos, limpiando el número almacenado y comparando\nSELECT cod_cliente\nFROM cat_clientes\nWHERE\n    -- Forzamos la comparación usando una colación explícita para evitar 'Illegal mix of collations'\n    RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(tel1_cliente COLLATE utf8mb4_general_ci, ' ', ''), '-', ''), '(', ''), ')', ''), 10) = @telefonoDiezDigitos COLLATE utf8mb4_general_ci\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -816,
+        848
+      ],
+      "id": "c214d852-d342-4618-aa08-e520dbf0671b",
+      "name": "Buscar Cliente por Teléfono",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0e6e43f6-4378-4c1d-8aed-84a72b34239a",
+              "leftValue": "={{ $json.cod_cliente }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -528,
+        848
+      ],
+      "id": "5f439d60-3c57-4558-be55-8b421c9ecde0",
+      "name": "¿Cliente Encontrado?",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "options": {}
+      },
+      "id": "db486938-7942-41b8-8b14-1a81fc80b6ce",
+      "name": "Generar Excel1",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 1,
+      "position": [
+        -1024,
+        3248
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "servicios@mueblesdaso.com",
+        "toEmail": "rbautista@mueblesdaso.com",
+        "ccEmail": "ezapote@mueblesdaso.com",
+        "subject": "=Reporte de BANCOS ({{ new Date().toLocaleDateString('es-MX') }})",
+        "text": "={{ $json.cuerpoEmail }}",
+        "attachments": "data",
+        "options": {}
+      },
+      "id": "d903a75a-4501-4d7c-8c8e-c19c7f2c3435",
+      "name": "Enviar Email1",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        3344
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Leemos TODOS los items que llegaron al nodo.\n// $items siempre devuelve un array con todos los resultados.\nconst allItems = $items;\n\n// Generamos el nombre del archivo una sola vez.\nconst now = DateTime.now().setZone('America/Mexico_City');\nconst fechaFormateada = now.toFormat('yyyy-MM-dd');\nconst nombreArchivo = `ReporteTickets_${fechaFormateada}.csv`;\n\n// Creamos un nuevo array para guardar los resultados formateados.\nconst resultadosFormateados = [];\n\n// Verificamos que allItems sea una lista antes de continuar.\nif (Array.isArray(allItems)) {\n  // Usamos un bucle para recorrer CADA item.\n  for (const item of allItems) {\n    // Añadimos el nombre del archivo al objeto json de cada item.\n    item.json.fileName = nombreArchivo;\n    \n    // Agregamos el item modificado a nuestra nueva lista.\n    resultadosFormateados.push(item);\n  }\n}\n\n// Devolvemos la lista COMPLETA de items en el formato correcto.\nreturn resultadosFormateados;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1344,
+        3312
+      ],
+      "id": "8a81fb8b-a002-4630-b169-d822db9e1468",
+      "name": "Prepara Datos Excel1",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9,
+              "triggerAtMinute": 59
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1792,
+        3312
+      ],
+      "id": "ce21e7fc-8393-40b8-be67-6d6a8b9dda80",
+      "name": "CONCILIACION_TESORERIA",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2384,
+        2000
+      ],
+      "id": "e1c315fa-6364-48e2-8f76-e7146581380b",
+      "name": "CONCILIAR_DEPOSITO"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    id,\n    fecha_operacion,\n    hora_operacion,\n    descripcion_general,\n    abono,\n    saldo,\n    referencia,\n    concepto,\n    ticket_id,\n    bank,\n    cod_cliente,\n    gestor,\n    fecha_identificado\nFROM\n    estado_de_cuenta\nWHERE -- Filtra todos los registros cuya fecha de operación pertenece al mes y año actual.\n    fecha_operacion >= DATE_FORMAT(CURDATE(), '%Y-%m-01') AND fecha_operacion <= LAST_DAY(CURDATE());",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -1552,
+        3312
+      ],
+      "id": "5cabfa52-d4b9-419e-bb79-22935ae3e536",
+      "name": "Obtener Movimientos del Día",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const textoContrato = ($json.body.data.message.conversation || $json.body.data.message.extendedTextMessage.text || '').trim().toUpperCase();\n\n// Validamos el texto de la respuesta con la misma regla\nconst formatoValido = /^DQ\\d{7}$/.test(textoContrato);\n\n$json.formatoRespuestaValido = formatoValido;\n$json.contrato_respuesta = textoContrato;\n\nreturn $json;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -992,
+        1056
+      ],
+      "id": "82357445-38f3-46a3-9a79-599e8a43b0e9",
+      "name": "Validar Respuesta de Texto"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "edc86eda-d1e5-4d4a-9b8e-85560a9938d5",
+              "leftValue": "={{ $json.formatoRespuestaValido }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -816,
+        1056
+      ],
+      "id": "fd5535d1-e1d6-4ea2-a222-962c7eca7dd0",
+      "name": "¿Respuesta con Formato Válido?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const mensaje = '❌ El código que ingresaste no es válido. Por favor, asegúrate de que sea \"DQ\" seguido de 7 números (ejemplo: DQ1234567) e inténtalo de nuevo.';\n\n// Obtenemos el remitente del inicio del flujo para saber a quién responder.\nconst remitente = $('Webhook').first().json.body.data.key.remoteJid;\n\nreturn [{\n  json: {\n    mensaje: mensaje,\n    remitente: remitente\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -544,
+        1200
+      ],
+      "id": "52ae2603-861b-4658-b267-b154bcaf3012",
+      "name": "Generar Mensaje de Formato Incorrecto",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.whatscloud.site/message/sendText/{{ $('Webhook').item.json.body.instance }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Webhook').item.json.body.apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Webhook').item.json.body.data.key.remoteJid }}"
+            },
+            {
+              "name": "=text",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -384,
+        1200
+      ],
+      "id": "567e66fc-4aa4-4afd-818a-2b3f13cfe1c8",
+      "name": "Mensaje_Ticket2",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Obtenemos los resultados de los nodos anteriores.\nconst resultadoAplicacion = $('Intentar Conciliación Inteligente').first().json;\nconst datosDelTicket = $('MENSAJE').first().json;\n\n// Extraemos todos los datos que necesitamos.\nconst ticketId = resultadoAplicacion.ticketId;\nconst contrato = resultadoAplicacion.cod_cliente;\nconst idPago = resultadoAplicacion.idPagoGenerado;\nconst saldo = resultadoAplicacion.saldo_actual;\nconst movimientoId = resultadoAplicacion.movimientoId;\nconst esDuplicado = datosDelTicket.yaExiste; // <--- LEEMOS SI YA EXISTÍA\n\n// Construimos la primera parte del mensaje con los detalles del ticket.\nlet mensaje = `📌 *Detalles del Ticket*` +\n              `\\n- 🆔 ID: ${ticketId}` +\n              `\\n- 📅 Fecha: ${datosDelTicket.fecha || 'N/A'}` +\n              `\\n- ⏰ Hora: ${datosDelTicket.hr || 'N/A'}` +\n              `\\n- 💰 Monto: $${parseFloat(datosDelTicket.monto).toFixed(2) || '0.00'}` +\n              `\\n- 🔢 Referencia: ${datosDelTicket.referencia || 'N/A'}` +\n              `\\n- 📝 Folio: ${datosDelTicket.folio || 'N/A'}` +\n              `\\n- 📦 Clave de rastreo: ${datosDelTicket.claverastreo || 'N/A'}`;\n\nmensaje += `\\n--------------------------------\\n`; // Separador\n\n// --- LOGICA DE MENSAJES (CORREGIDA) ---\n\nif (esDuplicado === true) {\n  // CASO 1: YA EXISTÍA\n  mensaje += `⚠️ *ESTE COMPROBANTE YA FUE REGISTRADO PREVIAMENTE*\\n` +\n             `El sistema ya tiene este ticket procesándose con el ID ${ticketId}. ` +\n             `No es necesario subirlo nuevamente.`;\n\n} else if (resultadoAplicacion.estado === 'EXITO' || resultadoAplicacion.estado === 'EXITO_Y_APLICADO') {\n  // CASO 2: CONCILIADO EXITOSAMENTE\n  mensaje += `✅ ¡Tu pago ha sido conciliado y aplicado exitosamente!` +\n             `\\n\\n- 📄 Contrato: ${contrato}` +\n             `\\n- 💰 Nuevo Saldo: $${parseFloat(saldo).toFixed(2)}` +\n             `\\n- 💳 ID de Pago Aplicado: ${idPago}` +\n             `\\n- 🏦 ID Bancario: ${movimientoId}`;\n\n} else {\n  // CASO 3: GUARDADO PERO NO CONCILIADO (El dinero aún no entra)\n  mensaje += `🚨 *Tu comprobante está en proceso de validación.*\\n` +\n             `Ya lo guardamos en el sistema. En cuanto el banco refleje el movimiento, recibirás tu NUEVO SALDO.`;\n}\n\nreturn [{ json: { mensaje: mensaje } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2848,
+        784
+      ],
+      "id": "7c305748-eb6d-4302-a1ed-32531f89ed7b",
+      "name": "Preparar Mensaje de Notificación"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        928,
+        768
+      ],
+      "id": "e1ec2997-13ef-4af0-b103-1e160f7df1fc",
+      "name": "Merge",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c03ccc3a-c1f6-49b5-b587-fef118d98824",
+              "name": "contacto",
+              "value": "={{ $json.contrato || $json.cod_cliente || $json.contrato_respuesta }}",
+              "type": "string"
+            },
+            {
+              "id": "ff22a3c5-be4c-4dab-940c-c64758279f35",
+              "name": "base64",
+              "value": "={{ $json.body?.data?.message?.base64 || $json.body?.data?.base64 || $json.base64 || $json.base64_data }}",
+              "type": "string"
+            },
+            {
+              "id": "70b50d23-a404-4ed1-befa-4b3c12edd376",
+              "name": "mimetype",
+              "value": "={{ $json.body?.data?.message?.imageMessage?.mimetype || $json.mimetype || $json.tipo_archivo }}",
+              "type": "string"
+            },
+            {
+              "id": "ee6451bd-b72b-4993-8550-99d5f3b1762f",
+              "name": "remitente",
+              "value": "={{ $json.body?.data?.key?.remoteJid || $json.remitente }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1408,
+        784
+      ],
+      "id": "fce7e1c4-bf3d-4e98-86c9-cfa7747bf4ae",
+      "name": "Estandarizar Variables de Imagen"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "403811d6-bdb6-48c1-8575-457227817f2e",
+              "name": "=contrato",
+              "value": "={{ $('Buscar Cliente por Teléfono').item.json.cod_cliente }}",
+              "type": "string"
+            },
+            {
+              "id": "cea9b660-3630-4638-add9-c58aeec1d14b",
+              "name": "base64",
+              "value": "={{ $('Gran Enrutador').item.json.body.data.message.base64 }}",
+              "type": "string"
+            },
+            {
+              "id": "7b7d8acd-5535-49eb-8cca-eb1e308c1a62",
+              "name": "remitente",
+              "value": "={{ $('Gran Enrutador').item.json.body.data.key.remoteJid }}",
+              "type": "string"
+            },
+            {
+              "id": "3ad3e148-dd48-4203-904e-5da9af980571",
+              "name": "mimetype",
+              "value": "={{ $('Gran Enrutador').item.json.body.data.message.imageMessage.mimetype }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -96,
+        816
+      ],
+      "id": "a117194c-73a4-4f2a-9eb9-ab4e13369c1e",
+      "name": "Unir Datos de Busqueda",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ticket t\nJOIN cat_clientes cc ON t.contrato = cc.cod_cliente\nSET\n    t.codigo_gestor = cc.codigo_gestor\nWHERE\n    t.codigo_gestor IS NULL OR t.codigo_gestor = '';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        2224,
+        992
+      ],
+      "id": "a46c3115-b5e4-455e-b0d4-b9ea3b008081",
+      "name": "Asigna Gestor",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "START TRANSACTION;\n\n-- ====================================================================\n-- PASO 1: OBTENER DATOS DEL TICKET Y PREPARAR VARIABLES\n-- ====================================================================\nSET @ticketId = '{{ $json.id }}';\nSET @contrato = '{{ $json.contrato }}';\nSET @monto = CAST('{{ $json.monto }}' AS DECIMAL(10, 2));\nSET @fechaTicket = '{{ $json.fecha }}';\nSET @horaTicket = '{{ $json.hr }}';\nSET @referenciaTicket = '{{ $json.referencia }}';\n\n-- ====================================================================\n-- PASO 2: LÓGICA DE BÚSQUEDA INTELIGENTE EN CASCADA\n-- ====================================================================\n-- Buscamos el movimiento bancario no conciliado que coincida con nuestro ticket.\nSET @movimientoId = (\n    SELECT id FROM (\n        -- INTENTO 1 (Prioridad Alta): Buscar el Contrato (DQ) en la descripción del banco\n        SELECT id, 1 AS prioridad\n        FROM estado_de_cuenta\n        WHERE \n            abono = @monto \n            AND fecha_operacion = @fechaTicket\n            AND ticket_id IS NULL\n            AND (descripcion_detallada LIKE CONCAT('%', @contrato, '%') OR concepto LIKE CONCAT('%', @contrato, '%'))\n\n        UNION ALL\n        \n        -- INTENTO 2 (Prioridad Media-Alta): Buscar por Referencia del ticket en la descripción\n        SELECT id, 2 AS prioridad\n        FROM estado_de_cuenta\n        WHERE \n            abono = @monto \n            AND fecha_operacion = @fechaTicket\n            AND ticket_id IS NULL\n            AND (descripcion_detallada LIKE CONCAT('%', @referenciaTicket, '%') OR concepto LIKE CONCAT('%', @referenciaTicket, '%'))\n            AND (descripcion_general LIKE '%DEP EN EFECTIV%' OR descripcion_general LIKE '%DEP EFECT ATM%' OR descripcion_general LIKE '%AB TRANS ELECT%')\n\n        UNION ALL\n\n        -- INTENTO 3 (Prioridad Media): Buscar por monto, fecha y en una ventana de tiempo.\n        SELECT id, 3 AS prioridad\n        FROM estado_de_cuenta\n        WHERE \n            abono = @monto\n            AND fecha_operacion = @fechaTicket\n            AND ticket_id IS NULL\n            AND (descripcion_general LIKE '%DEP EN EFECTIV%' OR descripcion_general LIKE '%DEP EFECT ATM%' OR descripcion_general LIKE '%AB TR RAP SANT%')\n            AND TIME_TO_SEC(TIMEDIFF(hora_operacion, @horaTicket)) BETWEEN -300 AND 300 -- Ventana de +/- 5 minutos\n\n        UNION ALL\n\n        -- INTENTO 4 (Prioridad Baja): Buscar solo por monto y fecha.\n        SELECT id, 4 AS prioridad\n        FROM estado_de_cuenta\n        WHERE \n            abono = @monto\n            AND fecha_operacion = @fechaTicket\n            AND ticket_id IS NULL\n            AND (descripcion_general LIKE '%DEP EN EFECTIV%' OR descripcion_general LIKE '%DEP EFECT ATM%')\n\n    ) AS busqueda\n    ORDER BY prioridad ASC -- Asegura que se tome el resultado de la búsqueda más precisa primero.\n    LIMIT 1\n);\n\n-- ====================================================================\n-- PASO 3: ACTUALIZAR ESTADOS SI LA CONCILIACIÓN FUE EXITOSA\n-- ====================================================================\nIF @movimientoId IS NOT NULL THEN\n    SELECT codigo_gestor INTO @codigoGestor FROM cat_clientes WHERE cod_cliente = @contrato LIMIT 1;\n    UPDATE ticket SET conciliado = 1, idbancos = @movimientoId WHERE id = @ticketId;\n    UPDATE estado_de_cuenta SET ticket_id = @ticketId, cod_cliente = @contrato, gestor = @codigoGestor, fecha_identificado = NOW() WHERE id = @movimientoId;\n    UPDATE cat_clientes SET bancos = 'CONCILIADO' WHERE cod_cliente = @contrato;\n    \n    SELECT 'EXITO_EFECTIVO' AS estado, @movimientoId AS movimientoId, @ticketId AS ticketId;\nELSE\n    SELECT 'FALLO_EFECTIVO' AS estado, NULL AS movimientoId, @ticketId AS ticketId;\nEND IF;\n\nCOMMIT;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -1744,
+        1984
+      ],
+      "id": "052770d2-f7c6-4eb8-b235-58f3c62cd2de",
+      "name": "Intentar Conciliación Deposito Efectivo",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\"]"
+        }
+      },
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.1,
+      "position": [
+        192,
+        2720
+      ],
+      "id": "6a8bd161-09c5-4812-9012-a198a88165df",
+      "name": "Email Trigger (IMAP)",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Obtenemos el cuerpo HTML y el asunto del correo del nodo anterior.\nconst html = $input.item.json.textHtml || \"\";\nconst subject = $input.item.json.subject || \"\";\nconst from = $input.item.json.from || \"\";\n\n// Función auxiliar para extraer datos de forma segura.\nfunction extractData(regex, text) {\n  const re = new RegExp(regex, 's');\n  const match = text.match(re);\n  return match ? match[1].trim() : null;\n}\n\n// -----------------------------------------------------------------------------\n// LÓGICA PRINCIPAL: IDENTIFICAR EL TIPO DE CORREO Y PROCESAR\n// -----------------------------------------------------------------------------\n\n// CASO 1: Abono (depósito recibido) de Santander\nif (from.includes('santander@envio.santander.com.mx') && subject.includes('Has recibido un depósito')) {\n\n  // Patrones de búsqueda para Santander.\n  const montoRegex = /un abono por <strong>\\$([0-9,]+\\.[0-9]{2}) MXN<\\/strong>/;\n  const fechaRegex = /<strong>Fecha:<\\/strong> (\\d{2}\\/\\d{2}\\/\\d{4})/;\n  const horaRegex = /<strong>Hora:<\\/strong> (\\d{2}:\\d{2}) hrs/;\n  const bancoRegex = /<strong>Banco emisor:<\\/strong> (.+?)<br>/;\n  const claveRastreoRegex = /<strong>Clave de rastreo:<\\/strong> ([\\w\\s.-]+?)<br>/;\n  const conceptoRegex = /<strong>Concepto de pago:<\\/strong>(.+?)<br>/;\n  \n  let monto = extractData(montoRegex, html);\n  if (monto) {\n    monto = parseFloat(monto.replace(/,/g, ''));\n  }\n\n  let fecha = extractData(fechaRegex, html);\n  if (fecha) {\n    const partes = fecha.split('/');\n    fecha = `${partes[2]}-${partes[1]}-${partes[0]}`; // Formato YYYY-MM-DD\n  }\n\n  // Devolvemos el objeto con los datos para que el nodo MySQL los inserte.\n  return {\n    fecha: fecha,\n    hora: extractData(horaRegex, html),\n    tipoOperacion: 'ABONO vía SPEI',\n    abono: monto,\n    cargo: null,\n    concepto: extractData(conceptoRegex, html),\n    claveRastreo: extractData(claveRastreoRegex, html),\n    bancoEmisor: extractData(bancoRegex, html),\n    bank: 'santander'\n  };\n\n} \n// CASO 2: Compra con Tarjeta Santander (LO IGNORAMOS)\nelse if (from.includes('santander@envio.santander.com.mx') && subject.includes('Pago/Compra con Tarjeta')) {\n  // Devolvemos null para que n8n descarte este correo y no continúe.\n  return null;\n} \n// CASO 3: Transferencia Enviada desde Banorte (LO IGNORAMOS)\nelse if (from.includes('banorteporinternet@banorte.com')) {\n  // También lo ignoramos.\n  return null;\n}\n// CASO 4: Cualquier otro correo (LO IGNORAMOS)\nelse {\n  // Si el correo no coincide con ninguno de los formatos que nos interesan, lo ignoramos.\n  return null;\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        2720
+      ],
+      "id": "edbbc0bf-7d04-40bd-b6b0-9168c6cff7bb",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT IGNORE INTO estado_de_cuenta (\n    fecha_operacion,\n    hora_operacion,\n    descripcion_general,\n    abono,\n    cargo,\n    referencia,\n    clave_rastreo,\n    banco_origen,\n    bank\n)\nVALUES (\n    '{{ $json.fecha }}',\n    '{{ $json.hora }}',\n    '{{ $json.tipoOperacion }}',\n    {{ $json.abono || 0 }},\n    {{ $json.cargo || 0 }},\n    '{{ $json.concepto }}',\n    '{{ $json.claveRastreo }}',\n    '{{ $json.bancoEmisor }}',\n    '{{ $json.bank }}'\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        608,
+        2720
+      ],
+      "id": "34bbacfa-e8bd-4454-91f2-e866725b82bc",
+      "name": "Insertar estado_de_cuenta",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CALL ConciliarTodosLosTickets_V2();",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -2880,
+        1728
+      ],
+      "id": "79e2799a-bf5f-4427-94d5-9ea3a5211b61",
+      "name": "Obtener Tickets Pendientes",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resultado = $input.item.json;\nlet mensaje = `**📊 Resumen de Conciliación Automática**\\n\\n`;\n\nconst conciliadosAhora = resultado.conciliados_ahora || 0;\nconst pendientesTotales = resultado.pendientes_totales || 0;\nconst detalle = resultado.detalle_conciliados;\n\nmensaje += `✅ **Tickets conciliados en esta ejecución:** ${conciliadosAhora}\\n`;\nmensaje += `⏳ **Tickets pendientes totales:** ${pendientesTotales}\\n\\n`;\n\nif (conciliadosAhora > 0 && detalle) {\n  mensaje += `*Detalle de Conciliados:*\\n\\`\\`\\`\\n${detalle}\\n\\`\\`\\``;\n} else if (conciliadosAhora === 0) {\n    mensaje += `No se encontraron nuevas conciliaciones en esta ejecución.`;\n}\n\nreturn [{ json: { mensaje: mensaje } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2672,
+        1728
+      ],
+      "id": "13972932-9a03-41b0-8a69-119d0de75550",
+      "name": "Generar Resumen para Admin2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evo.whatscloud.site/message/sendText/CobranzaDASO",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=708EA971097C-48EC-9B1A-830B4F416880"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "=5214425060999@s.whatsapp.net"
+            },
+            {
+              "name": "=text",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2416,
+        1728
+      ],
+      "id": "9e7fd47d-b9e9-4926-a297-6c5b9ef9c80d",
+      "name": "Enviar Mensaje al Admin8"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -3088,
+        1728
+      ],
+      "id": "1e0bc461-a70a-408f-9636-0bd693b435be",
+      "name": "CONCILIAR_DEPOSITO1"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2224,
+        2464
+      ],
+      "id": "980d43cc-9fc8-446e-8c74-3ce4f78b3acc",
+      "name": "Envio de Saldos",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SET time_zone = '-06:00'; -- Forzar hora de México para asegurar que la regla de 8am-8pm sea correcta\n\nSELECT\n    t.id AS ticket_id,\n    p.idpag AS idPago,\n    p.cod_cliente,\n    p.fechap AS fechaPago,\n    p.montop AS montoPago,\n    p.saldo_actualcli AS nuevoSaldo,\n    cc.tel1_cliente\nFROM\n    ticket t\nJOIN\n    pagos p ON t.idpago = p.idpag\nJOIN\n    cat_clientes cc ON t.contrato = cc.cod_cliente\nWHERE\n    t.enviopago IS NULL       -- Solo los que NO se han enviado\n    AND t.conciliado = 1      -- Solo los que ya tienen el dinero confirmado\n    AND t.idbancos IS NOT NULL\n    \n    -- 🕒 REGLA DE HORARIO (08:00 AM - 07:59 PM)\n    AND HOUR(NOW()) >= 8 AND HOUR(NOW()) < 20\n    \n    -- 🔢 REGLA DE LÍMITE DIARIO (50 mensajes)\n    -- Cuenta cuántos se enviaron HOY usando la fecha que actualizaste masivamente\n    AND (SELECT COUNT(*) FROM ticket WHERE DATE(fecha_envio_notificacion) = CURDATE()) < 50\n\n-- IMPORTANTE: Procesar los más viejos primero\nORDER BY t.id ASC \n\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -2032,
+        2464
+      ],
+      "id": "5e0a467d-b709-4458-875e-ffe8243d7abf",
+      "name": "Obtener Pagos Pendientes de Notificar",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Obtenemos los datos que vienen del nodo MySQL para un cliente a la vez.\nconst item = $input.item.json;\n\n// Extraemos cada dato para que sea más fácil de usar.\nconst idPago = item.idPago;\nconst codCliente = item.cod_cliente;\nconst ticketId = item.ticket_id;\nconst fechaPago = item.fechaPago;\nconst montoPago = parseFloat(item.montoPago).toFixed(2); // Asegura 2 decimales\nconst nuevoSaldo = parseFloat(item.nuevoSaldo).toFixed(2); // Asegura 2 decimales\n\n// --- Construcción del Mensaje con Formato y Emojis ---\nconst mensaje = `✅*¡Pago Aplicado y Conciliado!*✅\n\nHemos confirmado tu pago y actualizado tu saldo.\n\n🧾 *ID de Pago:* ${idPago}\n👤 *Código Cliente:* ${codCliente}\n🎫 *Ticket ID:* ${ticketId}\n📅 *Fecha Pago:* ${fechaPago}\n💵 *Monto Pago:* $${montoPago}\n💰 *Nuevo Saldo:* $${nuevoSaldo}\n\nGracias por tu preferencia.\n*- Muebles Daso*`;\n\n// Devolvemos el mensaje formateado y los datos necesarios para los siguientes nodos.\nconst telefonoFormateado = `521${item.tel1_cliente}@s.whatsapp.net`;\n\nreturn {\n  json: {\n    mensaje_final: mensaje,\n    telefono_cliente: telefonoFormateado,\n    ticket_id: ticketId,\n    cod_cliente: codCliente  // <--- ¡AQUÍ ESTÁ EL CAMBIO IMPORTANTE! Agregamos esta línea.\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1488,
+        2464
+      ],
+      "id": "8e7b8756-4633-4bcc-917c-3686217a5a67",
+      "name": "Code3"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ticket\nSET enviopago = 1\nWHERE id = {{ $('Code3').item.json.ticket_id }};",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -464,
+        2464
+      ],
+      "id": "c269e308-7f14-4395-8dab-17f5f64cb648",
+      "name": "Actualizar Ticket Enviado",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ticket\nSET enviopago = 1\nWHERE id = {{ $('Code3').item.json.ticket_id }};",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -1328,
+        2656
+      ],
+      "id": "e3838e3a-4c1b-43ae-91db-8eb603f99c00",
+      "name": "Actualizar Ticket Enviado1",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d74f5f12-1a5e-45a5-a56d-fc0f08ec2110",
+              "leftValue": "={{ $json.tel1_cliente }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1824,
+        2464
+      ],
+      "id": "719eb3a7-45da-4d93-847c-01fa20d5d5be",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ab068154-ac3a-489e-9191-8c1bb7a2f578",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -880,
+        2464
+      ],
+      "id": "515b8fd9-813f-46ce-ad2a-37aec23bbe2f",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ticket\nSET enviopago = 0  -- 0 indica error/número inválido\nWHERE id = {{ $('Code3').item.json.ticket_id }};",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -704,
+        2656
+      ],
+      "id": "3a548bc6-11b8-48e6-b74d-8485ea3641d6",
+      "name": "Numero Invalido",
+      "credentials": {
+        "mySql": {
+          "id": "vULDWYns9EfnTizX",
+          "name": "COB_GMD"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://waha.qhosting.net/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Api-Key",
+              "value": "2a92eb04791843f5b4093f21a4306960"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session",
+              "value": "GMD3320"
+            },
+            {
+              "name": "chatId",
+              "value": "={{ $('EXTRAE_DATOS').item.json.remitente.replace('@s.whatsapp.net', '@c.us') }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3136,
+        784
+      ],
+      "id": "d079cce5-40ac-45a0-871a-2a90b94ce7d9",
+      "name": "Enviar por WAHA"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook-waha-tickets",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -2640,
+        816
+      ],
+      "id": "3c7a42e7-f3e1-4688-9c7a-6724d70ebef8",
+      "name": "Webhook WAHA",
+      "webhookId": "af8e4d08-2565-4a43-9a36-d37d35114da5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-media",
+              "leftValue": "={{ $json.body.payload.hasMedia }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2416,
+        816
+      ],
+      "id": "da0ad587-b6e7-4364-b514-9efdc5d830f1",
+      "name": "¿Tiene Imagen?"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.payload.media.url.replace(/https?:\\/\\/localhost(:[0-9]+)?/, 'https://waha.qhosting.net') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "2a92eb04791843f5b4093f21a4306960"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2192,
+        688
+      ],
+      "id": "54c5506d-5b21-4acd-a5ac-2dab47679964",
+      "name": "Descargar Media WAHA"
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- ADAPTADOR WAHA -> EVOLUTION FORMAT (V8 - PRESERVAR NOMBRE ORIGINAL) ---\n\n// 1. Obtenemos los datos ORIGINALES del Webhook\nconst webhookData = $('Webhook WAHA').first().json; \nconst payload = webhookData.body ? webhookData.body.payload : webhookData.payload;\n\n// Unificamos el texto\nconst textoRaw = payload.body || payload.caption || '';\nconst textoDetectado = textoRaw.toString(); \n\n// 2. Procesamos el archivo\nlet base64String = null;\nlet mimetype = null;\nlet hasMedia = false;\nlet messageType = 'conversation';\n// AQUÍ ESTÁ LA MAGIA: Leemos el nombre original del JSON, no del archivo descargado\nlet originalFileName = payload.media ? payload.media.filename : 'archivo.bin';\n\n// Verificamos si hay archivo descargado\nif (items[0].binary && items[0].binary.data) {\n    hasMedia = true;\n    mimetype = items[0].binary.data.mimeType; \n    \n    // Obtener Base64\n    try {\n        const buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n        base64String = buffer.toString('base64');\n    } catch (error) {\n        if (items[0].binary.data.data) {\n             base64String = items[0].binary.data.data;\n        }\n    }\n\n    // Clasificación\n    if (mimetype.includes('image')) {\n        messageType = 'imageMessage';\n    } else {\n        messageType = 'documentMessage';\n    }\n}\n\n// 3. Construimos el objeto\nconst mockEvolution = {\n  body: {\n    data: {\n      key: {\n        remoteJid: payload.from.replace('@c.us', '@s.whatsapp.net'),\n        id: payload.id\n      },\n      pushName: payload.pushName || 'Cliente',\n      messageType: messageType,\n      message: {}\n    },\n    instance: 'BotDASO', \n    apikey: 'internal_bypass'\n  }\n};\n\n// 4. Asignamos los datos\nif (hasMedia && base64String) {\n  \n  if (messageType === 'imageMessage') {\n      // TICKET (IMAGEN)\n      mockEvolution.body.data.message.base64 = base64String;\n      mockEvolution.body.data.message.imageMessage = {\n        caption: textoDetectado, \n        mimetype: mimetype,\n        fileName: 'imagen.jpg'\n      };\n  } else {\n      // DOCUMENTO (EXCEL)\n      mockEvolution.body.data.message.base64 = base64String;\n      mockEvolution.body.data.message.documentMessage = {\n        caption: textoDetectado,\n        mimetype: mimetype,\n        fileName: originalFileName // <--- Aquí usamos 'santander.csv'\n      };\n  }\n\n} else {\n  // TEXTO\n  mockEvolution.body.data.message.conversation = textoDetectado;\n  mockEvolution.body.data.message.extendedTextMessage = {\n    text: textoDetectado\n  };\n}\n\nreturn mockEvolution;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1936,
+        816
+      ],
+      "id": "e8e8d9c0-f277-421d-8d39-f038a3c96557",
+      "name": "Adaptador a Formato Evolution"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://waha.qhosting.net/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "2a92eb04791843f5b4093f21a4306960"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session",
+              "value": "GMD3320"
+            },
+            {
+              "name": "chatId",
+              "value": "={{ $json.telefono_cliente.replace('@s.whatsapp.net', '@c.us') }}"
+            },
+            {
+              "name": "text",
+              "value": "=  {{ $json.mensaje_final }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1232,
+        2288
+      ],
+      "id": "38e52d64-5ccf-4145-8b0c-652d0c5302df",
+      "name": "Enviar por WAHA1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://waha.qhosting.net/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Api-Key",
+              "value": "2a92eb04791843f5b4093f21a4306960"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session",
+              "value": "GMD3320"
+            },
+            {
+              "name": "chatId",
+              "value": "={{ $('Code1').item.json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "=✅ Datos de *SANTANDER* procesados y actualizados correctamente en la base de datos.\nActualizado:{{ DateTime.local().setZone('America/Mexico_City').toFormat('yyyy-MM-dd HH:mm:ss') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1232,
+        224
+      ],
+      "id": "886a7e0a-7468-4423-93de-2a7308f75798",
+      "name": "Enviar por WAHA2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://waha.qhosting.net/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Api-Key",
+              "value": "2a92eb04791843f5b4093f21a4306960"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session",
+              "value": "GMD3320"
+            },
+            {
+              "name": "chatId",
+              "value": "={{ $('Code1').item.json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "=✅ Datos de *BANORTE* procesados y actualizados correctamente en la base de datos.\nActualizado:{{ DateTime.local().setZone('America/Mexico_City').toFormat('yyyy-MM-dd HH:mm:ss') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1248,
+        400
+      ],
+      "id": "e5689145-2ad4-4281-92a8-666beaadf914",
+      "name": "Enviar por WAHA3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://waha.qhosting.net/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "2a92eb04791843f5b4093f21a4306960"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session",
+              "value": "DasoBOT"
+            },
+            {
+              "name": "chatId",
+              "value": "={{ $json.telefono_cliente.replace('@s.whatsapp.net', '@c.us') }}"
+            },
+            {
+              "name": "text",
+              "value": "=  {{ $json.mensaje_final }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -288,
+        2944
+      ],
+      "id": "d928bde4-f853-41b6-9c8a-4d743408d16d",
+      "name": "Enviar por WAHA4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://waha.qhosting.net/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Api-Key",
+              "value": "2a92eb04791843f5b4093f21a4306960"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "session",
+              "value": "GMD3320"
+            },
+            {
+              "name": "chatId",
+              "value": "={{ $('Webhook WAHA').item.json.body.me.id }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        464,
+        896
+      ],
+      "id": "8449f338-31ab-4b67-8f05-f69b330753d9",
+      "name": "Enviar por WAHA5"
+    }
+  ],
+  "pinData": {
+    "Webhook WAHA": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.qhosting.net",
+            "user-agent": "WAHA/2026.2.1",
+            "content-length": "4870",
+            "accept": "application/json, text/plain, */*",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1",
+            "cf-connecting-ip": "152.53.164.206",
+            "cf-ipcountry": "US",
+            "cf-ray": "9d09d3fe3a04e5f7-IAD",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "content-type": "application/json",
+            "x-forwarded-for": "152.53.164.206, 172.71.190.179",
+            "x-forwarded-host": "n8n.qhosting.net",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "cae5c50f3b0d",
+            "x-real-ip": "172.71.190.179",
+            "x-webhook-request-id": "402wem1cmlu56e74",
+            "x-webhook-timestamp": "1771546720864"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "id": "evt_01khw6kek0zxw0sg7yb76py3vd",
+            "timestamp": 1771546720864,
+            "event": "message.any",
+            "session": "GMD3320",
+            "metadata": {},
+            "me": {
+              "id": "5214424793320@c.us",
+              "pushName": "Dasobot"
+            },
+            "payload": {
+              "id": "false_5214424793322@c.us_AC2C637F1614A5FBDC2D9AB8BBF5D9CA",
+              "timestamp": 1771546720,
+              "from": "5214424793322@c.us",
+              "fromMe": false,
+              "source": "app",
+              "to": "5214424793320@c.us",
+              "body": "DQ2305185",
+              "hasMedia": true,
+              "media": {
+                "url": "http://localhost:80/api/files/GMD3320/false_5214424793322@c.us_AC2C637F1614A5FBDC2D9AB8BBF5D9CA.jpeg",
+                "filename": null,
+                "mimetype": "image/jpeg"
+              },
+              "ack": 1,
+              "ackName": "SERVER",
+              "location": null,
+              "vCards": [],
+              "_data": {
+                "id": {
+                  "fromMe": false,
+                  "remote": "5214424793322@c.us",
+                  "id": "AC2C637F1614A5FBDC2D9AB8BBF5D9CA",
+                  "_serialized": "false_5214424793322@c.us_AC2C637F1614A5FBDC2D9AB8BBF5D9CA"
+                },
+                "viewed": false,
+                "body": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEABsbGxscGx4hIR4qLSgtKj04MzM4PV1CR0JHQl2NWGdYWGdYjX2Xe3N7l33gsJycsOD/2c7Z//////////////8BGxsbGxwbHiEhHiotKC0qPTgzMzg9XUJHQkdCXY1YZ1hYZ1iNfZd7c3uXfeCwnJyw4P/Zztn////////////////CABEIAEgAIAMBIgACEQEDEQH/xAAsAAEBAQEAAwAAAAAAAAAAAAAHAAYCAQMEAQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAADOIJ8iHRyinRIZ4hnsOEQ7JEO0Q6OUQ7JEO94fQd7/AABIFHk+o//EACIQAAICAgEEAwEAAAAAAAAAAAECAAMzchESEyJxMTJSQv/aAAgBAQABPwCvImwiWugUKo+ohsd67NTLMj7GV5E2ErVehdRLAAr8fkyzI+xleRNhKuoKvP5EfjtvqZZkfYyvImwlRJRfQjvwj6mWZH2MryJsJRyEHoS36NqZZkfYyvImwlfBrTUR08H1MsyPsZXkTYSlCUHoSxSEbUyzI+xleRNhFNvQvDD4EbudL8n+TLMj7GV5E2EQeC+hHHg+plmR9jP/xAAUEQEAAAAAAAAAAAAAAAAAAAAw/9oACAECAQE/AC//xAAUEQEAAAAAAAAAAAAAAAAAAAAw/9oACAEDAQE/AC//2Q==",
+                "type": "image",
+                "t": 1771546720,
+                "clientReceivedTsMillis": 1771546719192,
+                "notifyName": "daso17 colchones",
+                "from": "5214424793322@c.us",
+                "to": "5214424793320@c.us",
+                "ack": 1,
+                "invis": false,
+                "isNewMsg": true,
+                "star": false,
+                "kicNotified": false,
+                "recvFresh": true,
+                "caption": "DQ2305185",
+                "interactiveAnnotations": [],
+                "deprecatedMms3Url": "https://mmg.whatsapp.net/v/t62.7118-24/640398648_1421739942927386_8898742094226969650_n.enc?ccb=11-4&oh=01_Q5Aa3wEV4s75kxukeMDDGgnOgqpO6xfhSoE5Eqco44VbmMtDqg&oe=69BEFD42&_nc_sid=5e03e0&mms3=true",
+                "directPath": "/v/t62.7118-24/640398648_1421739942927386_8898742094226969650_n.enc?ccb=11-4&oh=01_Q5Aa3wEV4s75kxukeMDDGgnOgqpO6xfhSoE5Eqco44VbmMtDqg&oe=69BEFD42&_nc_sid=5e03e0",
+                "mimetype": "image/jpeg",
+                "filehash": "7Rn+RLFc63Rw4MzwBDXkvyCGFIqRAyMX9Gf+BXghqb0=",
+                "encFilehash": "AyncK59C6zDHtKOIRnovdOGyDPJpSxpBG7jEUxbMFko=",
+                "size": 52657,
+                "mediaKey": "fbb/0Lg8fGiD9BY4KtRsoPLLnyzsKiFIZYFxU0PWw7Y=",
+                "mediaKeyTimestamp": 1771546718,
+                "isViewOnce": false,
+                "width": 720,
+                "height": 1600,
+                "staticUrl": "",
+                "scanLengths": [
+                  6361,
+                  25009,
+                  9810,
+                  11477
+                ],
+                "scansSidecar": {},
+                "isFromTemplate": false,
+                "isAdsMedia": false,
+                "pollInvalidated": false,
+                "isSentCagPollCreation": false,
+                "latestEditMsgKey": null,
+                "latestEditSenderTimestampMs": null,
+                "mentionedJidList": [],
+                "groupMentions": [],
+                "isEventCanceled": false,
+                "eventInvalidated": false,
+                "statusMentioned": false,
+                "isVcardOverMmsDocument": false,
+                "questionReplyQuotedMessage": null,
+                "questionResponsesCount": 0,
+                "readQuestionResponsesCount": 0,
+                "forwardsCount": 0,
+                "labels": [],
+                "hasReaction": false,
+                "viewMode": "VISIBLE",
+                "messageSecret": {
+                  "0": 247,
+                  "1": 45,
+                  "2": 177,
+                  "3": 75,
+                  "4": 92,
+                  "5": 199,
+                  "6": 64,
+                  "7": 88,
+                  "8": 4,
+                  "9": 15,
+                  "10": 225,
+                  "11": 251,
+                  "12": 149,
+                  "13": 242,
+                  "14": 245,
+                  "15": 51,
+                  "16": 178,
+                  "17": 192,
+                  "18": 136,
+                  "19": 221,
+                  "20": 178,
+                  "21": 216,
+                  "22": 129,
+                  "23": 237,
+                  "24": 245,
+                  "25": 142,
+                  "26": 111,
+                  "27": 59,
+                  "28": 175,
+                  "29": 33,
+                  "30": 30,
+                  "31": 23
+                },
+                "productHeaderImageRejected": false,
+                "lastPlaybackProgress": 0,
+                "isDynamicReplyButtonsMsg": false,
+                "isCarouselCard": false,
+                "parentMsgId": null,
+                "callSilenceReason": null,
+                "isVideoCall": false,
+                "callDuration": null,
+                "callCreator": null,
+                "callParticipants": null,
+                "isCallLink": null,
+                "callLinkToken": null,
+                "isMdHistoryMsg": false,
+                "stickerSentTs": 0,
+                "isAvatar": false,
+                "lastUpdateFromServerTs": 0,
+                "invokedBotWid": null,
+                "bizBotType": null,
+                "botResponseTargetId": null,
+                "botPluginType": null,
+                "botPluginReferenceIndex": null,
+                "botPluginSearchProvider": null,
+                "botPluginSearchUrl": null,
+                "botPluginSearchQuery": null,
+                "botPluginMaybeParent": false,
+                "botReelPluginThumbnailCdnUrl": null,
+                "botMessageDisclaimerText": null,
+                "botSessionTransparencyType": null,
+                "botMsgBodyType": null,
+                "reportingTokenInfo": {
+                  "reportingToken": {
+                    "0": 142,
+                    "1": 201,
+                    "2": 186,
+                    "3": 237,
+                    "4": 218,
+                    "5": 48,
+                    "6": 51,
+                    "7": 38,
+                    "8": 24,
+                    "9": 194,
+                    "10": 95,
+                    "11": 87,
+                    "12": 241,
+                    "13": 6,
+                    "14": 207,
+                    "15": 77
+                  },
+                  "version": 2,
+                  "reportingTag": {
+                    "0": 1,
+                    "1": 16,
+                    "2": 9,
+                    "3": 181,
+                    "4": 29,
+                    "5": 254,
+                    "6": 144,
+                    "7": 115,
+                    "8": 31,
+                    "9": 74,
+                    "10": 136,
+                    "11": 30,
+                    "12": 178,
+                    "13": 133,
+                    "14": 221,
+                    "15": 236,
+                    "16": 221,
+                    "17": 80,
+                    "18": 191,
+                    "19": 207
+                  }
+                },
+                "requiresDirectConnection": null,
+                "bizContentPlaceholderType": null,
+                "hostedBizEncStateMismatch": false,
+                "senderOrRecipientAccountTypeHosted": false,
+                "placeholderCreatedWhenAccountIsHosted": false,
+                "groupHistoryBundleMessageKey": null,
+                "groupHistoryBundleMetadata": null,
+                "groupHistoryIndividualMessageInfo": null,
+                "links": []
+              }
+            },
+            "engine": "WEBJS",
+            "environment": {
+              "version": "2026.2.1",
+              "engine": "WEBJS",
+              "tier": "PLUS",
+              "browser": "/usr/bin/chromium",
+              "platform": "linux/x64",
+              "worker": {
+                "id": null
+              }
+            }
+          },
+          "webhookUrl": "https://n8n.qhosting.net/webhook/webhook-waha-tickets",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "IMAGEN": {
+      "main": [
+        [
+          {
+            "node": "Analyze image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze image": {
+      "main": [
+        [
+          {
+            "node": "EXTRAE_DATOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insertar_Ticket": {
+      "main": [
+        [
+          {
+            "node": "MENSAJE",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Asigna Gestor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXTRAE_DATOS": {
+      "main": [
+        [
+          {
+            "node": "Insertar_Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MENSAJE": {
+      "main": [
+        [
+          {
+            "node": "Intentar Conciliación Inteligente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrutador Principal": {
+      "main": [
+        [
+          {
+            "node": "Selector de Acción",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Selector de Acción": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Cliente por Teléfono",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validar Respuesta de Texto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generar Mensaje de Formato Inválido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Ticket Pendiente": {
+      "main": [
+        [
+          {
+            "node": "Generar Mensaje de Petición",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Mensaje de Petición": {
+      "main": [
+        [
+          {
+            "node": "Enviar por WAHA5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Ticket Pendiente": {
+      "main": [
+        [
+          {
+            "node": "¿Se Encontró Pendiente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Se Encontró Pendiente?": {
+      "main": [
+        [
+          {
+            "node": "Eliminar Pendiente",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Intentar Conciliación Inteligente": {
+      "main": [
+        [
+          {
+            "node": "Preparar Mensaje de Notificación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Validacion exitosa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validacion exitosa": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "santander.csv",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "banorte.csv",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mensaje_Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "santander.csv": {
+      "main": [
+        [
+          {
+            "node": "Extraer datos Santander",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "banorte.csv": {
+      "main": [
+        [
+          {
+            "node": "Extraer datos Banorte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Insertar_Banorte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Santander": {
+      "main": [
+        [
+          {
+            "node": "Inserta_Santander",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer datos Santander": {
+      "main": [
+        [
+          {
+            "node": "Code_Santander",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer datos Banorte": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insertar_Banorte": {
+      "main": [
+        [
+          {
+            "node": "Enviar por WAHA3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inserta_Santander": {
+      "main": [
+        [
+          {
+            "node": "Enviar por WAHA2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gran Enrutador": {
+      "main": [
+        [
+          {
+            "node": "Gran Enrutador2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gran Enrutador2": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enrutador Principal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intentar Conciliación por Ticket": {
+      "main": [
+        [
+          {
+            "node": "¿Conciliación Exitosa?1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generar Resumen para Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Tickets por Conciliar?": {
+      "main": [
+        [
+          {
+            "node": "Intentar Conciliación por Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generar Mensaje \"Sin Novedades\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Mensaje \"Sin Novedades\"": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensaje al Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Conciliación Exitosa?1": {
+      "main": [
+        [
+          {
+            "node": "Mensaje_Remitente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Resumen para Admin": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensaje al Admin1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar Seguimiento de Pagos (Vie, Lun-Mie)": {
+      "main": [
+        [
+          {
+            "node": "¿Qué Día es Hoy?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Viernes 6PM - Recordatorio a No Pagos": {
+      "main": [
+        [
+          {
+            "node": "Obtener Clientes Activos sin Pago",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Clientes Activos sin Pago": {
+      "main": [
+        [
+          {
+            "node": "Formatear Lote para Campaña SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Lote para Campaña SMS": {
+      "main": [
+        [
+          {
+            "node": "Enviar Campaña SMS (LabsMobile)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Campaña SMS (LabsMobile)": {
+      "main": [
+        [
+          {
+            "node": "Guardar Resumen en BD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Resumen en BD": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensaje al Admin2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Lote para Campaña SMS1": {
+      "main": [
+        [
+          {
+            "node": "Enviar Campaña SMS (LabsMobile)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Campaña SMS (LabsMobile)1": {
+      "main": [
+        [
+          {
+            "node": "Guardar Resumen en BD1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Resumen en BD1": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensaje al Admin3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Clientes en Periodo de Pago": {
+      "main": [
+        [
+          {
+            "node": "Formatear Lote para Campaña SMS1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Lote para Campaña SMS2": {
+      "main": [
+        [
+          {
+            "node": "Enviar Campaña SMS (LabsMobile)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Campaña SMS (LabsMobile)2": {
+      "main": [
+        [
+          {
+            "node": "Guardar Resumen en BD2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Resumen en BD2": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensaje al Admin4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Diario - Cobranza Acumulada Semanal": {
+      "main": [
+        [
+          {
+            "node": "Obtener Clientes sin Pago Acumulado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Clientes sin Pago Acumulado": {
+      "main": [
+        [
+          {
+            "node": "Formatear Lote para Campaña SMS2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sábado 10AM - Recordatorio Inicio de Semana": {
+      "main": [
+        [
+          {
+            "node": "Obtener Clientes en Periodo de Pago",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Tickets Pendientes1": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Tickets por Conciliar?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Tickets por Conciliar?1": {
+      "main": [
+        [
+          {
+            "node": "Intentar Conciliación Deposito Efectivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generar Mensaje \"Sin Novedades\"1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Mensaje \"Sin Novedades\"1": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensaje al Admin5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Resumen para Admin1": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensaje al Admin6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Diario - Conciliación SPEI": {
+      "main": [
+        [
+          {
+            "node": "Obtener Tickets con Clave de Rastreo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Tickets con Clave de Rastreo": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Tickets por Conciliar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Obtener Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Excel": {
+      "main": [
+        [
+          {
+            "node": "Enviar Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Tickets": {
+      "main": [
+        [
+          {
+            "node": "Prepara Datos Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepara Datos Excel": {
+      "main": [
+        [
+          {
+            "node": "Generar Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Mensaje de Formato Inválido": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensaje de Error de Formato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Cliente por Teléfono": {
+      "main": [
+        [
+          {
+            "node": "¿Cliente Encontrado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Cliente Encontrado?": {
+      "main": [
+        [
+          {
+            "node": "Unir Datos de Busqueda",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Guardar Ticket Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Excel1": {
+      "main": [
+        [
+          {
+            "node": "Enviar Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepara Datos Excel1": {
+      "main": [
+        [
+          {
+            "node": "Generar Excel1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONCILIACION_TESORERIA": {
+      "main": [
+        [
+          {
+            "node": "Obtener Movimientos del Día",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONCILIAR_DEPOSITO": {
+      "main": [
+        [
+          {
+            "node": "Obtener Tickets Pendientes1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Movimientos del Día": {
+      "main": [
+        [
+          {
+            "node": "Prepara Datos Excel1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Respuesta de Texto": {
+      "main": [
+        [
+          {
+            "node": "¿Respuesta con Formato Válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Respuesta con Formato Válido?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Ticket Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generar Mensaje de Formato Incorrecto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Mensaje de Formato Incorrecto": {
+      "main": [
+        [
+          {
+            "node": "Mensaje_Ticket2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Mensaje de Notificación": {
+      "main": [
+        [
+          {
+            "node": "Enviar por WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Estandarizar Variables de Imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Estandarizar Variables de Imagen": {
+      "main": [
+        [
+          {
+            "node": "IMAGEN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unir Datos de Busqueda": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Intentar Conciliación Deposito Efectivo": {
+      "main": [
+        [
+          {
+            "node": "¿Conciliación Exitosa?2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generar Resumen para Admin1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Insertar estado_de_cuenta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Tickets Pendientes": {
+      "main": [
+        [
+          {
+            "node": "Generar Resumen para Admin2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Resumen para Admin2": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensaje al Admin8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONCILIAR_DEPOSITO1": {
+      "main": [
+        [
+          {
+            "node": "Obtener Tickets Pendientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envio de Saldos": {
+      "main": [
+        [
+          {
+            "node": "Obtener Pagos Pendientes de Notificar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Pagos Pendientes de Notificar": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code3": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Ticket Enviado1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Enviar por WAHA1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Ticket Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Numero Invalido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Numero Invalido": {
+      "main": [
+        [
+          {
+            "node": "Enviar por WAHA4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook WAHA": {
+      "main": [
+        [
+          {
+            "node": "¿Tiene Imagen?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tiene Imagen?": {
+      "main": [
+        [
+          {
+            "node": "Descargar Media WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar Media WAHA": {
+      "main": [
+        [
+          {
+            "node": "Adaptador a Formato Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Adaptador a Formato Evolution": {
+      "main": [
+        [
+          {
+            "node": "Gran Enrutador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar por WAHA1": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false
+  },
+  "versionId": "405891f9-49b3-4467-9de8-90ae3588c52f",
+  "meta": {
+    "instanceId": "15f05980d22cbb9084bee79c09a56a2095a3dc633eba4d7c1b745af6d2ae6c48"
+  },
+  "id": "R-2zFPZunRb4tZyFdH1uE",
+  "tags": []
+}

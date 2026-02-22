@@ -1,12 +1,12 @@
 generator client {
-    provider = "prisma-client-js"
-    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
-    output = "../node_modules/.prisma/client"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+  output        = "../node_modules/.prisma/client"
 }
 
 datasource db {
-    provider = "postgresql"
-    url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum UserRole {
@@ -44,60 +44,63 @@ enum MotivoMotarario {
 }
 
 model User {
-  id            String     @id @default(cuid())
-  email         String     @unique
-  name          String
-  password      String?
-  role          UserRole   @default(cobrador)
-  codigoGestor  String?    // Código de gestor/cobrador para importación
-  isActive      Boolean    @default(true)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  password     String?
+  role         UserRole @default(cobrador)
+  codigoGestor String? // Código de gestor/cobrador para importación
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Configuración de impresora personal
-  impresoraNombre       String?  // Nombre/modelo de la impresora
+  impresoraNombre       String? // Nombre/modelo de la impresora
   impresoraAnchoPapel   Int?     @default(80) // 58 o 80 mm
   impresoraTamanoFuente String?  @default("mediana") // "pequena", "mediana", "grande"
   impresoraAutoImprimir Boolean? @default(false) // Auto-imprimir tickets al registrar pago
 
   // NextAuth relations
-  accounts      Account[]
-  sessions      Session[]
+  accounts Account[]
+  sessions Session[]
 
   // Business relations
-  clientesAsignados Cliente[] @relation("CobradorAsignado")
+  clientesAsignados Cliente[]                  @relation("CobradorAsignado")
   pagos             Pago[]
   motararios        Motarario[]
   rutasCobranza     RutaCobranza[]
+  tickets           Ticket[]
+  convenios         ConvenioPago[]
+  verificaciones    VerificacionDomiciliaria[]
 
   @@map("users")
 }
 
 model Cliente {
-  id                  String        @id @default(cuid())
-  codigoCliente       String        @unique
+  id                  String       @id @default(cuid())
+  codigoCliente       String       @unique
   fechaVenta          DateTime
   nombreCompleto      String
   telefono            String?
   vendedor            String?
   cobradorAsignadoId  String?
-  productoId          String?       // Vinculación con inventario
-  sucursalId          String?       // Origen de la venta
-  statusCuenta        StatusCuenta  @default(activo)
+  productoId          String? // Vinculación con inventario
+  sucursalId          String? // Origen de la venta
+  statusCuenta        StatusCuenta @default(activo)
   direccionCompleta   String
   descripcionProducto String
   diaPago             String
-  montoPago           Decimal       @db.Decimal(10,2)
+  montoPago           Decimal      @db.Decimal(10, 2)
   periodicidad        Periodicidad
-  saldoActual         Decimal       @db.Decimal(10,2)
-  importe1            Decimal?      @db.Decimal(10,2)
-  importe2            Decimal?      @db.Decimal(10,2)
-  importe3            Decimal?      @db.Decimal(10,2)
-  importe4            Decimal?      @db.Decimal(10,2)
+  saldoActual         Decimal      @db.Decimal(10, 2)
+  importe1            Decimal?     @db.Decimal(10, 2)
+  importe2            Decimal?     @db.Decimal(10, 2)
+  importe3            Decimal?     @db.Decimal(10, 2)
+  importe4            Decimal?     @db.Decimal(10, 2)
 
   // -- Nuevos Campos de Identificación y Contacto --
-  dni                 String?       // INE, CURP, Pasaporte
-  email               String?
+  dni   String? // INE, CURP, Pasaporte
+  email String?
 
   // -- Dirección Detallada --
   calle               String?
@@ -107,100 +110,111 @@ model Cliente {
   ciudad              String?
   estado              String?
   codigoPostal        String?
-  referenciaDireccion String?       @db.Text
+  referenciaDireccion String? @db.Text
 
   // -- Datos Personales y Laborales --
-  fechaNacimiento     DateTime?
-  estadoCivil         String?
-  genero              String?
-  ocupacion           String?
-  empresaTrabajo      String?
-  telefonoTrabajo     String?
+  fechaNacimiento DateTime?
+  estadoCivil     String?
+  genero          String?
+  ocupacion       String?
+  empresaTrabajo  String?
+  telefonoTrabajo String?
 
   // -- Datos Financieros --
-  ingresosMensuales   Decimal?      @db.Decimal(10,2)
-  limiteCredito       Decimal?      @db.Decimal(10,2)
-  formaPago           String?
-  datosBancarios      Json?
+  ingresosMensuales Decimal? @db.Decimal(10, 2)
+  limiteCredito     Decimal? @db.Decimal(10, 2)
+  formaPago         String?
+  datosBancarios    Json?
 
   // -- Otros --
-  observaciones       String?       @db.Text
-  zona                String?
+  observaciones String? @db.Text
+  zona          String?
 
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  cobradorAsignado    User?         @relation("CobradorAsignado", fields: [cobradorAsignadoId], references: [id])
-  producto            Producto?     @relation(fields: [productoId], references: [id])
-  sucursal            Sucursal?     @relation(fields: [sucursalId], references: [id])
-  pagos               Pago[]
-  motararios          Motarario[]
+  cobradorAsignado     User?                      @relation("CobradorAsignado", fields: [cobradorAsignadoId], references: [id])
+  producto             Producto?                  @relation(fields: [productoId], references: [id])
+  sucursal             Sucursal?                  @relation(fields: [sucursalId], references: [id])
+  pagos                Pago[]
+  motararios           Motarario[]
+  tickets              Ticket[]
+  movimientosBancarios MovimientoBancario[]
+  convenios            ConvenioPago[]
+  verificaciones       VerificacionDomiciliaria[]
 
   @@map("clientes")
 }
 
 model Pago {
-  id              String    @id @default(cuid())
-  clienteId       String
-  cobradorId      String
-  monto           Decimal   @db.Decimal(10,2)
-  concepto        String?
-  tipoPago        TipoPago  @default(regular)
-  fechaPago       DateTime  @default(now())
-  saldoAnterior   Decimal   @db.Decimal(10,2)
-  saldoNuevo      Decimal   @db.Decimal(10,2)
-  metodoPago      String    @default("efectivo") // efectivo, transferencia, cheque
-  numeroRecibo    String?
-  localId         String?   // Para sincronización offline
-  ticketImpreso   Boolean   @default(false)
-  sincronizado    Boolean   @default(false)
-  createdAt       DateTime  @default(now())
+  id            String   @id @default(cuid())
+  clienteId     String
+  cobradorId    String
+  monto         Decimal  @db.Decimal(10, 2)
+  concepto      String?
+  tipoPago      TipoPago @default(regular)
+  fechaPago     DateTime @default(now())
+  saldoAnterior Decimal  @db.Decimal(10, 2)
+  saldoNuevo    Decimal  @db.Decimal(10, 2)
+  metodoPago    String   @default("efectivo") // efectivo, transferencia, cheque
+  numeroRecibo  String?
+  localId       String? // Para sincronización offline
+  ticketImpreso Boolean  @default(false)
+  sincronizado  Boolean  @default(false)
+  createdAt     DateTime @default(now())
 
-  cliente         Cliente   @relation(fields: [clienteId], references: [id])
-  cobrador        User      @relation(fields: [cobradorId], references: [id])
+  // Mapeo legacy
+  ticketId String?
+  ticket   Ticket? @relation(fields: [ticketId], references: [id])
+  banco    String?
+  latitud  String?
+  longitud String?
+
+  cliente  Cliente @relation(fields: [clienteId], references: [id])
+  cobrador User    @relation(fields: [cobradorId], references: [id])
 
   @@map("pagos")
 }
 
 model Motarario {
-  id              String              @id @default(cuid())
-  clienteId       String
-  cobradorId      String  
-  motivo          MotivoMotarario
-  descripcion     String              @db.Text
-  fecha           DateTime            @default(now())
-  proximaVisita   DateTime?
-  localId         String?             // Para sincronización offline
-  sincronizado    Boolean             @default(false)
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id            String          @id @default(cuid())
+  clienteId     String
+  cobradorId    String
+  motivo        MotivoMotarario
+  descripcion   String          @db.Text
+  fecha         DateTime        @default(now())
+  proximaVisita DateTime?
+  localId       String? // Para sincronización offline
+  sincronizado  Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
-  cliente         Cliente             @relation(fields: [clienteId], references: [id])
-  cobrador        User                @relation(fields: [cobradorId], references: [id])
+  cliente  Cliente @relation(fields: [clienteId], references: [id])
+  cobrador User    @relation(fields: [cobradorId], references: [id])
 
   @@map("motararios")
 }
 
 model PlantillaTicket {
-  id          String    @id @default(cuid())
-  nombre      String    @unique
-  contenido   String    @db.Text
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  contenido String   @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("plantillas_ticket")
 }
 
 model RutaCobranza {
-  id                String    @id @default(cuid())
+  id                String   @id @default(cuid())
   cobradorId        String
   fecha             DateTime
   clientesVisitados Json
-  totalCobrado      Decimal   @db.Decimal(10,2)
-  createdAt         DateTime  @default(now())
+  totalCobrado      Decimal  @db.Decimal(10, 2)
+  createdAt         DateTime @default(now())
 
-  cobrador          User      @relation(fields: [cobradorId], references: [id])
+  cobrador User @relation(fields: [cobradorId], references: [id])
 
   @@map("rutas_cobranza")
 }
@@ -242,17 +256,100 @@ model VerificationToken {
 }
 
 model ConfiguracionSistema {
-  id            String   @id @default(cuid())
-  clave         String   @unique // Siempre será "sistema" para tener solo 1 registro
-  empresa       Json
-  cobranza      Json
+  id             String   @id @default(cuid())
+  clave          String   @unique // Siempre será "sistema" para tener solo 1 registro
+  empresa        Json
+  cobranza       Json
   notificaciones Json
   sincronizacion Json
-  impresion     Json
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  impresion      Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@map("configuracion_sistema")
+}
+
+// ==========================================
+// MÓDULOS MIGRACIÓN LEGACY
+// ==========================================
+
+model Ticket {
+  id             String    @id @default(uuid())
+  legacyId       Int?      @unique
+  clienteId      String?
+  cliente        Cliente?  @relation(fields: [clienteId], references: [id])
+  gestorId       String?
+  gestor         User?     @relation(fields: [gestorId], references: [id])
+  monto          Float
+  referencia     String?
+  folio          String?
+  fecha          DateTime?
+  creadoEn       DateTime  @default(now())
+  conciliado     Boolean   @default(false)
+  urlComprobante String?   @db.Text
+  concepto       String?   @db.Text
+  cuentaOrigen   String?   @db.Text
+  cuentaDestino  String?   @db.Text
+
+  movimientos MovimientoBancario[]
+  pagos       Pago[]
+
+  @@map("tickets")
+}
+
+model MovimientoBancario {
+  id                   String    @id @default(uuid())
+  legacyId             Int?      @unique
+  bancoOrigen          String
+  fechaOperacion       DateTime
+  horaOperacion        DateTime? @db.Time
+  descripcionGeneral   String?
+  cargo                Float?
+  abono                Float?
+  saldo                Float?
+  referencia           String?
+  claveRastreo         String?
+  concepto             String?
+  descripcionDetallada String?   @db.Text
+  fechaIngreso         DateTime  @default(now())
+
+  ticketId          String?
+  ticket            Ticket?   @relation(fields: [ticketId], references: [id])
+  clienteId         String?
+  cliente           Cliente?  @relation(fields: [clienteId], references: [id])
+  fechaIdentificado DateTime?
+
+  @@map("movimientos_bancarios")
+}
+
+model ConvenioPago {
+  id            String   @id @default(uuid())
+  clienteId     String
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  gestorId      String
+  gestor        User     @relation(fields: [gestorId], references: [id])
+  tipoConvenio  String
+  monto         Float
+  fecha         DateTime
+  comentario    String?
+  latitud       String?
+  longitud      String?
+  fechaRegistro DateTime @default(now())
+
+  @@map("convenios_pagos")
+}
+
+model VerificacionDomiciliaria {
+  id            String   @id @default(uuid())
+  clienteId     String
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  gestorId      String
+  gestor        User     @relation(fields: [gestorId], references: [id])
+  fecha         DateTime
+  detallesExtra Json?
+  fechaRegistro DateTime @default(now())
+
+  @@map("verificaciones_domiciliarias")
 }
 
 // ==========================================
@@ -268,74 +365,74 @@ enum TipoMovimiento {
 }
 
 model Sucursal {
-  id          String   @id @default(cuid())
-  nombre      String   @unique
-  direccion   String?
-  telefono    String?
-  esBodega    Boolean  @default(false) // true = bodega, false = tienda
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  direccion String?
+  telefono  String?
+  esBodega  Boolean  @default(false) // true = bodega, false = tienda
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  stocks                  Stock[]
-  movimientosOrigen       MovimientoInventario[] @relation("MovimientoOrigen")
-  movimientosDestino      MovimientoInventario[] @relation("MovimientoDestino")
-  clientes                Cliente[]
+  stocks             Stock[]
+  movimientosOrigen  MovimientoInventario[] @relation("MovimientoOrigen")
+  movimientosDestino MovimientoInventario[] @relation("MovimientoDestino")
+  clientes           Cliente[]
 
   @@map("sucursales")
 }
 
 model Producto {
-  id              String   @id @default(cuid())
-  codigo          String   @unique
-  nombre          String
-  descripcion     String?
-  categoria       String?
-  precioCompra    Decimal  @db.Decimal(10,2)
-  precioVenta     Decimal  @db.Decimal(10,2)
-  unidadMedida    String   @default("pieza") // pieza, juego, set
-  stockMinimo     Int      @default(0)
-  imagenUrl       String?
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id           String   @id @default(cuid())
+  codigo       String   @unique
+  nombre       String
+  descripcion  String?
+  categoria    String?
+  precioCompra Decimal  @db.Decimal(10, 2)
+  precioVenta  Decimal  @db.Decimal(10, 2)
+  unidadMedida String   @default("pieza") // pieza, juego, set
+  stockMinimo  Int      @default(0)
+  imagenUrl    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  stocks          Stock[]
-  movimientos     MovimientoInventario[]
-  clientes        Cliente[]
+  stocks      Stock[]
+  movimientos MovimientoInventario[]
+  clientes    Cliente[]
 
   @@map("productos")
 }
 
 model Stock {
-  id          String   @id @default(cuid())
-  productoId  String
-  sucursalId  String
-  cantidad    Int      @default(0)
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  productoId String
+  sucursalId String
+  cantidad   Int      @default(0)
+  updatedAt  DateTime @updatedAt
 
-  producto    Producto @relation(fields: [productoId], references: [id])
-  sucursal    Sucursal @relation(fields: [sucursalId], references: [id])
+  producto Producto @relation(fields: [productoId], references: [id])
+  sucursal Sucursal @relation(fields: [sucursalId], references: [id])
 
   @@unique([productoId, sucursalId])
   @@map("stock")
 }
 
 model MovimientoInventario {
-  id                String          @id @default(cuid())
+  id                String         @id @default(cuid())
   productoId        String
   tipoMovimiento    TipoMovimiento
   cantidad          Int
   sucursalOrigenId  String?
   sucursalDestinoId String?
   motivo            String?
-  referencia        String?         // Número de factura, orden, etc.
+  referencia        String? // Número de factura, orden, etc.
   usuarioId         String?
-  createdAt         DateTime        @default(now())
+  createdAt         DateTime       @default(now())
 
-  producto          Producto        @relation(fields: [productoId], references: [id])
-  sucursalOrigen    Sucursal?       @relation("MovimientoOrigen", fields: [sucursalOrigenId], references: [id])
-  sucursalDestino   Sucursal?       @relation("MovimientoDestino", fields: [sucursalDestinoId], references: [id])
+  producto        Producto  @relation(fields: [productoId], references: [id])
+  sucursalOrigen  Sucursal? @relation("MovimientoOrigen", fields: [sucursalOrigenId], references: [id])
+  sucursalDestino Sucursal? @relation("MovimientoDestino", fields: [sucursalDestinoId], references: [id])
 
   @@map("movimientos_inventario")
 }
