@@ -8,7 +8,7 @@ import bcrypt from 'bcryptjs';
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session || (session.user as any)?.role !== 'admin') {
       return NextResponse.json(
         { error: 'No autorizado' },
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const deletedClientes = await prisma.cliente.deleteMany();
     const deletedMotararios = await prisma.motarario.deleteMany();
     const deletedRutas = await prisma.rutaCobranza.deleteMany();
-    
+
     // Limpiar usuarios excepto los por defecto
     await prisma.user.deleteMany({
       where: {
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
         nombre: 'Ticket Estándar',
         contenido: `
 ================================
-    MUEBLERÍA LA ECONÓMICA
+    {{empresa_nombre}}
 ================================
 Cliente: {{cliente_nombre}}
 Código: {{cliente_codigo}}

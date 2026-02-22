@@ -18,10 +18,10 @@ export function getVersionInfo() {
 
 // Para debugging - mostrar info de versión en consola
 if (typeof window !== 'undefined') {
-  console.log(`%c🏠 Mueblería La Económica PWA`, 
+  console.log(`%c🏠 VertexERP PWA`,
     'color: #0F172A; font-weight: bold; font-size: 14px');
-  console.log(`%c📱 Versión: ${VERSION_INFO.displayName}`, 
+  console.log(`%c📱 Versión: ${VERSION_INFO.displayName}`,
     'color: #3B82F6; font-weight: bold');
-  console.log(`%c📅 Build: ${VERSION_INFO.buildDate}`, 
+  console.log(`%c📅 Build: ${VERSION_INFO.buildDate}`,
     'color: #6B7280');
 }

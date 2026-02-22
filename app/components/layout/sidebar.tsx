@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -123,7 +123,25 @@ const navigation = [
 export function Sidebar({ className, session }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [companyName, setCompanyName] = useState('Mueblería La Económica');
   const pathname = usePathname();
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch('/api/configuracion');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.empresa?.nombre) {
+            setCompanyName(data.empresa.nombre);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching company name:', error);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   const userRole = (session?.user as any)?.role;
 
@@ -182,7 +200,7 @@ export function Sidebar({ className, session }: SidebarProps) {
             {!isCollapsed && (
               <div>
                 <h1 className="font-semibold text-gray-900 text-sm">
-                  Mueblería La Económica
+                  {companyName}
                 </h1>
                 <p className="text-xs text-gray-500">Sistema de Cobranza</p>
               </div>

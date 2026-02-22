@@ -25,6 +25,7 @@ export function LoginForm() {
   const [installMethod, setInstallMethod] = useState<'native' | 'manual'>('native');
   const [serverUrl, setServerUrl] = useState('');
   const [showServerConfig, setShowServerConfig] = useState(false);
+  const [companyName, setCompanyName] = useState('VertexERP Muebles');
   const router = useRouter();
 
   useEffect(() => {
@@ -46,6 +47,22 @@ export function LoginForm() {
     }
 
     setShowInstallButton(false);
+
+    // Intentar cargar el nombre de la empresa
+    const fetchCompanyName = async () => {
+      try {
+        const response = await fetch('/api/configuracion');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.empresa?.nombre) {
+            setCompanyName(data.empresa.nombre);
+          }
+        }
+      } catch (e) {
+        console.log('No se pudo cargar el nombre de la empresa para el login');
+      }
+    };
+    fetchCompanyName();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -309,7 +326,7 @@ export function LoginForm() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">
-            VertexERP Muebles
+            {companyName}
           </h1>
           <p className="text-blue-200">
             Sistema de Gestión y Cobranza

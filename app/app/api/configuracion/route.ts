@@ -8,11 +8,11 @@ import { prisma } from '@/lib/db';
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
-    if (!session || (session.user as any)?.role !== 'admin') {
+
+    if (!session) {
       return NextResponse.json(
         { error: 'No autorizado' },
-        { status: 403 }
+        { status: 401 }
       );
     }
 
@@ -82,27 +82,27 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     // Debug de sesión
     console.log('POST /api/configuracion - Session:', {
       hasSession: !!session,
       user: session?.user,
       role: (session?.user as any)?.role
     });
-    
+
     if (!session) {
       return NextResponse.json(
-        { 
+        {
           error: 'No autorizado',
           details: 'No hay sesión activa'
         },
         { status: 401 }
       );
     }
-    
+
     if ((session.user as any)?.role !== 'admin') {
       return NextResponse.json(
-        { 
+        {
           error: 'No autorizado',
           details: `Rol actual: ${(session.user as any)?.role}. Se requiere rol: admin`
         },
@@ -121,9 +121,9 @@ export async function POST(request: NextRequest) {
       if (!notificaciones) missingFields.push('notificaciones');
       if (!sincronizacion) missingFields.push('sincronizacion');
       if (!impresion) missingFields.push('impresion');
-      
+
       return NextResponse.json(
-        { 
+        {
           error: 'Faltan campos requeridos',
           missingFields
         },

@@ -11,12 +11,12 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { 
-  Settings, 
-  Shield, 
-  Building2, 
-  Smartphone, 
-  Printer, 
+import {
+  Settings,
+  Shield,
+  Building2,
+  Smartphone,
+  Printer,
   Database,
   Save,
   RotateCcw,
@@ -60,10 +60,10 @@ export default function ConfiguracionPage() {
   const { data: session } = useSession();
   const [config, setConfig] = useState<ConfiguracionSistema>({
     empresa: {
-      nombre: 'Mueblería La Económica',
-      direccion: 'Av. Principal 123, Col. Centro',
-      telefono: '555-1234',
-      email: 'contacto@muebleria.com'
+      nombre: 'Nombre de su Empresa',
+      direccion: '',
+      telefono: '',
+      email: ''
     },
     cobranza: {
       diasGracia: 3,
@@ -88,7 +88,7 @@ export default function ConfiguracionPage() {
       cortarPapel: true
     }
   });
-  
+
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [saved, setSaved] = useState(false);
@@ -121,7 +121,7 @@ export default function ConfiguracionPage() {
     setLoading(true);
     try {
       console.log('Guardando configuración...', config);
-      
+
       const response = await fetch('/api/configuracion', {
         method: 'POST',
         headers: {
@@ -167,7 +167,7 @@ export default function ConfiguracionPage() {
       const response = await fetch('/api/test-printer', {
         method: 'POST',
       });
-      
+
       if (response.ok) {
         toast.success('Impresora conectada correctamente');
       } else {
@@ -557,8 +557,8 @@ export default function ConfiguracionPage() {
                   Se mantienen: usuarios por defecto, plantilla de ticket y configuración del sistema.
                 </p>
               </div>
-              <Button 
-                variant="destructive" 
+              <Button
+                variant="destructive"
                 onClick={handleResetDatabase}
                 disabled={loading}
                 className="ml-4"

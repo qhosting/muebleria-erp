@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getVersionInfo } from '@/lib/version';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,8 +22,23 @@ interface VersionInfoProps {
 
 export function VersionInfo({ compact = false, showButton = true }: VersionInfoProps) {
   const [open, setOpen] = useState(false);
+  const [companyName, setCompanyName] = useState('VertexERP');
   const versionInfo = getVersionInfo();
   const isOnline = useNetworkStatus();
+
+  useEffect(() => {
+    if (compact || !showButton) return;
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch('/api/configuracion');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.empresa?.nombre) setCompanyName(data.empresa.nombre);
+        }
+      } catch (e) { }
+    };
+    fetchConfig();
+  }, [open, compact, showButton]);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('es-MX', {
@@ -63,7 +78,7 @@ export function VersionInfo({ compact = false, showButton = true }: VersionInfoP
             Información de la App
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4">
           {/* Estado de conexión */}
           <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
@@ -118,7 +133,7 @@ export function VersionInfo({ compact = false, showButton = true }: VersionInfoP
           {/* PWA Features */}
           <div className="pt-3 border-t">
             <p className="text-sm text-muted-foreground">
-              <strong>Mueblería La Económica</strong><br />
+              <strong>{companyName}</strong><br />
               Sistema de Cobranza PWA<br />
               ✅ Funciona sin conexión<br />
               ✅ Instalable en móviles<br />
@@ -134,11 +149,25 @@ export function VersionInfo({ compact = false, showButton = true }: VersionInfoP
 // Componente compacto para footer
 export function FooterVersion() {
   const versionInfo = getVersionInfo();
-  
+  const [companyName, setCompanyName] = useState('VertexERP');
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch('/api/configuracion');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.empresa?.nombre) setCompanyName(data.empresa.nombre);
+        }
+      } catch (e) { }
+    };
+    fetchConfig();
+  }, []);
+
   return (
     <div className="flex items-center justify-between text-xs text-muted-foreground">
       <span>
-        Mueblería La Económica © 2025
+        {companyName} © {new Date().getFullYear()}
       </span>
       <VersionInfo compact showButton={false} />
     </div>
