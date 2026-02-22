@@ -6,14 +6,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Landmark, Search, ArrowUpDown, Download } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { UserCheck, Search, Calendar, Download, MapPin } from "lucide-react";
+import { formatDate } from "@/lib/utils";
+import { toast } from "sonner";
 
-export default function BancosPage() {
-    const [movimientos, setMovimientos] = useState<any[]>([]);
+export default function VerificacionesPage() {
+    const [verificaciones, setVerificaciones] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
+
+    const [fechaDesde, setFechaDesde] = useState(() => {
+        const d = new Date(); d.setDate(d.getDate() - 30);
+        return d.toISOString().split("T")[0];
+    });
+    const [fechaHasta, setFechaHasta] = useState(() => new Date().toISOString().split("T")[0]);
+
     const [pagination, setPagination] = useState({
         total: 0,
         pages: 0,
@@ -22,45 +30,47 @@ export default function BancosPage() {
     });
 
     useEffect(() => {
-        fetchMovimientos();
-    }, [currentPage, searchTerm]);
+        fetchVerificaciones();
+    }, [currentPage, searchTerm, fechaDesde, fechaHasta]);
 
-    const fetchMovimientos = async () => {
+    const fetchVerificaciones = async () => {
         setLoading(true);
         try {
             const params = new URLSearchParams({
                 page: currentPage.toString(),
-                limit: "100", // Aumentamos el límite para exportación o vista amplia
+                limit: "50",
                 search: searchTerm,
+                fechaDesde: fechaDesde ? `${fechaDesde}T00:00:00.000Z` : "",
+                fechaHasta: fechaHasta ? `${fechaHasta}T23:59:59.999Z` : "",
             });
 
-            const res = await fetch(`/api/tesoreria/bancos?${params}`);
+            const res = await fetch(`/api/tesoreria/verificaciones?${params}`);
             if (res.ok) {
                 const data = await res.json();
-                setMovimientos(data.movimientos);
+                setVerificaciones(data.verificaciones);
                 setPagination(data.pagination);
             }
         } catch (error) {
-            console.error("Error al obtener estado de cuenta", error);
+            console.error("Error al obtener verificaciones", error);
+            toast.error("Error al cargar verificaciones");
         } finally {
             setLoading(false);
         }
     };
 
     const exportarExcel = () => {
-        if (movimientos.length === 0) return;
+        if (verificaciones.length === 0) return;
 
         const csvContent = [
-            ["Fecha", "Banco Origen", "Concepto", "Referencia", "Clave Rastreo", "Abono", "Cargo", "Saldo"],
-            ...movimientos.map(m => [
-                m.fechaOperacion.split("T")[0],
-                m.bancoOrigen,
-                `"${m.concepto || m.descripcionGeneral || "-"}"`,
-                `"${m.referencia || "-"}"`,
-                `"${m.claveRastreo || "-"}"`,
-                m.abono || 0,
-                m.cargo || 0,
-                m.saldo || 0
+            ["ID", "Fecha", "Codigo Cliente", "Nombre Cliente", "Direccion", "Gestor", "Estatus"],
+            ...verificaciones.map(v => [
+                v.id,
+                v.fecha.split("T")[0],
+                v.cliente?.codigoCliente || "-",
+                `"${v.cliente?.nombreCompleto || "-"}"`,
+                `"${v.cliente?.direccionCompleta || "-"}"`,
+                v.gestor?.name || "-",
+                "REALIZADA"
             ])
         ].map(e => e.join(",")).join("\n");
 
@@ -68,8 +78,9 @@ export default function BancosPage() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `EstadoDeCuenta-${new Date().toISOString().split('T')[0]}.csv`;
+        a.download = `Verificaciones-${fechaDesde}.csv`;
         a.click();
+        toast.success("Descarga iniciada");
     };
 
     return (
@@ -77,83 +88,94 @@ export default function BancosPage() {
             <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-gray-900">Estado de Cuenta Bancario</h1>
+                        <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center">
+                            <UserCheck className="mr-3 h-8 w-8 text-blue-600" />
+                            Verificaciones Domiciliarias
+                        </h1>
                         <p className="text-muted-foreground mt-1">
-                            Visualización y seguimiento de todos los depósitos y transacciones bancarias importadas.
+                            Historial de visitas y validaciones de domicilio realizadas por los gestores.
                         </p>
                     </div>
-                    <Button variant="outline" onClick={exportarExcel} disabled={loading || movimientos.length === 0}>
+                    <Button onClick={exportarExcel} disabled={loading || verificaciones.length === 0}>
                         <Download className="mr-2 h-4 w-4" /> Exportar CSV
                     </Button>
                 </div>
 
+                {/* Filtros */}
                 <Card>
-                    <CardHeader className="pb-3 border-b border-gray-100">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <CardTitle className="text-lg font-medium">Historial de Transacciones</CardTitle>
-                            <div className="relative w-full sm:w-72">
+                    <CardContent className="pt-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="relative md:col-span-2">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                                 <Input
-                                    placeholder="Buscar por concepto, rastreo..."
+                                    placeholder="Buscar por cliente o gestor..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="pl-9"
                                 />
                             </div>
+                            <div className="space-y-2">
+                                <Input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
+                            </div>
                         </div>
-                    </CardHeader>
+                    </CardContent>
+                </Card>
+
+                <Card>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left align-middle text-gray-600">
                                 <thead className="bg-gray-50/75 border-b border-gray-100 font-medium text-gray-700">
                                     <tr>
                                         <th scope="col" className="px-4 py-3">Fecha</th>
-                                        <th scope="col" className="px-4 py-3">Banco Origen</th>
-                                        <th scope="col" className="px-4 py-3 min-w-[200px]">Concepto</th>
-                                        <th scope="col" className="px-4 py-3">Rastreo / Ref</th>
-                                        <th scope="col" className="px-4 py-3 text-right text-green-700">Abono</th>
-                                        <th scope="col" className="px-4 py-3 text-right text-red-700">Cargo</th>
-                                        <th scope="col" className="px-4 py-3 text-right">Saldo</th>
+                                        <th scope="col" className="px-4 py-3">Cliente</th>
+                                        <th scope="col" className="px-4 py-3">Dirección</th>
+                                        <th scope="col" className="px-4 py-3">Gestor</th>
+                                        <th scope="col" className="px-4 py-3 text-center">Estado</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {loading ? (
                                         <tr>
-                                            <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                                                Cargando movimientos...
+                                            <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                                                Cargando verificaciones...
                                             </td>
                                         </tr>
-                                    ) : movimientos.length === 0 ? (
+                                    ) : verificaciones.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="px-4 py-12 text-center">
-                                                <Landmark className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                                                <p className="text-gray-500 font-medium">No se encontraron movimientos</p>
-                                                <p className="text-sm text-gray-400 mt-1">Intenta con otros términos de búsqueda.</p>
+                                            <td colSpan={5} className="px-4 py-12 text-center">
+                                                <MapPin className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                                                <p className="text-gray-500 font-medium">No se encontraron verificaciones</p>
+                                                <p className="text-sm text-gray-400 mt-1">Asegúrate de que hay datos migrados o capturados.</p>
                                             </td>
                                         </tr>
                                     ) : (
-                                        movimientos.map((mov) => (
-                                            <tr key={mov.id} className="hover:bg-gray-50/50 transition-colors">
+                                        verificaciones.map((v) => (
+                                            <tr key={v.id} className="hover:bg-gray-50/50 transition-colors">
                                                 <td className="px-4 py-3 whitespace-nowrap">
-                                                    {formatDate(mov.fechaOperacion).split(' ')[0]}
+                                                    {formatDate(v.fecha).split(' ')[0]}
                                                 </td>
-                                                <td className="px-4 py-3 font-medium text-gray-900">{mov.bancoOrigen}</td>
                                                 <td className="px-4 py-3">
-                                                    <p className="truncate max-w-[250px]" title={mov.concepto || mov.descripcionGeneral || ""}>
-                                                        {mov.concepto || mov.descripcionGeneral || "-"}
+                                                    <p className="font-medium text-gray-900">{v.cliente?.nombreCompleto || "Desconocido"}</p>
+                                                    <p className="text-xs text-gray-500 font-mono">{v.cliente?.codigoCliente}</p>
+                                                </td>
+                                                <td className="px-4 py-3 max-w-xs">
+                                                    <p className="truncate text-gray-600" title={v.cliente?.direccionCompleta}>
+                                                        {v.cliente?.direccionCompleta || "-"}
                                                     </p>
                                                 </td>
-                                                <td className="px-4 py-3 text-xs font-mono text-gray-500">
-                                                    {mov.claveRastreo || mov.referencia || "-"}
+                                                <td className="px-4 py-3">
+                                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100">
+                                                        {v.gestor?.name || "-"}
+                                                    </Badge>
                                                 </td>
-                                                <td className="px-4 py-3 text-right font-medium text-green-700">
-                                                    {mov.abono ? formatCurrency(mov.abono) : "-"}
-                                                </td>
-                                                <td className="px-4 py-3 text-right font-medium text-red-600">
-                                                    {mov.cargo ? formatCurrency(mov.cargo) : "-"}
-                                                </td>
-                                                <td className="px-4 py-3 text-right font-medium text-gray-900">
-                                                    {mov.saldo ? formatCurrency(mov.saldo) : "-"}
+                                                <td className="px-4 py-3 text-center">
+                                                    <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none">
+                                                        Visitado
+                                                    </Badge>
                                                 </td>
                                             </tr>
                                         ))

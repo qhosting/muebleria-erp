@@ -132,6 +132,8 @@ const navigation = [
       { name: 'Tickets', href: '/dashboard/tesoreria/tickets', icon: Ticket },
       { name: 'Bancos', href: '/dashboard/tesoreria/bancos', icon: Landmark },
       { name: 'Conciliador', href: '/dashboard/tesoreria/conciliador', icon: RefreshCcw },
+      { name: 'Verificaciones', href: '/dashboard/tesoreria/verificaciones', icon: UserCheck },
+      { name: 'Control de Caja', href: '/dashboard/tesoreria/caja', icon: Wallet },
     ]
   },
   {

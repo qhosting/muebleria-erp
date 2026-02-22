@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Ticket as TicketIcon, Search, CheckCircle2, AlertCircle, Eye } from "lucide-react";
+import { Ticket as TicketIcon, Search, CheckCircle2, AlertCircle, Eye, Download } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default function TicketsPage() {
@@ -30,7 +30,7 @@ export default function TicketsPage() {
         try {
             const params = new URLSearchParams({
                 page: currentPage.toString(),
-                limit: "50",
+                limit: "100", // Aumentamos el límite para vista amplia
                 search: searchTerm,
             });
 
@@ -47,14 +47,43 @@ export default function TicketsPage() {
         }
     };
 
+    const exportarExcel = () => {
+        if (tickets.length === 0) return;
+
+        const csvContent = [
+            ["Fecha", "Folio/Ref", "Codigo Cliente", "Nombre Cliente", "Gestor", "Monto", "Estado"],
+            ...tickets.map(t => [
+                (t.fecha || t.creadoEn).split("T")[0],
+                `"${t.folio || t.referencia || t.legacyId || "-"}"`,
+                `"${t.cliente?.codigoCliente || "-"}"`,
+                `"${t.cliente?.nombreCompleto || "-"}"`,
+                `"${t.gestor?.name || "-"}"`,
+                t.monto,
+                t.conciliado ? "CONCILIADO" : "PENDIENTE"
+            ])
+        ].map(e => e.join(",")).join("\n");
+
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Tickets-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+    };
+
     return (
         <DashboardLayout>
             <div className="space-y-6">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">Registro de Tickets</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Bandeja general de pagos, interacciones e ingresos reportados.
-                    </p>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight text-gray-900">Registro de Tickets</h1>
+                        <p className="text-muted-foreground mt-1">
+                            Bandeja general de pagos, interacciones e ingresos reportados.
+                        </p>
+                    </div>
+                    <Button variant="outline" onClick={exportarExcel} disabled={loading || tickets.length === 0}>
+                        <Download className="mr-2 h-4 w-4" /> Exportar CSV
+                    </Button>
                 </div>
 
                 <Card>
