@@ -291,6 +291,8 @@ model Ticket {
   concepto       String?   @db.Text
   cuentaOrigen   String?   @db.Text
   cuentaDestino  String?   @db.Text
+  claveRastreo   String?
+  remitente      String?
 
   movimientos MovimientoBancario[]
   pagos       Pago[]
@@ -351,6 +353,17 @@ model VerificacionDomiciliaria {
   fechaRegistro DateTime @default(now())
 
   @@map("verificaciones_domiciliarias")
+}
+
+model TicketPendiente {
+  id          String   @id @default(uuid())
+  remitente   String   @unique // JID de WhatsApp
+  base64Data  String   @db.Text
+  tipoArchivo String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("pending_tickets")
 }
 
 model SesionCaja {

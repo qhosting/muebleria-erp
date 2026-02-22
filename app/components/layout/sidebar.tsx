@@ -114,7 +114,7 @@ const navigation: NavItem[] = [
     roles: ['admin', 'gestor_cobranza', 'reporte_cobranza'],
     subItems: [
       { name: 'General', href: '/dashboard/reportes', icon: FileText },
-      { name: 'Pagos Gestor (DP/DQ)', href: '/dashboard/reportes/pagos-gestor', icon: Users },
+      { name: 'Pagos Gestor (Clientes DP/DQ)', href: '/dashboard/reportes/pagos-gestor', icon: Users },
       { name: 'VD (Verificaciones)', href: '/dashboard/reportes/verificaciones', icon: UserCheck },
       { name: 'Convenios de Pago', href: '/dashboard/reportes/convenios', icon: FileText },
     ]
