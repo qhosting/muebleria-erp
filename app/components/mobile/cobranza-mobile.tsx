@@ -34,6 +34,9 @@ import { SyncStatus } from './sync-status';
 import { ClientCard } from './client-card';
 import { CobroModal } from './cobro-modal';
 import { PagosModal } from './pagos-modal';
+import { MotararioModal } from './motarario-modal';
+import { ConvenioModal } from './convenio-modal';
+import { VerificacionModal } from './verificacion-modal';
 import { formatCurrency, getDayName } from '@/lib/utils';
 import { toast } from 'sonner';
 import { FooterVersion } from '@/components/version-info';
@@ -59,6 +62,9 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
   const [selectedCliente, setSelectedCliente] = useState<OfflineCliente | null>(null);
   const [showCobroModal, setShowCobroModal] = useState(false);
   const [showPagosModal, setShowPagosModal] = useState(false);
+  const [showMotararioModal, setShowMotararioModal] = useState(false);
+  const [showConvenioModal, setShowConvenioModal] = useState(false);
+  const [showVerificacionModal, setShowVerificacionModal] = useState(false);
   const [isOnline, setIsOnline] = useState(typeof window !== 'undefined' ? navigator.onLine : true);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -301,6 +307,21 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
     setShowPagosModal(true);
   };
 
+  const handleVerificar = (cliente: OfflineCliente) => {
+    setSelectedCliente(cliente);
+    setShowVerificacionModal(true);
+  };
+
+  const handleConvenio = (cliente: OfflineCliente) => {
+    setSelectedCliente(cliente);
+    setShowConvenioModal(true);
+  };
+
+  const handleMotarario = (cliente: OfflineCliente) => {
+    setSelectedCliente(cliente);
+    setShowMotararioModal(true);
+  };
+
   // 🚀 OPTIMIZACIÓN: Handler optimizado con useCallback
   const handleModalSuccess = useCallback(async () => {
     try {
@@ -478,6 +499,9 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
                 isOnline={isOnline}
                 onCobrar={handleCobrar}
                 onVerPagos={handleVerPagos}
+                onVerificar={handleVerificar}
+                onConvenio={handleConvenio}
+                onMotarario={handleMotarario}
                 showSyncStatus={true}
               />
             ))}
@@ -499,6 +523,30 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
               cliente={selectedCliente}
               isOpen={showPagosModal}
               onClose={() => setShowPagosModal(false)}
+              isOnline={isOnline}
+            />
+
+            <MotararioModal
+              cliente={selectedCliente}
+              isOpen={showMotararioModal}
+              onClose={() => setShowMotararioModal(false)}
+              onSuccess={handleModalSuccess}
+              isOnline={isOnline}
+            />
+
+            <ConvenioModal
+              cliente={selectedCliente}
+              isOpen={showConvenioModal}
+              onClose={() => setShowConvenioModal(false)}
+              onSuccess={handleModalSuccess}
+              isOnline={isOnline}
+            />
+
+            <VerificacionModal
+              cliente={selectedCliente}
+              isOpen={showVerificacionModal}
+              onClose={() => setShowVerificacionModal(false)}
+              onSuccess={handleModalSuccess}
               isOnline={isOnline}
             />
           </>

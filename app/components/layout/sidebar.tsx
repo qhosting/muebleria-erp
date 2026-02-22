@@ -39,7 +39,20 @@ interface SidebarProps {
   session?: any;
 }
 
-const navigation = [
+interface NavItem {
+  name: string;
+  href: string;
+  icon: any;
+  roles: string[];
+  subItems?: {
+    name: string;
+    href: string;
+    icon: any;
+    roles?: string[];
+  }[];
+}
+
+const navigation: NavItem[] = [
   {
     name: 'Dashboard',
     href: '/dashboard',
@@ -58,12 +71,7 @@ const navigation = [
     icon: UserCheck,
     roles: ['admin'],
   },
-  {
-    name: 'Importar Saldos',
-    href: '/dashboard/saldos',
-    icon: Upload,
-    roles: ['admin'], // Solo admin
-  },
+
   {
     name: 'Importar Clientes',
     href: '/dashboard/importar-clientes',
@@ -83,10 +91,15 @@ const navigation = [
     roles: ['cobrador'],
   },
   {
-    name: 'Pagos',
-    href: '/dashboard/pagos',
-    icon: Receipt,
+    name: 'Cobranza',
+    href: '/dashboard/morosidad', // Fallback to first item
+    icon: CreditCard,
     roles: ['admin', 'gestor_cobranza', 'reporte_cobranza'],
+    subItems: [
+      { name: 'Morosidad', href: '/dashboard/morosidad', icon: AlertTriangle },
+      { name: 'Pagos', href: '/dashboard/pagos', icon: Receipt },
+      { name: 'Importar Saldo', href: '/dashboard/saldos', icon: Upload },
+    ]
   },
   {
     name: 'Inventario',
@@ -102,13 +115,9 @@ const navigation = [
     subItems: [
       { name: 'General', href: '/dashboard/reportes', icon: FileText },
       { name: 'Pagos Gestor (DP/DQ)', href: '/dashboard/reportes/pagos-gestor', icon: Users },
+      { name: 'VD (Verificaciones)', href: '/dashboard/reportes/verificaciones', icon: UserCheck },
+      { name: 'Convenios de Pago', href: '/dashboard/reportes/convenios', icon: FileText },
     ]
-  },
-  {
-    name: 'Morosidad',
-    href: '/dashboard/morosidad',
-    icon: AlertTriangle,
-    roles: ['admin', 'gestor_cobranza', 'reporte_cobranza'],
   },
   {
     name: 'Rutas',
@@ -170,9 +179,12 @@ export function Sidebar({ className, session }: SidebarProps) {
 
   const userRole = (session?.user as any)?.role;
 
-  const filteredNavigation = navigation.filter(item =>
-    item.roles.includes(userRole)
-  );
+  const filteredNavigation = navigation
+    .filter(item => item.roles.includes(userRole))
+    .map(item => ({
+      ...item,
+      subItems: item.subItems?.filter(sub => !sub.roles || sub.roles.includes(userRole))
+    }));
 
   const handleSignOut = () => {
     // Solo limpiar credenciales si el usuario no eligió recordarlas
