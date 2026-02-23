@@ -31,39 +31,67 @@ export async function GET(request: NextRequest) {
             take: 100
         });
 
-        // 3. Algoritmo de Sugerencia Básica
+        // 3. Algoritmo de Sugerencia Inteligente (Scoring)
         const sugerencias = [];
+        const movimientosDisponibles = [...movimientosPendientes];
 
         for (const ticket of ticketsPendientes) {
-            const match = movimientosPendientes.find(mov => {
-                // Criterio 1: Montos Exactos (Cargo en Ticket == Abono en Banco) o (Monto == Abono)
-                const montosIguales = (ticket.monto === mov.abono);
+            let bestMatch = null;
+            let bestPriority = 6;
+            let razon = "";
 
-                // Criterio 2: Coincidencia textual (Referencia, Concepto o Folio)
-                const conceptoMatch = mov.concepto?.includes(ticket.referencia || 'N/A') ||
-                    mov.descripcionGeneral?.includes(ticket.cliente?.codigoCliente || 'N/A');
+            const monto = Number(ticket.monto);
+            const contrato = (ticket.cliente?.codigoCliente || "").toUpperCase();
+            const folio = (ticket.folio || "").toUpperCase();
+            const nombre = (ticket.cliente?.nombreCompleto || "").toUpperCase().substring(0, 15);
 
-                return montosIguales && conceptoMatch;
-            });
+            for (const mov of movimientosDisponibles) {
+                // Solo sugerimos si el monto coincide exactamente
+                if (Number(mov.abono) !== monto) continue;
 
-            if (match) {
+                const concepto = (mov.concepto || "").toUpperCase();
+                const descripcion = (mov.descripcionDetallada || "").toUpperCase();
+                const general = (mov.descripcionGeneral || "").toUpperCase();
+                const dataPool = `${concepto} ${descripcion} ${general}`;
+
+                let currentPriority = 5; // Coincidencia de monto
+                let currentRazon = "Monto exacto (Prioridad 5)";
+
+                if (contrato && dataPool.includes(contrato)) {
+                    currentPriority = 1;
+                    currentRazon = "Econtrado por Contrato (Prioridad 1)";
+                } else if (folio && dataPool.includes(folio)) {
+                    currentPriority = 2;
+                    currentRazon = "Encontrado por Folio (Prioridad 2)";
+                } else if (nombre && dataPool.includes(nombre)) {
+                    currentPriority = 3;
+                    currentRazon = "Encontrado por Nombre (Prioridad 3)";
+                }
+
+                if (currentPriority < bestPriority) {
+                    bestPriority = currentPriority;
+                    bestMatch = mov;
+                    razon = currentRazon;
+                }
+            }
+
+            if (bestMatch && bestPriority <= 5) {
                 sugerencias.push({
                     ticket,
-                    movimiento: match,
-                    certeza: 'Alta'
+                    movimiento: bestMatch,
+                    prioridad: bestPriority,
+                    razon: razon
                 });
 
-                // Remover el movimiento encontrado de las posibles opciones futuras de este batch
-                const index = movimientosPendientes.findIndex(m => m.id === match.id);
-                if (index > -1) {
-                    movimientosPendientes.splice(index, 1);
-                }
+                // Remover para no duplicar sugerencias en este batch
+                const idx = movimientosDisponibles.findIndex(m => m.id === bestMatch.id);
+                if (idx > -1) movimientosDisponibles.splice(idx, 1);
             }
         }
 
         return NextResponse.json({
             tickets: ticketsPendientes,
-            movimientos: movimientosPendientes,
+            movimientos: movimientosDisponibles, // Ahora usamos los movimientos restantes
             sugerencias
         });
 

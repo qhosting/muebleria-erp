@@ -12,6 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { BarChart3, TrendingUp, Users, DollarSign, Calendar, Download, Search, Filter } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ResumenGestores } from '@/components/reportes/ResumenGestores';
+import { ReporteDiscrepancias } from '@/components/reportes/ReporteDiscrepancias';
 
 interface User {
   id: string;
@@ -49,8 +52,13 @@ interface ReporteCobranza {
 export default function ReportesPage() {
   const { data: session } = useSession();
   const [reporte, setReporte] = useState<ReporteCobranza | null>(null);
+  const [reporteGestores, setReporteGestores] = useState<any[]>([]);
+  const [reporteDiscrepancias, setReporteDiscrepancias] = useState<any>(null);
   const [cobradores, setCobradores] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingGestores, setLoadingGestores] = useState(false);
+  const [loadingDiscrepancias, setLoadingDiscrepancias] = useState(false);
+  const [activeTab, setActiveTab] = useState('cobranza');
 
   // Filtros
   const [selectedCobrador, setSelectedCobrador] = useState<string>('all');
@@ -69,8 +77,10 @@ export default function ReportesPage() {
   }, []);
 
   useEffect(() => {
-    fetchReporte();
-  }, [selectedCobrador, fechaDesde, fechaHasta]);
+    if (activeTab === 'cobranza') fetchReporte();
+    if (activeTab === 'gestores') fetchReporteGestores();
+    if (activeTab === 'discrepancias') fetchReporteDiscrepancias();
+  }, [selectedCobrador, fechaDesde, fechaHasta, activeTab]);
 
   const fetchCobradores = async () => {
     try {
@@ -110,6 +120,32 @@ export default function ReportesPage() {
       toast.error('Error al cargar el reporte');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchReporteGestores = async () => {
+    try {
+      setLoadingGestores(true);
+      const params = new URLSearchParams({ fechaDesde, fechaHasta });
+      const response = await fetch(`/api/reportes/gestores?${params.toString()}`);
+      if (response.ok) setReporteGestores(await response.json());
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoadingGestores(false);
+    }
+  };
+
+  const fetchReporteDiscrepancias = async () => {
+    try {
+      setLoadingDiscrepancias(true);
+      const params = new URLSearchParams({ fechaDesde, fechaHasta });
+      const response = await fetch(`/api/reportes/discrepancias?${params.toString()}`);
+      if (response.ok) setReporteDiscrepancias(await response.json());
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoadingDiscrepancias(false);
     }
   };
 
@@ -230,170 +266,188 @@ export default function ReportesPage() {
           </CardContent>
         </Card>
 
-        {/* Resumen General */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="border-l-4 border-l-green-500">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Histórico Cobrado</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {reporte ? formatCurrency(reporte.totales.totalCobrado) : formatCurrency(0)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {selectedCobrador === 'all' ? 'Todos los cobradores' : cobradores.find(c => c.id === selectedCobrador)?.name}
-              </p>
-            </CardContent>
-          </Card>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid grid-cols-3 w-full max-w-md">
+            <TabsTrigger value="cobranza">Cobranza</TabsTrigger>
+            <TabsTrigger value="gestores">Rendimiento</TabsTrigger>
+            <TabsTrigger value="discrepancias">Discrepancias</TabsTrigger>
+          </TabsList>
 
-          <Card className="border-l-4 border-l-blue-500">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Cuentas Cobradas</CardTitle>
-              <BarChart3 className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {reporte ? reporte.totales.totalPagos : 0}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Total de pagos realizados
-              </p>
-            </CardContent>
-          </Card>
+          <TabsContent value="cobranza" className="space-y-6 mt-6">
+            {/* Resumen General */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card className="border-l-4 border-l-green-500">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Histórico Cobrado</CardTitle>
+                  <DollarSign className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">
+                    {reporte ? formatCurrency(reporte.totales.totalCobrado) : formatCurrency(0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {selectedCobrador === 'all' ? 'Todos los cobradores' : cobradores.find(c => c.id === selectedCobrador)?.name}
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card className="border-l-4 border-l-emerald-500">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pagos Regulares</CardTitle>
-              <TrendingUp className="h-4 w-4 text-emerald-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-emerald-600">
-                {reporte ? formatCurrency(reporte.totales.pagosRegulares) : formatCurrency(0)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Pagos en tiempo
-              </p>
-            </CardContent>
-          </Card>
+              <Card className="border-l-4 border-l-blue-500">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Cuentas Cobradas</CardTitle>
+                  <BarChart3 className="h-4 w-4 text-blue-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {reporte ? reporte.totales.totalPagos : 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Total de pagos realizados
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card className="border-l-4 border-l-orange-500">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pagos Moratorios</CardTitle>
-              <Users className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {reporte ? formatCurrency(reporte.totales.pagosMoratorios) : formatCurrency(0)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Pagos atrasados
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+              <Card className="border-l-4 border-l-emerald-500">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Pagos Regulares</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-emerald-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-emerald-600">
+                    {reporte ? formatCurrency(reporte.totales.pagosRegulares) : formatCurrency(0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Pagos en tiempo
+                  </p>
+                </CardContent>
+              </Card>
 
-        {/* Detalle por Cobrador */}
-        {selectedCobrador === 'all' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Rendimiento por Cobrador
-              </CardTitle>
-              <CardDescription>
-                Comparativo de productividad en el período seleccionado
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="text-center py-8">Cargando...</div>
-              ) : reporte?.reportePorCobrador && reporte.reportePorCobrador.length > 0 ? (
-                <div className="space-y-4">
-                  {reporte.reportePorCobrador
-                    .sort((a, b) => b.totalCobrado - a.totalCobrado)
-                    .map((cobrador, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                              {index + 1}
+              <Card className="border-l-4 border-l-orange-500">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Pagos Moratorios</CardTitle>
+                  <Users className="h-4 w-4 text-orange-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-orange-600">
+                    {reporte ? formatCurrency(reporte.totales.pagosMoratorios) : formatCurrency(0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Pagos atrasados
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Detalle por Cobrador */}
+            {selectedCobrador === 'all' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Rendimiento por Cobrador
+                  </CardTitle>
+                  <CardDescription>
+                    Comparativo de productividad en el período seleccionado
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="text-center py-8">Cargando...</div>
+                  ) : reporte?.reportePorCobrador && reporte.reportePorCobrador.length > 0 ? (
+                    <div className="space-y-4">
+                      {reporte.reportePorCobrador
+                        .sort((a, b) => b.totalCobrado - a.totalCobrado)
+                        .map((cobrador, index) => (
+                          <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                                  {index + 1}
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{cobrador.cobrador}</p>
+                                  <p className="text-sm text-gray-600">
+                                    {cobrador.cantidadPagos} cobros realizados
+                                  </p>
+                                </div>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-medium text-gray-900">{cobrador.cobrador}</p>
-                              <p className="text-sm text-gray-600">
-                                {cobrador.cantidadPagos} cobros realizados
+                            <div className="text-right space-y-1">
+                              <p className="font-bold text-lg text-green-600">
+                                {formatCurrency(cobrador.totalCobrado)}
                               </p>
+                              <div className="text-xs text-gray-600 space-y-0.5">
+                                <div>Regular: {formatCurrency(cobrador.pagosRegulares)}</div>
+                                <div>Moratorio: {formatCurrency(cobrador.pagosMoratorios)}</div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="text-right space-y-1">
-                          <p className="font-bold text-lg text-green-600">
-                            {formatCurrency(cobrador.totalCobrado)}
-                          </p>
-                          <div className="text-xs text-gray-600 space-y-0.5">
-                            <div>Regular: {formatCurrency(cobrador.pagosRegulares)}</div>
-                            <div>Moratorio: {formatCurrency(cobrador.pagosMoratorios)}</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  No hay datos de cobranza para el período seleccionado
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Cobranza por Día */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Evolución Diaria
-            </CardTitle>
-            <CardDescription>
-              Cobranza día a día en el período seleccionado
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center py-8">Cargando...</div>
-            ) : reporte?.reportePorDia && reporte.reportePorDia.length > 0 ? (
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {reporte.reportePorDia
-                  .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-                  .map((dia, index) => {
-                    const totalDia = dia.pagos_regulares + dia.pagos_moratorios;
-                    return (
-                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                        <div>
-                          <p className="font-medium">{formatDate(new Date(dia.fecha))}</p>
-                          <p className="text-sm text-gray-600">{dia.total_pagos} pagos</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-green-600">{formatCurrency(totalDia)}</p>
-                          <div className="text-xs text-gray-600">
-                            <span>Reg: {formatCurrency(dia.pagos_regulares)}</span>
-                            {dia.pagos_moratorios > 0 && (
-                              <span className="ml-2">Mor: {formatCurrency(dia.pagos_moratorios)}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                No hay datos para el período seleccionado
-              </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      No hay datos de cobranza para el período seleccionado
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
+
+            {/* Cobranza por Día */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Evolución Diaria
+                </CardTitle>
+                <CardDescription>
+                  Cobranza día a día en el período seleccionado
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="text-center py-8">Cargando...</div>
+                ) : reporte?.reportePorDia && reporte.reportePorDia.length > 0 ? (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {reporte.reportePorDia
+                      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+                      .map((dia, index) => {
+                        const totalDia = dia.pagos_regulares + dia.pagos_moratorios;
+                        return (
+                          <div key={index} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                            <div>
+                              <p className="font-medium">{formatDate(new Date(dia.fecha))}</p>
+                              <p className="text-sm text-gray-600">{dia.total_pagos} pagos</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-green-600">{formatCurrency(totalDia)}</p>
+                              <div className="text-xs text-gray-600">
+                                <span>Reg: {formatCurrency(dia.pagos_regulares)}</span>
+                                {dia.pagos_moratorios > 0 && (
+                                  <span className="ml-2">Mor: {formatCurrency(dia.pagos_moratorios)}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No hay datos para el período seleccionado
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="gestores" className="mt-6">
+            <ResumenGestores data={reporteGestores} loading={loadingGestores} />
+          </TabsContent>
+
+          <TabsContent value="discrepancias" className="mt-6">
+            <ReporteDiscrepancias data={reporteDiscrepancias} loading={loadingDiscrepancias} />
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );

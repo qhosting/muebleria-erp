@@ -168,6 +168,16 @@ export async function POST(request: NextRequest) {
 
     // Crear el pago en una transacción
     const resultado = await prisma.$transaction(async (prisma: any) => {
+      let finalFechaPago = fechaPago ? new Date(fechaPago) : new Date();
+
+      // --- LÓGICA DE ROLLOVER (CIERRE SEMANAL) ---
+      // Si es viernes y pasan de las 12:00 PM, el pago se contabiliza contablemente el sábado
+      const fechaActual = new Date();
+      if (fechaActual.getDay() === 5 && fechaActual.getHours() >= 12 && !fechaPago) {
+        finalFechaPago = new Date(fechaActual.getTime() + 24 * 60 * 60 * 1000);
+        finalFechaPago.setHours(8, 0, 0, 0); // Inicio del sábado
+      }
+
       const pago = await prisma.pago.create({
         data: {
           clienteId,
@@ -175,7 +185,7 @@ export async function POST(request: NextRequest) {
           monto: montoNumerico,
           concepto: concepto || 'Pago de cuota',
           tipoPago,
-          fechaPago: fechaPago ? new Date(fechaPago) : new Date(),
+          fechaPago: finalFechaPago,
           metodoPago: metodoPago || 'efectivo',
           numeroRecibo: numeroRecibo || null,
           saldoAnterior,

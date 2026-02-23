@@ -123,6 +123,10 @@ export default function ConciliadorPage() {
                                             </div>
                                             <p className="font-semibold text-green-700">{formatCurrency(sug.movimiento.abono)}</p>
                                             <p className="text-xs text-gray-600 truncate">{sug.movimiento.concepto || sug.movimiento.descripcionGeneral}</p>
+                                            <div className="mt-1 flex items-center gap-1">
+                                                <Badge className="text-[9px] h-3 px-1 bg-indigo-500">{sug.prioridad}</Badge>
+                                                <span className="text-[10px] text-indigo-600 font-medium italic">{sug.razon}</span>
+                                            </div>
                                         </div>
 
                                         <div className="flex-shrink-0">
