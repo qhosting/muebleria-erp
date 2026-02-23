@@ -28,7 +28,7 @@ export interface OfflinePago {
   concepto: string;
   fechaPago: string;
   cobradorId: string;
-  metodoPago: 'efectivo' | 'transferencia' | 'cheque';
+  metodoPago: 'gestor' | 'bancario';
   numeroRecibo?: string;
   // Metadatos offline
   localId: string; // ID temporal local hasta sincronizar
@@ -84,7 +84,7 @@ export class OfflineDatabase extends Dexie {
 
   constructor() {
     super('MuebleriaCobranzaDB');
-    
+
     this.version(1).stores({
       clientes: 'id, nombreCompleto, cobradorAsignadoId, diaPago, statusCuenta, lastSync, syncStatus',
       pagos: '++id, localId, clienteId, cobradorId, fechaPago, syncStatus, createdOffline, printStatus',

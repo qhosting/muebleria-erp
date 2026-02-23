@@ -164,7 +164,7 @@ model Pago {
   fechaPago     DateTime @default(now())
   saldoAnterior Decimal  @db.Decimal(10, 2)
   saldoNuevo    Decimal  @db.Decimal(10, 2)
-  metodoPago    String   @default("efectivo") // efectivo, transferencia, cheque
+  metodoPago    String   @default("gestor") // gestor (efectivo en campo), bancario (transferencia)
   numeroRecibo  String?
   localId       String? // Para sincronización offline
   ticketImpreso Boolean  @default(false)

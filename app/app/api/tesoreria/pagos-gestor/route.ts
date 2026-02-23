@@ -54,10 +54,9 @@ export async function GET(request: NextRequest) {
                         id: true,
                         name: true,
                         codigoGestor: true,
-                        conciliado: true,
                     },
                 },
-            },
+            } as any,
         });
 
         // Agrupar por gestor
@@ -91,8 +90,8 @@ export async function GET(request: NextRequest) {
                 resumenMap[cobradorId].totalMora += monto;
             }
 
-            // Clasificación Bancario vs Gestor (basado en metodoPago)
-            if (['transferencia', 'cheque', 'deposito'].includes(pago.metodoPago.toLowerCase())) {
+            // Clasificación Bancario vs Gestor (basado en metodoPago: 'bancario' o 'gestor')
+            if (pago.metodoPago.toLowerCase() === 'bancario') {
                 resumenMap[cobradorId].bancario += monto;
             } else {
                 resumenMap[cobradorId].gestorMonto += monto;

@@ -9,7 +9,7 @@ import { prisma } from '@/lib/db';
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const tipoPago = searchParams.get('tipoPago');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
-    
+
     const skip = (page - 1) * limit;
     const where: any = {};
 
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
       concepto,
       tipoPago = 'regular',
       fechaPago,
-      metodoPago = 'efectivo',
+      metodoPago = 'gestor',
       numeroRecibo,
       localId
     } = body;

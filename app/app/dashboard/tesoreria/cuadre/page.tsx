@@ -1,159 +1,277 @@
-"use client";
+
+'use client';
 
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Calculator, Users as UsersIcon, Calendar as CalendarIcon, DollarSign, Download } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calculator, Users as UsersIcon, Calendar as CalendarIcon, DollarSign, Download, Search, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 
 export default function CuadrePage() {
-    const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
-    const [resumen, setResumen] = useState<any[]>([]);
-    const [totalGeneral, setTotalGeneral] = useState(0);
+    const [dateStart, setDateStart] = useState<string>(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - (d.getDay() + 1) % 7); // Last Saturday
+        return d.toISOString().split('T')[0];
+    });
+    const [dateEnd, setDateEnd] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [selectedGestor, setSelectedGestor] = useState<string>("all");
+    const [gestoresList, setGestoresList] = useState<any[]>([]);
+
+    const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        fetchCobradores();
+    }, []);
+
+    useEffect(() => {
         fetchCuadre();
-    }, [date]);
+    }, [dateStart, dateEnd, selectedGestor]);
+
+    const fetchCobradores = async () => {
+        try {
+            const res = await fetch('/api/users');
+            if (res.ok) {
+                const users = await res.json();
+                setGestoresList(users.filter((u: any) => u.role === 'cobrador'));
+            }
+        } catch (error) { }
+    };
 
     const fetchCuadre = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/tesoreria/cuadre?date=${date}`);
+            const params = new URLSearchParams({
+                desde: dateStart,
+                hasta: dateEnd,
+                cobradorId: selectedGestor
+            });
+            const res = await fetch(`/api/tesoreria/cuadre?${params.toString()}`);
             if (res.ok) {
-                const data = await res.json();
-                setResumen(data.resumen);
-                setTotalGeneral(data.totalGeneral);
+                const result = await res.json();
+                setData(result);
             }
         } catch (error) {
             console.error("Error al obtener cuadre", error);
+            toast.error("Error al cargar datos de cuadre");
         } finally {
             setLoading(false);
         }
     };
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const SummaryCard = ({ title, resumen }: { title: string, resumen: any }) => {
+        if (!resumen) return null;
+
+        return (
+            <Card className="shadow-md border-gray-100 h-full">
+                <CardHeader className="pb-2 border-b bg-gray-50/50">
+                    <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-700">{title}</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4 space-y-4">
+                    {/* Actual Section */}
+                    <div>
+                        <div className="flex justify-between items-center text-sm mb-1">
+                            <span className="font-semibold text-gray-600">ACTUAL:</span>
+                            <span className="font-mono">
+                                <span className="text-gray-400 mr-2">CTAS {resumen.actual.ctas}</span>
+                                <span className="text-green-600 font-bold">{formatCurrency(resumen.actual.monto)}</span>
+                            </span>
+                        </div>
+                        {Object.entries(resumen.actual.bancos || {}).map(([banco, info]: [string, any]) => (
+                            <div key={banco} className="flex justify-between items-center text-xs text-gray-500 pl-4 py-0.5">
+                                <span>» {banco}:</span>
+                                <span>
+                                    <span className="mr-2">CTAS {info.ctas}</span>
+                                    <span>{formatCurrency(info.monto)}</span>
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <Separator className="opacity-50" />
+
+                    {/* Anterior Section */}
+                    <div>
+                        <div className="flex justify-between items-center text-sm mb-1">
+                            <span className="font-semibold text-gray-600">ANTERIOR:</span>
+                            <span className="font-mono">
+                                <span className="text-gray-400 mr-2">CTAS {resumen.anterior.ctas}</span>
+                                <span className="text-green-600 font-bold">{formatCurrency(resumen.anterior.monto)}</span>
+                            </span>
+                        </div>
+                        {Object.entries(resumen.anterior.bancos || {}).map(([banco, info]: [string, any]) => (
+                            <div key={banco} className="flex justify-between items-center text-xs text-gray-500 pl-4 py-0.5">
+                                <span>» {banco}:</span>
+                                <span>
+                                    <span className="mr-2">CTAS {info.ctas}</span>
+                                    <span>{formatCurrency(info.monto)}</span>
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <Separator className="h-0.5 bg-gray-900" />
+
+                    {/* Totals */}
+                    <div className="flex justify-between items-center text-base font-black">
+                        <span className="text-gray-900">TOTAL {title.includes('DQ') ? 'DQ' : 'DP'}:</span>
+                        <span className="font-mono">
+                            <span className="text-gray-400 mr-3 text-sm font-medium">CTAS {resumen.total.ctas}</span>
+                            <span>{formatCurrency(resumen.total.monto)}</span>
+                        </span>
+                    </div>
+
+                    {/* Discrepancies */}
+                    <div className="pt-2">
+                        <div className={`flex justify-between items-center text-sm font-bold ${resumen.discrepancia.monto !== 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            <span>Discrepancia:</span>
+                            <span className="font-mono">
+                                <span className="mr-2">CTAS {resumen.discrepancia.ctas}</span>
+                                <span>{formatCurrency(resumen.discrepancia.monto)}</span>
+                            </span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm text-red-500 mt-1">
+                            <span>Tickets sin conciliar:</span>
+                            <span className="font-semibold">
+                                {resumen.ticketsSinConciliar.ctas} (Suma: {formatCurrency(resumen.ticketsSinConciliar.monto)})
+                            </span>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    };
 
     return (
         <DashboardLayout>
             <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center">
-                            <Calculator className="mr-3 h-8 w-8 text-blue-600" />
-                            Cuadre de Efectivo
-                        </h1>
-                        <p className="text-muted-foreground mt-1">
-                            Verifica y controla el efectivo recaudado diariamente por los gestores.
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                            <Input
-                                type="date"
-                                value={date}
-                                max={todayStr}
-                                onChange={(e) => setDate(e.target.value)}
-                                className="pl-9 cursor-pointer"
-                            />
+                {/* Header with Filters */}
+                <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
+                    <div className="flex flex-col lg:flex-row lg:items-end gap-6">
+                        <div className="flex-1 space-y-2">
+                            <label className="text-xs font-bold uppercase text-gray-500">Gestor</label>
+                            <Select value={selectedGestor} onValueChange={setSelectedGestor}>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="-- Todos los Gestores --" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">-- Todos los Gestores --</SelectItem>
+                                    {gestoresList.map(g => (
+                                        <SelectItem key={g.id} value={g.id}>{g.codigoGestor || g.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
-                        <Button variant="outline" className="hidden border-gray-200">
-                            <Download className="w-4 h-4 mr-2" />
-                            Excel
+                        <div className="flex-1 space-y-2">
+                            <label className="text-xs font-bold uppercase text-gray-500">Fecha Inicio</label>
+                            <div className="relative">
+                                <CalendarIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                                <Input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="pl-10" />
+                            </div>
+                        </div>
+                        <div className="flex-1 space-y-2">
+                            <label className="text-xs font-bold uppercase text-gray-500">Fecha Fin</label>
+                            <div className="relative">
+                                <CalendarIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                                <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="pl-10" />
+                            </div>
+                        </div>
+                        <Button onClick={fetchCuadre} className="lg:w-32 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200">
+                            <Search className="w-4 h-4 mr-2" />
+                            Filtrar
                         </Button>
                     </div>
                 </div>
 
-                {/* Tarjetas de Resumen Global */}
-                <div className="grid gap-4 md:grid-cols-3">
-                    <Card className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-white/10">
-                            <CardTitle className="text-sm font-medium text-blue-100">Caja Consolidada</CardTitle>
-                            <DollarSign className="h-5 w-5 text-blue-100" />
-                        </CardHeader>
-                        <CardContent className="pt-4">
-                            <div className="text-4xl font-bold">{formatCurrency(totalGeneral)}</div>
-                            <p className="text-sm text-blue-100 mt-1 opacity-90">Total recopilado de todos los gestores</p>
-                        </CardContent>
-                    </Card>
+                {/* Main Summary Row */}
+                <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
+                    <SummaryCard title="Resumen Semanal DQ (Bancos)" resumen={data?.resumenDQ} />
+                    <SummaryCard title="Resumen Semanal DP (Bancos)" resumen={data?.resumenDP} />
 
-                    <Card className="border-gray-200 shadow-sm">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium text-gray-600">Gestores Activos Hoy</CardTitle>
-                            <UsersIcon className="h-5 w-5 text-gray-400" />
+                    <Card className="shadow-md border-gray-100 flex flex-col h-full bg-blue-50/30">
+                        <CardHeader className="pb-2 border-b">
+                            <CardTitle className="text-sm font-bold uppercase tracking-wide text-gray-700">Otras Discrepancias</CardTitle>
                         </CardHeader>
-                        <CardContent className="pt-4">
-                            <div className="text-3xl font-bold text-gray-900">{resumen.length}</div>
-                            <p className="text-sm text-gray-500 mt-1">Con cobranza registrada en el día</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-gray-200 shadow-sm">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium text-gray-600">Total Transacciones</CardTitle>
-                            <Calculator className="h-5 w-5 text-gray-400" />
-                        </CardHeader>
-                        <CardContent className="pt-4">
-                            <div className="text-3xl font-bold text-gray-900">
-                                {resumen.reduce((acc, curr) => acc + curr.cantidadPagos, 0)}
+                        <CardContent className="pt-4 space-y-4 flex-1">
+                            <div className="flex justify-between items-center text-sm font-medium">
+                                <span className="text-gray-600">Abonos sin asignar (Banco):</span>
+                                <span className={`font-bold ${data?.otrasDiscrepancias.abonosSinAsignar.ctas > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                                    {data?.otrasDiscrepancias.abonosSinAsignar.ctas} (Suma: {formatCurrency(data?.otrasDiscrepancias.abonosSinAsignar.monto || 0)})
+                                </span>
                             </div>
-                            <p className="text-sm text-gray-500 mt-1">Recibos procesados</p>
+                            <p className="text-[11px] text-gray-400 italic leading-relaxed border-t pt-2">
+                                * Los abonos sin asignar corresponden a depósitos bancarios no vinculados a ningún ticket.
+                            </p>
+
+                            <div className="mt-8 p-4 rounded-lg bg-indigo-600 text-white shadow-inner">
+                                <div className="text-xs opacity-80 uppercase font-bold mb-1">Caja Consolidada</div>
+                                <div className="text-3xl font-black">{formatCurrency(data?.totalGeneral || 0)}</div>
+                                <div className="text-[10px] mt-2 opacity-70">Total efectivo y banco en el rango</div>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
 
-                {/* Tabla Detallada */}
-                <Card className="border-gray-200 shadow-sm">
-                    <CardHeader className="bg-gray-50/50 border-b border-gray-100 pb-4">
-                        <CardTitle className="text-lg text-gray-700">Desglose por Gestor</CardTitle>
+                {/* Gestores Table */}
+                <Card className="border-gray-200 shadow-lg">
+                    <CardHeader className="bg-gray-50/50 border-b border-gray-100 pb-4 flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle className="text-lg text-gray-800">Desglose por Gestor</CardTitle>
+                            <p className="text-xs text-gray-400 mt-1">Recaudación detallada por cada agente de cobro seleccionado</p>
+                        </div>
+                        <Button variant="outline" size="sm" className="hidden sm:flex border-gray-200">
+                            <Download className="w-3 h-3 mr-2" /> Excel
+                        </Button>
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left align-middle text-gray-600">
-                                <thead className="bg-white border-b border-gray-100 font-medium text-gray-500">
+                            <table className="w-full text-sm text-left align-middle">
+                                <thead className="bg-gray-100/50 font-bold text-gray-600 uppercase text-[10px] tracking-wider">
                                     <tr>
                                         <th scope="col" className="px-6 py-4">Gestor / Cobrador</th>
                                         <th scope="col" className="px-6 py-4 text-center">Código</th>
-                                        <th scope="col" className="px-6 py-4 text-center">Pagos Registrados</th>
-                                        <th scope="col" className="px-6 py-4 text-right">Efectivo por Entregar</th>
+                                        <th scope="col" className="px-6 py-4 text-center">Recibos</th>
+                                        <th scope="col" className="px-6 py-4 text-right">Monto</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {loading ? (
                                         <tr>
                                             <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
+                                                <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-blue-600" />
                                                 Cargando detalle de cuadre...
                                             </td>
                                         </tr>
-                                    ) : resumen.length === 0 ? (
+                                    ) : (data?.gestores || []).length === 0 ? (
                                         <tr>
                                             <td colSpan={4} className="px-6 py-16 text-center">
-                                                <Calculator className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                                                <p className="text-gray-500 font-medium">No hay ingresos registrados en esta fecha</p>
-                                                <p className="text-sm text-gray-400 mt-1">Intenta seleccionando una fecha anterior</p>
+                                                <AlertCircle className="h-8 w-8 text-gray-200 mx-auto mb-3" />
+                                                <p className="text-gray-400 font-medium">No hay cobranza registrada en este rango</p>
                                             </td>
                                         </tr>
                                     ) : (
-                                        resumen.map((r, idx) => (
-                                            <tr key={idx} className="hover:bg-gray-50 transition-colors group">
-                                                <td className="px-6 py-4 font-medium text-gray-900 flex items-center gap-3">
-                                                    <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs uppercase">
-                                                        {r.nombre.substring(0, 2)}
+                                        data.gestores.map((r: any, idx: number) => (
+                                            <tr key={idx} className="hover:bg-blue-50/30 transition-colors group">
+                                                <td className="px-6 py-4 font-bold text-gray-900 flex items-center gap-3">
+                                                    <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs">
+                                                        {r.nombre.substring(0, 2).toUpperCase()}
                                                     </div>
                                                     {r.nombre}
                                                 </td>
-                                                <td className="px-6 py-4 text-center font-mono">
-                                                    <Badge variant="outline" className="bg-gray-50">{r.codigoGestor}</Badge>
+                                                <td className="px-6 py-4 text-center">
+                                                    <Badge variant="outline" className="font-mono text-[10px] py-0">{r.codigoGestor}</Badge>
                                                 </td>
                                                 <td className="px-6 py-4 text-center font-medium">
-                                                    {r.cantidadPagos} recibos
+                                                    {r.cantidadPagos}
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    <span className="font-bold text-lg text-gray-900">{formatCurrency(r.totalCobrado)}</span>
+                                                    <span className="font-black text-gray-900">{formatCurrency(r.totalCobrado)}</span>
                                                 </td>
                                             </tr>
                                         ))
@@ -161,16 +279,28 @@ export default function CuadrePage() {
                                 </tbody>
                             </table>
                         </div>
-                        {/* Footer Totalizador */}
-                        {!loading && resumen.length > 0 && (
-                            <div className="bg-gray-50 border-t border-gray-100 px-6 py-4 flex justify-between items-center rounded-b-lg">
-                                <span className="font-medium text-gray-600 uppercase text-xs tracking-wider">Gran Total Entregado</span>
-                                <span className="text-2xl font-black text-blue-700">{formatCurrency(totalGeneral)}</span>
-                            </div>
-                        )}
                     </CardContent>
                 </Card>
             </div>
         </DashboardLayout>
+    );
+}
+
+function Loader2(props: any) {
+    return (
+        <svg
+            {...props}
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+        </svg>
     );
 }

@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
             diaCobro: p.cliente.diaPago,
             telefono: p.cliente.telefono,
             mora: p.tipoPago === 'moratorio' ? parseFloat(p.monto.toString()) : 0,
-            tipo: ['transferencia', 'cheque', 'deposito'].includes(p.metodoPago.toLowerCase()) ? 'BANCARIO' : 'GESTOR',
+            tipo: p.metodoPago.toLowerCase() === 'bancario' ? 'BANCARIO' : 'GESTOR',
         }));
 
         return NextResponse.json({ pagos: pagosSerializados });
