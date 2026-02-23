@@ -33,6 +33,8 @@ enum TipoPago {
   otro
   liquidacion
   mora
+  moratorio
+  abono
 }
 
 enum TipoPlantilla {

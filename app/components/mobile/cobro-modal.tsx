@@ -47,7 +47,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
   const { data: session } = useSession();
   const [monto, setMonto] = useState('');
   const [montoMoratorio, setMontoMoratorio] = useState('');
-  const [tipoPago, setTipoPago] = useState<'regular' | 'abono' | 'liquidacion' | 'mora'>('regular');
+  const [tipoPago, setTipoPago] = useState<'regular' | 'abono' | 'liquidacion' | 'moratorio'>('regular');
   const [metodoPago, setMetodoPago] = useState<'gestor' | 'bancario'>('gestor');
   const [concepto, setConcepto] = useState('');
   const [numeroRecibo, setNumeroRecibo] = useState('');
@@ -402,7 +402,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
               <SelectContent>
                 <SelectItem value="regular">Pago Regular</SelectItem>
                 <SelectItem value="abono">Abono</SelectItem>
-                <SelectItem value="mora">Pago de Mora</SelectItem>
+                <SelectItem value="moratorio">Pago de Mora</SelectItem>
                 <SelectItem value="liquidacion">Liquidación</SelectItem>
               </SelectContent>
             </Select>
