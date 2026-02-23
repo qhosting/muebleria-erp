@@ -1,0 +1,6 @@
+--- ANALYSIS OF DQ.xlsx ---
+Sheet Name: Antiguedad De Saldos
+Total Rows: 840
+Headers: ["Contrato","Codigo","RazonSocial","Vendedor","Gestor","Status","PeriodoPago","PagoSugerido","Calle","NumeroExterior","NumeroInterior","Colonia","Municipio","Estado","CodigoPostal","Telefono1","Telefono2","Telefono3","DiaCobro","SaldoActual","IdGestor","DiasVencidos","SaldoVencido","Contado","TresMeses","SeisMeses","Empleo","Aval","Producto","Pagar","FechaContrato","Semana"]
+Row 2: ["34697","DQ2209197","VICTORIA RAMOS MONTOYA","GALVAN JIMENEZ LUIS ENRIQUE","DQJGS","COBRANZA NORMAL","MENSUAL",1320,"SIERRA DE LAS CRUCES","5","25","HDA LA CRUZ","El Marqués","Querétaro","76240","4425554623","","","SABADO",22381.010000000006,"30",1188,22381.010000000006,12320,14390,15290,"MABE EMPLEADA","SA","COLCHON MAT LESTER PRINCESS, BOX LESTER MAT",0,"26/09/2022","0"]
+Row 3: ["36131","DQ2302179","EVELYN PINEDA HERNANDEZ","GARDUÑO LARA JARED","DQJGSC","COBRANZA NORMAL","SEMANAL",180,"AV HACIENDA LOS YUNQUES","225","80","LOS HERUES","El Marqués","Querétaro","76267","5575462506","","","LENTO",6390.000000000002,"8",913,6390.000000000002,0,6990,7990,"NEGOCIO PROPIO .HACIENDAS DE LOS YUNQUES SN COL LO","","MIRAGE PLUS NAT",0,"","0"]

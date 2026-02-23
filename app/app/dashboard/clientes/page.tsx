@@ -67,6 +67,7 @@ export default function ClientesPage() {
   // Modal states
   const [clienteModalOpen, setClienteModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importWelcomeMode, setImportWelcomeMode] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
 
   const userRole = (session?.user as any)?.role;
@@ -263,10 +264,22 @@ export default function ClientesPage() {
                 label="Exportar"
               />
               {userRole === 'admin' && (
-                <Button variant="outline" onClick={() => setImportModalOpen(true)}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Importar
-                </Button>
+                <>
+                  <Button variant="outline" onClick={() => {
+                    setImportWelcomeMode(false);
+                    setImportModalOpen(true);
+                  }}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Importar
+                  </Button>
+                  <Button variant="outline" className="border-green-500 text-green-700 hover:bg-green-50" onClick={() => {
+                    setImportWelcomeMode(true);
+                    setImportModalOpen(true);
+                  }}>
+                    <Smartphone className="h-4 w-4 mr-2 text-green-600" />
+                    Importar Nuevas
+                  </Button>
+                </>
               )}
               <Button onClick={handleCreateCliente}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -534,6 +547,7 @@ export default function ClientesPage() {
           open={importModalOpen}
           onOpenChange={setImportModalOpen}
           onSuccess={handleModalSuccess}
+          isWelcomeMode={importWelcomeMode}
         />
       )}
     </DashboardLayout>

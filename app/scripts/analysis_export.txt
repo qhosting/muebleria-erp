@@ -1,0 +1,5 @@
+--- ANALYSIS OF DQ_EXPORTAR.xlsx ---
+Sheet Name: Sheet0
+Total Rows: 11
+Headers: ["Codigo cliente","Cuenta","Contrato","Periodo Inicial","Nombre del Cliente","Peridiodo de Pago","Pago Sugerido","Saldo Vencido","PV","Saldo Actual","Codigo Gestor","SUP","Moratorio","PVR","Pago","Dia de Pago","Tipo de Cobro","Telefono 1","Telefono 2","C","Dia de cobro"]
+Row 2: ["DQ2408097",0,40276,0,"EMILY RODRIGUEZ GOMEZ","SEMANAL",250,7754.59,221,12430,"DQBOT",0,0,0,0,0,0,4271108432,null,1,"LUNES"]

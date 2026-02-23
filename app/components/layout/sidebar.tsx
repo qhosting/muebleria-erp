@@ -72,12 +72,7 @@ const navigation: NavItem[] = [
     roles: ['admin'],
   },
 
-  {
-    name: 'Importar Clientes',
-    href: '/dashboard/importar-clientes',
-    icon: Upload,
-    roles: ['admin', 'gestor_cobranza'],
-  },
+
   {
     name: 'Cobranza Móvil',
     href: '/dashboard/cobranza',

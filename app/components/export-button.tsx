@@ -18,34 +18,24 @@ interface ExportButtonProps {
   label?: string;
 }
 
-export function ExportButton({ 
-  endpoint, 
+export function ExportButton({
+  endpoint,
   filename = 'export',
   label = 'Exportar'
 }: ExportButtonProps) {
   const [loading, setLoading] = useState(false);
 
-  const handleExport = async (formato: 'csv' | 'json') => {
+  const handleExport = async (formato: 'csv' | 'json' | 'xlsx') => {
     setLoading(true);
-    
+
     try {
       const response = await fetch(`${endpoint}?formato=${formato}`);
-      
+
       if (!response.ok) {
         throw new Error('Error al exportar');
       }
 
-      if (formato === 'csv') {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${filename}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      } else {
+      if (formato === 'json') {
         const data = await response.json();
         const jsonStr = JSON.stringify(data, null, 2);
         const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -53,6 +43,17 @@ export function ExportButton({
         const a = document.createElement('a');
         a.href = url;
         a.download = `${filename}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } else {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const extension = formato === 'xlsx' ? 'xlsx' : 'csv';
+        a.download = `${filename}.${extension}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -81,6 +82,9 @@ export function ExportButton({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => handleExport('xlsx')}>
+          Exportar como Excel (Legacy)
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => handleExport('csv')}>
           Exportar como CSV
         </DropdownMenuItem>

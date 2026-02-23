@@ -9,12 +9,14 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { Upload, Download, FileText, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Upload, Download, FileText, Loader2, CheckCircle, AlertTriangle, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface ImportarClientesModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  isWelcomeMode?: boolean;
 }
 
 interface ImportResult {
@@ -28,7 +30,8 @@ interface ImportResult {
 export function ImportarClientesModal({
   open,
   onOpenChange,
-  onSuccess
+  onSuccess,
+  isWelcomeMode = false
 }: ImportarClientesModalProps) {
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -120,11 +123,17 @@ export function ImportarClientesModal({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+      const isCSV = file.type === 'text/csv' || file.name.endsWith('.csv');
+      const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        file.type === 'application/vnd.ms-excel' ||
+        file.name.endsWith('.xlsx') ||
+        file.name.endsWith('.xls');
+
+      if (isCSV || isExcel) {
         setSelectedFile(file);
         setResult(null);
       } else {
-        toast.error('Por favor seleccione un archivo CSV válido');
+        toast.error('Por favor seleccione un archivo CSV o Excel válido');
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -132,7 +141,71 @@ export function ImportarClientesModal({
     }
   };
 
+  const parseXLSX = async (file: File): Promise<{ data: any[], errors: any[] }> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          const workbook = XLSX.read(data, { type: 'binary' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+          // Mapeo de formato Legacy DQ a Formato Interno
+          const mappedData = jsonData.map((row: any, index: number) => {
+            // Si detectamos las columnas del formato DQ.xlsx, aplicamos el mapeo
+            if (row.RazonSocial || row.Codigo || row.PagoSugerido) {
+              const diaMap: Record<string, string> = {
+                'LUNES': '1', 'MARTES': '2', 'MIERCOLES': '3',
+                'JUEVES': '4', 'VIERNES': '5', 'SABADO': '6', 'DOMINGO': '7'
+              };
+
+              // Construir dirección completa
+              const direccionParts = [
+                row.Calle,
+                row.NumeroExterior ? `#${row.NumeroExterior}` : '',
+                row.NumeroInterior ? `Int ${row.NumeroInterior}` : '',
+                row.Colonia,
+                row.Municipio,
+                row.Estado,
+                row.CodigoPostal ? `CP ${row.CodigoPostal}` : ''
+              ].filter(Boolean);
+
+              return {
+                codigoCliente: row.Codigo?.toString() || null,
+                nombreCompleto: row.RazonSocial || "",
+                telefono: row.Telefono1?.toString() || row.Telefono2?.toString() || null,
+                vendedor: row.Vendedor || null,
+                codigoGestor: row.Gestor || null,
+                direccionCompleta: direccionParts.join(', '),
+                descripcionProducto: row.Producto || "Importación Legacy",
+                diaPago: diaMap[row.DiaCobro?.toString().toUpperCase()] || '1',
+                montoPago: parseFloat(row.PagoSugerido) || 0,
+                periodicidad: (row.PeriodoPago?.toString().toLowerCase() || 'semanal'),
+                saldoActual: parseFloat(row.SaldoActual) || 0,
+                fechaVenta: row.FechaContrato || null,
+                importe1: parseFloat(row.Contado) || null,
+                importe2: parseFloat(row.TresMeses) || null,
+                importe3: parseFloat(row.SeisMeses) || null,
+                importe4: parseFloat(row.Pagar) || null,
+                _originalRowIndex: index + 2
+              };
+            }
+            return { ...row, _originalRowIndex: index + 2 };
+          });
+
+          resolve({ data: mappedData, errors: [] });
+        } catch (error) {
+          resolve({ data: [], errors: [{ row: 0, error: 'Error al procesar archivo Excel' }] });
+        }
+      };
+      reader.readAsBinaryString(file);
+    });
+  };
+
   const parseCSV = (text: string): { data: any[], errors: any[] } => {
+    // ... (keep existing parseCSV code)
     // Normalizar saltos de línea y filtrar líneas vacías
     const lines = text.replace(/\r\n/g, '\n').split('\n');
 
@@ -282,8 +355,19 @@ export function ImportarClientesModal({
     setProgress(0);
 
     try {
-      const text = await selectedFile.text();
-      const { data, errors: parseErrors } = parseCSV(text);
+      let data: any[] = [];
+      let parseErrors: any[] = [];
+
+      if (selectedFile.name.endsWith('.csv')) {
+        const text = await selectedFile.text();
+        const result = parseCSV(text);
+        data = result.data;
+        parseErrors = result.errors;
+      } else {
+        const result = await parseXLSX(selectedFile);
+        data = result.data;
+        parseErrors = result.errors;
+      }
 
       if (data.length === 0 && parseErrors.length === 0) {
         throw new Error('No se encontraron datos válidos en el archivo');
@@ -296,6 +380,8 @@ export function ImportarClientesModal({
         errors: [...parseErrors], // Incluir errores de parsing iniciales
         total: data.length + parseErrors.length
       };
+
+      const createdClientsForWelcome: any[] = [];
 
       // Procesar solo las filas válidas
       for (let i = 0; i < data.length; i++) {
@@ -396,8 +482,12 @@ export function ImportarClientesModal({
             });
 
             if (response.ok) {
+              const newClient = await response.json();
               result.success++;
               result.created++;
+              if (isWelcomeMode) {
+                createdClientsForWelcome.push(newClient);
+              }
             } else {
               const errorData = await response.json();
               result.errors.push({
@@ -420,6 +510,29 @@ export function ImportarClientesModal({
       if (result.success > 0) {
         toast.success(`${result.success} clientes importados exitosamente`);
         onSuccess();
+
+        // Enviar mensajes de bienvenida si está en modo bienvenida y hay clientes creados
+        if (isWelcomeMode && createdClientsForWelcome.length > 0) {
+          toast.info(`Iniciando envío de ${createdClientsForWelcome.length} mensajes de bienvenida...`);
+          try {
+            const welcomeResponse = await fetch('/api/whatsapp/welcome', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ clientes: createdClientsForWelcome })
+            });
+
+            if (welcomeResponse.ok) {
+              const welcomeData = await welcomeResponse.json();
+              toast.success(`${welcomeData.sent} mensajes de bienvenida enviados correctamente.`);
+            } else {
+              const welcomeError = await welcomeResponse.json();
+              toast.error(`Error enviando mensajes: ${welcomeError.error}`);
+            }
+          } catch (error) {
+            console.error('Error al enviar mensajes de bienvenida:', error);
+            toast.error('Ocurrió un error al enviar los mensajes de bienvenida');
+          }
+        }
       }
 
       if (result.errors.length > 0) {
@@ -456,7 +569,7 @@ export function ImportarClientesModal({
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <Upload className="h-5 w-5" />
-            <span>Importar Clientes</span>
+            <span>{isWelcomeMode ? 'Importar Nuevas (con Bienvenida)' : 'Importar Clientes'}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -503,7 +616,7 @@ export function ImportarClientesModal({
                 id="file-upload"
                 ref={fileInputRef}
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 onChange={handleFileSelect}
                 disabled={importing}
               />
@@ -553,7 +666,7 @@ export function ImportarClientesModal({
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2 text-orange-600">
                       <AlertTriangle className="h-4 w-4" />
-                      <span>{result.errors.length} registros con errores:</span>
+                      <span>{result.errors.length} registros con errores/advertencias:</span>
                     </div>
                     <div className="max-h-32 overflow-y-auto space-y-1">
                       {result.errors.map((error, index) => (
@@ -590,7 +703,7 @@ export function ImportarClientesModal({
                 ) : (
                   <Upload className="h-4 w-4 mr-2" />
                 )}
-                Importar Clientes
+                {isWelcomeMode ? 'Importar y Enviar Bienvenida' : 'Importar Clientes'}
               </Button>
             )}
 
