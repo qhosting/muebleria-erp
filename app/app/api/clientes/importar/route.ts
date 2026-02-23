@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { StatusCuenta, Periodicidad } from '@prisma/client';
 
 export async function POST(req: Request) {
     try {
@@ -18,28 +19,43 @@ export async function POST(req: Request) {
 
         for (const c of clientes) {
             try {
-                // Generar código único si no viene
-                const codigo = c.codigoCliente || `C${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
+                const codigoCliente = c.codigoCliente?.toString().trim();
+                if (!codigoCliente) {
+                    failedCount++;
+                    continue;
+                }
 
-                await prisma.cliente.create({
-                    data: {
-                        codigoCliente: codigo,
-                        nombreCompleto: c.nombreCompleto,
-                        direccionCompleta: c.direccionCompleta,
-                        telefono: c.telefono,
-                        fechaVenta: new Date(),
-                        diaPago: String(c.diaPago || "1"),
-                        montoPago: parseFloat(c.montoPago),
-                        saldoActual: parseFloat(c.saldoActual),
-                        periodicidad: "semanal", // Default
-                        statusCuenta: "activo",
-                        descripcionProducto: "Importación Masiva",
-                        importe1: parseFloat(c.montoPago),
+                const data = {
+                    nombreCompleto: c.nombreCompleto,
+                    direccionCompleta: c.direccionCompleta,
+                    telefono: c.telefono?.toString() || null,
+                    fechaVenta: c.fechaVenta ? new Date(c.fechaVenta) : new Date(),
+                    diaPago: String(c.diaPago || "1"),
+                    montoPago: parseFloat(c.montoPago) || 0,
+                    saldoActual: parseFloat(c.saldoActual) || 0,
+                    periodicidad: (c.periodicidad as Periodicidad) || Periodicidad.semanal,
+                    statusCuenta: StatusCuenta.activo,
+                    descripcionProducto: c.descripcionProducto || "Importación Masiva",
+                    importe1: parseFloat(c.importe1) || null,
+                    importe2: parseFloat(c.importe2) || null,
+                    importe3: parseFloat(c.importe3) || null,
+                    importe4: parseFloat(c.importe4) || null,
+                    diasVencidos: parseInt(c.diasVencidos) || 0,
+                    saldoVencido: parseFloat(c.saldoVencido) || 0,
+                    vendedor: c.vendedor || null,
+                };
+
+                await prisma.cliente.upsert({
+                    where: { codigoCliente },
+                    update: data,
+                    create: {
+                        ...data,
+                        codigoCliente,
                     }
                 });
                 createdCount++;
             } catch (e) {
-                console.error("Error creating client:", e);
+                console.error("Error creating/updating client:", e);
                 failedCount++;
             }
         }

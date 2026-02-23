@@ -22,7 +22,9 @@ enum StatusCuenta {
 }
 
 enum Periodicidad {
+  diario
   semanal
+  catorcenal
   quincenal
   mensual
 }
@@ -107,6 +109,8 @@ model Cliente {
   importe2            Decimal?     @db.Decimal(10, 2)
   importe3            Decimal?     @db.Decimal(10, 2)
   importe4            Decimal?     @db.Decimal(10, 2)
+  diasVencidos        Int          @default(0)
+  saldoVencido        Decimal      @default(0) @db.Decimal(10, 2)
 
   // -- Nuevos Campos de Identificación y Contacto --
   dni   String? // INE, CURP, Pasaporte

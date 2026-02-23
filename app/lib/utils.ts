@@ -16,20 +16,20 @@ export function formatCurrency(amount: number): string {
 
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return 'N/A';
-  
+
   let dateObj: Date;
-  
+
   if (typeof date === 'string') {
     dateObj = new Date(date);
   } else {
     dateObj = date;
   }
-  
+
   // Check if the date is valid
   if (isNaN(dateObj.getTime())) {
     return 'Fecha inválida';
   }
-  
+
   return new Intl.DateTimeFormat('es-MX', {
     year: 'numeric',
     month: '2-digit',
@@ -39,20 +39,20 @@ export function formatDate(date: Date | string | null | undefined): string {
 
 export function formatDateTime(date: Date | string | null | undefined): string {
   if (!date) return 'N/A';
-  
+
   let dateObj: Date;
-  
+
   if (typeof date === 'string') {
     dateObj = new Date(date);
   } else {
     dateObj = date;
   }
-  
+
   // Check if the date is valid
   if (isNaN(dateObj.getTime())) {
     return 'Fecha inválida';
   }
-  
+
   return new Intl.DateTimeFormat('es-MX', {
     year: 'numeric',
     month: '2-digit',
@@ -76,8 +76,10 @@ export function getDayName(dayNumber: string): string {
 }
 
 export function getPeriodicidadLabel(periodicidad: Periodicidad): string {
-  const labels = {
+  const labels: Record<Periodicidad, string> = {
+    diario: 'Diario',
     semanal: 'Semanal',
+    catorcenal: 'Catorcenal',
     quincenal: 'Quincenal',
     mensual: 'Mensual',
   };
@@ -86,31 +88,33 @@ export function getPeriodicidadLabel(periodicidad: Periodicidad): string {
 
 export function calcularDiasAtraso(fechaUltimoPago: Date | string | null | undefined, periodicidad: Periodicidad): number {
   if (!fechaUltimoPago) return 0;
-  
+
   let fechaObj: Date;
-  
+
   if (typeof fechaUltimoPago === 'string') {
     fechaObj = new Date(fechaUltimoPago);
   } else {
     fechaObj = fechaUltimoPago;
   }
-  
+
   // Check if the date is valid
   if (isNaN(fechaObj.getTime())) {
     return 0;
   }
-  
+
   const hoy = new Date();
   const diasPorPeriodicidad: Record<Periodicidad, number> = {
+    diario: 1,
     semanal: 7,
+    catorcenal: 14,
     quincenal: 15,
     mensual: 30,
   };
-  
+
   const diasTranscurridos = Math.floor(
     (hoy.getTime() - fechaObj.getTime()) / (1000 * 60 * 60 * 24)
   );
-  
+
   const diasCiclo = diasPorPeriodicidad[periodicidad];
   return Math.max(0, diasTranscurridos - diasCiclo);
 }

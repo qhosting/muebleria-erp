@@ -88,7 +88,7 @@ export function ImportarClientesModal({
       '# 2. codigoCliente: Opcional. Si se deja vacío, se generará automáticamente. Ejemplo: CLI25090949',
       '# 3. codigoGestor: Opcional. Código del gestor/cobrador asignado. Si existe un cobrador con este código, se asignará automáticamente',
       '# 4. diaPago: 1=Lunes, 2=Martes, 3=Miércoles, 4=Jueves, 5=Viernes, 6=Sábado, 7=Domingo',
-      '# 5. periodicidad: diario, semanal, quincenal, mensual',
+      '# 5. periodicidad: diario, semanal, catorcenal, quincenal, mensual',
       '# 6. fechaVenta: formato AAAA-MM-DD o DD/MM/AAAA',
       '# 7. Los campos nombreCompleto, direccionCompleta, descripcionProducto, diaPago, montoPago y periodicidad son obligatorios',
       '# 8. PARA CREAR NUEVOS CLIENTES: Deje codigoCliente vacío o use uno nuevo',
@@ -133,7 +133,7 @@ export function ImportarClientesModal({
         setSelectedFile(file);
         setResult(null);
       } else {
-        toast.error('Por favor seleccione un archivo CSV o Excel válido');
+        toast.error('Por favor seleccione un archivo Excel (.xlsx) o CSV válido');
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -147,7 +147,7 @@ export function ImportarClientesModal({
       reader.onload = (e) => {
         try {
           const data = e.target?.result;
-          const workbook = XLSX.read(data, { type: 'binary' });
+          const workbook = XLSX.read(data, { type: 'binary', cellDates: true, cellNF: false, cellText: false });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
@@ -182,13 +182,20 @@ export function ImportarClientesModal({
                 descripcionProducto: row.Producto || "Importación Legacy",
                 diaPago: diaMap[row.DiaCobro?.toString().toUpperCase()] || '1',
                 montoPago: parseFloat(row.PagoSugerido) || 0,
-                periodicidad: (row.PeriodoPago?.toString().toLowerCase() || 'semanal'),
+                periodicidad: (() => {
+                  const p = row.PeriodoPago?.toString().toLowerCase().trim() || 'semanal';
+                  if (p.includes('catorce')) return 'catorcenal';
+                  if (p.includes('quince')) return 'quincenal';
+                  if (p.includes('sema')) return 'semanal';
+                  if (p.includes('mensu')) return 'mensual';
+                  if (p.includes('diar')) return 'diario';
+                  return p;
+                })(),
                 saldoActual: parseFloat(row.SaldoActual) || 0,
-                fechaVenta: row.FechaContrato || null,
-                importe1: parseFloat(row.Contado) || null,
-                importe2: parseFloat(row.TresMeses) || null,
-                importe3: parseFloat(row.SeisMeses) || null,
+                fechaVenta: row.FechaContrato ? (row.FechaContrato instanceof Date ? row.FechaContrato.toISOString().split('T')[0] : row.FechaContrato.toString()) : null,
                 importe4: parseFloat(row.Pagar) || null,
+                diasVencidos: parseInt(row.DiasVencidos) || 0,
+                saldoVencido: parseFloat(row.SaldoVencido) || 0,
                 _originalRowIndex: index + 2
               };
             }
@@ -310,7 +317,7 @@ export function ImportarClientesModal({
     }
 
     // Validate periodicidad
-    const periodicidadValida = ['diario', 'semanal', 'quincenal', 'mensual'];
+    const periodicidadValida = ['diario', 'semanal', 'catorcenal', 'quincenal', 'mensual'];
     const periodicidad = row.periodicidad?.toLowerCase().trim();
     if (!periodicidadValida.includes(periodicidad)) {
       return `Fila ${rowNum}: 'Periodicidad' inválida (${row.periodicidad}). Valores permitidos: ${periodicidadValida.join(', ')}`;
@@ -318,30 +325,37 @@ export function ImportarClientesModal({
 
     // Validar fechaVenta (si existe)
     if (row.fechaVenta) {
-      const dateParts = row.fechaVenta.split(/[-/]/);
+      // Validar que no sea un código de cliente accidentalmente
+      const isLikelyCode = typeof row.fechaVenta === 'string' && /^[A-Z]{2}\d+/i.test(row.fechaVenta);
+
+      const dateParts = typeof row.fechaVenta === 'string' ? row.fechaVenta.split(/[-/]/) : [];
       let isValidDate = false;
 
-      // Intentar validar formatos comunes
-      const date = new Date(row.fechaVenta);
-      if (!isNaN(date.getTime())) {
-        isValidDate = true;
-      } else if (dateParts.length === 3) {
-        // Intentar manejar DD/MM/YYYY o YYYY/MM/DD
-        const d1 = parseInt(dateParts[0]);
-        const d2 = parseInt(dateParts[1]);
-        const d3 = parseInt(dateParts[2]);
+      if (isLikelyCode) {
+        isValidDate = false;
+      } else {
+        // Intentar validar formatos comunes
+        const date = new Date(row.fechaVenta);
+        if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100) {
+          isValidDate = true;
+        } else if (dateParts.length === 3) {
+          // Intentar manejar DD/MM/YYYY o YYYY/MM/DD
+          const d1 = parseInt(dateParts[0]);
+          const d2 = parseInt(dateParts[1]);
+          const d3 = parseInt(dateParts[2]);
 
-        if (d1 > 31 && d3 <= 31) { // Asumir YYYY/MM/DD
-          const d = new Date(d1, d2 - 1, d3);
-          isValidDate = !isNaN(d.getTime());
-        } else if (d1 <= 31 && d3 > 31) { // Asumir DD/MM/YYYY
-          const d = new Date(d3, d2 - 1, d1);
-          isValidDate = !isNaN(d.getTime());
+          if (d1 > 1900 && d3 <= 31) { // Asumir YYYY/MM/DD
+            const d = new Date(d1, d2 - 1, d3);
+            isValidDate = !isNaN(d.getTime());
+          } else if (d1 <= 31 && d3 > 1900) { // Asumir DD/MM/YYYY
+            const d = new Date(d3, d2 - 1, d1);
+            isValidDate = !isNaN(d.getTime());
+          }
         }
       }
 
       if (!isValidDate) {
-        return `Fila ${rowNum}: El formato de 'Fecha de Venta' (${row.fechaVenta}) es inválido. Use AAAA-MM-DD o DD/MM/AAAA.`;
+        return `Fila ${rowNum}: El formato de 'Fecha de Venta' (valor: "${row.fechaVenta}") es inválido. Asegúrese de que la columna "FechaContrato" contenga una fecha (AAAA-MM-DD o DD/MM/AAAA) y no el código del cliente.`;
       }
     }
 
@@ -581,7 +595,7 @@ export function ImportarClientesModal({
               <span>1. Descargar Plantilla</span>
             </h3>
             <p className="text-sm text-gray-600 mb-3">
-              Descarga la plantilla CSV con el formato correcto para importar/actualizar clientes.
+              Descarga la plantilla Excel/CSV con el formato correcto para importar/actualizar clientes.
               <span className="block mt-1 font-medium">
                 💡 El sistema detecta automáticamente si debe crear o actualizar según el código de cliente.
               </span>
@@ -608,10 +622,10 @@ export function ImportarClientesModal({
               <span>2. Seleccionar Archivo</span>
             </h3>
             <p className="text-sm text-gray-600 mb-3">
-              Selecciona el archivo CSV con los datos de clientes a importar.
+              Selecciona el archivo Excel (.xlsx) o CSV con los datos de clientes a importar.
             </p>
             <div className="space-y-2">
-              <Label htmlFor="file-upload">Archivo CSV</Label>
+              <Label htmlFor="file-upload">Archivo Excel o CSV</Label>
               <Input
                 id="file-upload"
                 ref={fileInputRef}

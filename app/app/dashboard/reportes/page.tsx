@@ -51,7 +51,7 @@ export default function ReportesPage() {
   const [reporte, setReporte] = useState<ReporteCobranza | null>(null);
   const [cobradores, setCobradores] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Filtros
   const [selectedCobrador, setSelectedCobrador] = useState<string>('all');
   const [fechaDesde, setFechaDesde] = useState(() => {
@@ -92,17 +92,17 @@ export default function ReportesPage() {
         fechaDesde: fechaDesde + 'T00:00:00.000Z',
         fechaHasta: fechaHasta + 'T23:59:59.999Z',
       });
-      
+
       if (selectedCobrador !== 'all') {
         params.append('cobradorId', selectedCobrador);
       }
 
       const response = await fetch(`/api/reportes/cobranza?${params.toString()}`);
-      
+
       if (!response.ok) {
         throw new Error('Error al obtener el reporte');
       }
-      
+
       const data = await response.json();
       setReporte(data);
     } catch (error) {
@@ -115,7 +115,7 @@ export default function ReportesPage() {
 
   const exportarReporte = () => {
     if (!reporte) return;
-    
+
     const csvContent = [
       ['Reporte de Cobranza'],
       ['Período:', `${formatDate(new Date(fechaDesde))} - ${formatDate(new Date(fechaHasta))}`],
@@ -145,7 +145,7 @@ export default function ReportesPage() {
     a.download = `reporte-cobranza-${fechaDesde}-${fechaHasta}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
-    
+
     toast.success('Reporte exportado exitosamente');
   };
 
@@ -162,13 +162,21 @@ export default function ReportesPage() {
             <h1 className="text-2xl font-bold text-gray-900">Reportes de Cobranza</h1>
             <p className="text-gray-600">Análisis detallado por cobrador y período</p>
           </div>
-          <Button 
-            onClick={exportarReporte} 
+          <Button
+            onClick={exportarReporte}
             className="flex items-center gap-2"
             disabled={!reporte || loading}
           >
             <Download className="h-4 w-4" />
             Exportar CSV
+          </Button>
+          <Button
+            variant="outline"
+            className="flex items-center gap-2 border-red-500 text-red-600 hover:bg-red-50"
+            onClick={() => window.location.href = '/dashboard/reportes/morosidad'}
+          >
+            <AlertCircle className="h-4 w-4" />
+            Morosidad
           </Button>
         </div>
 
@@ -198,7 +206,7 @@ export default function ReportesPage() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="fechaDesde">Fecha Desde</Label>
                 <Input
@@ -208,7 +216,7 @@ export default function ReportesPage() {
                   onChange={(e) => setFechaDesde(e.target.value)}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="fechaHasta">Fecha Hasta</Label>
                 <Input
@@ -305,31 +313,31 @@ export default function ReportesPage() {
                   {reporte.reportePorCobrador
                     .sort((a, b) => b.totalCobrado - a.totalCobrado)
                     .map((cobrador, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                            {index + 1}
+                      <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                              {index + 1}
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">{cobrador.cobrador}</p>
+                              <p className="text-sm text-gray-600">
+                                {cobrador.cantidadPagos} cobros realizados
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-900">{cobrador.cobrador}</p>
-                            <p className="text-sm text-gray-600">
-                              {cobrador.cantidadPagos} cobros realizados
-                            </p>
+                        </div>
+                        <div className="text-right space-y-1">
+                          <p className="font-bold text-lg text-green-600">
+                            {formatCurrency(cobrador.totalCobrado)}
+                          </p>
+                          <div className="text-xs text-gray-600 space-y-0.5">
+                            <div>Regular: {formatCurrency(cobrador.pagosRegulares)}</div>
+                            <div>Moratorio: {formatCurrency(cobrador.pagosMoratorios)}</div>
                           </div>
                         </div>
                       </div>
-                      <div className="text-right space-y-1">
-                        <p className="font-bold text-lg text-green-600">
-                          {formatCurrency(cobrador.totalCobrado)}
-                        </p>
-                        <div className="text-xs text-gray-600 space-y-0.5">
-                          <div>Regular: {formatCurrency(cobrador.pagosRegulares)}</div>
-                          <div>Moratorio: {formatCurrency(cobrador.pagosMoratorios)}</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               ) : (
                 <div className="text-center py-8 text-gray-500">

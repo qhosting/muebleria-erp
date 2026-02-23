@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ClienteModal } from '@/components/clientes/ClienteModal';
 import { ImportarClientesModal } from '@/components/clientes/ImportarClientesModal';
+import { ImportarSaldosModal } from '@/components/clientes/ImportarSaldosModal';
 import { ExportButton } from '@/components/export-button';
 import {
   Users,
@@ -68,6 +69,7 @@ export default function ClientesPage() {
   // Modal states
   const [clienteModalOpen, setClienteModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importSaldosOpen, setImportSaldosOpen] = useState(false);
   const [importWelcomeMode, setImportWelcomeMode] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
 
@@ -279,6 +281,12 @@ export default function ClientesPage() {
                   }}>
                     <Phone className="h-4 w-4 mr-2 text-green-600" />
                     Importar Nuevas
+                  </Button>
+                  <Button variant="outline" className="border-amber-500 text-amber-700 hover:bg-amber-50" onClick={() => {
+                    setImportSaldosOpen(true);
+                  }}>
+                    <DollarSign className="h-4 w-4 mr-2 text-amber-600" />
+                    Saldos
                   </Button>
                 </>
               )}
@@ -542,14 +550,20 @@ export default function ClientesPage() {
         readOnly={userRole === 'cobrador'}
       />
 
-      {/* Modal de Importación - Solo para admin */}
       {userRole === 'admin' && (
-        <ImportarClientesModal
-          open={importModalOpen}
-          onOpenChange={setImportModalOpen}
-          onSuccess={handleModalSuccess}
-          isWelcomeMode={importWelcomeMode}
-        />
+        <>
+          <ImportarClientesModal
+            open={importModalOpen}
+            onOpenChange={setImportModalOpen}
+            onSuccess={handleModalSuccess}
+            isWelcomeMode={importWelcomeMode}
+          />
+          <ImportarSaldosModal
+            open={importSaldosOpen}
+            onOpenChange={setImportSaldosOpen}
+            onSuccess={handleModalSuccess}
+          />
+        </>
       )}
     </DashboardLayout>
   );
