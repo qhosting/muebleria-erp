@@ -29,10 +29,15 @@ enum Periodicidad {
 
 enum TipoPago {
   regular
-  moratorio
-  abono
+  congelado
+  otro
   liquidacion
   mora
+}
+
+enum TipoPlantilla {
+  ticket
+  bienvenida
 }
 
 enum MotivoMotarario {
@@ -197,12 +202,13 @@ model Motarario {
 }
 
 model PlantillaTicket {
-  id        String   @id @default(cuid())
-  nombre    String   @unique
-  contenido String   @db.Text
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String        @id @default(cuid())
+  nombre    String        @unique
+  contenido String        @db.Text
+  tipo      TipoPlantilla @default(ticket)
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
   @@map("plantillas_ticket")
 }

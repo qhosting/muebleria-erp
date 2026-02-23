@@ -24,7 +24,8 @@ import {
   DollarSign,
   Filter,
   Upload,
-  MoreVertical
+  MoreVertical,
+  Smartphone
 } from 'lucide-react';
 import { formatCurrency, formatDate, getDayName, getPeriodicidadLabel } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -276,7 +277,7 @@ export default function ClientesPage() {
                     setImportWelcomeMode(true);
                     setImportModalOpen(true);
                   }}>
-                    <Smartphone className="h-4 w-4 mr-2 text-green-600" />
+                    <Phone className="h-4 w-4 mr-2 text-green-600" />
                     Importar Nuevas
                   </Button>
                 </>

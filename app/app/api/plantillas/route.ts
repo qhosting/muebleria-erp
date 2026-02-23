@@ -9,13 +9,17 @@ import { prisma } from '@/lib/db';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const tipo = searchParams.get('tipo');
+
     // Obtener TODAS las plantillas (activas e inactivas) para gestión completa
     const plantillas = await prisma.plantillaTicket.findMany({
+      where: tipo ? { tipo: tipo as any } : {},
       orderBy: { createdAt: 'desc' },
     });
 
@@ -33,7 +37,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
@@ -44,7 +48,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { nombre, contenido, isActive = true } = body;
+    const { nombre, contenido, tipo = 'ticket', isActive = true } = body;
 
     if (!nombre || !contenido) {
       return NextResponse.json(
@@ -57,6 +61,7 @@ export async function POST(request: NextRequest) {
       data: {
         nombre,
         contenido,
+        tipo,
         isActive,
       },
     });

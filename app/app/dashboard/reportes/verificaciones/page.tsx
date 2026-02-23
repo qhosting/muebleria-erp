@@ -93,7 +93,7 @@ export default function VerificacionesReportPage() {
                                 <UserCheck className="h-8 w-8 text-white" />
                             </div>
                             <div>
-                                <h1 className="text-3xl font-bold tracking-tight">Reporte de Verificaciones VD</h1>
+                                <h1 className="text-3xl font-bold tracking-tight">Verificaciones Domiciliarias</h1>
                                 <p className="text-blue-100 mt-1">
                                     Historial y control de visitas domiciliarias realizadas por el equipo de cobranza.
                                 </p>

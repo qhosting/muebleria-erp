@@ -63,7 +63,7 @@ const navigation: NavItem[] = [
     name: 'Clientes',
     href: '/dashboard/clientes',
     icon: Users,
-    roles: ['admin', 'gestor_cobranza'],
+    roles: ['admin', 'gestor_cobranza', 'cobrador'],
   },
   {
     name: 'Usuarios',
@@ -110,7 +110,7 @@ const navigation: NavItem[] = [
     subItems: [
       { name: 'General', href: '/dashboard/reportes', icon: FileText },
       { name: 'Pagos Gestor (Clientes DP/DQ)', href: '/dashboard/reportes/pagos-gestor', icon: Users },
-      { name: 'VD (Verificaciones)', href: '/dashboard/reportes/verificaciones', icon: UserCheck },
+      { name: 'Verificaciones', href: '/dashboard/reportes/verificaciones', icon: UserCheck },
       { name: 'Convenios de Pago', href: '/dashboard/reportes/convenios', icon: FileText },
     ]
   },
@@ -119,12 +119,6 @@ const navigation: NavItem[] = [
     href: '/dashboard/rutas',
     icon: Route,
     roles: ['admin', 'gestor_cobranza', 'cobrador'],
-  },
-  {
-    name: 'Plantillas',
-    href: '/dashboard/plantillas',
-    icon: FileText,
-    roles: ['admin', 'gestor_cobranza'],
   },
   {
     name: 'Tesorería',
@@ -136,7 +130,6 @@ const navigation: NavItem[] = [
       { name: 'Tickets', href: '/dashboard/tesoreria/tickets', icon: Ticket },
       { name: 'Bancos', href: '/dashboard/tesoreria/bancos', icon: Landmark },
       { name: 'Conciliador', href: '/dashboard/tesoreria/conciliador', icon: RefreshCcw },
-      { name: 'Verificaciones', href: '/dashboard/tesoreria/verificaciones', icon: UserCheck },
       { name: 'Control de Caja', href: '/dashboard/tesoreria/caja', icon: Wallet },
     ]
   },
@@ -144,7 +137,11 @@ const navigation: NavItem[] = [
     name: 'Configuración',
     href: '/dashboard/configuracion',
     icon: Settings,
-    roles: ['admin'],
+    roles: ['admin', 'gestor_cobranza'],
+    subItems: [
+      { name: 'Ajustes Generales', href: '/dashboard/configuracion', icon: Settings, roles: ['admin'] },
+      { name: 'Plantillas', href: '/dashboard/plantillas', icon: FileText, roles: ['admin', 'gestor_cobranza'] },
+    ]
   },
 ];
 

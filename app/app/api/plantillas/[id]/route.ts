@@ -13,7 +13,7 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
@@ -24,7 +24,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { nombre, contenido, isActive } = body;
+    const { nombre, contenido, tipo, isActive } = body;
 
     if (!nombre || !contenido) {
       return NextResponse.json(
@@ -38,6 +38,7 @@ export async function PUT(
       data: {
         nombre,
         contenido,
+        tipo,
         isActive: isActive !== undefined ? isActive : true,
       },
     });
@@ -58,7 +59,7 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
