@@ -126,6 +126,7 @@ const navigation: NavItem[] = [
     icon: Wallet,
     roles: ['admin', 'gestor_cobranza'],
     subItems: [
+      { name: 'Pagos Gestor', href: '/dashboard/tesoreria/pagos-gestor', icon: Users },
       { name: 'Cuadre', href: '/dashboard/tesoreria/cuadre', icon: Calculator },
       { name: 'Tickets', href: '/dashboard/tesoreria/tickets', icon: Ticket },
       { name: 'Bancos', href: '/dashboard/tesoreria/bancos', icon: Landmark },
