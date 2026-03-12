@@ -157,6 +157,10 @@ export function LoginForm() {
               case 'cobrador':
                 redirectUrl = '/mobile/home';
                 break;
+              case 'vendedor':
+              case 'jefe_ventas':
+                redirectUrl = '/mobile/ventas';
+                break;
             }
 
             console.log(`🚀 Redirigiendo a ${redirectUrl} para rol ${userRole}`);

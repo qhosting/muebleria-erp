@@ -1,7 +1,7 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
   output        = "../node_modules/.prisma/client"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -9,272 +9,30 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  admin
-  gestor_cobranza
-  reporte_cobranza
-  cobrador
-  vendedor
-  jefe_ventas
-}
-
-enum StatusCuenta {
-  activo
-  inactivo
-}
-
-enum Periodicidad {
-  diario
-  semanal
-  catorcenal
-  quincenal
-  mensual
-}
-
-enum TipoPago {
-  regular
-  congelado
-  otro
-  liquidacion
-  mora
-  moratorio
-  abono
-}
-
-enum TipoPlantilla {
-  ticket
-  bienvenida
-}
-
-enum MotivoMotarario {
-  no_estaba
-  sin_dinero
-  viajo
-  enfermo
-  otro
-}
-
-model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  password     String?
-  role         UserRole @default(cobrador)
-  codigoGestor String? // Código de gestor/cobrador para importación
-  isActive     Boolean  @default(true)
-  conciliado   Boolean  @default(false)
-  horaCierre   DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Configuración de impresora personal
-  impresoraNombre       String? // Nombre/modelo de la impresora
-  impresoraAnchoPapel   Int?     @default(80) // 58 o 80 mm
-  impresoraTamanoFuente String?  @default("mediana") // "pequena", "mediana", "grande"
-  impresoraAutoImprimir Boolean? @default(false) // Auto-imprimir tickets al registrar pago
-
-  // NextAuth relations
-  accounts Account[]
-  sessions Session[]
-
-  // Business relations
-  clientesAsignados Cliente[]                  @relation("CobradorAsignado")
-  pagos             Pago[]
-  motararios        Motarario[]
-  rutasCobranza     RutaCobranza[]
-  tickets           Ticket[]
-  convenios         ConvenioPago[]
-  verificaciones    VerificacionDomiciliaria[]
-  sesionesCaja      SesionCaja[]
-
-  // --- Módulo Ventas/Cambaceo ---
-  leadsAsignados      Lead[]             @relation("VendedorLead")
-  ventasAsignadas     Cliente[]          @relation("VendedorAsignado")
-  equiposLiderados    EquipoVentas[]     @relation("LiderEquipo")
-  equipoMiembroId     String?            
-  equipoVentas        EquipoVentas?      @relation("MiembroEquipo", fields: [equipoMiembroId], references: [id])
-  presupuestosA       PresupuestoVenta[] @relation("PresupuestoVendedor")
-
-  @@map("users")
-}
-
-model Cliente {
-  id                  String       @id @default(cuid())
-  codigoCliente       String       @unique
-  fechaVenta          DateTime
-  nombreCompleto      String
-  telefono            String?
-  vendedor            String?
-  vendedorId          String?
-  equipoId            String?
-  cobradorAsignadoId  String?
-  productoId          String? // Vinculación con inventario
-  sucursalId          String? // Origen de la venta
-  statusCuenta        StatusCuenta @default(activo)
-  direccionCompleta   String
-  descripcionProducto String
-  piezas              Int          @default(1)
-  diaPago             String
-  montoPago           Decimal      @db.Decimal(10, 2)
-  periodicidad        Periodicidad
-  saldoActual         Decimal      @db.Decimal(10, 2)
-  importe1            Decimal?     @db.Decimal(10, 2)
-  importe2            Decimal?     @db.Decimal(10, 2)
-  importe3            Decimal?     @db.Decimal(10, 2)
-  importe4            Decimal?     @db.Decimal(10, 2)
-  diasVencidos        Int          @default(0)
-  saldoVencido        Decimal      @default(0) @db.Decimal(10, 2)
-
-  // -- Nuevos Campos de Identificación y Contacto --
-  dni   String? // INE, CURP, Pasaporte
-  email String?
-
-  // -- Dirección Detallada --
-  calle               String?
-  numeroExterior      String?
-  numeroInterior      String?
-  colonia             String?
-  ciudad              String?
-  estado              String?
-  codigoPostal        String?
-  referenciaDireccion String? @db.Text
-
-  // -- Datos Personales y Laborales --
-  fechaNacimiento DateTime?
-  estadoCivil     String?
-  genero          String?
-  ocupacion       String?
-  empresaTrabajo  String?
-  telefonoTrabajo String?
-
-  // -- Datos Financieros --
-  ingresosMensuales Decimal? @db.Decimal(10, 2)
-  limiteCredito     Decimal? @db.Decimal(10, 2)
-  formaPago         String?
-  datosBancarios    Json?
-
-  // -- Otros --
-  observaciones String? @db.Text
-  zona          String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  cobradorAsignado     User?                      @relation("CobradorAsignado", fields: [cobradorAsignadoId], references: [id])
-  vendedorAsignado     User?                      @relation("VendedorAsignado", fields: [vendedorId], references: [id])
-  equipo               EquipoVentas?              @relation("EquipoVenta", fields: [equipoId], references: [id])
-  producto             Producto?                  @relation(fields: [productoId], references: [id])
-  sucursal             Sucursal?                  @relation(fields: [sucursalId], references: [id])
-  pagos                Pago[]
-  motararios           Motarario[]
-  tickets              Ticket[]
-  movimientosBancarios MovimientoBancario[]
-  convenios            ConvenioPago[]
-  verificaciones       VerificacionDomiciliaria[]
-
-  @@map("clientes")
-}
-
-model Pago {
-  id            String   @id @default(cuid())
-  clienteId     String
-  cobradorId    String
-  monto         Decimal  @db.Decimal(10, 2)
-  concepto      String?
-  tipoPago      TipoPago @default(regular)
-  fechaPago     DateTime @default(now())
-  saldoAnterior Decimal  @db.Decimal(10, 2)
-  saldoNuevo    Decimal  @db.Decimal(10, 2)
-  metodoPago    String   @default("gestor") // gestor (efectivo en campo), bancario (transferencia)
-  numeroRecibo  String?
-  localId       String? // Para sincronización offline
-  ticketImpreso Boolean  @default(false)
-  sincronizado  Boolean  @default(false)
-  createdAt     DateTime @default(now())
-
-  // Mapeo legacy
-  ticketId String?
-  ticket   Ticket? @relation(fields: [ticketId], references: [id])
-  banco    String?
-  latitud  String?
-  longitud String?
-
-  cliente  Cliente @relation(fields: [clienteId], references: [id])
-  cobrador User    @relation(fields: [cobradorId], references: [id])
-
-  @@map("pagos")
-}
-
-model Motarario {
-  id            String          @id @default(cuid())
-  clienteId     String
-  cobradorId    String
-  motivo        MotivoMotarario
-  descripcion   String          @db.Text
-  fecha         DateTime        @default(now())
-  proximaVisita DateTime?
-  localId       String? // Para sincronización offline
-  sincronizado  Boolean         @default(false)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-
-  cliente  Cliente @relation(fields: [clienteId], references: [id])
-  cobrador User    @relation(fields: [cobradorId], references: [id])
-
-  @@map("motararios")
-}
-
-model PlantillaTicket {
-  id        String        @id @default(cuid())
-  nombre    String        @unique
-  contenido String        @db.Text
-  tipo      TipoPlantilla @default(ticket)
-  isActive  Boolean       @default(true)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-
-  @@map("plantillas_ticket")
-}
-
-model RutaCobranza {
-  id                String   @id @default(cuid())
-  cobradorId        String
-  fecha             DateTime
-  clientesVisitados Json
-  totalCobrado      Decimal  @db.Decimal(10, 2)
-  createdAt         DateTime @default(now())
-
-  cobrador User @relation(fields: [cobradorId], references: [id])
-
-  @@map("rutas_cobranza")
-}
-
-// NextAuth required models
 model Account {
-  id                String  @id @default(cuid())
+  id                String  @id
   userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  users             users   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
 
 model Session {
-  id           String   @id @default(cuid())
+  id           String   @id
   sessionToken String   @unique
   userId       String
   expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  users        users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
@@ -285,81 +43,85 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model ConfiguracionSistema {
-  id             String   @id @default(cuid())
-  clave          String   @unique // Siempre será "sistema" para tener solo 1 registro
+model clientes {
+  id                                       String                         @id
+  codigoCliente                            String                         @unique
+  fechaVenta                               DateTime
+  nombreCompleto                           String
+  telefono                                 String?
+  vendedor                                 String?
+  cobradorAsignadoId                       String?
+  productoId                               String?
+  sucursalId                               String?
+  statusCuenta                             StatusCuenta                   @default(activo)
+  direccionCompleta                        String
+  descripcionProducto                      String
+  diaPago                                  String
+  montoPago                                Decimal                        @db.Decimal(10, 2)
+  periodicidad                             Periodicidad
+  saldoActual                              Decimal                        @db.Decimal(10, 2)
+  importe1                                 Decimal?                       @db.Decimal(10, 2)
+  importe2                                 Decimal?                       @db.Decimal(10, 2)
+  importe3                                 Decimal?                       @db.Decimal(10, 2)
+  importe4                                 Decimal?                       @db.Decimal(10, 2)
+  dni                                      String?
+  email                                    String?
+  calle                                    String?
+  numeroExterior                           String?
+  numeroInterior                           String?
+  colonia                                  String?
+  ciudad                                   String?
+  estado                                   String?
+  codigoPostal                             String?
+  referenciaDireccion                      String?
+  fechaNacimiento                          DateTime?
+  estadoCivil                              String?
+  genero                                   String?
+  ocupacion                                String?
+  empresaTrabajo                           String?
+  telefonoTrabajo                          String?
+  ingresosMensuales                        Decimal?                       @db.Decimal(10, 2)
+  limiteCredito                            Decimal?                       @db.Decimal(10, 2)
+  formaPago                                String?
+  datosBancarios                           Json?
+  observaciones                            String?
+  zona                                     String?
+  createdAt                                DateTime                       @default(now())
+  updatedAt                                DateTime
+  diasVencidos                             Int                            @default(0)
+  saldoVencido                             Decimal                        @default(0) @db.Decimal(10, 2)
+  equipoId                                 String?
+  vendedorId                               String?
+  piezas                                   Int                            @default(1)
+  users_clientes_cobradorAsignadoIdTousers users?                         @relation("clientes_cobradorAsignadoIdTousers", fields: [cobradorAsignadoId], references: [id])
+  equipos_ventas                           equipos_ventas?                @relation(fields: [equipoId], references: [id])
+  productos                                productos?                     @relation(fields: [productoId], references: [id])
+  sucursales                               sucursales?                    @relation(fields: [sucursalId], references: [id])
+  users_clientes_vendedorIdTousers         users?                         @relation("clientes_vendedorIdTousers", fields: [vendedorId], references: [id])
+  convenios_pagos                          convenios_pagos[]
+  motararios                               motararios[]
+  movimientos_bancarios                    movimientos_bancarios[]
+  pagos                                    pagos[]
+  tickets                                  tickets[]
+  verificaciones_domiciliarias             verificaciones_domiciliarias[]
+}
+
+model configuracion_sistema {
+  id             String   @id
+  clave          String   @unique
   empresa        Json
   cobranza       Json
   notificaciones Json
   sincronizacion Json
   impresion      Json
   createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  @@map("configuracion_sistema")
+  updatedAt      DateTime
 }
 
-// ==========================================
-// MÓDULOS MIGRACIÓN LEGACY
-// ==========================================
-
-model Ticket {
-  id             String    @id @default(uuid())
-  legacyId       Int?      @unique
-  clienteId      String?
-  cliente        Cliente?  @relation(fields: [clienteId], references: [id])
-  gestorId       String?
-  gestor         User?     @relation(fields: [gestorId], references: [id])
-  monto          Float
-  referencia     String?
-  folio          String?
-  fecha          DateTime?
-  creadoEn       DateTime  @default(now())
-  conciliado     Boolean   @default(false)
-  urlComprobante String?   @db.Text
-  concepto       String?   @db.Text
-  cuentaOrigen   String?   @db.Text
-  cuentaDestino  String?   @db.Text
-  claveRastreo   String?
-  remitente      String?
-
-  movimientos MovimientoBancario[]
-  pagos       Pago[]
-
-  @@map("tickets")
-}
-
-model MovimientoBancario {
-  id                   String    @id @default(uuid())
-  legacyId             Int?      @unique
-  bancoOrigen          String
-  fechaOperacion       DateTime
-  horaOperacion        DateTime? @db.Time
-  descripcionGeneral   String?
-  cargo                Float?
-  abono                Float?
-  saldo                Float?
-  referencia           String?
-  claveRastreo         String?
-  concepto             String?
-  descripcionDetallada String?   @db.Text
-  fechaIngreso         DateTime  @default(now())
-
-  ticketId          String?
-  ticket            Ticket?   @relation(fields: [ticketId], references: [id])
-  clienteId         String?
-  cliente           Cliente?  @relation(fields: [clienteId], references: [id])
-  fechaIdentificado DateTime?
-
-  @@map("movimientos_bancarios")
-}
-
-model ConvenioPago {
-  id            String   @id @default(uuid())
+model convenios_pagos {
+  id            String   @id
   clienteId     String
-  cliente       Cliente  @relation(fields: [clienteId], references: [id])
   gestorId      String
-  gestor        User     @relation(fields: [gestorId], references: [id])
   tipoConvenio  String
   monto         Float
   fecha         DateTime
@@ -367,138 +129,291 @@ model ConvenioPago {
   latitud       String?
   longitud      String?
   fechaRegistro DateTime @default(now())
-
-  @@map("convenios_pagos")
+  clientes      clientes @relation(fields: [clienteId], references: [id])
+  users         users    @relation(fields: [gestorId], references: [id])
 }
 
-model VerificacionDomiciliaria {
-  id            String   @id @default(uuid())
+model equipos_ventas {
+  id                                          String                @id
+  nombre                                      String                @unique
+  liderId                                     String?
+  isActive                                    Boolean               @default(true)
+  createdAt                                   DateTime              @default(now())
+  updatedAt                                   DateTime
+  clientes                                    clientes[]
+  users_equipos_ventas_liderIdTousers         users?                @relation("equipos_ventas_liderIdTousers", fields: [liderId], references: [id])
+  presupuestos_ventas                         presupuestos_ventas[]
+  users_users_equipoMiembroIdToequipos_ventas users[]               @relation("users_equipoMiembroIdToequipos_ventas")
+}
+
+model leads {
+  id            String     @id
+  nombre        String
+  telefono      String?
+  direccionArea String?
+  interes       String?
+  montoEstimado Decimal?   @db.Decimal(10, 2)
+  estado        EstadoLead @default(nuevo)
+  origen        OrigenLead @default(cambaceo)
+  vendedorId    String
+  notas         String?
+  fechaContacto DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime
+  users         users      @relation(fields: [vendedorId], references: [id])
+}
+
+model motararios {
+  id            String          @id
   clienteId     String
-  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  cobradorId    String
+  motivo        MotivoMotarario
+  descripcion   String
+  fecha         DateTime        @default(now())
+  proximaVisita DateTime?
+  localId       String?
+  sincronizado  Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  clientes      clientes        @relation(fields: [clienteId], references: [id])
+  users         users           @relation(fields: [cobradorId], references: [id])
+}
+
+model movimientos_bancarios {
+  id                   String    @id
+  legacyId             Int?      @unique
+  bancoOrigen          String
+  fechaOperacion       DateTime
+  horaOperacion        DateTime? @db.Time(6)
+  descripcionGeneral   String?
+  cargo                Float?
+  abono                Float?
+  saldo                Float?
+  referencia           String?
+  claveRastreo         String?
+  concepto             String?
+  descripcionDetallada String?
+  fechaIngreso         DateTime  @default(now())
+  ticketId             String?
+  clienteId            String?
+  fechaIdentificado    DateTime?
+  clientes             clientes? @relation(fields: [clienteId], references: [id])
+  tickets              tickets?  @relation(fields: [ticketId], references: [id])
+}
+
+model movimientos_inventario {
+  id                                                              String         @id
+  productoId                                                      String
+  tipoMovimiento                                                  TipoMovimiento
+  cantidad                                                        Int
+  sucursalOrigenId                                                String?
+  sucursalDestinoId                                               String?
+  motivo                                                          String?
+  referencia                                                      String?
+  usuarioId                                                       String?
+  createdAt                                                       DateTime       @default(now())
+  productos                                                       productos      @relation(fields: [productoId], references: [id])
+  sucursales_movimientos_inventario_sucursalDestinoIdTosucursales sucursales?    @relation("movimientos_inventario_sucursalDestinoIdTosucursales", fields: [sucursalDestinoId], references: [id])
+  sucursales_movimientos_inventario_sucursalOrigenIdTosucursales  sucursales?    @relation("movimientos_inventario_sucursalOrigenIdTosucursales", fields: [sucursalOrigenId], references: [id])
+}
+
+model pagos {
+  id            String   @id
+  clienteId     String
+  cobradorId    String
+  monto         Decimal  @db.Decimal(10, 2)
+  concepto      String?
+  tipoPago      TipoPago @default(regular)
+  fechaPago     DateTime @default(now())
+  saldoAnterior Decimal  @db.Decimal(10, 2)
+  saldoNuevo    Decimal  @db.Decimal(10, 2)
+  metodoPago    String   @default("gestor")
+  numeroRecibo  String?
+  localId       String?
+  ticketImpreso Boolean  @default(false)
+  sincronizado  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  banco         String?
+  latitud       String?
+  longitud      String?
+  ticketId      String?
+  clientes      clientes @relation(fields: [clienteId], references: [id])
+  users         users    @relation(fields: [cobradorId], references: [id])
+  tickets       tickets? @relation(fields: [ticketId], references: [id])
+}
+
+model pending_tickets {
+  id          String   @id
+  remitente   String   @unique
+  base64Data  String
+  tipoArchivo String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+model plantillas_ticket {
+  id        String        @id
+  nombre    String        @unique
+  contenido String
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime
+  tipo      TipoPlantilla @default(ticket)
+}
+
+model presupuestos_ventas {
+  id             String          @id
+  metaMonto      Decimal         @db.Decimal(10, 2)
+  metaPiezas     Int
+  vendedorId     String?
+  equipoId       String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime
+  fechaFin       DateTime
+  fechaInicio    DateTime
+  nombre         String?
+  metaLeads      Int             @default(0)
+  equipos_ventas equipos_ventas? @relation(fields: [equipoId], references: [id])
+  users          users?          @relation(fields: [vendedorId], references: [id])
+}
+
+model productos {
+  id                     String                   @id
+  codigo                 String                   @unique
+  nombre                 String
+  descripcion            String?
+  categoria              String?
+  precioCompra           Decimal                  @db.Decimal(10, 2)
+  precioVenta            Decimal                  @db.Decimal(10, 2)
+  unidadMedida           String                   @default("pieza")
+  stockMinimo            Int                      @default(0)
+  imagenUrl              String?
+  isActive               Boolean                  @default(true)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime
+  clientes               clientes[]
+  movimientos_inventario movimientos_inventario[]
+  stock                  stock[]
+}
+
+model rutas_cobranza {
+  id                String   @id
+  cobradorId        String
+  fecha             DateTime
+  clientesVisitados Json
+  totalCobrado      Decimal  @db.Decimal(10, 2)
+  createdAt         DateTime @default(now())
+  users             users    @relation(fields: [cobradorId], references: [id])
+}
+
+model sesiones_caja {
+  id            String    @id
+  userId        String
+  fecha         DateTime  @default(now())
+  apertura      DateTime?
+  cierre        DateTime?
+  montoInicial  Decimal   @default(0) @db.Decimal(10, 2)
+  montoFinal    Decimal?  @db.Decimal(10, 2)
+  totalCobrado  Decimal   @default(0) @db.Decimal(10, 2)
+  estatus       String    @default("abierto")
+  observaciones String?
+  users         users     @relation(fields: [userId], references: [id])
+}
+
+model stock {
+  id         String     @id
+  productoId String
+  sucursalId String
+  cantidad   Int        @default(0)
+  updatedAt  DateTime
+  productos  productos  @relation(fields: [productoId], references: [id])
+  sucursales sucursales @relation(fields: [sucursalId], references: [id])
+
+  @@unique([productoId, sucursalId])
+}
+
+model sucursales {
+  id                                                                          String                   @id
+  nombre                                                                      String                   @unique
+  direccion                                                                   String?
+  telefono                                                                    String?
+  esBodega                                                                    Boolean                  @default(false)
+  isActive                                                                    Boolean                  @default(true)
+  createdAt                                                                   DateTime                 @default(now())
+  updatedAt                                                                   DateTime
+  clientes                                                                    clientes[]
+  movimientos_inventario_movimientos_inventario_sucursalDestinoIdTosucursales movimientos_inventario[] @relation("movimientos_inventario_sucursalDestinoIdTosucursales")
+  movimientos_inventario_movimientos_inventario_sucursalOrigenIdTosucursales  movimientos_inventario[] @relation("movimientos_inventario_sucursalOrigenIdTosucursales")
+  stock                                                                       stock[]
+}
+
+model tickets {
+  id                    String                  @id
+  legacyId              Int?                    @unique
+  clienteId             String?
+  gestorId              String?
+  monto                 Float
+  referencia            String?
+  folio                 String?
+  fecha                 DateTime?
+  creadoEn              DateTime                @default(now())
+  conciliado            Boolean                 @default(false)
+  urlComprobante        String?
+  concepto              String?
+  cuentaOrigen          String?
+  cuentaDestino         String?
+  claveRastreo          String?
+  remitente             String?
+  movimientos_bancarios movimientos_bancarios[]
+  pagos                 pagos[]
+  clientes              clientes?               @relation(fields: [clienteId], references: [id])
+  users                 users?                  @relation(fields: [gestorId], references: [id])
+}
+
+model users {
+  id                                                   String                         @id
+  email                                                String                         @unique
+  name                                                 String
+  password                                             String?
+  role                                                 UserRole                       @default(cobrador)
+  codigoGestor                                         String?
+  isActive                                             Boolean                        @default(true)
+  createdAt                                            DateTime                       @default(now())
+  updatedAt                                            DateTime
+  impresoraNombre                                      String?
+  impresoraAnchoPapel                                  Int?                           @default(80)
+  impresoraTamanoFuente                                String?                        @default("mediana")
+  impresoraAutoImprimir                                Boolean?                       @default(false)
+  conciliado                                           Boolean                        @default(false)
+  horaCierre                                           DateTime?
+  equipoMiembroId                                      String?
+  Account                                              Account[]
+  Session                                              Session[]
+  clientes_clientes_cobradorAsignadoIdTousers          clientes[]                     @relation("clientes_cobradorAsignadoIdTousers")
+  clientes_clientes_vendedorIdTousers                  clientes[]                     @relation("clientes_vendedorIdTousers")
+  convenios_pagos                                      convenios_pagos[]
+  equipos_ventas_equipos_ventas_liderIdTousers         equipos_ventas[]               @relation("equipos_ventas_liderIdTousers")
+  leads                                                leads[]
+  motararios                                           motararios[]
+  pagos                                                pagos[]
+  presupuestos_ventas                                  presupuestos_ventas[]
+  rutas_cobranza                                       rutas_cobranza[]
+  sesiones_caja                                        sesiones_caja[]
+  tickets                                              tickets[]
+  equipos_ventas_users_equipoMiembroIdToequipos_ventas equipos_ventas?                @relation("users_equipoMiembroIdToequipos_ventas", fields: [equipoMiembroId], references: [id])
+  verificaciones_domiciliarias                         verificaciones_domiciliarias[]
+}
+
+model verificaciones_domiciliarias {
+  id            String   @id
+  clienteId     String
   gestorId      String
-  gestor        User     @relation(fields: [gestorId], references: [id])
   fecha         DateTime
   detallesExtra Json?
   fechaRegistro DateTime @default(now())
-
-  @@map("verificaciones_domiciliarias")
+  clientes      clientes @relation(fields: [clienteId], references: [id])
+  users         users    @relation(fields: [gestorId], references: [id])
 }
-
-model TicketPendiente {
-  id          String   @id @default(uuid())
-  remitente   String   @unique // JID de WhatsApp
-  base64Data  String   @db.Text
-  tipoArchivo String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("pending_tickets")
-}
-
-model SesionCaja {
-  id           String    @id @default(cuid())
-  userId       String
-  user         User      @relation(fields: [userId], references: [id])
-  fecha        DateTime  @default(now())
-  apertura     DateTime?
-  cierre       DateTime?
-  montoInicial Decimal   @default(0) @db.Decimal(10, 2)
-  montoFinal   Decimal?  @db.Decimal(10, 2)
-  totalCobrado Decimal   @default(0) @db.Decimal(10, 2)
-  estatus      String    @default("abierto") // abierto, cerrado
-  observaciones String?   @db.Text
-
-  @@map("sesiones_caja")
-}
-
-// ==========================================
-// MÓDULO DE INVENTARIO
-// ==========================================
-
-enum TipoMovimiento {
-  entrada
-  salida
-  traspaso
-  ajuste
-  venta
-}
-
-model Sucursal {
-  id        String   @id @default(cuid())
-  nombre    String   @unique
-  direccion String?
-  telefono  String?
-  esBodega  Boolean  @default(false) // true = bodega, false = tienda
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  stocks             Stock[]
-  movimientosOrigen  MovimientoInventario[] @relation("MovimientoOrigen")
-  movimientosDestino MovimientoInventario[] @relation("MovimientoDestino")
-  clientes           Cliente[]
-
-  @@map("sucursales")
-}
-
-model Producto {
-  id           String   @id @default(cuid())
-  codigo       String   @unique
-  nombre       String
-  descripcion  String?
-  categoria    String?
-  precioCompra Decimal  @db.Decimal(10, 2)
-  precioVenta  Decimal  @db.Decimal(10, 2)
-  unidadMedida String   @default("pieza") // pieza, juego, set
-  stockMinimo  Int      @default(0)
-  imagenUrl    String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  stocks      Stock[]
-  movimientos MovimientoInventario[]
-  clientes    Cliente[]
-
-  @@map("productos")
-}
-
-model Stock {
-  id         String   @id @default(cuid())
-  productoId String
-  sucursalId String
-  cantidad   Int      @default(0)
-  updatedAt  DateTime @updatedAt
-
-  producto Producto @relation(fields: [productoId], references: [id])
-  sucursal Sucursal @relation(fields: [sucursalId], references: [id])
-
-  @@unique([productoId, sucursalId])
-  @@map("stock")
-}
-
-model MovimientoInventario {
-  id                String         @id @default(cuid())
-  productoId        String
-  tipoMovimiento    TipoMovimiento
-  cantidad          Int
-  sucursalOrigenId  String?
-  sucursalDestinoId String?
-  motivo            String?
-  referencia        String? // Número de factura, orden, etc.
-  usuarioId         String?
-  createdAt         DateTime       @default(now())
-
-  producto        Producto  @relation(fields: [productoId], references: [id])
-  sucursalOrigen  Sucursal? @relation("MovimientoOrigen", fields: [sucursalOrigenId], references: [id])
-  sucursalDestino Sucursal? @relation("MovimientoDestino", fields: [sucursalDestinoId], references: [id])
-
-  @@map("movimientos_inventario")
-}
-
-// ==========================================
-// MÓDULO DE VENTAS, PROSPECCIÓN Y CAMBACEO
-// ==========================================
 
 enum EstadoLead {
   nuevo
@@ -506,6 +421,14 @@ enum EstadoLead {
   negociacion
   convertido
   descartado
+}
+
+enum MotivoMotarario {
+  no_estaba
+  sin_dinero
+  viajo
+  enfermo
+  otro
 }
 
 enum OrigenLead {
@@ -516,57 +439,47 @@ enum OrigenLead {
   otro
 }
 
-model EquipoVentas {
-  id          String   @id @default(cuid())
-  nombre      String   @unique
-  liderId     String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  lider       User?    @relation("LiderEquipo", fields: [liderId], references: [id])
-  miembros    User[]   @relation("MiembroEquipo")
-  ventas      Cliente[] @relation("EquipoVenta")
-  presupuestos PresupuestoVenta[] @relation("PresupuestoEquipo")
-
-  @@map("equipos_ventas")
+enum Periodicidad {
+  semanal
+  quincenal
+  mensual
+  diario
+  catorcenal
 }
 
-model Lead {
-  id              String      @id @default(cuid())
-  nombre          String
-  telefono        String?
-  direccionArea   String?     // Zona de cambaceo
-  interes         String?     // Producto de interés
-  montoEstimado   Decimal?    @db.Decimal(10,2)
-  estado          EstadoLead  @default(nuevo)
-  origen          OrigenLead  @default(cambaceo)
-  vendedorId      String
-  notas           String?     @db.Text
-  fechaContacto   DateTime?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-
-  vendedor        User        @relation("VendedorLead", fields: [vendedorId], references: [id])
-
-  @@map("leads")
+enum StatusCuenta {
+  activo
+  inactivo
 }
 
-model PresupuestoVenta {
-  id            String   @id @default(cuid())
-  nombre        String?  // Ej. "Meta Marzo" o "Semana Santa"
-  fechaInicio   DateTime
-  fechaFin      DateTime
-  metaMonto     Decimal  @db.Decimal(10,2)
-  metaPiezas    Int
-  metaLeads     Int      @default(0)
-  vendedorId    String?  
-  equipoId      String?  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+enum TipoMovimiento {
+  entrada
+  salida
+  traspaso
+  ajuste
+  venta
+}
 
-  vendedor      User?         @relation("PresupuestoVendedor", fields: [vendedorId], references: [id])
-  equipo        EquipoVentas? @relation("PresupuestoEquipo", fields: [equipoId], references: [id])
+enum TipoPago {
+  regular
+  moratorio
+  abono
+  liquidacion
+  mora
+  congelado
+  otro
+}
 
-  @@map("presupuestos_ventas")
+enum TipoPlantilla {
+  ticket
+  bienvenida
+}
+
+enum UserRole {
+  admin
+  gestor_cobranza
+  reporte_cobranza
+  cobrador
+  vendedor
+  jefe_ventas
 }

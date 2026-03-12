@@ -28,7 +28,9 @@ const ROLES = {
   admin: 'Administrador',
   gestor_cobranza: 'Gestor de Cobranza',
   reporte_cobranza: 'Reportes',
-  cobrador: 'Cobrador'
+  cobrador: 'Cobrador',
+  vendedor: 'Vendedor',
+  jefe_ventas: 'Jefe de Ventas'
 };
 
 export default function UsuariosPage() {
