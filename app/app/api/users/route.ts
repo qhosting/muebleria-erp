@@ -7,7 +7,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
@@ -15,12 +15,21 @@ export async function GET() {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const role = searchParams.get('role');
+
     const userRole = (session.user as any).role;
     if (!['admin', 'gestor_cobranza'].includes(userRole)) {
       return NextResponse.json({ error: 'Permisos insuficientes' }, { status: 403 });
     }
 
+    const where: any = {};
+    if (role) {
+      where.role = role;
+    }
+
     const users = await prisma.user.findMany({
+      where,
       select: {
         id: true,
         email: true,

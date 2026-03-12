@@ -22,7 +22,14 @@ Este documento detalla las características planificadas, mejoras técnicas y nu
 - **Notificaciones Push:** ⏳ Pendiente configuración de Firebase Cloud Messaging (FCM).
 - **Recordatorios SMS:** ⏳ Pendiente integración con Twilio o similar.
 
-#### 4. Mejoras en Importación de Datos [✅ COMPLETADO]
+#### 4. Módulo de Ventas y Prospección [🟡 EN PROGRESO - 80%]
+- **Registro de Leads:** ✅ Implementado registro de prospectos en campo (PWA).
+- **Configuración de Metas:** ✅ Implementado sistema flexible por fecha (Monto, Piezas, Leads).
+- **Dashboard de Avance:** ✅ Visualización de cumplimiento en tiempo real.
+- **Conversión Lead -> Cliente:** ⏳ Pendiente (PENDIENTE).
+- **Metas de Conversión:** ⏳ Pendiente añadir "Clientes Nuevos" como métrica en presupuestos (PENDIENTE).
+
+#### 5. Mejoras en Importación de Datos [✅ COMPLETADO]
 - **Asistente de Migración:** ✅ Implementada herramienta de carga masiva desde Excel con vista previa y validación.
 - **Exportación Avanzada:** ⏳ Pendiente reportes personalizados en PDF/Excel.
 

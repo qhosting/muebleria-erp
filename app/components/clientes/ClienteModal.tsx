@@ -76,7 +76,10 @@ export function ClienteModal({
     limiteCredito: '',
     formaPago: '',
     observaciones: '',
-    zona: ''
+    zona: '',
+    vendedorId: '',
+    equipoId: '',
+    piezas: '1'
   });
 
   const isEditMode = !!cliente;
@@ -124,7 +127,10 @@ export function ClienteModal({
         limiteCredito: cliente.limiteCredito?.toString() || '',
         formaPago: cliente.formaPago || '',
         observaciones: cliente.observaciones || '',
-        zona: cliente.zona || ''
+        zona: cliente.zona || '',
+        vendedorId: cliente.vendedorId || '',
+        equipoId: cliente.equipoId || '',
+        piezas: cliente.piezas?.toString() || '1'
       });
     } else {
       // Reset completo para nuevo cliente
@@ -167,7 +173,10 @@ export function ClienteModal({
         limiteCredito: '',
         formaPago: '',
         observaciones: '',
-        zona: ''
+        zona: '',
+        vendedorId: '',
+        equipoId: '',
+        piezas: '1'
       });
     }
   }, [cliente, open]);
@@ -354,6 +363,23 @@ export function ClienteModal({
                     disabled={readOnly}
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Vendedor Asociado</Label>
+                  <Select
+                    value={formData.vendedorId || 'sin-vendedor'}
+                    onValueChange={(val) => setFormData({ ...formData, vendedorId: val === 'sin-vendedor' ? null : val })}
+                    disabled={readOnly}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Seleccionar Vendedor..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sin-vendedor">Sin vendedor</SelectItem>
+                      {cobradores.filter(u => (u as any).role === 'vendedor' || (u as any).role === 'admin').map((u) => (
+                        <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
 
@@ -428,6 +454,7 @@ export function ClienteModal({
                 {renderInput('importe2', 'Importe Extra 2', 'number')}
                 {renderInput('importe3', 'Importe Extra 3', 'number')}
                 {renderInput('importe4', 'Importe Extra 4', 'number')}
+                {renderInput('piezas', 'Piezas (Unidades) *', 'number', true)}
 
                 {isEditMode && (
                   <div className="space-y-2">

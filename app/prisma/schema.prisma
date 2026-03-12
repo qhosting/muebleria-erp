@@ -14,6 +14,8 @@ enum UserRole {
   gestor_cobranza
   reporte_cobranza
   cobrador
+  vendedor
+  jefe_ventas
 }
 
 enum StatusCuenta {
@@ -85,6 +87,14 @@ model User {
   verificaciones    VerificacionDomiciliaria[]
   sesionesCaja      SesionCaja[]
 
+  // --- Módulo Ventas/Cambaceo ---
+  leadsAsignados      Lead[]             @relation("VendedorLead")
+  ventasAsignadas     Cliente[]          @relation("VendedorAsignado")
+  equiposLiderados    EquipoVentas[]     @relation("LiderEquipo")
+  equipoMiembroId     String?            
+  equipoVentas        EquipoVentas?      @relation("MiembroEquipo", fields: [equipoMiembroId], references: [id])
+  presupuestosA       PresupuestoVenta[] @relation("PresupuestoVendedor")
+
   @@map("users")
 }
 
@@ -95,12 +105,15 @@ model Cliente {
   nombreCompleto      String
   telefono            String?
   vendedor            String?
+  vendedorId          String?
+  equipoId            String?
   cobradorAsignadoId  String?
   productoId          String? // Vinculación con inventario
   sucursalId          String? // Origen de la venta
   statusCuenta        StatusCuenta @default(activo)
   direccionCompleta   String
   descripcionProducto String
+  piezas              Int          @default(1)
   diaPago             String
   montoPago           Decimal      @db.Decimal(10, 2)
   periodicidad        Periodicidad
@@ -148,6 +161,8 @@ model Cliente {
   updatedAt DateTime @updatedAt
 
   cobradorAsignado     User?                      @relation("CobradorAsignado", fields: [cobradorAsignadoId], references: [id])
+  vendedorAsignado     User?                      @relation("VendedorAsignado", fields: [vendedorId], references: [id])
+  equipo               EquipoVentas?              @relation("EquipoVenta", fields: [equipoId], references: [id])
   producto             Producto?                  @relation(fields: [productoId], references: [id])
   sucursal             Sucursal?                  @relation(fields: [sucursalId], references: [id])
   pagos                Pago[]
@@ -479,4 +494,79 @@ model MovimientoInventario {
   sucursalDestino Sucursal? @relation("MovimientoDestino", fields: [sucursalDestinoId], references: [id])
 
   @@map("movimientos_inventario")
+}
+
+// ==========================================
+// MÓDULO DE VENTAS, PROSPECCIÓN Y CAMBACEO
+// ==========================================
+
+enum EstadoLead {
+  nuevo
+  contactado
+  negociacion
+  convertido
+  descartado
+}
+
+enum OrigenLead {
+  cambaceo
+  facebook
+  referido
+  oficina
+  otro
+}
+
+model EquipoVentas {
+  id          String   @id @default(cuid())
+  nombre      String   @unique
+  liderId     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lider       User?    @relation("LiderEquipo", fields: [liderId], references: [id])
+  miembros    User[]   @relation("MiembroEquipo")
+  ventas      Cliente[] @relation("EquipoVenta")
+  presupuestos PresupuestoVenta[] @relation("PresupuestoEquipo")
+
+  @@map("equipos_ventas")
+}
+
+model Lead {
+  id              String      @id @default(cuid())
+  nombre          String
+  telefono        String?
+  direccionArea   String?     // Zona de cambaceo
+  interes         String?     // Producto de interés
+  montoEstimado   Decimal?    @db.Decimal(10,2)
+  estado          EstadoLead  @default(nuevo)
+  origen          OrigenLead  @default(cambaceo)
+  vendedorId      String
+  notas           String?     @db.Text
+  fechaContacto   DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  vendedor        User        @relation("VendedorLead", fields: [vendedorId], references: [id])
+
+  @@map("leads")
+}
+
+model PresupuestoVenta {
+  id            String   @id @default(cuid())
+  nombre        String?  // Ej. "Meta Marzo" o "Semana Santa"
+  fechaInicio   DateTime
+  fechaFin      DateTime
+  metaMonto     Decimal  @db.Decimal(10,2)
+  metaPiezas    Int
+  metaLeads     Int      @default(0)
+  vendedorId    String?  
+  equipoId      String?  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  vendedor      User?         @relation("PresupuestoVendedor", fields: [vendedorId], references: [id])
+  equipo        EquipoVentas? @relation("PresupuestoEquipo", fields: [equipoId], references: [id])
+
+  @@map("presupuestos_ventas")
 }

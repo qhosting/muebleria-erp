@@ -31,7 +31,9 @@ import {
   Ticket,
   Calculator,
   RefreshCcw,
-  ChevronDown
+  ChevronDown,
+  TrendingUp,
+  Target
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -142,6 +144,16 @@ const navigation: NavItem[] = [
     subItems: [
       { name: 'Ajustes Generales', href: '/dashboard/configuracion', icon: Settings, roles: ['admin'] },
       { name: 'Plantillas', href: '/dashboard/plantillas', icon: FileText, roles: ['admin', 'gestor_cobranza'] },
+    ]
+  },
+  {
+    name: 'Ventas',
+    href: '/dashboard/ventas',
+    icon: TrendingUp,
+    roles: ['admin', 'jefe_ventas', 'vendedor'],
+    subItems: [
+      { name: 'Dashboard Ventas', href: '/mobile/ventas', icon: BarChart3 },
+      { name: 'Metas y Presupuestos', href: '/dashboard/ventas/config', icon: Target, roles: ['admin', 'jefe_ventas'] },
     ]
   },
 ];
@@ -330,6 +342,8 @@ export function Sidebar({ className, session }: SidebarProps) {
                 {userRole === 'gestor_cobranza' && 'Gestor de Cobranza'}
                 {userRole === 'reporte_cobranza' && 'Reportes'}
                 {userRole === 'cobrador' && 'Cobrador'}
+                {userRole === 'vendedor' && 'Vendedor'}
+                {userRole === 'jefe_ventas' && 'Jefe de Ventas'}
               </p>
               {/* Version Info */}
               <div className="flex justify-center">

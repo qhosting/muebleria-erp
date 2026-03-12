@@ -17,7 +17,13 @@ VertexERP Muebles es un sistema integral de gestión de cobranza y administraci�
 - **Rutas de Cobro:** Organización lógica de clientes por zonas o rutas asignadas.
 - **Caja Diaria:** Cierre de caja y resumen de cobranza por usuario.
 
-#### 3. Finanzas y Reportes
+#### 3. Módulo de Ventas y Prospección
+- **Metas Flexibles:** Configuración de presupuestos por rangos de fechas (Monto, Piezas, Leads).
+- **Control de Leads:** Registro de prospectos en campo con geolocalización.
+- **Avance en Tiempo Real:** Dashboard móvil para vendedores con seguimiento de KPIs.
+- **Equipos de Ventas:** Organización de vendedores bajo líderes de equipo.
+
+#### 4. Finanzas y Reportes
 - **Dashboard Principal:** Métricas clave (KPIs) en tiempo real.
 - **Control de Morosidad:** Identificación automática de cuentas vencidas.
 - **Reportes de Saldos:** Análisis de cartera vencida y por vencer.

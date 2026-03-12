@@ -149,6 +149,9 @@ export async function POST(request: NextRequest) {
       importe3,
       importe4,
       fechaVenta,
+      vendedorId,
+      equipoId,
+      piezas,
     } = body;
 
     if (!nombreCompleto || !direccionCompleta || !descripcionProducto || !diaPago || !montoPago || !periodicidad) {
@@ -216,6 +219,8 @@ export async function POST(request: NextRequest) {
           telefono,
           vendedor,
           cobradorAsignadoId: cobradorId || null,
+          vendedorId: vendedorId || null,
+          equipoId: equipoId || null,
           productoId: productoId || null,
           sucursalId: sucursalId || null,
 
@@ -245,6 +250,7 @@ export async function POST(request: NextRequest) {
           // Datos de Venta y Cobranza
           descripcionProducto,
           diaPago: diaPago,
+          piezas: piezas ? parseInt(piezas) : 1,
           montoPago: parseFloat(montoPago),
           periodicidad,
           saldoActual: parseFloat(saldoActual || montoPago),

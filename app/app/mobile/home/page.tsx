@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { usePlatform } from "@/hooks/usePlatform";
-import { Loader2, DollarSign, MapPin, Printer } from "lucide-react";
+import { Loader2, DollarSign, MapPin, Printer, TrendingUp } from "lucide-react";
+import Link from "next/link";
 import { isPlatform } from "@/hooks/usePlatform";
 
 export default function MobileHome() {
@@ -57,11 +58,20 @@ export default function MobileHome() {
 
             {/* ACCIONES RÁPIDAS */}
             <div className="grid grid-cols-2 gap-4">
-                <ActionButton
-                    icon={<DollarSign className="w-6 h-6 text-white" />}
-                    label="Cobro Rápido"
-                    color="bg-emerald-600"
-                />
+                <Link href="/mobile/cobranza" className="w-full">
+                    <ActionButton
+                        icon={<DollarSign className="w-6 h-6 text-white" />}
+                        label="Cobranza"
+                        color="bg-emerald-600"
+                    />
+                </Link>
+                <Link href="/mobile/ventas" className="w-full">
+                    <ActionButton
+                        icon={<TrendingUp className="h-6 w-6 text-white" />}
+                        label="Ventas"
+                        color="bg-blue-600"
+                    />
+                </Link>
                 <ActionButton
                     icon={<Printer className="w-6 h-6 text-white" />}
                     label="Corte de Caja"
