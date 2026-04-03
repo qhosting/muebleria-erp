@@ -24,7 +24,7 @@ export interface OfflinePago {
   id: string;
   clienteId: string;
   monto: number;
-  tipoPago: 'regular' | 'abono' | 'liquidacion' | 'mora';
+  tipoPago: 'regular' | 'abono' | 'liquidacion' | 'mora' | 'moratorio';
   concepto: string;
   fechaPago: string;
   cobradorId: string;
@@ -38,7 +38,7 @@ export interface OfflinePago {
   lastSync?: number;
 }
 
-export interface OfflineMotarorio {
+export interface OfflineMotarario {
   id: string;
   clienteId: string;
   cobradorId: string;
@@ -55,7 +55,7 @@ export interface OfflineMotarorio {
 
 export interface SyncQueue {
   id?: number;
-  type: 'pago' | 'motarorio' | 'cliente_update';
+  type: 'pago' | 'motarario' | 'cliente_update';
   data: any;
   localId: string;
   attempts: number;
@@ -78,7 +78,7 @@ export interface AppSettings {
 export class OfflineDatabase extends Dexie {
   clientes!: Table<OfflineCliente>;
   pagos!: Table<OfflinePago>;
-  motararios!: Table<OfflineMotarorio>;
+  motararios!: Table<OfflineMotarario>;
   syncQueue!: Table<SyncQueue>;
   settings!: Table<AppSettings>;
 

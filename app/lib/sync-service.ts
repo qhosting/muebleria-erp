@@ -1,6 +1,6 @@
 
 // Servicio de sincronización para PWA de cobranza móvil
-import { db, OfflineCliente, OfflinePago, OfflineMotarorio, SyncQueue, generateLocalId } from './offline-db';
+import { db, OfflineCliente, OfflinePago, OfflineMotarario, SyncQueue, generateLocalId } from './offline-db';
 import { toast } from 'sonner';
 import { apiFetch } from './api-config';
 
@@ -197,19 +197,18 @@ export class SyncService {
 
     console.log(`Motararios pendientes para sincronizar: ${motarariosPendientes.length}`);
 
-    // Si no hay endpoint de motararios, simplemente marcar como omitidos por ahora
     if (motarariosPendientes.length === 0) {
       return;
     }
 
-    // Por ahora, comentamos la sincronización de motararios hasta que el endpoint esté disponible
-    console.log('Sincronización de motararios pendiente - endpoint no disponible');
-    // TODO: Implementar endpoint /api/motararios si se necesita
-
-    /*
     for (const motarario of motarariosPendientes) {
       try {
-        const response = await fetch('/api/motararios', {
+        console.log(`Sincronizando motarario ${motarario.localId}`);
+        
+        // Marcar como sincronizando
+        await db.motararios.update(motarario.localId, { syncStatus: 'syncing' });
+
+        const response = await apiFetch('/api/motararios', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -224,12 +223,18 @@ export class SyncService {
 
         if (response.ok) {
           const motararioServidor = await response.json();
+          console.log(`Motarario ${motarario.localId} sincronizado exitosamente con ID: ${motararioServidor.id}`);
+
           await db.motararios.update(motarario.localId, {
             id: motararioServidor.id,
             syncStatus: 'synced',
             lastSync: Date.now()
           });
+
+          // Actualizar estado en la cola de sincronización
+          await db.syncQueue.where('localId').equals(motarario.localId).modify({ status: 'completed' });
         } else {
+          console.error(`Error al sincronizar motarario ${motarario.localId}: ${response.status}`);
           await db.motararios.update(motarario.localId, { syncStatus: 'failed' });
         }
 
@@ -238,7 +243,6 @@ export class SyncService {
         await db.motararios.update(motarario.localId, { syncStatus: 'failed' });
       }
     }
-    */
   }
 
   // Actualizar timestamp de última sincronización
@@ -282,10 +286,10 @@ export class SyncService {
   }
 
   // Agregar motarario offline
-  public async addMotararioOffline(motararioData: Omit<OfflineMotarorio, 'localId' | 'syncStatus' | 'createdOffline'>) {
+  public async addMotararioOffline(motararioData: Omit<OfflineMotarario, 'localId' | 'syncStatus' | 'createdOffline'>) {
     const localId = generateLocalId();
 
-    const motarario: OfflineMotarorio = {
+    const motarario: OfflineMotarario = {
       ...motararioData,
       localId,
       syncStatus: 'pending',
@@ -296,7 +300,7 @@ export class SyncService {
 
     // Agregar a cola de sincronización
     await db.syncQueue.add({
-      type: 'motarorio',
+      type: 'motarario',
       data: motarario,
       localId,
       attempts: 0,
