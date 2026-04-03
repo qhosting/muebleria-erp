@@ -22,6 +22,7 @@ export default function BudgetConfigPage() {
   const [nombreP, setNombreP] = useState("");
   const [fechaInicio, setFechaInicio] = useState(new Date().toISOString().split('T')[0]);
   const [fechaFin, setFechaFin] = useState(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]);
+  const [assignmentType, setAssignmentType] = useState<"individual" | "equipo">("individual");
   const [selectedVendedor, setSelectedVendedor] = useState("");
   const [selectedEquipo, setSelectedEquipo] = useState("");
   const [metaMonto, setMetaMonto] = useState("");
@@ -36,13 +37,24 @@ export default function BudgetConfigPage() {
     setLoading(true);
     try {
       const [resVend, resEq, resPres] = await Promise.all([
-        fetch("/api/usuarios?role=vendedor"),
+        fetch("/api/users?role=vendedor"),
         fetch("/api/ventas/equipos"),
         fetch(`/api/ventas/presupuestos`)
       ]);
       
-      if (resVend.ok) setVendedores(await resVend.json());
-      if (resEq.ok) setEquipos(await resEq.json());
+      if (resVend.ok) {
+        const dataVend = await resVend.json();
+        setVendedores(dataVend);
+        if (dataVend.length > 0 && assignmentType === "individual" && !selectedVendedor) {
+          setSelectedVendedor(dataVend[0].id);
+        }
+      }
+      
+      if (resEq.ok) {
+        const dataEq = await resEq.json();
+        setEquipos(dataEq);
+      }
+      
       if (resPres.ok) setPresupuestos(await resPres.json());
     } catch (e) {
       console.error(e);
@@ -52,8 +64,10 @@ export default function BudgetConfigPage() {
   };
 
   const handleSave = async () => {
-    if ((!selectedVendedor && !selectedEquipo) || !metaMonto || !metaPiezas) {
-      toast.error("Complete todos los campos");
+    const targetId = assignmentType === "individual" ? selectedVendedor : selectedEquipo;
+    
+    if (!targetId || !metaMonto || !metaPiezas) {
+      toast.error("Complete todos los campos de asignación y metas");
       return;
     }
 
@@ -62,8 +76,8 @@ export default function BudgetConfigPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          vendedorId: selectedVendedor || null,
-          equipoId: selectedEquipo || null,
+          vendedorId: assignmentType === "individual" ? selectedVendedor : null,
+          equipoId: assignmentType === "equipo" ? selectedEquipo : null,
           fechaInicio: new Date(fechaInicio).toISOString(),
           fechaFin: new Date(fechaFin).toISOString(),
           nombre: nombreP,
@@ -80,6 +94,9 @@ export default function BudgetConfigPage() {
         setMetaPiezas("");
         setMetaLeads("");
         setNombreP("");
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "Error al guardar");
       }
     } catch (e) {
       toast.error("Error al guardar");
@@ -130,41 +147,55 @@ export default function BudgetConfigPage() {
                   <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Tipo de Meta</label>
                   <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
                     <Button 
-                      variant={(selectedVendedor || (!selectedVendedor && !selectedEquipo)) ? "default" : "ghost"} 
+                      variant={assignmentType === "individual" ? "default" : "ghost"} 
                       size="sm" className="flex-1"
-                      onClick={() => {setSelectedEquipo(""); setSelectedVendedor(vendedores[0]?.id || "")}}
+                      onClick={() => {
+                        setAssignmentType("individual");
+                        if (vendedores.length > 0 && !selectedVendedor) setSelectedVendedor(vendedores[0].id);
+                      }}
                     >
                       Individual
                     </Button>
                     <Button 
-                      variant={selectedEquipo ? "default" : "ghost"} 
+                      variant={assignmentType === "equipo" ? "default" : "ghost"} 
                       size="sm" className="flex-1"
-                      onClick={() => {setSelectedVendedor(""); setSelectedEquipo(equipos[0]?.id || "")}}
+                      onClick={() => {
+                        setAssignmentType("equipo");
+                        if (equipos.length > 0 && !selectedEquipo) setSelectedEquipo(equipos[0].id);
+                      }}
                     >
                       Por Equipo
                     </Button>
                   </div>
                </div>
 
-               {selectedVendedor && (
+               {assignmentType === "individual" && (
                  <div className="space-y-2">
                    <label className="text-xs font-bold text-gray-500">Seleccionar Vendedor</label>
                    <Select value={selectedVendedor} onValueChange={setSelectedVendedor}>
-                     <SelectTrigger><SelectValue placeholder="Vendedor" /></SelectTrigger>
+                     <SelectTrigger><SelectValue placeholder="Seleccionar Vendedor" /></SelectTrigger>
                      <SelectContent>
-                       {vendedores.map(v => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+                       {vendedores.length === 0 ? (
+                         <div className="p-2 text-xs text-center text-gray-400">No hay vendedores registrados</div>
+                       ) : (
+                         vendedores.map(v => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)
+                       )}
                      </SelectContent>
                    </Select>
                  </div>
                )}
 
-               {selectedEquipo && (
+               {assignmentType === "equipo" && (
                  <div className="space-y-2">
                    <label className="text-xs font-bold text-gray-500">Seleccionar Equipo</label>
                    <Select value={selectedEquipo} onValueChange={setSelectedEquipo}>
-                     <SelectTrigger><SelectValue placeholder="Equipo" /></SelectTrigger>
+                     <SelectTrigger><SelectValue placeholder="Seleccionar Equipo" /></SelectTrigger>
                      <SelectContent>
-                       {equipos.map(e => <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>)}
+                       {equipos.length === 0 ? (
+                         <div className="p-2 text-xs text-center text-gray-400">No hay equipos registrados</div>
+                       ) : (
+                         equipos.map(e => <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>)
+                       )}
                      </SelectContent>
                    </Select>
                  </div>
@@ -185,8 +216,8 @@ export default function BudgetConfigPage() {
                  <Input type="number" placeholder="Ej. 20" value={metaLeads} onChange={e => setMetaLeads(e.target.value)} />
                </div>
 
-               <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={handleSave}>
-                 <Save className="h-4 w-4 mr-2" /> Guardar Meta
+               <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={handleSave} disabled={loading}>
+                 <Save className="h-4 w-4 mr-2" /> {loading ? "Cargando..." : "Guardar Meta"}
                </Button>
             </CardContent>
           </Card>
