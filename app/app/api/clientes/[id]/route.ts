@@ -207,7 +207,10 @@ export async function DELETE(
 
     await prisma.cliente.update({
       where: { id: params.id },
-      data: { statusCuenta: 'inactivo' },
+      data: {
+        statusCuenta: 'inactivo',
+        fechaInactivacion: new Date(),
+      },
     });
 
     return NextResponse.json({ message: 'Cliente desactivado exitosamente' });

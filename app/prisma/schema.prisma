@@ -173,7 +173,8 @@ model Cliente {
 
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
-  
+  fechaInactivacion   DateTime?
+
   diasVencidos        Int          @default(0)
   saldoVencido        Decimal      @default(0) @db.Decimal(10, 2)
 

@@ -16,9 +16,11 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const formato = searchParams.get('formato') || 'csv';
+    const incluirInactivos = searchParams.get('incluirInactivos') === 'true';
 
-    // Obtener todos los clientes con sus cobradores
+    // Obtener clientes con filtro de status opcional
     const clientes = await prisma.cliente.findMany({
+      where: incluirInactivos ? {} : { statusCuenta: 'activo' },
       include: {
         cobradorAsignado: {
           select: {
@@ -59,7 +61,8 @@ export async function GET(request: NextRequest) {
         "Nombre del Cliente", "Peridiodo de Pago", "Pago Sugerido",
         "Saldo Vencido", "PV", "Saldo Actual", "Codigo Gestor",
         "SUP", "Moratorio", "PVR", "Pago", "Dia de Pago",
-        "Tipo de Cobro", "Telefono 1", "Telefono 2", "C", "Dia de cobro"
+        "Tipo de Cobro", "Telefono 1", "Telefono 2", "C", "Dia de cobro",
+        "Status", "Fecha Inactivacion"
       ];
 
       const rows = clientes.map((c: any) => {
@@ -88,7 +91,9 @@ export async function GET(request: NextRequest) {
           c.telefono || "",
           "", // Telefono 2
           1, // C
-          getDayName(c.diaPago).toUpperCase()
+          getDayName(c.diaPago).toUpperCase(),
+          c.statusCuenta.toUpperCase(),
+          c.fechaInactivacion ? c.fechaInactivacion.toISOString().split('T')[0] : ""
         ];
       });
 
@@ -121,7 +126,8 @@ export async function GET(request: NextRequest) {
       'Status',
       'Cobrador',
       'Fecha Venta',
-      'Vendedor'
+      'Vendedor',
+      'Fecha Inactivacion'
     ];
 
     const rows = clientes.map((c: any) => [
@@ -136,7 +142,8 @@ export async function GET(request: NextRequest) {
       c.statusCuenta,
       c.cobradorAsignado?.name || 'Sin asignar',
       c.fechaVenta.toISOString().split('T')[0],
-      c.vendedor || ''
+      c.vendedor || '',
+      c.fechaInactivacion ? c.fechaInactivacion.toISOString().split('T')[0] : ''
     ]);
 
     const csvLines = [
