@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
         const productos = await prisma.producto.findMany({
             where,
             include: {
-                stocks: {
+                stock: {
                     include: {
                         sucursal: {
                             select: { id: true, nombre: true, esBodega: true }
@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
 
         // Calcular stock total por producto
         const productosConStock = productos.map((producto: any) => {
-            const stockTotal = producto.stocks.reduce((sum: number, s: any) => sum + s.cantidad, 0);
-            const stockPorSucursal = producto.stocks.map((s: any) => ({
+            const stockTotal = producto.stock.reduce((sum: number, s: any) => sum + s.cantidad, 0);
+            const stockPorSucursal = producto.stock.map((s: any) => ({
                 sucursalId: s.sucursal.id,
                 sucursalNombre: s.sucursal.nombre,
                 esBodega: s.sucursal.esBodega,

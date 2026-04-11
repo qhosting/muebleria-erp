@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
             where,
             include: {
                 _count: {
-                    select: { stocks: true }
+                    select: { stock: true }
                 }
             },
             orderBy: { nombre: 'asc' }
