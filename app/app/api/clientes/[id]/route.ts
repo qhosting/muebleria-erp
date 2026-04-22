@@ -63,6 +63,10 @@ export async function GET(
       importe2: cliente.importe2 ? parseFloat(cliente.importe2.toString()) : null,
       importe3: cliente.importe3 ? parseFloat(cliente.importe3.toString()) : null,
       importe4: cliente.importe4 ? parseFloat(cliente.importe4.toString()) : null,
+      ingresosNetos: (cliente as any).ingresosNetos ? parseFloat((cliente as any).ingresosNetos.toString()) : null,
+      scoreBuro: (cliente as any).scoreBuro || 0,
+      tipoPropiedad: (cliente as any).tipoPropiedad || 'PROPIA',
+      statusAprobacion: (cliente as any).statusAprobacion || 'PENDIENTE',
       pagos: cliente.pagos?.map((pago: any) => ({
         ...pago,
         monto: parseFloat(pago.monto.toString())
@@ -114,6 +118,19 @@ export async function PUT(
       importe3,
       importe4,
       fechaVenta,
+      // Nuevos campos política crédito
+      tipoPropiedad,
+      scoreBuro,
+      profesion,
+      referencias,
+      avalId,
+      ingresosNetos,
+      medidorLuz,
+      medidorAgua,
+      documentosChecklist,
+      statusAprobacion,
+      justificacionExcepcion,
+      autorizadoPorId,
     } = body;
 
     // Si se cambió el código de cliente, validar que no exista
@@ -156,6 +173,19 @@ export async function PUT(
         importe3: importe3 ? parseFloat(importe3) : null,
         importe4: importe4 ? parseFloat(importe4) : null,
         fechaVenta: fechaVenta ? new Date(fechaVenta) : undefined,
+        // Política de crédito
+        tipoPropiedad,
+        scoreBuro: scoreBuro ? parseInt(scoreBuro) : undefined,
+        profesion,
+        referencias,
+        avalId,
+        ingresosNetos: ingresosNetos ? parseFloat(ingresosNetos) : undefined,
+        medidorLuz,
+        medidorAgua,
+        documentosChecklist,
+        statusAprobacion,
+        justificacionExcepcion,
+        autorizadoPorId,
       },
       include: {
         cobradorAsignado: {
@@ -177,6 +207,7 @@ export async function PUT(
       importe2: cliente.importe2 ? parseFloat(cliente.importe2.toString()) : null,
       importe3: cliente.importe3 ? parseFloat(cliente.importe3.toString()) : null,
       importe4: cliente.importe4 ? parseFloat(cliente.importe4.toString()) : null,
+      ingresosNetos: (cliente as any).ingresosNetos ? parseFloat((cliente as any).ingresosNetos.toString()) : null,
     };
 
     return NextResponse.json(clienteSerializado);

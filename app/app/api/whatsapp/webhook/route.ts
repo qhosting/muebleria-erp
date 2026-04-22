@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
             respuestaIA: aiResponse.respuesta,
             datosExtraidos: aiResponse.datos_extraidos,
             origen: 'oficina' as const,
-            estado: (aiResponse.intencion === 'GENERAL' ? 'nuevo' : 'contactado') as const
+            estado: aiResponse.intencion === 'GENERAL' ? 'nuevo' : 'contactado'
         };
 
         if (lead) {

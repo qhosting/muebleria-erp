@@ -1,7 +1,7 @@
 
-import { UserRole, StatusCuenta, Periodicidad, TipoPago, MotivoMotarario } from '@prisma/client';
+import { UserRole, StatusCuenta, Periodicidad, TipoPago, MotivoMotarario, TipoPropiedad, StatusAprobacion } from '@prisma/client';
 
-export { UserRole, StatusCuenta, Periodicidad, TipoPago, MotivoMotarario };
+export { UserRole, StatusCuenta, Periodicidad, TipoPago, MotivoMotarario, TipoPropiedad, StatusAprobacion };
 
 export interface User {
   id: string;
@@ -21,12 +21,15 @@ export interface Cliente {
   telefono?: string;
   vendedor?: string;
   cobradorAsignadoId?: string;
+  vendedorId?: string;
+  equipoId?: string;
   productoId?: string;
   sucursalId?: string;
   statusCuenta: StatusCuenta;
   direccionCompleta: string;
   descripcionProducto: string;
   diaPago: string;
+  piezas: number;
   montoPago: number;
   periodicidad: Periodicidad;
   saldoActual: number;
@@ -62,6 +65,21 @@ export interface Cliente {
 
   observaciones?: string;
   zona?: string;
+
+  // Política de crédito detallada
+  tipoPropiedad: TipoPropiedad;
+  scoreBuro: number;
+  profesion?: string;
+  referencias?: any;
+  avalId?: string;
+  ingresosNetos?: number;
+  medidorLuz?: string;
+  medidorAgua?: string;
+  documentosChecklist?: any;
+  statusAprobacion: StatusAprobacion;
+  justificacionExcepcion?: string;
+  autorizadoPorId?: string;
+  autorizadoPor?: User;
 
   cobradorAsignado?: User;
   createdAt: Date;

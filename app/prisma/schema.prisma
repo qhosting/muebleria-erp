@@ -78,6 +78,19 @@ enum TipoMovimiento {
   venta
 }
 
+enum TipoPropiedad {
+  PROPIA
+  RENTA
+  FAMILIAR
+}
+
+enum StatusAprobacion {
+  PENDIENTE
+  AUTORIZADO
+  RECHAZADO
+  EXCEPCION
+}
+
 // Models
 model User {
   id               String    @id @default(cuid())
@@ -102,6 +115,7 @@ model User {
   
   clientesAsignados Cliente[]       @relation("CobradorAsignado")
   ventasAsignadas   Cliente[]       @relation("VendedorAsignado")
+  autorizacionesCredito Cliente[] @relation("AutorizadorCredito")
   pagos             Pago[]
   motararios        Motarario[]
   rutas             RutaCobranza[]
@@ -169,6 +183,20 @@ model Cliente {
   datosBancarios      Json?
   observaciones       String?
   zona                String?
+  
+  // Nuevos campos de política de crédito
+  tipoPropiedad       TipoPropiedad    @default(PROPIA)
+  scoreBuro           Int              @default(0)
+  profesion           String?
+  referencias         Json?            // Para almacenar las 3 referencias
+  avalId              String?
+  ingresosNetos       Decimal?         @db.Decimal(10, 2)
+  medidorLuz          String?
+  medidorAgua          String?
+  documentosChecklist Json?            // Estado de entrega de documentos
+  statusAprobacion    StatusAprobacion @default(PENDIENTE)
+  justificacionExcepcion String?
+  autorizadoPorId     String?
 
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
@@ -182,6 +210,7 @@ model Cliente {
   equipo              EquipoVentas? @relation(fields: [equipoId], references: [id])
   producto            Producto?     @relation(fields: [productoId], references: [id])
   sucursal            Sucursal?     @relation(fields: [sucursalId], references: [id])
+  autorizadoPor       User?         @relation("AutorizadorCredito", fields: [autorizadoPorId], references: [id])
   
   pagos               Pago[]
   motararios          Motarario[]

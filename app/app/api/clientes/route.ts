@@ -149,9 +149,21 @@ export async function POST(request: NextRequest) {
       importe3,
       importe4,
       fechaVenta,
-      vendedorId,
       equipoId,
       piezas,
+      // Nuevos campos política crédito
+      tipoPropiedad,
+      scoreBuro,
+      profesion,
+      referencias,
+      avalId,
+      ingresosNetos,
+      medidorLuz,
+      medidorAgua,
+      documentosChecklist,
+      statusAprobacion,
+      justificacionExcepcion,
+      autorizadoPorId,
     } = body;
 
     if (!nombreCompleto || !direccionCompleta || !descripcionProducto || !diaPago || !montoPago || !periodicidad) {
@@ -160,6 +172,54 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // --- VALIDACIONES DE POLÍTICA DE CRÉDITO ---
+    const blacklistProfesiones = ['policía', 'policia', 'militar', 'taxista', 'abogado', 'sexoservidora', 'prostituta'];
+    const esProfesionProhibida = profesion && blacklistProfesiones.some(p => profesion.toLowerCase().includes(p));
+    
+    const fechaNac = body.fechaNacimiento ? new Date(body.fechaNacimiento) : null;
+    const edad = fechaNac ? (new Date().getFullYear() - fechaNac.getFullYear()) : null;
+    
+    let requiereExcepcion = false;
+    let motivosExcepcion: string[] = [];
+
+    if (esProfesionProhibida) {
+      requiereExcepcion = true;
+      motivosExcepcion.push(`Profesión restringida (${profesion})`);
+    }
+    if (edad && edad >= 60 && !avalId) {
+      requiereExcepcion = true;
+      motivosExcepcion.push('Titular de 60 años o más requiere Aval');
+    }
+    if (scoreBuro >= 7) {
+      requiereExcepcion = true;
+      motivosExcepcion.push(`Score de Buró crítico (${scoreBuro})`);
+    } else if (scoreBuro >= 4 && !avalId) {
+      requiereExcepcion = true;
+      motivosExcepcion.push(`Score de Buró ${scoreBuro} requiere Aval`);
+    }
+    if (tipoPropiedad === 'RENTA' && !avalId) {
+      requiereExcepcion = true;
+      motivosExcepcion.push('Vivienda en renta requiere Aval');
+    }
+    
+    const ingresoNum = ingresosNetos ? parseFloat(ingresosNetos) : (body.ingresosMensuales ? parseFloat(body.ingresosMensuales) : 0);
+    const pagoNum = parseFloat(montoPago);
+    if (ingresoNum > 0 && pagoNum > 0 && (ingresoNum / pagoNum) < 10) {
+       requiereExcepcion = true;
+       motivosExcepcion.push('Ratio de ingresos insuficiente (debe ser 10 a 1)');
+    }
+
+    // Flexibilidad: Solo permitir si hay justificación o si el usuario es Admin
+    if (requiereExcepcion && !justificacionExcepcion && userRole !== 'admin') {
+      return NextResponse.json({ 
+        error: 'Política de crédito infringida', 
+        motivos: motivosExcepcion,
+        requiereJustificacion: true 
+      }, { status: 403 });
+    }
+
+    const finalStatusAprobacion = requiereExcepcion ? 'EXCEPCION' : (statusAprobacion || 'PENDIENTE');
 
     // Si se proporciona codigoGestor, buscar el cobrador correspondiente
     let cobradorId = cobradorAsignadoId;
@@ -268,6 +328,20 @@ export async function POST(request: NextRequest) {
           datosBancarios: body.datosBancarios || null,
           observaciones: body.observaciones,
           zona: body.zona,
+
+          // Política de crédito
+          tipoPropiedad: tipoPropiedad || 'PROPIA',
+          scoreBuro: scoreBuro ? parseInt(scoreBuro) : 0,
+          profesion,
+          referencias: referencias || [],
+          avalId,
+          ingresosNetos: ingresosNetos ? parseFloat(ingresosNetos) : (body.ingresosMensuales ? parseFloat(body.ingresosMensuales) : null),
+          medidorLuz,
+          medidorAgua,
+          documentosChecklist: documentosChecklist || {},
+          statusAprobacion: finalStatusAprobacion,
+          justificacionExcepcion,
+          autorizadoPorId: requiereExcepcion ? (session.user as any).id : autorizadoPorId,
         },
         include: {
           cobradorAsignado: {
@@ -326,6 +400,10 @@ export async function POST(request: NextRequest) {
       importe2: cliente.importe2 ? parseFloat(cliente.importe2.toString()) : null,
       importe3: cliente.importe3 ? parseFloat(cliente.importe3.toString()) : null,
       importe4: cliente.importe4 ? parseFloat(cliente.importe4.toString()) : null,
+      ingresosNetos: (cliente as any).ingresosNetos ? parseFloat((cliente as any).ingresosNetos.toString()) : null,
+      scoreBuro: (cliente as any).scoreBuro || 0,
+      tipoPropiedad: (cliente as any).tipoPropiedad || 'PROPIA',
+      statusAprobacion: (cliente as any).statusAprobacion || 'PENDIENTE',
     };
 
     return NextResponse.json(clienteSerializado, { status: 201 });

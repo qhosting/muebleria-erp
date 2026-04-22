@@ -79,7 +79,17 @@ export function ClienteModal({
     zona: '',
     vendedorId: '',
     equipoId: '',
-    piezas: '1'
+    piezas: '1',
+    // Política de crédito
+    tipoPropiedad: 'PROPIA',
+    scoreBuro: '0',
+    profesion: '',
+    ingresosNetos: '',
+    medidorLuz: '',
+    medidorAgua: '',
+    statusAprobacion: 'PENDIENTE',
+    justificacionExcepcion: '',
+    avalId: 'sin-aval'
   });
 
   const isEditMode = !!cliente;
@@ -130,7 +140,16 @@ export function ClienteModal({
         zona: cliente.zona || '',
         vendedorId: cliente.vendedorId || '',
         equipoId: cliente.equipoId || '',
-        piezas: cliente.piezas?.toString() || '1'
+        piezas: cliente.piezas?.toString() || '1',
+        tipoPropiedad: cliente.tipoPropiedad || 'PROPIA',
+        scoreBuro: cliente.scoreBuro?.toString() || '0',
+        profesion: (cliente as any).profesion || '',
+        ingresosNetos: (cliente as any).ingresosNetos?.toString() || '',
+        medidorLuz: (cliente as any).medidorLuz || '',
+        medidorAgua: (cliente as any).medidorAgua || '',
+        statusAprobacion: (cliente as any).statusAprobacion || 'PENDIENTE',
+        justificacionExcepcion: (cliente as any).justificacionExcepcion || '',
+        avalId: (cliente as any).avalId || 'sin-aval'
       });
     } else {
       // Reset completo para nuevo cliente
@@ -176,7 +195,16 @@ export function ClienteModal({
         zona: '',
         vendedorId: '',
         equipoId: '',
-        piezas: '1'
+        piezas: '1',
+        tipoPropiedad: 'PROPIA',
+        scoreBuro: '0',
+        profesion: '',
+        ingresosNetos: '',
+        medidorLuz: '',
+        medidorAgua: '',
+        statusAprobacion: 'PENDIENTE',
+        justificacionExcepcion: '',
+        avalId: 'sin-aval'
       });
     }
   }, [cliente, open]);
@@ -206,7 +234,8 @@ export function ClienteModal({
 
       const submitData = {
         ...formData,
-        cobradorAsignadoId: formData.cobradorAsignadoId === 'sin-asignar' ? null : formData.cobradorAsignadoId
+        cobradorAsignadoId: formData.cobradorAsignadoId === 'sin-asignar' ? null : formData.cobradorAsignadoId,
+        avalId: formData.avalId === 'sin-aval' ? null : formData.avalId
       };
 
       const response = await fetch(url, {
@@ -275,7 +304,7 @@ export function ClienteModal({
 
           {/* TABS DE NAVEGACIÓN */}
           <div className="flex border-b mb-4 overflow-x-auto">
-            {['general', 'direccion', 'personal', 'facturacion', 'observaciones'].map(tab => (
+            {['general', 'direccion', 'personal', 'facturacion', 'politica', 'observaciones'].map(tab => (
               <button
                 key={tab}
                 type="button"
@@ -285,7 +314,7 @@ export function ClienteModal({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}
               >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab === 'politica' ? 'Política Crédito' : (tab.charAt(0).toUpperCase() + tab.slice(1))}
               </button>
             ))}
           </div>
@@ -455,7 +484,6 @@ export function ClienteModal({
                 {renderInput('importe3', 'Importe Extra 3', 'number')}
                 {renderInput('importe4', 'Importe Extra 4', 'number')}
                 {renderInput('piezas', 'Piezas (Unidades) *', 'number', true)}
-
                 {isEditMode && (
                   <div className="space-y-2">
                     <Label>Estado de Cuenta</Label>
@@ -468,6 +496,82 @@ export function ClienteModal({
                     </Select>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* --- PESTAÑA POLÍTICA DE CRÉDITO --- */}
+            {activeTab === 'politica' && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Tipo de Propiedad</Label>
+                  <Select 
+                    value={formData.tipoPropiedad} 
+                    onValueChange={(v) => setFormData({ ...formData, tipoPropiedad: v })}
+                    disabled={readOnly}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PROPIA">Casa Propia</SelectItem>
+                      <SelectItem value="RENTA">Casa Rentada (Requiere Aval)</SelectItem>
+                      <SelectItem value="FAMILIAR">Casa Familiar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Score de Buró (0-10)</Label>
+                  <Input 
+                    type="number" 
+                    min="0" max="10"
+                    value={formData.scoreBuro}
+                    onChange={(e) => setFormData({ ...formData, scoreBuro: e.target.value })}
+                    disabled={readOnly}
+                  />
+                  <p className="text-xs text-gray-500">0-3: OK, 4-6: Aval, 7+: Crítico</p>
+                </div>
+
+                {renderInput('profesion', 'Profesión / Ocupación Detallada')}
+                {renderInput('ingresosNetos', 'Ingresos Netos Mensuales (Matrimonial)', 'number')}
+
+                {renderInput('medidorLuz', 'Número de Medidor Luz')}
+                {renderInput('medidorAgua', 'Número de Medidor Agua')}
+
+                <div className="space-y-2">
+                  <Label>Aval / Deudor Solidario</Label>
+                  <Select 
+                    value={formData.avalId} 
+                    onValueChange={(v) => setFormData({ ...formData, avalId: v })}
+                    disabled={readOnly}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sin-aval">Sin aval</SelectItem>
+                      {/* Aquí se podrían listar otros clientes o usuarios como avales */}
+                      {cobradores.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.name} (User)</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="md:col-span-2 space-y-2 bg-yellow-50 p-4 rounded-md border border-yellow-100">
+                  <Label className="text-yellow-800 font-bold">Justificación de Excepción</Label>
+                  <Textarea
+                    placeholder="Escriba la razón por la cual se autoriza este crédito fuera de política..."
+                    value={formData.justificacionExcepcion}
+                    onChange={(e) => setFormData({ ...formData, justificacionExcepcion: e.target.value })}
+                    rows={3}
+                    disabled={readOnly}
+                  />
+                  <p className="text-xs text-yellow-700">Obligatorio si infringe reglas de buró, renta, edad o profesión.</p>
+                </div>
+
+                <div className="md:col-span-2">
+                   <div className="flex items-center space-x-2">
+                      <div className={`h-3 w-3 rounded-full ${formData.statusAprobacion === 'AUTORIZADO' ? 'bg-green-500' : (formData.statusAprobacion === 'EXCEPCION' ? 'bg-yellow-500' : 'bg-gray-300')}`} />
+                      <span className="text-sm font-medium">Estatus: {formData.statusAprobacion}</span>
+                   </div>
+                </div>
               </div>
             )}
 
