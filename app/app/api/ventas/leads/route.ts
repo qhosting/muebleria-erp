@@ -12,11 +12,32 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const vendedorId = searchParams.get('vendedorId') || (session.user as any).id;
+    const vendedorId = searchParams.get('vendedorId');
+    const intencion = searchParams.get('intencion');
+    const showAll = searchParams.get('all') === 'true';
+
+    const where: any = {};
+    
+    if (vendedorId) {
+      where.vendedorId = vendedorId;
+    } else if (!showAll && (session.user as any).role !== 'admin') {
+      // Si no es admin y no pide todos, mostrar solo los suyos o los que no tienen dueño (AI)
+      where.OR = [
+        { vendedorId: (session.user as any).id },
+        { vendedorId: null }
+      ];
+    }
+
+    if (intencion) {
+      where.intencion = intencion;
+    }
 
     const leads = await prisma.lead.findMany({
-      where: {
-        vendedorId: vendedorId,
+      where,
+      include: {
+        vendedor: {
+          select: { name: true }
+        }
       },
       orderBy: {
         createdAt: 'desc',
@@ -37,7 +58,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { nombre, telefono, direccionArea, interes, montoEstimado, estado, origen, notas } = body;
+    const { 
+      nombre, telefono, direccionArea, interes, 
+      montoEstimado, estado, origen, notas,
+      intencion, urgencia, resumenInterno, respuestaIA, datosExtraidos
+    } = body;
 
     const lead = await prisma.lead.create({
       data: {
@@ -48,9 +73,15 @@ export async function POST(request: NextRequest) {
         montoEstimado: montoEstimado ? Number(montoEstimado) : null,
         estado: estado || 'nuevo',
         origen: origen || 'cambaceo',
-        vendedorId: (session.user as any).id,
+        vendedorId: body.vendedorId || (session.user as any).id,
         notas,
-      },
+        // AI fields (schema already updated, IDE cache may lag)
+        ...(intencion && { intencion }),
+        ...(urgencia && { urgencia }),
+        ...(resumenInterno && { resumenInterno }),
+        ...(respuestaIA && { respuestaIA }),
+        ...(datosExtraidos && { datosExtraidos }),
+      } as any,
     });
 
     return NextResponse.json(lead, { status: 201 });

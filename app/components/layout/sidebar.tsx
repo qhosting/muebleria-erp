@@ -33,7 +33,9 @@ import {
   RefreshCcw,
   ChevronDown,
   TrendingUp,
-  Target
+  Target,
+  MessageSquare,
+  Bot
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -152,6 +154,7 @@ const navigation: NavItem[] = [
     icon: TrendingUp,
     roles: ['admin', 'jefe_ventas', 'vendedor'],
     subItems: [
+      { name: 'Leads (AI Sofia)', href: '/dashboard/ventas/leads', icon: MessageSquare },
       { name: 'Dashboard Ventas', href: '/mobile/ventas', icon: BarChart3 },
       { name: 'Metas y Presupuestos', href: '/dashboard/ventas/config', icon: Target, roles: ['admin', 'jefe_ventas'] },
     ]

@@ -1,6 +1,5 @@
 generator client {
   provider      = "prisma-client-js"
-  output        = "../node_modules/.prisma/client"
   binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
@@ -309,23 +308,46 @@ model EquipoVentas {
 }
 
 model Lead {
-  id            String     @id @default(cuid())
-  nombre        String
-  telefono      String?
-  direccionArea String?
-  interes       String?
-  montoEstimado Decimal?   @db.Decimal(10, 2)
-  estado        EstadoLead @default(nuevo)
-  origen        OrigenLead @default(cambaceo)
-  vendedorId    String
-  notas         String?
-  fechaContacto DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id             String     @id @default(cuid())
+  nombre         String
+  telefono       String?
+  direccionArea  String?
+  interes        String?
+  montoEstimado  Decimal?   @db.Decimal(10, 2)
+  estado         EstadoLead @default(nuevo)
+  origen         OrigenLead @default(cambaceo)
+  vendedorId     String?
+  notas          String?
+  
+  // AI Detected Data
+  intencion      String?    // VENTA, COBRANZA, SOPORTE, GARANTIA, GENERAL, HUMANO
+  urgencia       String?    // ALTA, MEDIA, BAJA
+  resumenInterno String?
+  respuestaIA    String?
+  datosExtraidos Json?      // Almacena producto, presupuesto, etc. en formato flexible
 
-  vendedor      User       @relation("VendedorLead", fields: [vendedorId], references: [id])
+  fechaContacto  DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  vendedor       User?      @relation("VendedorLead", fields: [vendedorId], references: [id])
+  chats          LeadChat[]
 
   @@map("leads")
+}
+
+model LeadChat {
+  id        String   @id @default(cuid())
+  leadId    String?
+  telefono  String   // Para identificar la conversación si aún no es lead
+  rol       String   // "user" o "assistant"
+  mensaje   String
+  createdAt DateTime @default(now())
+
+  lead      Lead?    @relation(fields: [leadId], references: [id])
+
+  @@index([telefono])
+  @@map("leads_chats")
 }
 
 model PresupuestoVenta {
@@ -534,7 +556,7 @@ model VerificacionDomiciliaria {
   @@map("verificaciones_domiciliarias")
 }
 
-model PendingTicket {
+model TicketPendiente {
   id          String   @id @default(cuid())
   remitente   String   @unique
   base64Data  String
@@ -542,7 +564,7 @@ model PendingTicket {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@map("pending_tickets")
+  @@map("tickets_pendientes")
 }
 
 model PlantillaTicket {
