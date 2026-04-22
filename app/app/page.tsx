@@ -5,6 +5,7 @@ export const dynamic = isCapacitor ? 'force-static' : 'force-dynamic';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import LandingPage from '@/components/ecommerce/LandingPage';
 
 export default async function HomePage() {
   if (isCapacitor) {
@@ -21,5 +22,5 @@ export default async function HomePage() {
     redirect('/dashboard');
   }
 
-  redirect('/login');
+  return <LandingPage />;
 }
