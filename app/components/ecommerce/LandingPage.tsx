@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { ShoppingCart, CreditCard, ShieldCheck, Truck, ArrowRight, Star, Package, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import SolicitudCreditoModal from './SolicitudCreditoModal';
 
 interface Producto {
   id: string;
@@ -26,6 +27,10 @@ export default function LandingPage() {
   // Calculadora interactiva
   const [montoCompra, setMontoCompra] = useState(10000);
   const [plazoSemanas, setPlazoSemanas] = useState(48);
+
+  // Modal solicitud de crédito
+  const [creditoModalOpen, setCreditoModalOpen] = useState(false);
+  const [productoInteres, setProductoInteres] = useState('');
 
   const pagoSemanal = Math.ceil(montoCompra / plazoSemanas);
 
@@ -108,11 +113,14 @@ export default function LandingPage() {
                   Explorar Colección <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
               </a>
-              <a href="#credito">
-                <Button size="lg" variant="outline" className="h-14 px-8 text-lg border-2 rounded-full">
-                  Solicitar Crédito
-                </Button>
-              </a>
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="h-14 px-8 text-lg border-2 rounded-full"
+                onClick={() => { setProductoInteres(''); setCreditoModalOpen(true); }}
+              >
+                Solicitar Crédito
+              </Button>
             </div>
           </div>
         </div>
@@ -228,7 +236,11 @@ export default function LandingPage() {
                   )}
                   <button 
                     className="absolute bottom-6 right-6 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-xl translate-y-20 group-hover:translate-y-0 transition-all duration-300"
-                    onClick={() => setMontoCompra(product.precioVenta)}
+                    onClick={() => {
+                      setMontoCompra(product.precioVenta);
+                      setProductoInteres(product.nombre);
+                      setCreditoModalOpen(true);
+                    }}
                   >
                     <CreditCard className="w-5 h-5 text-slate-900" />
                   </button>
@@ -330,9 +342,15 @@ export default function LandingPage() {
                       <p className="text-2xl font-bold">{plazoSemanas} semanas</p>
                     </div>
                   </div>
-                  <p className="text-xs text-slate-500 text-center">
+                  <p className="text-xs text-slate-500 text-center mb-4">
                     * Estimación de referencia. Sujeto a aprobación crediticia.
                   </p>
+                  <Button 
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-lg font-bold rounded-xl"
+                    onClick={() => { setProductoInteres(''); setCreditoModalOpen(true); }}
+                  >
+                    Solicitar Crédito Ahora
+                  </Button>
                 </div>
               </div>
             </div>
@@ -378,6 +396,13 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+      {/* Modal de Solicitud de Crédito */}
+      <SolicitudCreditoModal
+        open={creditoModalOpen}
+        onClose={() => setCreditoModalOpen(false)}
+        montoSugerido={montoCompra}
+        productoInteres={productoInteres}
+      />
     </div>
   );
 }
