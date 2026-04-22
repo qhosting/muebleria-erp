@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
                 interes: interes || 'Solicitud de crédito',
                 montoEstimado: montoEstimado ? parseFloat(montoEstimado) : null,
                 estado: 'nuevo',
-                origen: 'web',
+                origen: 'web' as any,
                 intencion: 'VENTA',
                 urgencia: 'MEDIA',
                 resumenInterno: `Solicitud desde e-commerce DOMIAHOME`,
