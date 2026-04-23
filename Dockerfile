@@ -107,7 +107,7 @@ RUN echo "🔨 Building Next.js application (NORMAL mode, no standalone)..." && 
     echo "📦 Verifying package.json exists..." && \
     ls -la package.json && \
     echo "✅ Prisma client already generated (from previous step)" && \
-    npm run build 2>&1 || (echo "❌ Build failed! Checking for TypeScript errors..." && npx tsc --noEmit && exit 1) && \
+npx next build 2>&1 || (echo "❌ Build failed! Checking for TypeScript errors..." && npx tsc --noEmit && exit 1) &&
     echo "✅ Build completed successfully!"
 
 # Verify build output
