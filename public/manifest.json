@@ -1,6 +1,9 @@
 
 {
   "name": "MUEBLERIA LA ECONOMICA",
+  "scope": "/",
+  "lang": "es-MX",
+  "dir": "ltr",
   "short_name": "LaEconomica",
   "description": "Sistema integral de gestión de clientes y cobranza en campo",
   "start_url": "/dashboard",

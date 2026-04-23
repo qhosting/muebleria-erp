@@ -57,11 +57,11 @@ interface NavItem {
 }
 
 const navigation: NavItem[] = [
-  {
+{
     name: 'Dashboard',
     href: '/dashboard',
     icon: LayoutDashboard,
-    roles: ['admin', 'gestor_cobranza', 'reporte_cobranza', 'cobrador'],
+    roles: ['all'],
   },
   {
     name: 'Clientes',
@@ -69,35 +69,18 @@ const navigation: NavItem[] = [
     icon: Users,
     roles: ['admin', 'gestor_cobranza', 'cobrador'],
   },
-  {
-    name: 'Usuarios',
-    href: '/dashboard/usuarios',
-    icon: UserCheck,
-    roles: ['admin'],
-  },
 
 
-  {
-    name: 'Cobranza Móvil',
-    href: '/dashboard/cobranza',
-    icon: CreditCard,
-    roles: ['cobrador'],
-  },
-  {
-    name: 'Mi Impresora',
-    href: '/dashboard/mi-impresora',
-    icon: Printer,
-    roles: ['cobrador'],
-  },
-  {
+
+{
     name: 'Cobranza',
-    href: '/dashboard/morosidad', // Fallback to first item
+    href: '/dashboard/morosidad',
     icon: CreditCard,
     roles: ['admin', 'gestor_cobranza', 'reporte_cobranza'],
     subItems: [
       { name: 'Morosidad', href: '/dashboard/morosidad', icon: AlertTriangle },
       { name: 'Pagos', href: '/dashboard/pagos', icon: Receipt },
-      { name: 'Importar Saldo', href: '/dashboard/saldos', icon: Upload },
+      { name: 'Saldos', href: '/dashboard/saldos', icon: Upload },
     ]
   },
   {
