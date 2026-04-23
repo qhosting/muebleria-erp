@@ -6,7 +6,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -14,7 +14,7 @@ export async function GET() {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-// const { searchParams } = new URL((request as any).url); // Fixed: request not in scope
+    const { searchParams } = new URL(request.url);
     const tipo = searchParams.get('tipo');
 
     // Obtener TODAS las plantillas (activas e inactivas) para gestión completa
