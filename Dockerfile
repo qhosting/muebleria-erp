@@ -100,14 +100,14 @@ RUN echo "📦 Generating Prisma client..." && \
     fi && \
     echo "✅ Prisma client generated successfully!"
 
-# Build Next.js (with verbose error logging)
+# Build Next.js (FIXED: npx next build + correct line continuation)
 RUN echo "🔨 Building Next.js application (NORMAL mode, no standalone)..." && \
     echo "📍 PWD: $(pwd)" && \
     echo "📍 NEXT_DIST_DIR: $NEXT_DIST_DIR" && \
     echo "📦 Verifying package.json exists..." && \
     ls -la package.json && \
     echo "✅ Prisma client already generated (from previous step)" && \
-npx next build 2>&1 || (echo "❌ Build failed! Checking for TypeScript errors..." && npx tsc --noEmit && exit 1) &&
+    npx next build && \
     echo "✅ Build completed successfully!"
 
 # Verify build output
