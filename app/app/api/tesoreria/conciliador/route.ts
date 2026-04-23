@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
         const movimientosDisponibles = [...movimientosPendientes];
 
         for (const ticket of ticketsPendientes) {
-            let bestMatch = null;
+let bestMatch: any = null;
             let bestPriority = 6;
             let razon = "";
 

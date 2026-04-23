@@ -279,7 +279,7 @@ export async function POST(request: NextRequest) {
           telefono,
           vendedor,
           cobradorAsignadoId: cobradorId || null,
-          vendedorId: vendedorId || null,
+vendedorId: vendedor?.id || null,
           equipoId: equipoId || null,
           productoId: productoId || null,
           sucursalId: sucursalId || null,

@@ -211,7 +211,7 @@ export default function ReportesPage() {
             className="flex items-center gap-2 border-red-500 text-red-600 hover:bg-red-50"
             onClick={() => window.location.href = '/dashboard/reportes/morosidad'}
           >
-            <AlertCircle className="h-4 w-4" />
+<AlertTriangle className="h-4 w-4" />
             Morosidad
           </Button>
         </div>

@@ -14,7 +14,7 @@ export async function GET() {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
+// const { searchParams } = new URL((request as any).url); // Fixed: request not in scope
     const tipo = searchParams.get('tipo');
 
     // Obtener TODAS las plantillas (activas e inactivas) para gestión completa
