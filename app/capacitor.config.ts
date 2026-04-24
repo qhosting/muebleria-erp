@@ -9,13 +9,8 @@ const config: CapacitorConfig = {
         cleartext: true,
         // Permite que Capacitor cargue archivos locales (index.html) desde 'out'
         url: undefined,
-        allowNavigation: [
-            "app.mueblerialaeconomica.com",
-            "*.app.mueblerialaeconomica.com",
-            "erp.mueblesdaso.com",
-            "*.erp.mueblesdaso.com",
-            "localhost"
-        ]
+        // Permite cualquier dominio dinámico configurado por el usuario en la app
+        allowNavigation: ["*"]
     },
     plugins: {
         CapacitorHttp: {
