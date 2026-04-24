@@ -101,6 +101,13 @@ export function ImportarDesdeImagenModal({
     }
   };
 
+  const resetImport = () => {
+    setFile(null);
+    setExtractedData([]);
+    setProgress(0);
+    setStep('upload');
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -179,7 +186,9 @@ export function ImportarDesdeImagenModal({
                   <CheckCircle2 className="h-4 w-4" />
                   Se detectaron {extractedData.length} productos en la imagen
                 </div>
-                <Badge variant="secondary">{extractedData[0].marca}</Badge>
+                {extractedData.length > 0 && extractedData[0].marca && (
+                  <Badge variant="secondary">{extractedData[0].marca}</Badge>
+                )}
               </div>
 
               <div className="border rounded-lg overflow-x-auto">
@@ -234,7 +243,13 @@ export function ImportarDesdeImagenModal({
                 <h3 className="text-2xl font-bold text-gray-900">¡Importación Exitosa!</h3>
                 <p className="text-gray-600">Se han actualizado los precios y modelos en el catálogo.</p>
               </div>
-              <Button onClick={onClose} className="w-full max-w-xs">Ver Catálogo</Button>
+              <div className="flex flex-col gap-3 items-center">
+                <Button onClick={onClose} className="w-full max-w-xs">Ver Catálogo</Button>
+                <Button variant="outline" onClick={resetImport} className="w-full max-w-xs gap-2">
+                  <Upload className="h-4 w-4" />
+                  Subir otra imagen
+                </Button>
+              </div>
             </div>
           )}
         </div>
