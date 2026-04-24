@@ -32,6 +32,23 @@ try {
         }
     }
 
+    // 1.5 Ocultar force-dynamic para permitir exportación estática
+    const filesToModify = [
+        path.join(appRouterDir, 'page.tsx'),
+        path.join(appRouterDir, 'login', 'page.tsx'),
+        path.join(appRouterDir, 'dashboard', 'page.tsx')
+    ];
+
+    filesToModify.forEach(file => {
+        if (fs.existsSync(file)) {
+            let content = fs.readFileSync(file, 'utf8');
+            if (content.includes("export const dynamic = 'force-dynamic';")) {
+                content = content.replace(/export const dynamic = 'force-dynamic';/g, "// export const dynamic = 'force-dynamic';");
+                fs.writeFileSync(file, content);
+            }
+        }
+    });
+
     // 2. Ejecutar el build de Next.js
     console.log('🏗️  Compilando Next.js (Static Export)...');
 
@@ -63,4 +80,21 @@ try {
             }
         }
     }
+
+    // 4. Restaurar force-dynamic
+    const filesToModify = [
+        path.join(appRouterDir, 'page.tsx'),
+        path.join(appRouterDir, 'login', 'page.tsx'),
+        path.join(appRouterDir, 'dashboard', 'page.tsx')
+    ];
+
+    filesToModify.forEach(file => {
+        if (fs.existsSync(file)) {
+            let content = fs.readFileSync(file, 'utf8');
+            if (content.includes("// export const dynamic = 'force-dynamic';")) {
+                content = content.replace(/\/\/ export const dynamic = 'force-dynamic';/g, "export const dynamic = 'force-dynamic';");
+                fs.writeFileSync(file, content);
+            }
+        }
+    });
 }

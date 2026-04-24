@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import LandingPage from '@/components/ecommerce/LandingPage';
 
 
-
+export const dynamic = 'force-dynamic';
 
 const isCapacitor = process.env.BUILD_TARGET === 'capacitor';
 
