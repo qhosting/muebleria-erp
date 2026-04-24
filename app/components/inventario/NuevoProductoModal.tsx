@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Sparkles, Package, Globe, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Sparkles, Package, Globe, FileText, Image as ImageIcon, Loader2, Plus } from 'lucide-react';
 
 export function NuevoProductoModal({ isOpen, onClose, onSuccess, producto }: any) {
     const [loading, setLoading] = useState(false);
