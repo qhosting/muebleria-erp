@@ -190,7 +190,12 @@ export function ImportarDesdeImagenModal({
                       <th className="p-2 text-left">Modelo</th>
                       <th className="p-2 text-center">Medida</th>
                       <th className="p-2 text-right">Contado</th>
-                      <th className="p-2 text-right">Semanal</th>
+                      <th className="p-2 text-right text-green-600">6 Meses</th>
+                      <th className="p-2 text-right text-purple-600">12 Meses</th>
+                      <th className="p-2 text-center">Semanas</th>
+                      <th className="p-2 text-right">Enganche</th>
+                      <th className="p-2 text-right text-blue-600">Abono</th>
+                      <th className="p-2 text-center">Garantía</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -202,7 +207,12 @@ export function ImportarDesdeImagenModal({
                           <Badge variant="outline">{p.medida}</Badge>
                         </td>
                         <td className="p-2 text-right font-semibold">{formatCurrency(p.precioContado)}</td>
+                        <td className="p-2 text-right text-green-700">{formatCurrency(p.precio6Meses || 0)}</td>
+                        <td className="p-2 text-right text-purple-700">{formatCurrency(p.precio12Meses || p.precio9Meses || 0)}</td>
+                        <td className="p-2 text-center">{p.numSemanas}</td>
+                        <td className="p-2 text-right font-medium">{formatCurrency(p.enganche)}</td>
                         <td className="p-2 text-right text-blue-600 font-bold">{formatCurrency(p.abonoSemanal)}</td>
+                        <td className="p-2 text-center text-[10px]">{p.garantia}</td>
                       </tr>
                     ))}
                   </tbody>
