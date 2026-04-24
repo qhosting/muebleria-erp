@@ -107,7 +107,7 @@ RUN echo "🔨 Building Next.js application (NORMAL mode, no standalone)..." && 
     echo "📦 Verifying package.json exists..." && \
     ls -la package.json && \
     echo "✅ Prisma client already generated (from previous step)" && \
-    npx next build && \
+    npm run build && \
     echo "✅ Build completed successfully!"
 
 # Verify build output
