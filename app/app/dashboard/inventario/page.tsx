@@ -17,7 +17,8 @@ import {
     FileText,
     AlertTriangle,
     ShoppingBag,
-    Store
+    Store,
+    Globe
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
