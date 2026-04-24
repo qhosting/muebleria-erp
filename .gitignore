@@ -19,6 +19,8 @@ out
 .logs
 *.tsbuildinfo
 .env
+.env.docker
+app_payload.json
 app/node_modules
 root/node_modules
 **/node_modules
