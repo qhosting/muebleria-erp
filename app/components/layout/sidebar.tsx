@@ -191,7 +191,7 @@ export function Sidebar({ className, session }: SidebarProps) {
       localStorage.removeItem('remember_me');
     }
 
-    signOut({ callbackUrl: '/login' });
+    signOut({ callbackUrl: '/' });
   };
 
   const toggleSubMenu = (name: string, e: React.MouseEvent) => {

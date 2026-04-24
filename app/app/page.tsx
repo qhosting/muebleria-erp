@@ -1,13 +1,18 @@
 const isCapacitor = process.env.BUILD_TARGET === 'capacitor';
 
-export const dynamic = 'force-dynamic';
-
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import LandingPage from '@/components/ecommerce/LandingPage';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function HomePage() {
+  // Disable caching
+  headers(); 
+  
   if (isCapacitor) {
     redirect('/login');
   }
