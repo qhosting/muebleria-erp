@@ -171,3 +171,70 @@ async function callOpenAI(key: string, prompt: string): Promise<AIResponse> {
     const text = data.choices[0].message.content;
     return JSON.parse(text) as AIResponse;
 }
+
+export async function extractProductsFromImage(base64Image: string): Promise<any[]> {
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!geminiKey) throw new Error("GEMINI_API_KEY no configurada");
+
+    const prompt = `
+    Analiza esta imagen de una lista de precios de muebles/colchones.
+    Extrae CADA producto en formato JSON siguiendo esta estructura:
+    {
+      "marca": "Nombre de la marca",
+      "nombre": "Modelo del producto",
+      "medida": "IND, MAT, QS, KS, etc.",
+      "categoria": "COLCHONES, LINEA BLANCA, ELECTRONICA, etc.",
+      "precioContado": numero,
+      "precio6Meses": numero o null,
+      "precio9Meses": numero o null,
+      "precio12Meses": numero o null,
+      "numSemanas": numero,
+      "enganche": numero,
+      "abonoSemanal": numero,
+      "garantia": "texto de garantía"
+    }
+
+    REGLAS:
+    - Responde EXCLUSIVAMENTE con un array de objetos JSON: [ {...}, {...} ]
+    - Si un valor no existe, usa null o 0 según corresponda.
+    - Asegúrate de capturar todas las medidas si es un cuadro de precios.
+    `;
+
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiKey;
+    
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            contents: [{
+                parts: [
+                    { text: prompt },
+                    {
+                        inline_data: {
+                            mime_type: "image/jpeg",
+                            data: base64Image.split(',')[1] || base64Image
+                        }
+                    }
+                ]
+            }],
+            generationConfig: {
+                response_mime_type: "application/json",
+            }
+        })
+    });
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error("Gemini Vision Error: " + err);
+    }
+
+    const data = await response.json();
+    const text = data.candidates[0].content.parts[0].text;
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        const match = text.match(/\[[\s\S]*\]/);
+        if (match) return JSON.parse(match[0]);
+        throw e;
+    }
+}

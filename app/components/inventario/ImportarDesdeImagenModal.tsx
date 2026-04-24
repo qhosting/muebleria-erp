@@ -56,48 +56,39 @@ export function ImportarDesdeImagenModal({
 
     setStep('analyzing');
     setAnalyzing(true);
+    setProgress(10);
     
-    // Simular progreso de IA
-    let p = 0;
-    const interval = setInterval(() => {
-      p += 10;
-      setProgress(p);
-      if (p >= 100) {
-        clearInterval(interval);
-        finishAnalysis();
-      }
-    }, 300);
-  };
+    try {
+      // Convertir archivo a base64
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64 = reader.result as string;
+        setProgress(30);
 
-  const finishAnalysis = () => {
-    // En un sistema real, aquí llamaríamos a la API de Vision con el archivo 'file'
-    // Para la demo, variamos los datos según el nombre del archivo para que se sienta real
-    if (file) {
-      const seed = file.name.length % 3;
-      let data = [...PRICE_LISTS_DATA];
-      
-      if (seed === 1) {
-        // Variación 1: Solo colchones
-        data = data.filter(p => p.categoria === 'COLCHONES');
-      } else if (seed === 2) {
-        // Variación 2: Solo electrónica y linea blanca
-        data = data.filter(p => p.categoria !== 'COLCHONES');
-      }
-      
-      // Añadir una pequeña variación de precios para que no sea idéntico
-      const variedData = data.map(p => ({
-        ...p,
-        precioContado: Math.round(p.precioContado * (0.95 + Math.random() * 0.1)),
-        abonoSemanal: Math.round(p.abonoSemanal * (0.98 + Math.random() * 0.04))
-      }));
-      
-      setExtractedData(variedData);
-    } else {
-      setExtractedData(PRICE_LISTS_DATA);
+        const response = await fetch('/api/inventario/analizar-imagen', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64 }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setProgress(100);
+          setExtractedData(data.productos);
+          setStep('preview');
+        } else {
+          const error = await response.json();
+          toast.error(error.details || 'Error al analizar la imagen');
+          setStep('upload');
+        }
+        setAnalyzing(false);
+      };
+    } catch (error) {
+      toast.error('Error al procesar la imagen');
+      setStep('upload');
+      setAnalyzing(false);
     }
-    
-    setAnalyzing(false);
-    setStep('preview');
   };
 
   const processImport = async () => {
