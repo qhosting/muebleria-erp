@@ -73,6 +73,8 @@ export default function ClientesPage() {
   const [importWelcomeMode, setImportWelcomeMode] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
 
+  const [isConsolidated, setIsConsolidated] = useState(false);
+
   const userRole = (session?.user as any)?.role;
 
   useEffect(() => {
@@ -86,7 +88,7 @@ export default function ClientesPage() {
         setSelectedCobrador('');
       }
     }
-  }, [session, currentPage, searchTerm, selectedCobrador, selectedDiaPago]);
+  }, [session, currentPage, searchTerm, selectedCobrador, selectedDiaPago, isConsolidated]);
 
   // Ajustar filtro inicial cuando se carga el rol del usuario
   useEffect(() => {
@@ -104,6 +106,7 @@ export default function ClientesPage() {
         search: searchTerm,
         cobrador: selectedCobrador === 'all' ? '' : selectedCobrador,
         diaPago: selectedDiaPago === 'todos' ? '' : selectedDiaPago,
+        consolidated: isConsolidated ? 'true' : 'false',
       });
 
       const response = await fetch(`/api/clientes?${params}`);
@@ -348,8 +351,21 @@ export default function ClientesPage() {
                   <SelectItem value="7">DOMINGO</SelectItem>
                 </SelectContent>
               </Select>
-              <div className="flex items-center text-sm text-gray-600">
-                Total: {pagination.total} clientes
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium text-gray-700">Consolidado</label>
+                  <Button 
+                    variant={isConsolidated ? "default" : "outline"} 
+                    size="sm"
+                    className={`h-7 px-2 ${isConsolidated ? 'bg-blue-600' : ''}`}
+                    onClick={() => setIsConsolidated(!isConsolidated)}
+                  >
+                    {isConsolidated ? "ON" : "OFF"}
+                  </Button>
+                </div>
+                <div className="text-xs text-gray-500 text-right">
+                  Total: {pagination.total} {isConsolidated ? 'perfiles' : 'clientes'}
+                </div>
               </div>
             </div>
           </CardContent>
@@ -391,53 +407,62 @@ export default function ClientesPage() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {clientes.map((cliente) => (
+            {clientes.map((cliente: any) => (
               <Card
                 key={cliente.id}
-                className="animate-fade-in hover:shadow-md transition-shadow"
+                className={`animate-fade-in transition-all ${cliente.isGrouped ? 'border-l-4 border-l-blue-500 shadow-blue-50' : 'hover:shadow-md'}`}
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle className="text-lg">
+                      <CardTitle className="text-lg flex items-center gap-2">
                         {cliente.nombreCompleto}
+                        {cliente.isGrouped && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700">PERFIL</Badge>}
                       </CardTitle>
                       <CardDescription className="flex items-center space-x-2">
-                        <span className="font-mono text-sm">
-                          {cliente.codigoCliente}
-                        </span>
-                        {getStatusBadge(cliente.statusCuenta)}
-                      </CardDescription>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {userRole === 'cobrador' ? (
-                          <DropdownMenuItem onClick={() => handleViewClienteDetails(cliente)}>
-                            <Users className="h-4 w-4 mr-2" />
-                            Ver Detalles
-                          </DropdownMenuItem>
+                        {cliente.isGrouped ? (
+                          <span className="text-xs text-blue-600 font-bold uppercase tracking-wider">
+                            {cliente.cuentas.length} {cliente.cuentas.length === 1 ? 'Cuenta' : 'Cuentas'}
+                          </span>
                         ) : (
                           <>
-                            <DropdownMenuItem onClick={() => handleEditCliente(cliente)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Editar Cliente
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleDeleteCliente(cliente)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Desactivar Cliente
-                            </DropdownMenuItem>
+                            <span className="font-mono text-sm">{cliente.codigoCliente}</span>
+                            {getStatusBadge(cliente.statusCuenta)}
                           </>
                         )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      </CardDescription>
+                    </div>
+                    {!cliente.isGrouped && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {userRole === 'cobrador' ? (
+                            <DropdownMenuItem onClick={() => handleViewClienteDetails(cliente)}>
+                              <Users className="h-4 w-4 mr-2" />
+                              Ver Detalles
+                            </DropdownMenuItem>
+                          ) : (
+                            <>
+                              <DropdownMenuItem onClick={() => handleEditCliente(cliente)}>
+                                <Edit className="h-4 w-4 mr-2" />
+                                Editar Cliente
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteCliente(cliente)}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Desactivar Cliente
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -448,44 +473,63 @@ export default function ClientesPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <MapPin className="h-4 w-4" />
-                    <span className="truncate">{cliente.direccionCompleta}</span>
-                  </div>
+                  {!cliente.isGrouped && (
+                    <>
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <MapPin className="h-4 w-4" />
+                        <span className="truncate">{cliente.direccionCompleta}</span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <Calendar className="h-4 w-4" />
+                        <span>{getDayName(cliente.diaPago)} - {getPeriodicidadLabel(cliente.periodicidad)}</span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <DollarSign className="h-4 w-4" />
+                        <span>Pago: {formatCurrency(cliente.montoPago)}</span>
+                      </div>
+                    </>
+                  )}
 
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <Calendar className="h-4 w-4" />
-                    <span>
-                      {getDayName(cliente.diaPago)} - {getPeriodicidadLabel(cliente.periodicidad)}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <DollarSign className="h-4 w-4" />
-                    <span>Pago: {formatCurrency(cliente.montoPago)}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between border-t pt-3 mt-2">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        Saldo: {formatCurrency(cliente.saldoActual)}
+                      <p className="text-xs text-gray-500 uppercase font-bold tracking-tighter">
+                        {cliente.isGrouped ? 'Deuda Consolidada' : 'Saldo de Cuenta'}
                       </p>
-                      {getSaldoBadge(cliente.saldoActual)}
+                      <p className={`text-lg font-bold ${cliente.isGrouped ? 'text-blue-700' : 'text-gray-900'}`}>
+                        {formatCurrency(cliente.isGrouped ? cliente.saldoTotal : cliente.saldoActual)}
+                      </p>
                     </div>
+                    {!cliente.isGrouped && getSaldoBadge(cliente.saldoActual)}
                   </div>
 
-                  {cliente.cobradorAsignado && (
-                    <div className="pt-2 border-t border-gray-100">
-                      <p className="text-xs text-gray-500">Cobrador asignado:</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {cliente.cobradorAsignado.name}
-                      </p>
+                  {cliente.isGrouped && (
+                    <div className="space-y-2 mt-4 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Detalle de Cuentas</p>
+                      {cliente.cuentas.map((cta: any) => (
+                        <div key={cta.id} className="flex items-center justify-between text-xs bg-white p-2 rounded-lg border hover:border-blue-200 cursor-pointer group" onClick={() => handleViewClienteDetails(cta)}>
+                          <div className="flex flex-col">
+                            <span className="font-mono text-blue-600 font-bold">{cta.codigoCliente}</span>
+                            <span className="text-slate-500 truncate max-w-[120px]">{cta.descripcionProducto}</span>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold">{formatCurrency(cta.saldoActual)}</p>
+                            <Badge className="text-[8px] h-3 px-1" variant={cta.statusCuenta === 'activo' ? 'success' : 'secondary'}>{cta.statusCuenta}</Badge>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
 
-                  <div className="text-xs text-gray-500">
-                    Registrado: {formatDate(cliente.createdAt)}
-                  </div>
+                  {!cliente.isGrouped && cliente.cobradorAsignado && (
+                    <div className="pt-2 border-t border-gray-100">
+                      <p className="text-xs text-gray-500">Cobrador asignado:</p>
+                      <p className="text-sm font-medium text-gray-900">{cliente.cobradorAsignado.name}</p>
+                    </div>
+                  )}
+
+                  {!cliente.isGrouped && (
+                    <div className="text-xs text-gray-500">Registrado: {formatDate(cliente.createdAt)}</div>
+                  )}
                 </CardContent>
               </Card>
             ))}

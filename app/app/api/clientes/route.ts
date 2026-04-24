@@ -25,6 +25,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || '';
     const diaPago = searchParams.get('diaPago') || '';
 
+    const consolidated = searchParams.get('consolidated') === 'true';
+
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -96,6 +98,38 @@ export async function GET(request: NextRequest) {
       ingresosMensuales: cliente.ingresosMensuales ? parseFloat(cliente.ingresosMensuales.toString()) : null,
       limiteCredito: cliente.limiteCredito ? parseFloat(cliente.limiteCredito.toString()) : null,
     }));
+
+    if (consolidated) {
+      // Agrupar por teléfono (si existe) o nombre
+      const grouped: Record<string, any> = {};
+      
+      clientesSerializados.forEach(cliente => {
+        const key = (cliente.telefono?.trim() || cliente.nombreCompleto.trim()).toLowerCase();
+        if (!grouped[key]) {
+          grouped[key] = {
+            id: `group-${key}`,
+            nombreCompleto: cliente.nombreCompleto,
+            telefono: cliente.telefono,
+            direccionCompleta: cliente.direccionCompleta,
+            saldoTotal: 0,
+            cuentas: [],
+            isGrouped: true
+          };
+        }
+        grouped[key].saldoTotal += cliente.saldoActual;
+        grouped[key].cuentas.push(cliente);
+      });
+
+      return NextResponse.json({
+        clientes: Object.values(grouped),
+        pagination: {
+          total: Object.keys(grouped).length,
+          pages: Math.ceil(Object.keys(grouped).length / limit),
+          currentPage: page,
+          perPage: limit,
+        },
+      });
+    }
 
     return NextResponse.json({
       clientes: clientesSerializados,
