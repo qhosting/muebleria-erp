@@ -81,7 +81,7 @@ export default function MobilePerfilPage() {
 
             <div className="space-y-3 pt-4">
                 <Button
-                    onClick={() => signOut({ callbackUrl: '/login' })}
+                    onClick={() => signOut({ callbackUrl: '/' })}
                     variant="destructive"
                     className="w-full h-12 font-semibold"
                 >
