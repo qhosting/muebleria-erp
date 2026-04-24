@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { guardarDatoCobrador, obtenerDatoCobrador } from './storage';
+export { guardarDatoCobrador, obtenerDatoCobrador } from './storage';
 import { obtenerEstadoRed } from './network';
 
 export interface TareaSincronizacion {
