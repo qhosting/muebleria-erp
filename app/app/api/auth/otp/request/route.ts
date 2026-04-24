@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       where: { telefono: { contains: cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone } }
     });
 
-    const usuario = await prisma.user.findFirst({
+    const usuario = await (prisma.user as any).findFirst({
       where: { telefono: { contains: cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone } }
     });
 

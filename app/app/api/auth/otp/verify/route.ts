@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       select: { id: true, nombreCompleto: true, codigoCliente: true }
     });
 
-    const usuario = await prisma.user.findFirst({
+    const usuario = await (prisma.user as any).findFirst({
       where: { telefono: { contains: cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone } },
       select: { id: true, name: true, role: true, email: true }
     });
