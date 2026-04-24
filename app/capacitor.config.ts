@@ -12,6 +12,8 @@ const config: CapacitorConfig = {
         allowNavigation: [
             "app.mueblerialaeconomica.com",
             "*.app.mueblerialaeconomica.com",
+            "erp.mueblesdaso.com",
+            "*.erp.mueblesdaso.com",
             "localhost"
         ]
     },

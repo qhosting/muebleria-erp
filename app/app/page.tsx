@@ -4,9 +4,16 @@ import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import LandingPage from '@/components/ecommerce/LandingPage';
 
-export const dynamic = 'force-dynamic';
+
+
+
+const isCapacitor = process.env.BUILD_TARGET === 'capacitor';
 
 export default async function HomePage() {
+  if (isCapacitor) {
+    return <LandingPage />;
+  }
+
   const session = await getServerSession(authOptions);
 
   // Si hay sesión activa, redirigir al área correspondiente
