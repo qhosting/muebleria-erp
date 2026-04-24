@@ -9,17 +9,27 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 401 }
-      );
-    }
-
     // Buscar configuración existente
     let config = await prisma.configuracionSistema.findUnique({
       where: { clave: 'sistema' }
     });
+
+    // Si no hay sesión, devolver solo información básica de la empresa
+    if (!session) {
+      if (!config) {
+        return NextResponse.json({
+          empresa: {
+            nombre: 'Mueblería La Económica',
+            direccion: 'Av. Principal 123, Col. Centro',
+            telefono: '555-1234',
+            email: 'contacto@muebleria.com'
+          }
+        });
+      }
+      return NextResponse.json({
+        empresa: config.empresa
+      });
+    }
 
     // Si no existe, crear una configuración por defecto
     if (!config) {
