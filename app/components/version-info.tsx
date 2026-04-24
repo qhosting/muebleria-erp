@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Info, Smartphone, Calendar, Hash, Wifi, WifiOff } from 'lucide-react';
+import { Info, Smartphone, Calendar, Hash, Wifi, WifiOff, MessageSquare } from 'lucide-react';
 import { useNetworkStatus } from '@/hooks/use-network-status';
 
 interface VersionInfoProps {
@@ -131,14 +131,31 @@ export function VersionInfo({ compact = false, showButton = true }: VersionInfoP
           </div>
 
           {/* PWA Features */}
-          <div className="pt-3 border-t">
-            <p className="text-sm text-muted-foreground">
-              <strong>{companyName}</strong><br />
-              Sistema de Cobranza PWA<br />
-              ✅ Funciona sin conexión<br />
-              ✅ Instalable en móviles<br />
-              ✅ Sincronización automática
-            </p>
+          <div className="pt-3 border-t space-y-4">
+            <div className="text-sm text-muted-foreground">
+              <p className="font-bold text-gray-900 mb-1">{companyName}</p>
+              <p>VertexERP System by <span className="font-medium text-gray-700">Aurum Capital Holding</span></p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Button variant="outline" className="w-full justify-start gap-2 h-9" asChild>
+                <a href="https://vertexerp.mx" target="_blank" rel="noopener noreferrer">
+                  <Info className="h-4 w-4 text-blue-500" />
+                  Visitar vertexerp.mx
+                </a>
+              </Button>
+              
+              <Button variant="outline" className="w-full justify-start gap-2 h-9 bg-green-50 border-green-200 hover:bg-green-100 text-green-700" asChild>
+                <a href="https://wa.me/524428509872" target="_blank" rel="noopener noreferrer">
+                  <MessageSquare className="h-4 w-4" />
+                  Soporte WhatsApp
+                </a>
+              </Button>
+            </div>
+
+            <div className="text-[10px] text-muted-foreground pt-2">
+              ✅ Funciona sin conexión · ✅ Instalable · ✅ Sincronizado
+            </div>
           </div>
         </div>
       </DialogContent>
