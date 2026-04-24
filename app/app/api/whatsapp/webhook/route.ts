@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { detectIntent } from '@/lib/ai-service';
-import { sendWahaMessage, WahaConfig } from '@/lib/whatsapp';
+import { sendWahaMessage, getWahaConfig, WahaConfig } from '@/lib/whatsapp';
 
 // Cast prisma to any to handle new models not yet recognized by stale TS cache
 const db = prisma as any;
