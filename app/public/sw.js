@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'vertexerp-v1.4.0';
+const CACHE_NAME = 'vertexerp-v1.4.1';
 const urlsToCache = [
   '/login',
   '/dashboard',
@@ -21,11 +21,11 @@ const urlsToCache = [
 
 // Instalar Service Worker con manejo de errores mejorado
 self.addEventListener('install', (event) => {
-  console.log('[SW] Instalando Service Worker v1.4.0');
+  console.log('[SW] Instalando Service Worker v1.4.1');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('[SW] Cache VertexERP Muebles v1.4.0 abierto');
+        console.log('[SW] Cache VertexERP Muebles v1.4.1 abierto');
         // Intentar agregar todas las URLs, pero continuar si alguna falla
         return Promise.allSettled(
           urlsToCache.map(url => 
@@ -46,7 +46,7 @@ self.addEventListener('install', (event) => {
 
 // Activar Service Worker y limpiar cachés antiguas
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activando Service Worker v1.4.0');
+  console.log('[SW] Activando Service Worker v1.4.1');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -78,11 +78,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
-  // Si es la raíz, redirigir directamente a /login sin cachear
-  if (url.pathname === '/' && url.origin === self.location.origin) {
-    event.respondWith(Response.redirect('/login', 302));
-    return;
-  }
+// Ya no redirigimos la raíz a login porque ahora tenemos la Landing Page pública
 
   // Solo manejar requests del mismo origen
   if (url.origin !== self.location.origin) {
