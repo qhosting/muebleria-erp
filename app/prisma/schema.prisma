@@ -617,3 +617,14 @@ model PlantillaTicket {
 
   @@map("plantillas_ticket")
 }
+
+model OtpVerification {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  verified  Boolean  @default(false)
+
+  @@map("otp_verifications")
+}
