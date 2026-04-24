@@ -34,12 +34,15 @@ export default function LandingPage() {
 
   const pagoSemanal = Math.ceil(montoCompra / plazoSemanas);
 
+  const [empresaConfig, setEmpresaConfig] = useState<any>({});
+
   useEffect(() => {
     fetch('/api/tienda/productos')
       .then(res => res.json())
       .then(data => {
         setProductos(data.productos || []);
         setCategorias(data.categorias || []);
+        setEmpresaConfig(data.configuracion || {});
       })
       .catch(err => console.error('Error cargando productos:', err))
       .finally(() => setLoading(false));
@@ -59,10 +62,16 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20 items-center">
             <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
-                <span className="text-white font-bold text-xl">D</span>
-              </div>
-              <span className="text-2xl font-bold text-slate-900 tracking-tight">DOMIAHOME</span>
+              {empresaConfig.logoUrl ? (
+                <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-blue-200">
+                  <Image src={empresaConfig.logoUrl} alt={empresaConfig.nombre || 'Logo'} fill className="object-cover" />
+                </div>
+              ) : (
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
+                  <span className="text-white font-bold text-xl">{(empresaConfig.nombre || 'D').charAt(0)}</span>
+                </div>
+              )}
+              <span className="text-2xl font-bold text-slate-900 tracking-tight uppercase">{empresaConfig.nombre || 'DOMIAHOME'}</span>
             </Link>
             
             <div className="hidden md:flex items-center gap-8">

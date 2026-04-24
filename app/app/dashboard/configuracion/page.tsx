@@ -250,6 +250,15 @@ export default function ConfiguracionPage() {
                 onChange={(e) => setConfig({ ...config, empresa: { ...config.empresa, direccion: e.target.value } })}
               />
             </div>
+            <div>
+              <Label htmlFor="logoUrl">URL del Logo (Opcional - Para Landing Page)</Label>
+              <Input
+                id="logoUrl"
+                placeholder="https://ejemplo.com/logo.png"
+                value={config.empresa.logoUrl || ''}
+                onChange={(e) => setConfig({ ...config, empresa: { ...config.empresa, logoUrl: e.target.value } })}
+              />
+            </div>
           </CardContent>
         </Card>
 

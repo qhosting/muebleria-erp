@@ -36,9 +36,15 @@ export async function GET(request: NextRequest) {
             distinct: ['categoria'],
         });
 
+        // Obtener configuración de la empresa para personalizar la tienda
+        const config = await prisma.configuracionSistema.findUnique({
+            where: { clave: 'sistema' }
+        });
+
         return NextResponse.json({
             productos: productosSerializados,
             categorias: categorias.map((c: any) => c.categoria).filter(Boolean),
+            configuracion: config?.empresa || {},
         });
     } catch (error) {
         console.error('Error al obtener productos públicos:', error);

@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { signIn, useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +40,7 @@ export default function LoginForm() {
   const [showServerConfig, setShowServerConfig] = useState(false);
   const [serverUrl, setServerUrl] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [companyLogo, setCompanyLogo] = useState('');
   const [isConfigLoading, setIsConfigLoading] = useState(true);
 
   useEffect(() => {
@@ -58,6 +60,7 @@ export default function LoginForm() {
         if (response.ok) {
           const data = await response.json();
           if (data.empresa?.nombre) setCompanyName(data.empresa.nombre);
+          if (data.empresa?.logoUrl) setCompanyLogo(data.empresa.logoUrl);
         }
       } catch (error) {
         console.error('Error fetching config:', error);
@@ -217,9 +220,20 @@ export default function LoginForm() {
         {!clientAccountStatus && (
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Building2 className="h-8 w-8 text-white" />
-              </div>
+              {companyLogo ? (
+                <div className="relative w-20 h-20 rounded-2xl overflow-hidden shadow-xl border-4 border-white/10">
+                  <Image 
+                    src={companyLogo} 
+                    alt={companyName} 
+                    fill 
+                    className="object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <Building2 className="h-8 w-8 text-white" />
+                </div>
+              )}
             </div>
             {isConfigLoading ? (
               <div className="flex flex-col items-center space-y-2">
