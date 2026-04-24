@@ -72,11 +72,11 @@ export default function LandingPage() {
             </div>
 
             <div className="flex items-center gap-4">
-              <Link href="/consulta">
-                <Button variant="ghost" className="text-blue-600 font-bold">Consultar Saldo</Button>
-              </Link>
               <Link href="/login">
-                <Button variant="ghost" className="text-slate-600">Acceso Personal</Button>
+                <Button variant="ghost" className="text-blue-600 font-bold flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4" />
+                  Mi Cuenta
+                </Button>
               </Link>
               <a href="#productos">
                 <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200">

@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Checkbox } from '@/components/ui/checkbox';
 import { Building2, LogIn, Loader2, Settings, Smartphone, MessageSquare, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import ClientDashboard from '@/components/ecommerce/ClientDashboard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Capacitor } from '@capacitor/core';
 import { VersionInfo } from '@/components/version-info';
@@ -121,6 +122,8 @@ export default function LoginForm() {
     }
   };
 
+  const [clientAccountStatus, setClientAccountStatus] = useState<any>(null);
+
   const handleOtpVerify = async () => {
     if (otpCode.length < 6) return toast.error('Ingrese el código de 6 dígitos');
     setIsLoading(true);
@@ -139,7 +142,24 @@ export default function LoginForm() {
         return;
       }
 
-      // 2. Iniciar sesión con NextAuth usando el provider de credenciales (pero con phone/code)
+      // 2. Si es un cliente, mostramos su estado de cuenta
+      if (verifyData.type === 'client') {
+        const dataRes = await fetch('/api/tienda/consulta-saldo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, code: otpCode })
+        });
+        const data = await dataRes.json();
+        if (dataRes.ok) {
+          setClientAccountStatus(data);
+        } else {
+          toast.error(data.error || 'Error al obtener datos');
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // 3. Iniciar sesión con NextAuth (Solo Empleados)
       const result = await signIn('credentials', {
         phone,
         code: otpCode,
@@ -194,26 +214,39 @@ export default function LoginForm() {
       )}
 
       <div className="w-full max-w-md animate-fade-in relative">
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Building2 className="h-8 w-8 text-white" />
+        {!clientAccountStatus && (
+          <div className="text-center mb-8">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Building2 className="h-8 w-8 text-white" />
+              </div>
             </div>
+            {isConfigLoading ? (
+              <div className="flex flex-col items-center space-y-2">
+                <Skeleton className="h-8 w-64 bg-white/20" />
+                <Skeleton className="h-4 w-48 bg-white/10" />
+              </div>
+            ) : (
+              <>
+                <h1 className="text-3xl font-bold text-white mb-2 uppercase">{companyName || 'DASOPLUS'}</h1>
+                <p className="text-blue-100 font-medium tracking-wide">VertexERP</p>
+              </>
+            )}
           </div>
-          {isConfigLoading ? (
-            <div className="flex flex-col items-center space-y-2">
-              <Skeleton className="h-8 w-64 bg-white/20" />
-              <Skeleton className="h-4 w-48 bg-white/10" />
-            </div>
-          ) : (
-            <>
-              <h1 className="text-3xl font-bold text-white mb-2 uppercase">{companyName || 'DASOPLUS'}</h1>
-              <p className="text-blue-100 font-medium tracking-wide">VertexERP</p>
-            </>
-          )}
-        </div>
+        )}
 
-        <Card className="shadow-2xl border-0 overflow-hidden">
+        {clientAccountStatus ? (
+          <ClientDashboard 
+            accountStatus={clientAccountStatus} 
+            onLogout={() => {
+              setClientAccountStatus(null);
+              setOtpStep(1);
+              setPhone('');
+              setOtpCode('');
+            }} 
+          />
+        ) : (
+          <Card className="shadow-2xl border-0 overflow-hidden">
           <CardHeader className="space-y-1">
             <div className="flex items-center justify-center gap-4 mb-4">
               <button 
@@ -304,6 +337,7 @@ export default function LoginForm() {
             )}
           </CardContent>
         </Card>
+        )}
 
         <div className="text-center mt-6">
           <div className="text-blue-200 text-[10px] uppercase tracking-widest mb-2">VertexERP - Gestión Inteligente</div>
