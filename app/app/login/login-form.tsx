@@ -178,10 +178,13 @@ export default function LoginForm() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 flex items-center justify-center p-4">
       {!Capacitor.isNativePlatform() && (
-        <Link href="/" className="absolute top-8 left-8 flex items-center gap-2 text-slate-400 hover:text-white transition-colors group">
+        <button 
+          onClick={() => window.location.href = '/'}
+          className="absolute top-8 left-8 flex items-center gap-2 text-slate-400 hover:text-white transition-colors group z-50"
+        >
           <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
           <span className="font-medium text-sm">Regresar al sitio</span>
-        </Link>
+        </button>
       )}
 
       {Capacitor.isNativePlatform() && (
