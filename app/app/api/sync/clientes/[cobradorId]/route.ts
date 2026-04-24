@@ -83,6 +83,21 @@ export async function GET(
       ]
     });
 
+    // Obtener sumas consolidadas por teléfono para estos clientes
+    const phones = clientes.map((c: any) => c.telefono).filter(Boolean);
+    const consolidadoSums = await prisma.cliente.groupBy({
+      by: ['telefono'],
+      where: {
+        telefono: { in: phones },
+        statusCuenta: 'activo'
+      },
+      _sum: {
+        saldoActual: true
+      }
+    });
+
+    const sumMap = new Map(consolidadoSums.map((s: any) => [s.telefono, parseFloat(s._sum.saldoActual?.toString() || '0')]));
+
     // Transformar datos para formato offline
     const clientesOffline = clientes.map((cliente: any) => ({
       id: cliente.id,
@@ -90,12 +105,13 @@ export async function GET(
       telefono: cliente.telefono,
       direccion: cliente.direccionCompleta,
       diaPago: cliente.diaPago,
-      montoAcordado: cliente.montoPago,
-      saldoPendiente: cliente.saldoActual,
+      montoAcordado: parseFloat(cliente.montoPago.toString()),
+      saldoPendiente: parseFloat(cliente.saldoActual.toString()),
+      saldoConsolidado: sumMap.get(cliente.telefono) || parseFloat(cliente.saldoActual.toString()),
       fechaUltimoPago: cliente.pagos[0]?.fechaPago?.toISOString(),
       statusCuenta: cliente.statusCuenta,
       cobradorAsignadoId: cliente.cobradorAsignadoId,
-      notas: null // Este campo no existe en el modelo actual
+      notas: null
     }));
 
     return NextResponse.json(clientesOffline);

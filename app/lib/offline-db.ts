@@ -14,6 +14,7 @@ export interface OfflineCliente {
   fechaUltimoPago?: string;
   statusCuenta: 'activo' | 'suspendido' | 'cancelado';
   cobradorAsignadoId: string;
+  saldoConsolidado?: number;
   notas?: string;
   // Metadatos offline
   lastSync: number;

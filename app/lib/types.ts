@@ -37,6 +37,7 @@ export interface Cliente {
   importe2?: number;
   importe3?: number;
   importe4?: number;
+  saldoConsolidado?: number;
 
   // Nuevos campos extendidos
   dni?: string;
@@ -103,6 +104,7 @@ export interface ClienteOffline {
   fechaUltimoPago?: string;
   statusCuenta: 'activo' | 'suspendido' | 'cancelado';
   cobradorAsignadoId: string;
+  saldoConsolidado?: number;
   notas?: string;
 }
 

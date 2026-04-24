@@ -86,6 +86,7 @@ export interface TicketData {
   saldos: {
     anterior: number;
     nuevo: number;
+    consolidado?: number;
   };
   empresa: {
     nombre: string;
@@ -489,6 +490,17 @@ class BluetoothPrinterService {
       ticket += this.createDivider() + this.LF;
       ticket += this.COMMANDS.BOLD_ON;
       ticket += 'Saldo Actual:' + this.rightAlignText(this.formatCurrency(ticketData.saldos.nuevo)) + this.LF;
+      
+      if (ticketData.saldos.consolidado && ticketData.saldos.consolidado > ticketData.saldos.nuevo) {
+        ticket += this.createDivider('.') + this.LF;
+        ticket += this.COMMANDS.BOLD_ON;
+        ticket += 'DEUDA TOTAL:' + this.rightAlignText(this.formatCurrency(ticketData.saldos.consolidado)) + this.LF;
+        ticket += this.COMMANDS.BOLD_OFF;
+        ticket += this.COMMANDS.CENTER;
+        ticket += '(Suma de todas sus cuentas)' + this.LF;
+        ticket += this.COMMANDS.LEFT;
+      }
+      
       ticket += this.COMMANDS.BOLD_OFF;
 
       // Estado del cliente

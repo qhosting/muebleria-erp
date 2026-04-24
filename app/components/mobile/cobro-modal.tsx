@@ -132,7 +132,8 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
       },
       saldos: {
         anterior: calculatedValues.saldoAnterior,
-        nuevo: calculatedValues.saldoNuevo
+        nuevo: calculatedValues.saldoNuevo,
+        consolidado: (cliente.saldoConsolidado || cliente.saldoPendiente) - calculatedValues.montoParaSaldo
       },
       empresa: {
         nombre: 'MUEBLERIA LA ECONOMICA',
