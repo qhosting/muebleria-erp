@@ -1,7 +1,7 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { sendWahaMessage } from '@/lib/whatsapp';
+import { sendWahaMessage, getWahaConfig } from '@/lib/whatsapp';
+import { redis } from '@/lib/redis';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,16 +29,10 @@ export async function POST(request: NextRequest) {
 
     // Generar código de 6 dígitos
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
 
-    // Guardar en la base de datos
-    await (prisma as any).otpVerification.create({
-      data: {
-        phone: cleanPhone,
-        code,
-        expiresAt
-      }
-    });
+    // Guardar en REDIS con expiración de 10 minutos (600 segundos)
+    const redisKey = `otp:${cleanPhone}`;
+    await redis.set(redisKey, code, 'EX', 600);
 
     // Enviar por WhatsApp
     const wahaConfig = await getWahaConfig(prisma);

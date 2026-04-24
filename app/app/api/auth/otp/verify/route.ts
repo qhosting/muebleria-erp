@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { redis } from '@/lib/redis';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,27 +12,21 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanPhone = phone.replace(/\D/g, "");
+    const redisKey = `otp:${cleanPhone}`;
 
-    // Buscar el código más reciente no expirado
-    const verification = await (prisma as any).otpVerification.findFirst({
-      where: {
-        phone: cleanPhone,
-        code,
-        verified: false,
-        expiresAt: { gte: new Date() }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    // 1. Obtener código de Redis
+    const savedCode = await redis.get(redisKey);
 
-    if (!verification) {
+    if (!savedCode || savedCode !== code) {
       return NextResponse.json({ error: 'Código inválido o expirado' }, { status: 400 });
     }
 
-    // Marcar como verificado
-    await (prisma as any).otpVerification.update({
-      where: { id: verification.id },
-      data: { verified: true }
-    });
+    // 2. Marcar como verificado (creando una llave de sesión temporal corta si es necesario)
+    // O simplemente borrarlo si ya se usó
+    await redis.del(redisKey);
+    
+    // Guardar una marca de "teléfono verificado" por 5 minutos para procesos subsiguientes
+    await redis.set(`verified:${cleanPhone}:${code}`, 'true', 'EX', 300);
 
     // Buscar quién es el dueño del teléfono para retornar su perfil
     const cliente = await prisma.cliente.findFirst({

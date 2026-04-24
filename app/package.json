@@ -113,6 +113,7 @@
     "framer-motion": "10.18.0",
     "gray-matter": "4.0.3",
     "input-otp": "1.2.4",
+    "ioredis": "^5.10.1",
     "jotai": "2.6.0",
     "jsonwebtoken": "9.0.2",
     "leaflet": "^1.9.4",

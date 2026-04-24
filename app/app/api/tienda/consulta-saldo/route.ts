@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { redis } from '@/lib/redis';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,19 +13,11 @@ export async function POST(request: NextRequest) {
 
     const cleanPhone = phone.replace(/\D/g, "");
 
-    // 1. Verificar OTP
-    const verification = await (prisma as any).otpVerification.findFirst({
-      where: {
-        phone: cleanPhone,
-        code,
-        verified: true, // El frontend ya debió verificarlo
-        expiresAt: { gte: new Date() }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    // 1. Verificar OTP en Redis (llave de verificación temporal)
+    const isVerified = await redis.get(`verified:${cleanPhone}:${code}`);
 
-    if (!verification) {
-      return NextResponse.json({ error: 'Acceso no validado' }, { status: 401 });
+    if (!isVerified) {
+      return NextResponse.json({ error: 'Acceso no validado o expirado' }, { status: 401 });
     }
 
     // 2. Obtener datos del cliente
