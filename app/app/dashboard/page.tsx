@@ -1,6 +1,6 @@
 const isCapacitor = process.env.BUILD_TARGET === 'capacitor';
 
-export const dynamic = isCapacitor ? 'force-static' : 'force-dynamic';
+export const dynamic = 'force-dynamic';
 
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';

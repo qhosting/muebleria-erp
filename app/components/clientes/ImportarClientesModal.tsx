@@ -629,7 +629,7 @@ export function ImportarClientesModal({
                   </div>
 
                   {cleanupEnabled && (
-                    <Alert variant="warning" className="bg-orange-50 border-orange-200">
+                    <Alert variant="default" className="bg-orange-50 border-orange-200">
                       <AlertTriangle className="h-4 w-4 text-orange-600" />
                       <AlertDescription className="text-orange-800 text-xs">
                         <strong>Atención:</strong> Esta acción marcará como inactivos a todos los clientes registrados con prefijo DQ o DP que no se encuentren presentes en su archivo actual.
@@ -683,7 +683,7 @@ export function ImportarClientesModal({
                       </div>
                       <Button 
                         size="sm" 
-                        variant="soft" 
+                        variant="secondary" 
                         className="h-8 bg-red-100 text-red-700 hover:bg-red-200"
                         onClick={downloadCleanupReport}
                       >
