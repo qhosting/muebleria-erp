@@ -35,8 +35,10 @@ import {
   TrendingUp,
   Target,
   MessageSquare,
-  Bot
+  Bot,
+  Loader2
 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface SidebarProps {
   className?: string;
@@ -148,7 +150,8 @@ export function Sidebar({ className, session }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({});
-  const [companyName, setCompanyName] = useState('Mueblería La Económica');
+  const [companyName, setCompanyName] = useState('');
+  const [configLoading, setConfigLoading] = useState(true);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -163,6 +166,8 @@ export function Sidebar({ className, session }: SidebarProps) {
         }
       } catch (error) {
         console.error('Error fetching company name:', error);
+      } finally {
+        setConfigLoading(false);
       }
     };
     fetchConfig();
@@ -234,11 +239,15 @@ export function Sidebar({ className, session }: SidebarProps) {
               <Building2 className="h-5 w-5 text-white" />
             </div>
             {!isCollapsed && (
-              <div>
-                <h1 className="font-semibold text-gray-900 text-sm">
-                  {companyName}
-                </h1>
-                <p className="text-xs text-gray-500">Sistema de Cobranza</p>
+              <div className="flex flex-col">
+                {configLoading ? (
+                  <Skeleton className="h-4 w-32 mb-1" />
+                ) : (
+                  <h1 className="font-semibold text-gray-900 text-sm truncate max-w-[150px]">
+                    {companyName || 'VertexERP'}
+                  </h1>
+                )}
+                <p className="text-[10px] leading-tight text-gray-500">Sistema de Cobranza</p>
               </div>
             )}
           </div>

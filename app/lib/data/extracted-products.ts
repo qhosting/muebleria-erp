@@ -1,0 +1,176 @@
+
+export const PRICE_LISTS_DATA = [
+  // REZALT - PREMIER
+  {
+    marca: "REZALT",
+    nombre: "COLCHON PREMIER",
+    medida: "IND",
+    categoria: "COLCHONES",
+    precioContado: 3900,
+    precio6Meses: 5990,
+    precio12Meses: 7990,
+    numSemanas: 35,
+    enganche: 300,
+    abonoSemanal: 220,
+    garantia: "4 AÑOS"
+  },
+  {
+    marca: "REZALT",
+    nombre: "COLCHON PREMIER",
+    medida: "MAT",
+    categoria: "COLCHONES",
+    precioContado: 5800,
+    precio6Meses: 9990,
+    precio12Meses: 11990,
+    numSemanas: 40,
+    enganche: 400,
+    abonoSemanal: 290,
+    garantia: "4 AÑOS"
+  },
+  {
+    marca: "REZALT",
+    nombre: "COLCHON PREMIER",
+    medida: "QS",
+    categoria: "COLCHONES",
+    precioContado: 9400,
+    precio6Meses: 13990,
+    precio12Meses: 15990,
+    numSemanas: 45,
+    enganche: 700,
+    abonoSemanal: 340,
+    garantia: "4 AÑOS"
+  },
+  {
+    marca: "REZALT",
+    nombre: "COLCHON PREMIER",
+    medida: "KS",
+    categoria: "COLCHONES",
+    precioContado: 9900,
+    precio6Meses: 15990,
+    precio12Meses: 18990,
+    numSemanas: 46,
+    enganche: 900,
+    abonoSemanal: 393,
+    garantia: "4 AÑOS"
+  },
+  // REZALT - SELENE
+  {
+    marca: "REZALT",
+    nombre: "COLCHON SELENE",
+    medida: "IND",
+    categoria: "COLCHONES",
+    precioContado: 5900,
+    precio6Meses: 8990,
+    precio12Meses: 10990,
+    numSemanas: 45,
+    enganche: 400,
+    abonoSemanal: 235,
+    garantia: "4 AÑOS"
+  },
+  {
+    marca: "REZALT",
+    nombre: "COLCHON SELENE",
+    medida: "MAT",
+    categoria: "COLCHONES",
+    precioContado: 7500,
+    precio6Meses: 11990,
+    precio12Meses: 13990,
+    numSemanas: 45,
+    enganche: 500,
+    abonoSemanal: 300,
+    garantia: "4 AÑOS"
+  },
+  {
+    marca: "REZALT",
+    nombre: "COLCHON SELENE",
+    medida: "QS",
+    categoria: "COLCHONES",
+    precioContado: 9300,
+    precio6Meses: 14990,
+    precio12Meses: 16990,
+    numSemanas: 41,
+    enganche: 600,
+    abonoSemanal: 400,
+    garantia: "4 AÑOS"
+  },
+  {
+    marca: "REZALT",
+    nombre: "COLCHON SELENE",
+    medida: "KS",
+    categoria: "COLCHONES",
+    precioContado: 12800,
+    precio6Meses: 18990,
+    precio12Meses: 21990,
+    numSemanas: 46,
+    enganche: 900,
+    abonoSemanal: 458,
+    garantia: "4 AÑOS"
+  },
+  // SEALY - FRANZ
+  {
+    marca: "SEALY",
+    nombre: "COLCHON FRANZ",
+    medida: "IND",
+    categoria: "COLCHONES",
+    precioContado: 4190,
+    precio6Meses: 7490,
+    precio9Meses: 8490,
+    numSemanas: 39,
+    enganche: 300,
+    abonoSemanal: 210,
+    garantia: "3 AÑOS"
+  },
+  {
+    marca: "SEALY",
+    nombre: "COLCHON FRANZ",
+    medida: "MAT",
+    categoria: "COLCHONES",
+    precioContado: 0,
+    precio6Meses: 8990,
+    precio9Meses: 9990,
+    numSemanas: 39,
+    enganche: 400,
+    abonoSemanal: 246,
+    garantia: "3 AÑOS"
+  },
+  // XAZE - ELECTRODOMESTICOS
+  {
+    marca: "HISENSE",
+    nombre: "PANTALLA 65\"",
+    medida: "65\"",
+    categoria: "ELECTRONICA",
+    precioContado: 15900,
+    precio6Meses: 18000,
+    precio9Meses: 21900,
+    numSemanas: 46,
+    enganche: 2000,
+    abonoSemanal: 433,
+    garantia: "S/D"
+  },
+  {
+    marca: "SAMSUNG",
+    nombre: "PANTALLA 65\"",
+    medida: "65\"",
+    categoria: "ELECTRONICA",
+    precioContado: 15900,
+    precio6Meses: 18000,
+    precio9Meses: 21900,
+    numSemanas: 46,
+    enganche: 2000,
+    abonoSemanal: 433,
+    garantia: "S/D"
+  },
+  {
+    marca: "MIDEA",
+    nombre: "LAVADORA 18KG AUTOMATICA BLANCO",
+    medida: "18KG",
+    categoria: "LINEA BLANCA",
+    precioContado: 9500,
+    precio6Meses: 12000,
+    precio9Meses: 15000,
+    numSemanas: 47,
+    enganche: 1000,
+    abonoSemanal: 298,
+    garantia: "S/D"
+  }
+];

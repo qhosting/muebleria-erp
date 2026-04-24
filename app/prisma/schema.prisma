@@ -440,6 +440,15 @@ model Producto {
   unidadMedida  String   @default("pieza")
   stockMinimo   Int      @default(0)
   imagenUrl     String?
+  marca         String?
+  medida        String?
+  precio6Meses  Decimal? @db.Decimal(10, 2)
+  precio9Meses  Decimal? @db.Decimal(10, 2)
+  precio12Meses Decimal? @db.Decimal(10, 2)
+  numSemanas    Int?
+  enganche      Decimal? @db.Decimal(10, 2)
+  abonoSemanal  Decimal? @db.Decimal(10, 2)
+  garantia      String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

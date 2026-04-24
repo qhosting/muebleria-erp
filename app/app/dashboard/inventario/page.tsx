@@ -25,6 +25,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MovimientoModal } from '@/components/inventario/MovimientoModal';
 import { NuevoProductoModal } from '@/components/inventario/NuevoProductoModal';
 import { NuevaSucursalModal } from '@/components/inventario/NuevaSucursalModal';
+import { ImportarDesdeImagenModal } from '@/components/inventario/ImportarDesdeImagenModal';
+import { Image as ImageIcon } from 'lucide-react';
 
 export default function InventarioPage() {
     const { data: session } = useSession();
@@ -35,6 +37,7 @@ export default function InventarioPage() {
     const [isMovimientoOpen, setIsMovimientoOpen] = useState(false);
     const [isProductoOpen, setIsProductoOpen] = useState(false);
     const [isSucursalOpen, setIsSucursalOpen] = useState(false);
+    const [isImportImagenOpen, setIsImportImagenOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
     useEffect(() => {
@@ -94,6 +97,10 @@ export default function InventarioPage() {
                         <Button onClick={() => setIsSucursalOpen(true)} variant="secondary" className="gap-2">
                             <Store className="h-4 w-4" />
                             Nueva Sucursal
+                        </Button>
+                        <Button onClick={() => setIsImportImagenOpen(true)} variant="outline" className="gap-2 border-yellow-500 text-yellow-700 hover:bg-yellow-50">
+                            <ImageIcon className="h-4 w-4" />
+                            Importar Imagen
                         </Button>
                     </div>
                 </div>
@@ -278,6 +285,12 @@ export default function InventarioPage() {
                 <NuevaSucursalModal
                     isOpen={isSucursalOpen}
                     onClose={() => setIsSucursalOpen(false)}
+                    onSuccess={fetchData}
+                />
+
+                <ImportarDesdeImagenModal
+                    isOpen={isImportImagenOpen}
+                    onClose={() => setIsImportImagenOpen(false)}
                     onSuccess={fetchData}
                 />
             </div>

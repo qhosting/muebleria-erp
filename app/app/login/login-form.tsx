@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { guardarDatoCobrador, obtenerDatoCobrador } from '@/lib/native/storage';
 import { Capacitor } from '@capacitor/core';
 import { getFullPath, apiFetch } from '@/lib/api-config';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
@@ -25,7 +26,8 @@ export function LoginForm() {
   const [installMethod, setInstallMethod] = useState<'native' | 'manual'>('native');
   const [serverUrl, setServerUrl] = useState('');
   const [showServerConfig, setShowServerConfig] = useState(false);
-  const [companyName, setCompanyName] = useState('VertexERP Muebles');
+  const [companyName, setCompanyName] = useState('');
+  const [isConfigLoading, setIsConfigLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -60,6 +62,8 @@ export function LoginForm() {
         }
       } catch (e) {
         console.log('No se pudo cargar el nombre de la empresa para el login');
+      } finally {
+        setIsConfigLoading(false);
       }
     };
     fetchCompanyName();
@@ -329,12 +333,21 @@ export function LoginForm() {
               <Building2 className="h-8 w-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">
-            {companyName}
-          </h1>
-          <p className="text-blue-200">
-            Sistema de Gestión y Cobranza
-          </p>
+          {isConfigLoading ? (
+            <div className="flex flex-col items-center space-y-2">
+              <Skeleton className="h-8 w-64 bg-white/20" />
+              <Skeleton className="h-4 w-48 bg-white/10" />
+            </div>
+          ) : (
+            <>
+              <h1 className="text-3xl font-bold text-white mb-2">
+                {companyName || 'VertexERP Muebles'}
+              </h1>
+              <p className="text-blue-200">
+                Sistema de Gestión y Cobranza
+              </p>
+            </>
+          )}
         </div>
 
         <Card className="shadow-2xl border-0">
