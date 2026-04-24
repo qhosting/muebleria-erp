@@ -103,7 +103,7 @@ export function ImportarDesdeImagenModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-yellow-500 fill-yellow-500" />
@@ -182,8 +182,8 @@ export function ImportarDesdeImagenModal({
                 <Badge variant="secondary">{extractedData[0].marca}</Badge>
               </div>
 
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-xs">
+              <div className="border rounded-lg overflow-x-auto">
+                <table className="w-full text-xs min-w-[800px]">
                   <thead className="bg-gray-50 border-b">
                     <tr>
                       <th className="p-2 text-left">Marca</th>
