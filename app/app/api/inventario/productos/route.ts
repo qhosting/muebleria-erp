@@ -116,12 +116,21 @@ export async function POST(request: NextRequest) {
             precioVenta,
             unidadMedida,
             stockMinimo,
-            imagenUrl
+            imagenUrl,
+            marca,
+            medida,
+            precio6Meses,
+            precio9Meses,
+            precio12Meses,
+            numSemanas,
+            enganche,
+            abonoSemanal,
+            garantia
         } = body;
 
-        if (!codigo || !nombre || precioCompra === undefined || precioVenta === undefined) {
+        if (!codigo || !nombre || precioVenta === undefined) {
             return NextResponse.json(
-                { error: 'Código, nombre, precio de compra y precio de venta son requeridos' },
+                { error: 'Código, nombre y precio de venta son requeridos' },
                 { status: 400 }
             );
         }
@@ -144,11 +153,20 @@ export async function POST(request: NextRequest) {
                 nombre,
                 descripcion: descripcion || null,
                 categoria: categoria || null,
-                precioCompra: parseFloat(precioCompra),
+                precioCompra: precioCompra ? parseFloat(precioCompra) : 0,
                 precioVenta: parseFloat(precioVenta),
                 unidadMedida: unidadMedida || 'pieza',
                 stockMinimo: parseInt(stockMinimo) || 0,
-                imagenUrl: imagenUrl || null
+                imagenUrl: imagenUrl || null,
+                marca: marca || null,
+                medida: medida || null,
+                precio6Meses: precio6Meses ? parseFloat(precio6Meses) : null,
+                precio9Meses: precio9Meses ? parseFloat(precio9Meses) : null,
+                precio12Meses: precio12Meses ? parseFloat(precio12Meses) : null,
+                numSemanas: numSemanas ? parseInt(numSemanas) : null,
+                enganche: enganche ? parseFloat(enganche) : null,
+                abonoSemanal: abonoSemanal ? parseFloat(abonoSemanal) : null,
+                garantia: garantia || null
             }
         });
 

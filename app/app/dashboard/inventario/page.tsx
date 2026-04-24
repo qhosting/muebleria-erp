@@ -90,7 +90,10 @@ export default function InventarioPage() {
                             <ArrowLeftRight className="h-4 w-4" />
                             Movimiento
                         </Button>
-                        <Button onClick={() => setIsProductoOpen(true)} className="gap-2">
+                        <Button onClick={() => {
+                            setSelectedProduct(null);
+                            setIsProductoOpen(true);
+                        }} className="gap-2">
                             <Plus className="h-4 w-4" />
                             Nuevo Producto
                         </Button>
@@ -183,12 +186,13 @@ export default function InventarioPage() {
                                                     <th className="p-3 font-medium text-gray-600 text-center">Total Stock</th>
                                                     <th className="p-3 font-medium text-gray-600">Estado</th>
                                                     <th className="p-3 font-medium text-gray-600">Distribución</th>
+                                                    <th className="p-3 font-medium text-gray-600 text-right">Acciones</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {filteredProductos.map((producto) => (
                                                     <tr key={producto.id} className="border-b hover:bg-gray-50">
-                                                        <td className="p-3 font-medium">{producto.codigo}</td>
+                                                        <td className="p-3 font-medium text-blue-600">{producto.codigo}</td>
                                                         <td className="p-3">
                                                             <div className="font-medium text-gray-900">{producto.nombre}</div>
                                                             {producto.descripcion && (
@@ -208,15 +212,20 @@ export default function InventarioPage() {
                                                             <StockBadge cantidad={producto.stockTotal} minimo={producto.stockMinimo} />
                                                         </td>
                                                         <td className="p-3">
-                                                            <div className="flex flex-wrap gap-1">
-                                                                {producto.stockPorSucursal.map((s: any) => (
-                                                                    s.cantidad > 0 && (
-                                                                        <Badge key={s.sucursalId} variant="outline" className="text-xs">
-                                                                            {s.sucursalNombre}: {s.cantidad}
-                                                                        </Badge>
-                                                                    )
-                                                                ))}
                                                             </div>
+                                                        </td>
+                                                        <td className="p-3 text-right">
+                                                            <Button 
+                                                                variant="ghost" 
+                                                                size="sm" 
+                                                                className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                                                onClick={() => {
+                                                                    setSelectedProduct(producto);
+                                                                    setIsProductoOpen(true);
+                                                                }}
+                                                            >
+                                                                Editar
+                                                            </Button>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -278,8 +287,12 @@ export default function InventarioPage() {
 
                 <NuevoProductoModal
                     isOpen={isProductoOpen}
-                    onClose={() => setIsProductoOpen(false)}
+                    onClose={() => {
+                        setIsProductoOpen(false);
+                        setSelectedProduct(null);
+                    }}
                     onSuccess={fetchData}
+                    producto={selectedProduct}
                 />
 
                 <NuevaSucursalModal
