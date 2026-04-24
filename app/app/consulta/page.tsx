@@ -9,6 +9,7 @@ import { Smartphone, ShieldCheck, ArrowLeft, Loader2, CreditCard, Calendar, Chec
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { signIn } from 'next-auth/react';
 
 export default function ConsultaSaldoPage() {
   const [step, setStep] = useState(1); // 1: Phone, 2: OTP, 3: Dashboard

@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
         const productos = await prisma.producto.findMany({
             where: {
                 isActive: true,
+                enEcommerce: true, // Solo productos marcados para la tienda
             },
             select: {
                 id: true,
@@ -21,16 +22,16 @@ export async function GET(request: NextRequest) {
                 imagenUrl: true,
             },
             orderBy: { createdAt: 'desc' },
-            take: 8,
+            take: 12, // Mostrar un poco más
         });
 
         const productosSerializados = productos.map((p: any) => ({
             ...p,
-            precioVenta: parseFloat(p.precioVenta.toString()),
+            precioVenta: p.precioVenta ? parseFloat(p.precioVenta.toString()) : 0,
         }));
 
         const categorias = await prisma.producto.findMany({
-            where: { isActive: true },
+            where: { isActive: true, enEcommerce: true },
             select: { categoria: true },
             distinct: ['categoria'],
         });

@@ -64,8 +64,8 @@ export async function GET(request: NextRequest) {
 
             return {
                 ...producto,
-                precioCompra: parseFloat(producto.precioCompra.toString()),
-                precioVenta: parseFloat(producto.precioVenta.toString()),
+                precioCompra: producto.precioCompra ? parseFloat(producto.precioCompra.toString()) : 0,
+                precioVenta: producto.precioVenta ? parseFloat(producto.precioVenta.toString()) : 0,
                 stockTotal,
                 stockPorSucursal,
                 stockBajo: stockTotal <= producto.stockMinimo

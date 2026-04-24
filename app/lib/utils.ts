@@ -7,11 +7,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number | string | null | undefined): string {
+  const value = typeof amount === 'string' ? parseFloat(amount) : amount;
+  
+  if (value === null || value === undefined || isNaN(value as number)) {
+    return '$0.00';
+  }
+
   return new Intl.NumberFormat('es-MX', {
     style: 'currency',
     currency: 'MXN',
-  }).format(amount);
+  }).format(value as number);
 }
 
 export function formatDate(date: Date | string | null | undefined): string {

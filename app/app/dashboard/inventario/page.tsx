@@ -48,20 +48,34 @@ export default function InventarioPage() {
     const fetchData = async () => {
         try {
             setLoading(true);
+            console.log('Fetching inventory data...');
             const [resProductos, resSucursales] = await Promise.all([
                 fetch('/api/inventario/productos'),
                 fetch('/api/inventario/sucursales')
             ]);
 
-            if (resProductos.ok && resSucursales.ok) {
-                const dataProductos = await resProductos.json();
-                const dataSucursales = await resSucursales.json();
-                setProductos(dataProductos.productos || []);
-                setSucursales(dataSucursales || []);
+            if (!resProductos.ok) {
+                const errorData = await resProductos.json().catch(() => ({}));
+                throw new Error(errorData.error || `Error productos: ${resProductos.status}`);
             }
-        } catch (error) {
+
+            if (!resSucursales.ok) {
+                const errorData = await resSucursales.json().catch(() => ({}));
+                throw new Error(errorData.error || `Error sucursales: ${resSucursales.status}`);
+            }
+
+            const dataProductos = await resProductos.json();
+            const dataSucursales = await resSucursales.json();
+            
+            console.log(`Loaded ${dataProductos.productos?.length || 0} products and ${dataSucursales?.length || 0} branches`);
+            
+            setProductos(dataProductos.productos || []);
+            setSucursales(dataSucursales || []);
+        } catch (error: any) {
             console.error('Error cargando inventario:', error);
-            toast.error('Error al cargar datos de inventario');
+            toast.error(`Error: ${error.message || 'Error al cargar datos'}`);
+            setProductos([]);
+            setSucursales([]);
         } finally {
             setLoading(false);
         }
@@ -125,7 +139,7 @@ export default function InventarioPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-green-600">
-                                {formatCurrency(productos.reduce((sum, p) => sum + (p.precioCompra * p.stockTotal), 0))}
+                                {formatCurrency(productos.reduce((sum, p) => sum + ((p.precioCompra || 0) * (p.existencias || p.stockTotal || 0)), 0))}
                             </div>
                         </CardContent>
                     </Card>

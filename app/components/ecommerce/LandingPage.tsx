@@ -45,8 +45,12 @@ export default function LandingPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const formatPrice = (price: number) =>
-    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(price);
+  const formatPrice = (price: number | null | undefined) =>
+    new Intl.NumberFormat('es-MX', { 
+      style: 'currency', 
+      currency: 'MXN', 
+      minimumFractionDigits: 0 
+    }).format(price || 0);
 
   return (
     <div className="min-h-screen bg-white">
