@@ -7,7 +7,9 @@ const nextConfig = {
   output: process.env.BUILD_TARGET === 'capacitor' ? 'export' : process.env.NEXT_OUTPUT_MODE,
   distDir: process.env.BUILD_TARGET === 'capacitor' ? 'out' : (process.env.NEXT_DIST_DIR || '.next'),
 
-  outputFileTracingRoot: path.join(__dirname, '../'),
+  experimental: {
+    outputFileTracingRoot: path.join(__dirname, '../'),
+  },
 
   eslint: {
     ignoreDuringBuilds: true,

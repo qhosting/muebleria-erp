@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { VersionInfo } from '@/components/version-info';
+import { Capacitor } from '@capacitor/core';
 import {
   LayoutDashboard,
   Users,
@@ -191,7 +192,8 @@ export function Sidebar({ className, session }: SidebarProps) {
       localStorage.removeItem('remember_me');
     }
 
-    signOut({ callbackUrl: '/' });
+    const callbackUrl = Capacitor.isNativePlatform() ? '/login' : '/';
+    signOut({ callbackUrl });
   };
 
   const toggleSubMenu = (name: string, e: React.MouseEvent) => {

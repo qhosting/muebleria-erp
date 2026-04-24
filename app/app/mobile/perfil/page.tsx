@@ -6,6 +6,7 @@ import { signOut, useSession } from 'next-auth/react';
 import { Settings, Printer, LogOut, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { Capacitor } from '@capacitor/core';
 
 export default function MobilePerfilPage() {
     const { data: session } = useSession();
@@ -81,7 +82,10 @@ export default function MobilePerfilPage() {
 
             <div className="space-y-3 pt-4">
                 <Button
-                    onClick={() => signOut({ callbackUrl: '/' })}
+                    onClick={() => {
+                        const callbackUrl = Capacitor.isNativePlatform() ? '/login' : '/';
+                        signOut({ callbackUrl });
+                    }}
                     variant="destructive"
                     className="w-full h-12 font-semibold"
                 >
