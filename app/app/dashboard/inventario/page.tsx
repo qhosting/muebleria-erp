@@ -183,9 +183,9 @@ export default function InventarioPage() {
                                                     <th className="p-3 font-medium text-gray-600">Producto</th>
                                                     <th className="p-3 font-medium text-gray-600">Categoría</th>
                                                     <th className="p-3 font-medium text-gray-600 text-right">Precio Venta</th>
-                                                    <th className="p-3 font-medium text-gray-600 text-center">Total Stock</th>
+                                                    <th className="p-3 font-medium text-gray-600 text-center">Existencias</th>
+                                                    <th className="p-3 font-medium text-gray-600 text-center">Tienda</th>
                                                     <th className="p-3 font-medium text-gray-600">Estado</th>
-                                                    <th className="p-3 font-medium text-gray-600">Distribución</th>
                                                     <th className="p-3 font-medium text-gray-600 text-right">Acciones</th>
                                                 </tr>
                                             </thead>
@@ -194,7 +194,10 @@ export default function InventarioPage() {
                                                     <tr key={producto.id} className="border-b hover:bg-gray-50">
                                                         <td className="p-3 font-medium text-blue-600">{producto.codigo}</td>
                                                         <td className="p-3">
-                                                            <div className="font-medium text-gray-900">{producto.nombre}</div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="font-medium text-gray-900">{producto.nombre}</div>
+                                                                {producto.marca && <Badge variant="outline" className="text-[10px] uppercase">{producto.marca}</Badge>}
+                                                            </div>
                                                             {producto.descripcion && (
                                                                 <div className="text-xs text-gray-500 truncate max-w-[200px]">
                                                                     {producto.descripcion}
@@ -205,22 +208,25 @@ export default function InventarioPage() {
                                                         <td className="p-3 text-right font-medium">
                                                             {formatCurrency(producto.precioVenta)}
                                                         </td>
-                                                        <td className="p-3 text-center font-bold text-lg">
-                                                            {producto.stockTotal}
-                                                        </td>
-                                                        <td className="p-3">
-                                                            <StockBadge cantidad={producto.stockTotal} minimo={producto.stockMinimo} />
-                                                        </td>
-                                                        <td className="p-3">
-                                                            <div className="flex flex-wrap gap-1">
-                                                                {producto.stockPorSucursal?.map((s: any) => (
-                                                                    s.cantidad > 0 && (
-                                                                        <Badge key={s.sucursalId} variant="outline" className="text-xs">
-                                                                            {s.sucursalNombre}: {s.cantidad}
-                                                                        </Badge>
-                                                                    )
-                                                                ))}
+                                                        <td className="p-3 text-center">
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="font-bold text-lg">{producto.existencias || 0}</span>
+                                                                <span className="text-[10px] text-gray-400 uppercase">Piezas</span>
                                                             </div>
+                                                        </td>
+                                                        <td className="p-3 text-center">
+                                                            {producto.enEcommerce ? (
+                                                                <div className="flex justify-center">
+                                                                    <div className="bg-emerald-100 p-1.5 rounded-full" title="Visible en Ecommerce">
+                                                                        <Globe className="h-4 w-4 text-emerald-600" />
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-gray-300 text-xs">Oculto</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-3">
+                                                            <StockBadge cantidad={producto.existencias || 0} minimo={producto.stockMinimo} />
                                                         </td>
                                                         <td className="p-3 text-right">
                                                             <Button 

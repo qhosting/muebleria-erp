@@ -33,6 +33,8 @@ export async function PUT(
             enganche: updateData.enganche ? parseFloat(updateData.enganche) : null,
             abonoSemanal: updateData.abonoSemanal ? parseFloat(updateData.abonoSemanal) : null,
             stockMinimo: updateData.stockMinimo ? parseInt(updateData.stockMinimo) : 0,
+            existencias: updateData.existencias ? parseInt(updateData.existencias) : 0,
+            enEcommerce: updateData.enEcommerce === true || updateData.enEcommerce === 'true',
         };
 
         const producto = await prisma.producto.update({

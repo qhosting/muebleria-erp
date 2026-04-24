@@ -435,12 +435,16 @@ model Producto {
   codigo        String   @unique
   nombre        String
   descripcion   String?
+  detalles      String?
   categoria     String?
   precioCompra  Decimal  @db.Decimal(10, 2)
   precioVenta   Decimal  @db.Decimal(10, 2)
   unidadMedida  String   @default("pieza")
+  existencias   Int      @default(0)
   stockMinimo   Int      @default(0)
   imagenUrl     String?
+  imagenes      String[] @default([])
+  enEcommerce   Boolean  @default(false)
   marca         String?
   medida        String?
   precio6Meses  Decimal? @db.Decimal(10, 2)

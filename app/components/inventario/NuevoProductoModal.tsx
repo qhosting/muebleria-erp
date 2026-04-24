@@ -9,28 +9,35 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { Sparkles, Package, Globe, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
 
 export function NuevoProductoModal({ isOpen, onClose, onSuccess, producto }: any) {
     const [loading, setLoading] = useState(false);
+    const [generatingAI, setGeneratingAI] = useState(false);
     const [formData, setFormData] = useState({
         id: '',
         codigo: '',
         nombre: '',
         descripcion: '',
+        detalles: '',
         categoria: '',
         unidadMedida: 'pieza',
-        precioCompra: '',
-        precioVenta: '',
+        existencias: '0',
         stockMinimo: '5',
         marca: '',
         medida: '',
+        precioCompra: '',
+        precioVenta: '',
         precio6Meses: '',
         precio12Meses: '',
         numSemanas: '',
         enganche: '',
         abonoSemanal: '',
-        garantia: ''
+        garantia: '',
+        enEcommerce: false,
+        imagenes: [] as string[]
     });
 
     useEffect(() => {
@@ -40,8 +47,10 @@ export function NuevoProductoModal({ isOpen, onClose, onSuccess, producto }: any
                 codigo: producto.codigo || '',
                 nombre: producto.nombre || '',
                 descripcion: producto.descripcion || '',
+                detalles: producto.detalles || '',
                 categoria: producto.categoria || '',
                 unidadMedida: producto.unidadMedida || 'pieza',
+                existencias: producto.existencias?.toString() || '0',
                 precioCompra: producto.precioCompra?.toString() || '',
                 precioVenta: producto.precioVenta?.toString() || '',
                 stockMinimo: producto.stockMinimo?.toString() || '5',
@@ -52,7 +61,9 @@ export function NuevoProductoModal({ isOpen, onClose, onSuccess, producto }: any
                 numSemanas: producto.numSemanas?.toString() || '',
                 enganche: producto.enganche?.toString() || '',
                 abonoSemanal: producto.abonoSemanal?.toString() || '',
-                garantia: producto.garantia || ''
+                garantia: producto.garantia || '',
+                enEcommerce: producto.enEcommerce || false,
+                imagenes: producto.imagenes || []
             });
         } else {
             setFormData({
@@ -60,8 +71,10 @@ export function NuevoProductoModal({ isOpen, onClose, onSuccess, producto }: any
                 codigo: '',
                 nombre: '',
                 descripcion: '',
+                detalles: '',
                 categoria: '',
                 unidadMedida: 'pieza',
+                existencias: '0',
                 precioCompra: '',
                 precioVenta: '',
                 stockMinimo: '5',
@@ -72,10 +85,41 @@ export function NuevoProductoModal({ isOpen, onClose, onSuccess, producto }: any
                 numSemanas: '',
                 enganche: '',
                 abonoSemanal: '',
-                garantia: ''
+                garantia: '',
+                enEcommerce: false,
+                imagenes: []
             });
         }
     }, [producto, isOpen]);
+
+    const generateAIDescription = async () => {
+        if (!formData.nombre) {
+            toast.error('Ingresa al menos el nombre del producto');
+            return;
+        }
+
+        setGeneratingAI(true);
+        try {
+            // Reutilizamos el servicio de IA para generar descripción
+            const prompt = `Genera una descripción profesional y atractiva para ecommerce del siguiente producto: ${formData.nombre} de la marca ${formData.marca || 'Genérica'}. Incluye detalles técnicos si es posible. No uses más de 150 palabras.`;
+            
+            const res = await fetch('/api/ai/ Sofia', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: prompt, history: '' })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setFormData(prev => ({ ...prev, detalles: data.respuesta }));
+                toast.success('Descripción generada por Sofía');
+            }
+        } catch (error) {
+            toast.error('Error al contactar al asistente');
+        } finally {
+            setGeneratingAI(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -187,6 +231,24 @@ export function NuevoProductoModal({ isOpen, onClose, onSuccess, producto }: any
                             />
                         </div>
                         <div className="grid gap-2">
+                            <Label htmlFor="existencias" className="flex items-center gap-2">
+                                <Package className="w-4 h-4 text-blue-500" />
+                                Existencias (Piezas)
+                            </Label>
+                            <Input
+                                id="existencias"
+                                name="existencias"
+                                type="number"
+                                placeholder="0"
+                                value={formData.existencias}
+                                onChange={handleChange}
+                                className="border-blue-200 focus:border-blue-500"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
                             <Label htmlFor="garantia">Garantía</Label>
                             <Input
                                 id="garantia"
@@ -196,18 +258,63 @@ export function NuevoProductoModal({ isOpen, onClose, onSuccess, producto }: any
                                 onChange={handleChange}
                             />
                         </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="imagenes" className="flex items-center gap-2">
+                                <ImageIcon className="w-4 h-4 text-slate-500" />
+                                URLs de Imágenes (sep. por coma)
+                            </Label>
+                            <Input
+                                id="imagenes"
+                                name="imagenes"
+                                placeholder="https://..., https://..."
+                                value={formData.imagenes.join(', ')}
+                                onChange={(e) => setFormData(prev => ({ ...prev, imagenes: e.target.value.split(',').map(s => s.trim()) }))}
+                            />
+                        </div>
                     </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="descripcion">Descripción / Detalles para E-commerce</Label>
-                        <Textarea
-                            id="descripcion"
-                            name="descripcion"
-                            placeholder="Describe el producto para tus clientes..."
-                            className="h-20"
-                            value={formData.descripcion}
-                            onChange={handleChange}
-                        />
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Globe className="w-5 h-5 text-emerald-600" />
+                                <div>
+                                    <Label className="text-sm font-bold">Mostrar en E-commerce</Label>
+                                    <p className="text-xs text-slate-500">Habilita este producto en tu tienda en línea</p>
+                                </div>
+                            </div>
+                            <Switch 
+                                checked={formData.enEcommerce} 
+                                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enEcommerce: checked }))}
+                            />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="detalles" className="flex items-center gap-2">
+                                    <FileText className="w-4 h-4 text-slate-500" />
+                                    Descripción Detallada
+                                </Label>
+                                <Button 
+                                    type="button" 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 gap-2 text-xs font-bold"
+                                    onClick={generateAIDescription}
+                                    disabled={generatingAI}
+                                >
+                                    {generatingAI ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                                    Asistente Sofía
+                                </Button>
+                            </div>
+                            <Textarea
+                                id="detalles"
+                                name="detalles"
+                                placeholder="Describe el producto para tus clientes (esto se verá en la web)..."
+                                className="h-28 text-sm"
+                                value={formData.detalles}
+                                onChange={handleChange}
+                            />
+                        </div>
                     </div>
 
                     <Separator />
