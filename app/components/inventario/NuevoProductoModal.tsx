@@ -259,17 +259,57 @@ export function NuevoProductoModal({ isOpen, onClose, onSuccess, producto }: any
                             />
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="imagenes" className="flex items-center gap-2">
+                            <Label className="flex items-center gap-2">
                                 <ImageIcon className="w-4 h-4 text-slate-500" />
-                                URLs de Imágenes (sep. por coma)
+                                Imágenes del Producto
                             </Label>
-                            <Input
-                                id="imagenes"
-                                name="imagenes"
-                                placeholder="https://..., https://..."
-                                value={formData.imagenes.join(', ')}
-                                onChange={(e) => setFormData(prev => ({ ...prev, imagenes: e.target.value.split(',').map(s => s.trim()) }))}
-                            />
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {formData.imagenes.map((img, idx) => (
+                                    <div key={idx} className="relative w-16 h-16 rounded-md overflow-hidden border bg-white group">
+                                        <img src={img} alt="Preview" className="w-full h-full object-cover" />
+                                        <button 
+                                            type="button"
+                                            className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onClick={() => setFormData(prev => ({ ...prev, imagenes: prev.imagenes.filter((_, i) => i !== idx) }))}
+                                        >
+                                            <span className="text-[10px] text-white font-bold">Quitar</span>
+                                        </button>
+                                    </div>
+                                ))}
+                                <label className="w-16 h-16 rounded-md border-2 border-dashed border-slate-200 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all">
+                                    <Plus className="w-4 h-4 text-slate-400" />
+                                    <span className="text-[8px] text-slate-400 uppercase font-bold mt-1">Subir</span>
+                                    <input 
+                                        type="file" 
+                                        className="hidden" 
+                                        accept="image/*"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+
+                                            const uploadFormData = new FormData();
+                                            uploadFormData.append('file', file);
+
+                                            toast.promise(
+                                                fetch('/api/upload', {
+                                                    method: 'POST',
+                                                    body: uploadFormData
+                                                }).then(async (res) => {
+                                                    if (!res.ok) throw new Error('Error al subir');
+                                                    const data = await res.json();
+                                                    setFormData(prev => ({ ...prev, imagenes: [...prev.imagenes, data.url] }));
+                                                    return data;
+                                                }),
+                                                {
+                                                    loading: 'Subiendo imagen...',
+                                                    success: 'Imagen subida correctamente',
+                                                    error: 'Error al subir imagen'
+                                                }
+                                            );
+                                        }}
+                                    />
+                                </label>
+                            </div>
                         </div>
                     </div>
 
