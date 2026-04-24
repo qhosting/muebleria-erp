@@ -40,7 +40,10 @@ export async function GET(request: NextRequest) {
           whatsappEnabled: false,
           emailEnabled: true,
           smsEnabled: false,
-          recordatoriosDias: 2
+          recordatoriosDias: 2,
+          wahaApiUrl: '',
+          wahaApiKey: '',
+          wahaSessionName: 'default'
         },
         sincronizacion: {
           intervaloMinutos: 15,

@@ -41,11 +41,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Enviar por WhatsApp
-    const wahaConfig = {
-      apiUrl: process.env.WAHA_API_URL || '',
-      session: process.env.WAHA_SESSION_NAME || 'default',
-      apiKey: process.env.WAHA_API_KEY
-    };
+    const wahaConfig = await getWahaConfig(prisma);
 
     if (wahaConfig.apiUrl) {
       const message = `*VertexERP - Código de Verificación*\n\nTu código es: *${code}*\n\nEste código expira en 10 minutos. No lo compartas con nadie.`;

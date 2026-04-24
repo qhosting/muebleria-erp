@@ -95,11 +95,7 @@ export async function POST(request: NextRequest) {
         });
 
         // 6. Enviar respuesta por WhatsApp
-        const wahaConfig: WahaConfig = {
-            apiUrl: process.env.WAHA_API_URL || '',
-            session: process.env.WAHA_SESSION_NAME || session || 'default',
-            apiKey: process.env.WAHA_API_KEY
-        };
+        const wahaConfig = await getWahaConfig(prisma);
 
         if (wahaConfig.apiUrl) {
             await sendWahaMessage(wahaConfig, from, aiResponse.respuesta);

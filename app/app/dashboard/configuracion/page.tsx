@@ -41,7 +41,7 @@ interface ConfiguracionSistema {
   notificaciones: {
     whatsappEnabled: boolean;
     wahaApiUrl: string;
-    wahaSession: string;
+    wahaSessionName: string;
     wahaApiKey?: string;
     emailEnabled: boolean;
     smsEnabled: boolean;
@@ -77,7 +77,7 @@ export default function ConfiguracionPage() {
     notificaciones: {
       whatsappEnabled: false,
       wahaApiUrl: '',
-      wahaSession: 'default',
+      wahaSessionName: 'default',
       wahaApiKey: '',
       emailEnabled: true,
       smsEnabled: false,
@@ -316,11 +316,12 @@ export default function ConfiguracionPage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="wahaSession">Sesión de WAHA</Label>
+                  <Label htmlFor="wahaSession">Nombre de Sesión (WAHA)</Label>
                   <Input
                     id="wahaSession"
-                    value={config.notificaciones.wahaSession}
-                    onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, wahaSession: e.target.value } })}
+                    placeholder="Ej. Domiahome"
+                    value={config.notificaciones.wahaSessionName}
+                    onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, wahaSessionName: e.target.value } })}
                   />
                 </div>
                 <div>

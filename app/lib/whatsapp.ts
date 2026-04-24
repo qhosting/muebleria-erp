@@ -9,6 +9,45 @@ export interface WahaConfig {
     apiKey?: string;
 }
 
+/**
+ * Obtiene la configuración de WAHA priorizando variables de entorno
+ * y cayendo opcionalmente a la base de datos si se provee el cliente de prisma.
+ */
+export async function getWahaConfig(prisma?: any): Promise<WahaConfig> {
+    // 1. Prioridad: Variables de Entorno
+    const envConfig: WahaConfig = {
+        apiUrl: process.env.WAHA_API_URL || '',
+        session: process.env.WAHA_SESSION_NAME || process.env.WAHA_SESSION || 'default',
+        apiKey: process.env.WAHA_API_KEY
+    };
+
+    if (envConfig.apiUrl && envConfig.session) {
+        return envConfig;
+    }
+
+    // 2. Fallback: Base de Datos
+    if (prisma) {
+        try {
+            const config = await prisma.configuracionSistema.findUnique({
+                where: { clave: 'sistema' }
+            });
+
+            if (config?.notificaciones) {
+                const notif = config.notificaciones as any;
+                return {
+                    apiUrl: notif.wahaApiUrl || envConfig.apiUrl,
+                    session: notif.wahaSessionName || notif.wahaSession || envConfig.session,
+                    apiKey: notif.wahaApiKey || envConfig.apiKey
+                };
+            }
+        } catch (error) {
+            console.error("Error cargando WAHA config desde DB:", error);
+        }
+    }
+
+    return envConfig;
+}
+
 export async function sendWahaMessage(
     config: WahaConfig,
     to: string,
