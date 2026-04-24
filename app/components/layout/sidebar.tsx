@@ -243,11 +243,11 @@ export function Sidebar({ className, session }: SidebarProps) {
                 {configLoading ? (
                   <Skeleton className="h-4 w-32 mb-1" />
                 ) : (
-                  <h1 className="font-semibold text-gray-900 text-sm truncate max-w-[150px]">
-                    {companyName || 'VertexERP'}
+                  <h1 className="font-bold text-gray-900 text-sm truncate max-w-[150px] uppercase">
+                    {companyName || 'DASOPLUS'}
                   </h1>
                 )}
-                <p className="text-[10px] leading-tight text-gray-500">Sistema de Cobranza</p>
+                <p className="text-[10px] font-medium leading-tight text-blue-600">VertexERP</p>
               </div>
             )}
           </div>

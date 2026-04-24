@@ -340,11 +340,11 @@ export function LoginForm() {
             </div>
           ) : (
             <>
-              <h1 className="text-3xl font-bold text-white mb-2">
-                {companyName || 'VertexERP Muebles'}
+              <h1 className="text-3xl font-bold text-white mb-2 uppercase">
+                {companyName || 'DASOPLUS'}
               </h1>
-              <p className="text-blue-200">
-                Sistema de Gestión y Cobranza
+              <p className="text-blue-100 font-medium tracking-wide">
+                VertexERP
               </p>
             </>
           )}
