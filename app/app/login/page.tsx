@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { LoginForm } from './login-form';
+import LoginForm from './login-form';
 
 export default async function LoginPage() {
   if (isCapacitor) {

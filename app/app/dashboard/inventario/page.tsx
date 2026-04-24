@@ -212,6 +212,14 @@ export default function InventarioPage() {
                                                             <StockBadge cantidad={producto.stockTotal} minimo={producto.stockMinimo} />
                                                         </td>
                                                         <td className="p-3">
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {producto.stockPorSucursal?.map((s: any) => (
+                                                                    s.cantidad > 0 && (
+                                                                        <Badge key={s.sucursalId} variant="outline" className="text-xs">
+                                                                            {s.sucursalNombre}: {s.cantidad}
+                                                                        </Badge>
+                                                                    )
+                                                                ))}
                                                             </div>
                                                         </td>
                                                         <td className="p-3 text-right">
