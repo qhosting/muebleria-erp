@@ -43,6 +43,7 @@ export function ImportarDesdeImagenModal({
   const [step, setStep] = useState<'upload' | 'analyzing' | 'preview' | 'success'>('upload');
   const [progress, setProgress] = useState(0);
   const [extractedData, setExtractedData] = useState<any[]>([]);
+  const [resetKey, setResetKey] = useState(0);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -106,6 +107,9 @@ export function ImportarDesdeImagenModal({
     setExtractedData([]);
     setProgress(0);
     setStep('upload');
+    setUploading(false);
+    setAnalyzing(false);
+    setResetKey(prev => prev + 1);
   };
 
   return (
@@ -128,6 +132,7 @@ export function ImportarDesdeImagenModal({
               onClick={() => document.getElementById('image-upload')?.click()}
             >
               <input
+                key={resetKey}
                 id="image-upload"
                 type="file"
                 accept="image/*"
