@@ -28,7 +28,7 @@ export default function Error({
         <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Ups! Algo salió mal</h2>
         <p className="text-gray-600 mb-8">
           Ha ocurrido un error inesperado en la aplicación. 
-          {error.digest && (
+          {error && error.digest && (
             <span className="block mt-2 text-xs font-mono text-gray-400">
               ID del error: {error.digest}
             </span>

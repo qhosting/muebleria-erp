@@ -14,7 +14,12 @@ export default async function HomePage() {
     return <LandingPage />;
   }
 
-  const session = await getServerSession(authOptions);
+  let session = null;
+  try {
+    session = await getServerSession(authOptions);
+  } catch (error) {
+    console.error('Error fetching session:', error);
+  }
 
   // Si hay sesión activa, redirigir al área correspondiente
   if (session) {
