@@ -249,7 +249,7 @@ export async function extractTicketFromImage(base64Image: string): Promise<any> 
     Si un campo no se encuentra, su valor debe ser null. No inventes datos ni incluyas texto adicional.
 
     INSTRUCCIONES POR CAMPO:
-    - "contrato": Deja este campo como null (se proporcionará externamente).
+    - "contrato": Busca patrones como DQXXXXXXX o DPXXXXXXX (donde X son números) dentro de cualquier parte del ticket (Concepto, Referencia, Descripción). Si lo encuentras, extráelo.
     - "monto": El importe principal de la transacción, ignorando siempre comisiones, IVA o el "PAGO TOTAL".
     - "referencia": Busca el número de "REFERENCIA". Si está oculto con asteriscos (ej: **********1858), extrae solo la parte numérica.
     - "folio": 
@@ -261,7 +261,7 @@ export async function extractTicketFromImage(base64Image: string): Promise<any> 
     - "claverastreo": Busca el campo "CLAVE DE RASTREO". Si aparece en dos líneas, júntalas sin espacios ni guiones.
 
     EJEMPLO DE RESPUESTA:
-    {"contrato":null,"monto":500.00,"referencia":"1858","folio":"4090400","fecha":"2025-08-11","hr":"11:25:00","claverastreo":null}
+    {"contrato":"DQ2506016","monto":500.00,"referencia":"1858","folio":"4090400","fecha":"2025-08-11","hr":"11:25:00","claverastreo":null}
     `;
 
     const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiKey;

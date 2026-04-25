@@ -56,30 +56,41 @@ async function handleTesoreria(from: string, payload: any, session: string) {
     if (payload.type === 'image') {
         const caption = (payload.caption || '').trim().toUpperCase();
         const isContractId = /^(DQ|DP)\d{7}$/.test(caption);
-        const contractId = isContractId ? caption : (cliente?.codigoCliente || null);
+        let contractId = isContractId ? caption : (cliente?.codigoCliente || null);
+        const imageBase64 = payload.media?.data || payload.body;
 
-        // Si no hay contrato identificado, guardamos como pendiente
-        if (!contractId) {
+        // Intentamos procesar con IA para ver si el contrato está DENTRO de la imagen
+        await sendWahaMessage(config, from, "⏳ Analizando comprobante... un momento por favor.");
+        const extracted = await extractTicketFromImage(imageBase64);
+
+        // Si la IA encontró un contrato y no teníamos uno, lo usamos
+        if (!contractId && extracted.contrato) {
+            contractId = extracted.contrato.trim().toUpperCase();
+            console.log(`🔍 Contrato detectado por IA dentro de la imagen: ${contractId}`);
+        }
+
+        // Si aún no hay contrato identificado, guardamos como pendiente
+        if (!contractId || !/^(DQ|DP)\d{7}$/.test(contractId)) {
             await db.ticketPendiente.upsert({
                 where: { remitente: from },
                 update: { 
-                    base64Data: payload.media?.data || payload.body, // Depende de la config de WAHA
+                    base64Data: imageBase64,
                     tipoArchivo: payload.media?.mimetype || 'image/jpeg',
                     updatedAt: new Date()
                 },
                 create: {
                     remitente: from,
-                    base64Data: payload.media?.data || payload.body,
+                    base64Data: imageBase64,
                     tipoArchivo: payload.media?.mimetype || 'image/jpeg'
                 }
             });
 
-            await sendWahaMessage(config, from, "✅ Imagen recibida. No reconozco tu número de teléfono. 🧐 Por favor, envía ahora tu *Número de Cliente* (ej: DQ1234567) para procesar tu pago.");
+            await sendWahaMessage(config, from, "✅ Imagen recibida. No logré identificar tu número de contrato automáticamente. 🧐 Por favor, envía ahora tu *Número de Cliente* (ej: DQ1234567) para procesar tu pago.");
             return NextResponse.json({ status: 'pending_contract' });
         }
 
-        // Si tenemos contrato (por caption o por teléfono), procesamos la imagen con IA
-        return await processTicketImage(from, payload.media?.data || payload.body, contractId, config);
+        // Si tenemos contrato (por caption, por teléfono o por IA), finalizamos el proceso
+        return await finalizeTicketCreation(from, extracted, contractId, config);
     }
 
     // 3. Manejo de TEXTO (Posible número de contrato para un pendiente)
@@ -92,7 +103,8 @@ async function handleTesoreria(from: string, payload: any, session: string) {
         });
 
         if (pendiente) {
-            const response = await processTicketImage(from, pendiente.base64Data, text, config);
+            const extracted = await extractTicketFromImage(pendiente.base64Data);
+            const response = await finalizeTicketCreation(from, extracted, text, config);
             // Limpiar el pendiente una vez procesado
             await db.ticketPendiente.delete({ where: { remitente: from } });
             return response;
@@ -105,14 +117,10 @@ async function handleTesoreria(from: string, payload: any, session: string) {
 }
 
 /**
- * Procesa la imagen del ticket con IA y realiza la conciliación
+ * Finaliza la creación del ticket y la conciliación una vez obtenidos los datos y el contrato
  */
-async function processTicketImage(from: string, base64: string, contractId: string, config: any) {
+async function finalizeTicketCreation(from: string, extracted: any, contractId: string, config: any) {
     try {
-        await sendWahaMessage(config, from, "⏳ Analizando comprobante... un momento por favor.");
-        
-        const extracted = await extractTicketFromImage(base64);
-        
         // Buscar el ID interno del cliente por su código
         const clienteRecord = await prisma.cliente.findUnique({
             where: { codigoCliente: contractId }
@@ -142,7 +150,7 @@ async function processTicketImage(from: string, base64: string, contractId: stri
         const movimiento = await prisma.movimientoBancario.findFirst({
             where: {
                 OR: [
-                    { claveRastreo: extracted.claverastreo, claveRastreo: { not: null } },
+                    { claveRastreo: extracted.claverastreo, claveRastreo: { not: null, not: '' } },
                     { 
                         abono: parseFloat(extracted.monto),
                         fechaOperacion: extracted.fecha ? new Date(extracted.fecha) : undefined,
@@ -173,8 +181,8 @@ async function processTicketImage(from: string, base64: string, contractId: stri
         return NextResponse.json({ status: 'success', ticketId: ticket.id });
 
     } catch (error: any) {
-        console.error("Error procesando imagen:", error);
-        await sendWahaMessage(config, from, "❌ Lo siento, hubo un error al procesar la imagen. Por favor intenta de nuevo o contacta a soporte.");
+        console.error("Error finalizando ticket:", error);
+        await sendWahaMessage(config, from, "❌ Lo siento, hubo un error al procesar la información. Por favor intenta de nuevo o contacta a soporte.");
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
