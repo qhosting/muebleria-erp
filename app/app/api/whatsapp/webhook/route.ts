@@ -150,7 +150,7 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
         const movimiento = await prisma.movimientoBancario.findFirst({
             where: {
                 OR: [
-                    { claveRastreo: extracted.claverastreo, claveRastreo: { not: null, not: '' } },
+                    ...(extracted.claverastreo ? [{ claveRastreo: extracted.claverastreo }] : []),
                     { 
                         abono: parseFloat(extracted.monto),
                         fechaOperacion: extracted.fecha ? new Date(extracted.fecha) : undefined,
