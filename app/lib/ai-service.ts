@@ -238,3 +238,67 @@ export async function extractProductsFromImage(base64Image: string): Promise<any
         throw e;
     }
 }
+
+export async function extractTicketFromImage(base64Image: string): Promise<any> {
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!geminiKey) throw new Error("GEMINI_API_KEY no configurada");
+
+    const prompt = `
+    Tu única función es actuar como un API de extracción de datos de recibos de pago y comprobantes digitales. 
+    Analiza la imagen y devuelve EXCLUSIVAMENTE un objeto JSON válido. 
+    Si un campo no se encuentra, su valor debe ser null. No inventes datos ni incluyas texto adicional.
+
+    INSTRUCCIONES POR CAMPO:
+    - "contrato": Deja este campo como null (se proporcionará externamente).
+    - "monto": El importe principal de la transacción, ignorando siempre comisiones, IVA o el "PAGO TOTAL".
+    - "referencia": Busca el número de "REFERENCIA". Si está oculto con asteriscos (ej: **********1858), extrae solo la parte numérica.
+    - "folio": 
+        1. Prioridad 1: Busca "# DE AFILIACION" o "AFILIACION".
+        2. Prioridad 2: Busca "AUTORIZACION".
+        3. Prioridad 3: Busca "FOLIO DE VENTA".
+    - "fecha": La fecha de la operación, formateada como AAAA-MM-DD.
+    - "hr": La hora de la operación, formateada como HH:MM:SS (completa con :00 si es necesario).
+    - "claverastreo": Busca el campo "CLAVE DE RASTREO". Si aparece en dos líneas, júntalas sin espacios ni guiones.
+
+    EJEMPLO DE RESPUESTA:
+    {"contrato":null,"monto":500.00,"referencia":"1858","folio":"4090400","fecha":"2025-08-11","hr":"11:25:00","claverastreo":null}
+    `;
+
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiKey;
+    
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            contents: [{
+                parts: [
+                    { text: prompt },
+                    {
+                        inline_data: {
+                            mime_type: "image/jpeg",
+                            data: base64Image.split(',')[1] || base64Image
+                        }
+                    }
+                ]
+            }],
+            generationConfig: {
+                response_mime_type: "application/json",
+            }
+        })
+    });
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error("Gemini Ticket Extraction Error: " + err);
+    }
+
+    const data = await response.json();
+    const text = data.candidates[0].content.parts[0].text;
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) return JSON.parse(match[0]);
+        throw e;
+    }
+}

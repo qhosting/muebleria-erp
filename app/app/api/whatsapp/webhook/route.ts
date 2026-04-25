@@ -1,117 +1,245 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { detectIntent } from '@/lib/ai-service';
-import { sendWahaMessage, getWahaConfig, WahaConfig } from '@/lib/whatsapp';
+import { detectIntent, extractTicketFromImage } from '@/lib/ai-service';
+import { sendWahaMessage, getWahaConfig } from '@/lib/whatsapp';
 
-// Cast prisma to any to handle new models not yet recognized by stale TS cache
+// Cast prisma to any for flexibility with dynamically loaded models/fields
 const db = prisma as any;
 
+/**
+ * WEBHOOK PRINCIPAL PARA WHATSAPP (WAHA API)
+ * Gestiona dos flujos: Tesorería (Pagos) y Oficina (Leads/Ventas)
+ */
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        
-        // WAHA Webhook Payload structure
         const { event, payload, session } = body;
 
-        // Solo procesamos mensajes entrantes que no sean nuestros
+        // Solo procesamos mensajes entrantes de otros
         if (event !== 'message' || !payload || payload.fromMe) {
             return NextResponse.json({ status: 'ignored' });
         }
 
-        const from = payload.from.split('@')[0]; // Limpiar @c.us
-        const messageBody = payload.body;
+        const from = payload.from.split('@')[0]; // Número de teléfono sin @c.us
+        const messageBody = payload.body || '';
+        const messageType = payload.type; // 'chat', 'image', etc.
 
-        if (!messageBody) {
-            return NextResponse.json({ status: 'no_body' });
+        console.log(`📩 [${session}] Mensaje de ${from}: ${messageType === 'image' ? '[IMAGEN]' : messageBody}`);
+
+        // RUTA 1: TESORERÍA (PROCESAMIENTO DE PAGOS)
+        if (session === 'tesoreria' || session === process.env.WAHA_SESSION_TESORERIA) {
+            return await handleTesoreria(from, payload, session);
         }
 
-        console.log(`📩 Mensaje recibido de ${from}: ${messageBody}`);
-
-        // 1. Guardar mensaje del usuario en el historial
-        await db.leadChat.create({
-            data: {
-                telefono: from,
-                rol: 'user',
-                mensaje: messageBody,
-            }
-        });
-
-        // 2. Obtener historial reciente (últimos 10 mensajes)
-        const history = await db.leadChat.findMany({
-            where: { telefono: from },
-            orderBy: { createdAt: 'asc' },
-            take: 10
-        });
-
-        const historyText = history
-            .map((h: any) => `${h.rol === 'user' ? 'Cliente' : 'Sofía'}: ${h.mensaje}`)
-            .join('\n');
-
-        // 3. Detectar intención con IA
-        const aiResponse = await detectIntent(historyText, messageBody);
-
-        // 4. Guardar respuesta de la IA en el historial
-        await db.leadChat.create({
-            data: {
-                telefono: from,
-                rol: 'assistant',
-                mensaje: aiResponse.respuesta,
-            }
-        });
-
-        // 5. Gestionar el Lead en la base de datos
-        let lead = await prisma.lead.findFirst({
-            where: { telefono: from }
-        });
-
-        const leadData: any = {
-            nombre: lead?.nombre || `Prospecto ${from}`,
-            telefono: from,
-            intencion: aiResponse.intencion,
-            urgencia: aiResponse.datos_extraidos.urgencia,
-            resumenInterno: aiResponse.resumen_interno,
-            respuestaIA: aiResponse.respuesta,
-            datosExtraidos: aiResponse.datos_extraidos,
-            origen: 'oficina' as const,
-            estado: aiResponse.intencion === 'GENERAL' ? 'nuevo' : 'contactado'
-        };
-
-        if (lead) {
-            await prisma.lead.update({
-                where: { id: lead.id },
-                data: leadData
-            });
-        } else {
-            lead = await prisma.lead.create({
-                data: leadData
-            });
-        }
-
-        // Vincular los chats al lead si no estaban vinculados
-        await db.leadChat.updateMany({
-            where: { telefono: from, leadId: null },
-            data: { leadId: lead.id }
-        });
-
-        // 6. Enviar respuesta por WhatsApp
-        const wahaConfig = await getWahaConfig(prisma);
-
-        if (wahaConfig.apiUrl) {
-            await sendWahaMessage(wahaConfig, from, aiResponse.respuesta);
-            console.log(`🚀 Respuesta enviada a ${from}`);
-        } else {
-            console.warn('⚠️ WAHA_API_URL no configurada. No se envió respuesta.');
-        }
-
-        return NextResponse.json({ 
-            status: 'success', 
-            intent: aiResponse.intencion,
-            leadId: lead.id
-        });
+        // RUTA 2: OFICINA (LEADS / VENTAS / SOFÍA)
+        return await handleOficina(from, payload, session);
 
     } catch (error: any) {
         console.error('❌ Webhook Error:', error.message);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+
+/**
+ * Lógica para BotTesoreria: Recepción de tickets y conciliación
+ */
+async function handleTesoreria(from: string, payload: any, session: string) {
+    const config = await getWahaConfig(prisma, 'tesoreria');
+
+    // 1. Identificación Automática del Cliente por Número de Teléfono
+    const cliente = await prisma.cliente.findFirst({
+        where: { telefono: from }
+    });
+
+    // 2. Manejo de IMÁGENES (Comprobantes de pago)
+    if (payload.type === 'image') {
+        const caption = (payload.caption || '').trim().toUpperCase();
+        const isContractId = /^(DQ|DP)\d{7}$/.test(caption);
+        const contractId = isContractId ? caption : (cliente?.codigoCliente || null);
+
+        // Si no hay contrato identificado, guardamos como pendiente
+        if (!contractId) {
+            await db.ticketPendiente.upsert({
+                where: { remitente: from },
+                update: { 
+                    base64Data: payload.media?.data || payload.body, // Depende de la config de WAHA
+                    tipoArchivo: payload.media?.mimetype || 'image/jpeg',
+                    updatedAt: new Date()
+                },
+                create: {
+                    remitente: from,
+                    base64Data: payload.media?.data || payload.body,
+                    tipoArchivo: payload.media?.mimetype || 'image/jpeg'
+                }
+            });
+
+            await sendWahaMessage(config, from, "✅ Imagen recibida. No reconozco tu número de teléfono. 🧐 Por favor, envía ahora tu *Número de Cliente* (ej: DQ1234567) para procesar tu pago.");
+            return NextResponse.json({ status: 'pending_contract' });
+        }
+
+        // Si tenemos contrato (por caption o por teléfono), procesamos la imagen con IA
+        return await processTicketImage(from, payload.media?.data || payload.body, contractId, config);
+    }
+
+    // 3. Manejo de TEXTO (Posible número de contrato para un pendiente)
+    const text = (payload.body || '').trim().toUpperCase();
+    const isContractId = /^(DQ|DP)\d{7}$/.test(text);
+
+    if (isContractId) {
+        const pendiente = await db.ticketPendiente.findUnique({
+            where: { remitente: from }
+        });
+
+        if (pendiente) {
+            const response = await processTicketImage(from, pendiente.base64Data, text, config);
+            // Limpiar el pendiente una vez procesado
+            await db.ticketPendiente.delete({ where: { remitente: from } });
+            return response;
+        }
+    }
+
+    // Respuesta por defecto para Tesorería
+    await sendWahaMessage(config, from, "Hola! 👋 Soy el asistente de Tesorería. Para registrar un pago, por favor envía la *foto de tu comprobante*.");
+    return NextResponse.json({ status: 'waiting_receipt' });
+}
+
+/**
+ * Procesa la imagen del ticket con IA y realiza la conciliación
+ */
+async function processTicketImage(from: string, base64: string, contractId: string, config: any) {
+    try {
+        await sendWahaMessage(config, from, "⏳ Analizando comprobante... un momento por favor.");
+        
+        const extracted = await extractTicketFromImage(base64);
+        
+        // Buscar el ID interno del cliente por su código
+        const clienteRecord = await prisma.cliente.findUnique({
+            where: { codigoCliente: contractId }
+        });
+
+        if (!clienteRecord) {
+            await sendWahaMessage(config, from, `❌ No encontré el cliente con contrato *${contractId}*. Por favor verifica el número.`);
+            return NextResponse.json({ status: 'client_not_found' });
+        }
+
+        // Crear el Ticket en la base de datos
+        const ticket = await prisma.ticket.create({
+            data: {
+                clienteId: clienteRecord.id,
+                monto: parseFloat(extracted.monto) || 0,
+                referencia: extracted.referencia,
+                folio: extracted.folio,
+                fecha: extracted.fecha ? new Date(extracted.fecha) : new Date(),
+                claveRastreo: extracted.claverastreo,
+                remitente: from,
+                concepto: 'TICKET WHATSAPP',
+                conciliado: false
+            }
+        });
+
+        // Intentar Conciliación Inteligente
+        const movimiento = await prisma.movimientoBancario.findFirst({
+            where: {
+                OR: [
+                    { claveRastreo: extracted.claverastreo, claveRastreo: { not: null } },
+                    { 
+                        abono: parseFloat(extracted.monto),
+                        fechaOperacion: extracted.fecha ? new Date(extracted.fecha) : undefined,
+                        ticketId: null
+                    }
+                ]
+            }
+        });
+
+        let mensajeFinal = `✅ ¡Comprobante EN PROCESO de VALIDACIÓN!\n\n📌 *Detalles del Ticket*\n- 🆔 ID: ${ticket.id}\n- 📄 Contrato: ${contractId}\n- 💰 Monto: $${extracted.monto}\n- 🔢 Referencia: ${extracted.referencia || 'N/A'}`;
+        
+        if (movimiento) {
+            // Si hay coincidencia, conciliar inmediatamente
+            await prisma.movimientoBancario.update({
+                where: { id: movimiento.id },
+                data: { ticketId: ticket.id, clienteId: clienteRecord.id, fechaIdentificado: new Date() }
+            });
+            await prisma.ticket.update({
+                where: { id: ticket.id },
+                data: { conciliado: true }
+            });
+            mensajeFinal += `\n\n⚡ *CONCILIADO AUTOMÁTICAMENTE* ⚡`;
+        } else {
+            mensajeFinal += `\n\n⚡ *PENDIENTE DE CONCILIACIÓN BANCARIA* ⚡`;
+        }
+
+        await sendWahaMessage(config, from, mensajeFinal);
+        return NextResponse.json({ status: 'success', ticketId: ticket.id });
+
+    } catch (error: any) {
+        console.error("Error procesando imagen:", error);
+        await sendWahaMessage(config, from, "❌ Lo siento, hubo un error al procesar la imagen. Por favor intenta de nuevo o contacta a soporte.");
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+
+/**
+ * Lógica para BotOficina: Sofia AI y Leads
+ */
+async function handleOficina(from: string, payload: any, session: string) {
+    const messageBody = payload.body || '';
+    if (!messageBody) return NextResponse.json({ status: 'no_body' });
+
+    // 1. Guardar mensaje del usuario en el historial
+    await db.leadChat.create({
+        data: { telefono: from, rol: 'user', mensaje: messageBody }
+    });
+
+    // 2. Obtener historial reciente
+    const history = await db.leadChat.findMany({
+        where: { telefono: from },
+        orderBy: { createdAt: 'asc' },
+        take: 10
+    });
+
+    const historyText = history
+        .map((h: any) => `${h.rol === 'user' ? 'Cliente' : 'Sofía'}: ${h.mensaje}`)
+        .join('\n');
+
+    // 3. Detectar intención con IA
+    const aiResponse = await detectIntent(historyText, messageBody);
+
+    // 4. Guardar respuesta de la IA
+    const chat = await db.leadChat.create({
+        data: { telefono: from, rol: 'assistant', mensaje: aiResponse.respuesta }
+    });
+
+    // 5. Gestionar el Lead
+    let lead = await prisma.lead.findFirst({ where: { telefono: from } });
+    const leadData: any = {
+        nombre: lead?.nombre || `Prospecto ${from}`,
+        telefono: from,
+        intencion: aiResponse.intencion,
+        urgencia: aiResponse.datos_extraidos.urgencia,
+        resumenInterno: aiResponse.resumen_interno,
+        respuestaIA: aiResponse.respuesta,
+        datosExtraidos: aiResponse.datos_extraidos,
+        origen: 'oficina' as const,
+        estado: aiResponse.intencion === 'GENERAL' ? 'nuevo' : 'contactado'
+    };
+
+    if (lead) {
+        await prisma.lead.update({ where: { id: lead.id }, data: leadData });
+    } else {
+        lead = await prisma.lead.create({ data: leadData });
+    }
+
+    // Vincular chat al lead
+    await db.leadChat.update({ where: { id: chat.id }, data: { leadId: lead.id } });
+    await db.leadChat.updateMany({ where: { telefono: from, leadId: null }, data: { leadId: lead.id } });
+
+    // 6. Enviar respuesta por WhatsApp
+    const wahaConfig = await getWahaConfig(prisma, 'oficina');
+    if (wahaConfig.apiUrl) {
+        await sendWahaMessage(wahaConfig, from, aiResponse.respuesta);
+    }
+
+    return NextResponse.json({ status: 'success', intent: aiResponse.intencion });
+}
+

@@ -12,16 +12,27 @@ export interface WahaConfig {
 /**
  * Obtiene la configuración de WAHA priorizando variables de entorno
  * y cayendo opcionalmente a la base de datos si se provee el cliente de prisma.
+ * 
+ * @param botType Opcional: 'tesoreria' o 'oficina' para buscar configuración específica
  */
-export async function getWahaConfig(prisma?: any): Promise<WahaConfig> {
+export async function getWahaConfig(prisma?: any, botType?: 'tesoreria' | 'oficina'): Promise<WahaConfig> {
     // 1. Prioridad: Variables de Entorno
+    let session = process.env.WAHA_SESSION_NAME || process.env.WAHA_SESSION || 'default';
+    
+    // Si se especifica un tipo de bot, intentamos buscar su variable de entorno específica
+    if (botType === 'tesoreria' && process.env.WAHA_SESSION_TESORERIA) {
+        session = process.env.WAHA_SESSION_TESORERIA;
+    } else if (botType === 'oficina' && process.env.WAHA_SESSION_OFICINA) {
+        session = process.env.WAHA_SESSION_OFICINA;
+    }
+
     const envConfig: WahaConfig = {
         apiUrl: process.env.WAHA_API_URL || '',
-        session: process.env.WAHA_SESSION_NAME || process.env.WAHA_SESSION || 'default',
+        session: session,
         apiKey: process.env.WAHA_API_KEY
     };
 
-    if (envConfig.apiUrl && envConfig.session) {
+    if (envConfig.apiUrl && envConfig.session !== 'default') {
         return envConfig;
     }
 
@@ -34,9 +45,15 @@ export async function getWahaConfig(prisma?: any): Promise<WahaConfig> {
 
             if (config?.notificaciones) {
                 const notif = config.notificaciones as any;
+                
+                // Buscar sesión específica por botType en el JSON de configuración
+                let botSession = notif.wahaSessionName || notif.wahaSession || envConfig.session;
+                if (botType === 'tesoreria' && notif.wahaSessionTesoreria) botSession = notif.wahaSessionTesoreria;
+                if (botType === 'oficina' && notif.wahaSessionOficina) botSession = notif.wahaSessionOficina;
+
                 return {
                     apiUrl: notif.wahaApiUrl || envConfig.apiUrl,
-                    session: notif.wahaSessionName || notif.wahaSession || envConfig.session,
+                    session: botSession,
                     apiKey: notif.wahaApiKey || envConfig.apiKey
                 };
             }
@@ -51,9 +68,11 @@ export async function getWahaConfig(prisma?: any): Promise<WahaConfig> {
 export async function sendWahaMessage(
     config: WahaConfig,
     to: string,
-    text: string
+    text: string,
+    sessionOverride?: string
 ) {
-    if (!config.apiUrl || !config.session) {
+    const session = sessionOverride || config.session;
+    if (!config.apiUrl || !session) {
         throw new Error("WAHA API URL o Sesión no configurada");
     }
 
@@ -76,7 +95,7 @@ export async function sendWahaMessage(
         body: JSON.stringify({
             chatId: `${cleanNumber}@c.us`,
             text: text,
-            session: config.session
+            session: session
         })
     });
 
