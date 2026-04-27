@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
 
     const campaign = await prisma.smsCampaign.create({
       data: {
-        name: `Auto: ${template.name} (${dayOfWeek})`,
+        name: `Auto: ${template.name} (${dayOfWeekText})`,
         createdBy: 'SISTEMA (AUTO)',
       }
     });
