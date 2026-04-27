@@ -167,7 +167,7 @@ model Cliente {
   estado              String?
   codigoPostal        String?
   referenciaDireccion String?
-
+  
   // Identificacion
   dni                 String?
   email               String?
@@ -220,6 +220,7 @@ model Cliente {
   tickets             Ticket[]
   verificaciones      VerificacionDomiciliaria[]
   convenios           ConvenioPago[]
+  smsLogs             SmsLog[]
 
   @@map("clientes")
 }
@@ -632,4 +633,55 @@ model OtpVerification {
   verified  Boolean  @default(false)
 
   @@map("otp_verifications")
+}
+
+model SmsBalance {
+  id        String   @id @default(cuid())
+  cuenta    String   @unique // Ej: "DASO"
+  saldo     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@map("sms_balance")
+}
+
+model SmsTemplate {
+  id           String   @id @default(cuid())
+  campaignKey  String   @unique // Ej: "inicio_semana", "no_pagos"
+  name         String
+  templateText String
+  description  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("sms_templates")
+}
+
+model SmsCampaign {
+  id           String    @id @default(cuid())
+  name         String
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  totalSent    Int       @default(0)
+  totalFailed  Int       @default(0)
+  totalCost    Decimal   @default(0) @db.Decimal(10, 2)
+  createdBy    String?
+  logs         SmsLog[]
+
+  @@map("sms_campaigns")
+}
+
+model SmsLog {
+  id            String      @id @default(cuid())
+  campaignId    String?
+  clienteId     String?
+  phoneNumber   String
+  messageSent   String
+  status        String      // "SENT", "FAILED"
+  apiResponse   String?
+  createdAt     DateTime    @default(now())
+
+  campaign      SmsCampaign? @relation(fields: [campaignId], references: [id])
+  cliente       Cliente?     @relation(fields: [clienteId], references: [id])
+
+  @@map("sms_logs")
 }

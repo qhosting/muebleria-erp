@@ -84,6 +84,7 @@ const navigation: NavItem[] = [
       { name: 'Morosidad', href: '/dashboard/morosidad', icon: AlertTriangle },
       { name: 'Pagos', href: '/dashboard/pagos', icon: Receipt },
       { name: 'Saldos', href: '/dashboard/saldos', icon: Upload },
+      { name: 'Campañas SMS', href: '/dashboard/sms', icon: MessageSquare },
     ]
   },
   {
@@ -178,7 +179,7 @@ export function Sidebar({ className, session }: SidebarProps) {
   const userRole = (session?.user as any)?.role;
 
   const filteredNavigation = navigation
-    .filter(item => item.roles.includes(userRole))
+    .filter(item => item.roles.includes(userRole) || item.roles.includes('all'))
     .map(item => ({
       ...item,
       subItems: item.subItems?.filter(sub => !sub.roles || sub.roles.includes(userRole))
