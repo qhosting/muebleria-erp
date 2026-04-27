@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/db';
 import { sendSMS } from '@/lib/sms-utils';
 
 const COSTO_POR_SMS = 0.45;
