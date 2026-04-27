@@ -131,6 +131,7 @@ const navigation: NavItem[] = [
     roles: ['admin', 'gestor_cobranza'],
     subItems: [
       { name: 'Ajustes Generales', href: '/dashboard/configuracion', icon: Settings, roles: ['admin'] },
+      { name: 'Usuarios', href: '/dashboard/usuarios', icon: Users, roles: ['admin'] },
       { name: 'Plantillas', href: '/dashboard/plantillas', icon: FileText, roles: ['admin', 'gestor_cobranza'] },
     ]
   },
