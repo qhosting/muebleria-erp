@@ -32,7 +32,10 @@ export async function GET(req: NextRequest) {
     // Buscar clientes activos con teléfono
     let whereClause: any = {
       statusCuenta: 'activo',
-      telefono: { not: null, NOT: { equals: '' } },
+      AND: [
+        { telefono: { not: null } },
+        { telefono: { not: '' } }
+      ]
     };
 
     if (campaignKey === 'no_pagos') {

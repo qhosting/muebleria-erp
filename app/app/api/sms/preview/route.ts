@@ -18,7 +18,10 @@ export async function GET(req: NextRequest) {
   try {
     let whereClause: any = {
       statusCuenta: 'activo',
-      telefono: { not: null, NOT: { equals: '' } },
+      AND: [
+        { telefono: { not: null } },
+        { telefono: { not: '' } }
+      ]
     };
 
     // Filtro por rol
