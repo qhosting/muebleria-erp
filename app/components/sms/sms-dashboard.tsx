@@ -235,13 +235,13 @@ export function SmsDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="TODOS">Todos los días</SelectItem>
-                      <SelectItem value="LUNES">Lunes</SelectItem>
-                      <SelectItem value="MARTES">Martes</SelectItem>
-                      <SelectItem value="MIERCOLES">Miércoles</SelectItem>
-                      <SelectItem value="JUEVES">Jueves</SelectItem>
-                      <SelectItem value="VIERNES">Viernes</SelectItem>
-                      <SelectItem value="SABADO">Sábado</SelectItem>
-                      <SelectItem value="DOMINGO">Domingo</SelectItem>
+                      <SelectItem value="1">Lunes</SelectItem>
+                      <SelectItem value="2">Martes</SelectItem>
+                      <SelectItem value="3">Miércoles</SelectItem>
+                      <SelectItem value="4">Jueves</SelectItem>
+                      <SelectItem value="5">Viernes</SelectItem>
+                      <SelectItem value="6">Sábado</SelectItem>
+                      <SelectItem value="7">Domingo</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

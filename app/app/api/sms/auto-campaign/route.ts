@@ -19,12 +19,23 @@ export async function GET(req: NextRequest) {
 
   try {
     const today = new Date();
-    const dayOfWeek = today.toLocaleDateString('es-MX', { weekday: 'long' }).toUpperCase();
+    // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+    const dayMap: Record<number, string> = {
+      0: '7', // Domingo
+      1: '1', // Lunes
+      2: '2', // Martes
+      3: '3', // Miércoles
+      4: '4', // Jueves
+      5: '5', // Viernes
+      6: '6'  // Sábado
+    };
+    const dayNumeric = dayMap[today.getDay()];
+    const dayOfWeekText = today.toLocaleDateString('es-MX', { weekday: 'long' }).toUpperCase();
     
     // Determinar qué campaña toca
     // Lunes: Inicio de Semana
     // Otros días: Recordatorio de No Pagos
-    const campaignKey = dayOfWeek === 'LUNES' ? 'inicio_semana' : 'no_pagos';
+    const campaignKey = dayNumeric === '1' ? 'inicio_semana' : 'no_pagos';
     
     const template = await prisma.smsTemplate.findUnique({ where: { campaignKey } });
     if (!template) return NextResponse.json({ error: 'Template not found' });
