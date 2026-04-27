@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'vertexerp-v3.1.5';
+const CACHE_NAME = 'vertexerp-v3.1.6';
 const urlsToCache = [
   '/',
   '/login',
@@ -22,11 +22,11 @@ const urlsToCache = [
 
 // Instalar Service Worker con manejo de errores mejorado
 self.addEventListener('install', (event) => {
-  console.log('[SW] Instalando Service Worker v3.1.5');
+  console.log('[SW] Instalando Service Worker v3.1.6');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('[SW] Cache VertexERP Muebles v3.1.5 abierto');
+        console.log('[SW] Cache VertexERP Muebles v3.1.6 abierto');
         // Intentar agregar todas las URLs, pero continuar si alguna falla
         return Promise.allSettled(
           urlsToCache.map(url => 
@@ -47,7 +47,7 @@ self.addEventListener('install', (event) => {
 
 // Activar Service Worker y limpiar cachés antiguas
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activando Service Worker v3.1.5');
+  console.log('[SW] Activando Service Worker v3.1.6');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
