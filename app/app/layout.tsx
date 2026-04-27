@@ -3,6 +3,8 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
+import { OfflineIndicator } from '@/components/pwa/offline-indicator';
+import { PWAInstallPrompt } from '@/components/pwa/pwa-install-prompt';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -34,8 +36,14 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" />
         
         {/* PWA - Apple Touch Icons */}
-        <link rel="apple-touch-icon" href="/icon-192x192.png" sizes="192x192" />
-        <link rel="apple-touch-icon" href="/icon-512x512.png" sizes="512x512" />
+        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" sizes="167x167" href="/icon-192x192.png" />
+        
+        {/* PWA - Apple Splash Screens (Common sizes) */}
+        <link rel="apple-touch-startup-image" href="/icon-512x512.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image" href="/icon-512x512.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
         
         {/* PWA - Manifest */}
         <link rel="manifest" href="/manifest.json" />
@@ -43,7 +51,7 @@ export default function RootLayout({
         {/* PWA - Mobile Web App Capable */}
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="VertexERP Muebles" />
+        <meta name="apple-mobile-web-app-title" content="VertexERP" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         
         {/* PWA - Theme Color */}
@@ -63,11 +71,6 @@ export default function RootLayout({
                   navigator.serviceWorker.register('/sw.js')
                     .then(function(registration) {
                       console.log('✅ Service Worker registrado:', registration.scope);
-                      
-                      // Detectar cuando se instala
-                      window.addEventListener('appinstalled', () => {
-                        console.log('✅ PWA instalada exitosamente');
-                      });
                     })
                     .catch(function(err) {
                       console.error('❌ Error al registrar Service Worker:', err);
@@ -80,6 +83,8 @@ export default function RootLayout({
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <Providers>
+          <OfflineIndicator />
+          <PWAInstallPrompt />
           {children}
         </Providers>
       </body>

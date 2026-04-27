@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'vertexerp-v3.1.6';
+const CACHE_NAME = 'vertexerp-v3.2.0';
 const urlsToCache = [
   '/',
   '/login',
@@ -17,17 +17,17 @@ const urlsToCache = [
   '/manifest.json',
   '/icon-192x192.png',
   '/icon-512x512.png',
-  '/favicon.ico'
+  '/favicon.ico',
+  '/furniture_ecommerce_hero.png'
 ];
 
-// Instalar Service Worker con manejo de errores mejorado
+// Instalar Service Worker
 self.addEventListener('install', (event) => {
-  console.log('[SW] Instalando Service Worker v3.1.6');
+  console.log('[SW] Instalando Service Worker v3.2.0');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('[SW] Cache VertexERP Muebles v3.1.6 abierto');
-        // Intentar agregar todas las URLs, pero continuar si alguna falla
+        console.log('[SW] Cache VertexERP v3.2.0 abierto');
         return Promise.allSettled(
           urlsToCache.map(url => 
             cache.add(url).catch(err => {
@@ -37,142 +37,66 @@ self.addEventListener('install', (event) => {
           )
         );
       })
-      .catch(err => {
-        console.error('[SW] Error al abrir cache:', err);
-      })
   );
-  // Forzar activación inmediata
   self.skipWaiting();
 });
 
 // Activar Service Worker y limpiar cachés antiguas
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activando Service Worker v3.1.6');
+  console.log('[SW] Activando Service Worker v3.2.0');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          // Eliminar cachés que no sean la actual
-          if (cacheName !== CACHE_NAME && 
-              (cacheName.startsWith('muebleria-cobranza-') || 
-               cacheName.startsWith('laeconomica-') || 
-               cacheName.startsWith('appmuebles-') ||
-               cacheName.startsWith('vertexerp-'))) {
+          if (cacheName !== CACHE_NAME && cacheName.startsWith('vertexerp-')) {
             console.log('[SW] Eliminando caché antigua:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     })
-    .then(() => {
-      console.log('[SW] Service Worker activado correctamente');
-      // Tomar control de todas las páginas inmediatamente
-      return self.clients.claim();
-    })
-    .catch(err => {
-      console.error('[SW] Error al activar Service Worker:', err);
-    })
+    .then(() => self.clients.claim())
   );
 });
 
-// Buscar en cache con estrategia Network First para páginas dinámicas
+// Estrategia: Network First con Timeout para navegación, Cache First para estáticos
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  
-// Ya no redirigimos la raíz a login porque ahora tenemos la Landing Page pública
 
   // Solo manejar requests del mismo origen
-  if (url.origin !== self.location.origin) {
-    return;
-  }
+  if (url.origin !== self.location.origin) return;
 
-  // Ignorar requests de API y WebSocket
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/_next/webpack-hmr')) {
-    return;
-  }
+  // Ignorar APIs y HMR
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/_next/webpack-hmr')) return;
 
-  // Para páginas de dashboard, login y la raíz, usar estrategia Network First con timeout
+  // Estrategia para páginas de navegación
   if (url.pathname.startsWith('/dashboard') || url.pathname === '/login' || url.pathname === '/') {
     event.respondWith(
-      // Intentar fetch con timeout
-      Promise.race([
-        fetch(event.request),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('timeout')), 5000)
-        )
-      ])
-      .then((response) => {
-        // Si la respuesta es exitosa, guardar en cache y devolver
-        if (response && response.status === 200 && response.type === 'basic') {
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              cache.put(event.request, responseToCache);
-            })
-            .catch(err => console.warn('[SW] Error al guardar en cache:', err));
-        }
-        return response;
-      })
-      .catch((err) => {
-        console.log('[SW] Red no disponible, usando cache para:', url.pathname);
-        // Si la red falla, intentar desde cache
-        return caches.match(event.request)
-          .then((cachedResponse) => {
-            if (cachedResponse) {
-              return cachedResponse;
-            }
-            
-            // Si no hay cache y es una página de navegación, devolver el dashboard principal
-            if (url.pathname.startsWith('/dashboard') && url.pathname !== '/dashboard') {
-              return caches.match('/dashboard');
-            }
-            
-            // Para login, intentar desde cache
-            if (url.pathname === '/login') {
-              return caches.match('/login');
-            }
-            
-            return new Response('Página no disponible offline', { 
-              status: 503, 
-              statusText: 'Service Unavailable',
-              headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-            });
-          });
-      })
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then(cached => cached || caches.match('/dashboard')))
     );
     return;
   }
 
-  // Para otros recursos, usar estrategia Cache First
+  // Estrategia Cache First para otros recursos (imágenes, fuentes, scripts)
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        if (response) {
-          return response;
-        }
+        if (response) return response;
         
-        return fetch(event.request)
-          .then((response) => {
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              })
-              .catch(err => console.warn('[SW] Error al guardar recurso en cache:', err));
-
-            return response;
-          })
-          .catch(err => {
-            console.warn('[SW] Error al cargar recurso:', url.pathname, err);
-            return new Response('Recurso no disponible', { 
-              status: 404,
-              headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-            });
-          });
+        return fetch(event.request).then((response) => {
+          if (!response || response.status !== 200 || response.type !== 'basic') return response;
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          return response;
+        });
       })
   );
 });
@@ -186,40 +110,14 @@ self.addEventListener('sync', (event) => {
 
 async function syncPayments() {
   try {
-    // Obtener pagos pendientes de sincronización desde IndexedDB
-    // Esta funcionalidad se implementaría con IndexedDB
-    console.log('Sincronizando pagos pendientes...');
-    
-    // Simulación de sincronización
+    console.log('[SW] Sincronizando pagos pendientes...');
     const response = await fetch('/api/sync/pagos', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        pagos: [] // Pagos desde IndexedDB
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'background-sync' })
     });
-
-    if (response.ok) {
-      console.log('Pagos sincronizados exitosamente');
-      // Limpiar pagos sincronizados de IndexedDB
-    }
+    if (response.ok) console.log('[SW] Pagos sincronizados exitosamente');
   } catch (error) {
-    console.error('Error en sincronización:', error);
+    console.error('[SW] Error en sincronización:', error);
   }
 }
-
-// Notificaciones push (para futuras implementaciones)
-self.addEventListener('push', (event) => {
-  const options = {
-    body: 'Tienes pagos pendientes de sincronización',
-    icon: '/icon-192x192.png',
-    badge: '/icon-192x192.png'
-  };
-
-  event.waitUntil(
-    self.registration.showNotification('VertexERP Muebles', options)
-  );
-});
-
