@@ -13,17 +13,17 @@ export interface WahaConfig {
  * Obtiene la configuración de WAHA priorizando variables de entorno
  * y cayendo opcionalmente a la base de datos si se provee el cliente de prisma.
  * 
- * @param botType Opcional: 'tesoreria' o 'oficina' para buscar configuración específica
+ * @param botType Opcional: 'tesoreria' o 'leads' para buscar configuración específica
  */
-export async function getWahaConfig(prisma?: any, botType?: 'tesoreria' | 'oficina'): Promise<WahaConfig> {
+export async function getWahaConfig(prisma?: any, botType?: 'tesoreria' | 'leads'): Promise<WahaConfig> {
     // 1. Prioridad: Variables de Entorno
     let session = process.env.WAHA_SESSION_NAME || process.env.WAHA_SESSION || 'default';
     
     // Si se especifica un tipo de bot, intentamos buscar su variable de entorno específica
     if (botType === 'tesoreria' && process.env.WAHA_SESSION_TESORERIA) {
         session = process.env.WAHA_SESSION_TESORERIA;
-    } else if (botType === 'oficina' && process.env.WAHA_SESSION_OFICINA) {
-        session = process.env.WAHA_SESSION_OFICINA;
+    } else if (botType === 'leads' && process.env.WAHA_SESSION_LEADS) {
+        session = process.env.WAHA_SESSION_LEADS;
     }
 
     const envConfig: WahaConfig = {
@@ -48,11 +48,20 @@ export async function getWahaConfig(prisma?: any, botType?: 'tesoreria' | 'ofici
                 
                 // Buscar sesión específica por botType en el JSON de configuración
                 let botSession = notif.wahaSessionName || notif.wahaSession || envConfig.session;
-                if (botType === 'tesoreria' && notif.wahaSessionTesoreria) botSession = notif.wahaSessionTesoreria;
-                if (botType === 'oficina' && notif.wahaSessionOficina) botSession = notif.wahaSessionOficina;
+                let botApiUrl = notif.wahaApiUrl || envConfig.apiUrl;
+
+                if (botType === 'tesoreria') {
+                    if (notif.tesoreriaWahaSession) botSession = notif.tesoreriaWahaSession;
+                    if (notif.tesoreriaWahaApiUrl) botApiUrl = notif.tesoreriaWahaApiUrl;
+                }
+                
+                if (botType === 'leads') {
+                    if (notif.leadsWahaSession) botSession = notif.leadsWahaSession;
+                    if (notif.leadsWahaApiUrl) botApiUrl = notif.leadsWahaApiUrl;
+                }
 
                 return {
-                    apiUrl: notif.wahaApiUrl || envConfig.apiUrl,
+                    apiUrl: botApiUrl,
                     session: botSession,
                     apiKey: notif.wahaApiKey || envConfig.apiKey
                 };
@@ -63,6 +72,29 @@ export async function getWahaConfig(prisma?: any, botType?: 'tesoreria' | 'ofici
     }
 
     return envConfig;
+}
+
+/**
+ * Obtiene la API Key de OpenAI desde la configuración
+ */
+export async function getOpenAIConfig(prisma: any): Promise<string | null> {
+    try {
+        // Prioridad: Variable de entorno
+        if (process.env.OPENAI_API_KEY) return process.env.OPENAI_API_KEY;
+
+        // Fallback: Base de datos
+        const config = await prisma.configuracionSistema.findUnique({
+            where: { clave: 'sistema' }
+        });
+
+        if (config?.notificaciones) {
+            const notif = config.notificaciones as any;
+            return notif.openaiApiKey || null;
+        }
+    } catch (error) {
+        console.error("Error cargando OpenAI config:", error);
+    }
+    return null;
 }
 
 export async function sendWahaMessage(

@@ -43,6 +43,14 @@ interface ConfiguracionSistema {
     wahaApiUrl: string;
     wahaSessionName: string;
     wahaApiKey?: string;
+    // Leads / Ventas
+    leadsWahaSession?: string;
+    leadsWahaApiUrl?: string;
+    openaiApiKey?: string;
+    // Tesorería / Pagos
+    tesoreriaWahaSession?: string;
+    tesoreriaWahaApiUrl?: string;
+    
     emailEnabled: boolean;
     smsEnabled: boolean;
     recordatoriosDias: number;
@@ -79,6 +87,11 @@ export default function ConfiguracionPage() {
       wahaApiUrl: '',
       wahaSessionName: 'default',
       wahaApiKey: '',
+      leadsWahaSession: '',
+      leadsWahaApiUrl: '',
+      openaiApiKey: '',
+      tesoreriaWahaSession: '',
+      tesoreriaWahaApiUrl: '',
       emailEnabled: true,
       smsEnabled: false,
       recordatoriosDias: 2
@@ -369,6 +382,64 @@ export default function ConfiguracionPage() {
                     value={config.notificaciones.wahaApiKey}
                     onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, wahaApiKey: e.target.value } })}
                   />
+                </div>
+
+                <Separator className="my-2 md:col-span-2" />
+                
+                {/* Canales Específicos */}
+                <div className="md:col-span-2 space-y-4">
+                  <h3 className="text-sm font-semibold text-slate-700">Configuración por Departamento (Canales)</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border p-4 rounded-lg bg-slate-50/50">
+                    <div className="md:col-span-2 flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Ventas y Leads (IA Sofía)</h4>
+                    </div>
+                    <div>
+                      <Label htmlFor="leadsSession">Sesión WAHA (Ventas)</Label>
+                      <Input
+                        id="leadsSession"
+                        placeholder="Ej. ventas_session"
+                        value={config.notificaciones.leadsWahaSession || ''}
+                        onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, leadsWahaSession: e.target.value } })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="openaiKey">OpenAI API Key (Para IA Sofía)</Label>
+                      <Input
+                        id="openaiKey"
+                        type="password"
+                        placeholder="sk-..."
+                        value={config.notificaciones.openaiApiKey || ''}
+                        onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, openaiApiKey: e.target.value } })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border p-4 rounded-lg bg-slate-50/50">
+                    <div className="md:col-span-2 flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Tesorería (Depósitos Bancarios)</h4>
+                    </div>
+                    <div>
+                      <Label htmlFor="tesoreriaSession">Sesión WAHA (Tesorería)</Label>
+                      <Input
+                        id="tesoreriaSession"
+                        placeholder="Ej. tesoreria_session"
+                        value={config.notificaciones.tesoreriaWahaSession || ''}
+                        onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, tesoreriaWahaSession: e.target.value } })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="tesoreriaUrl">URL API específica (Opcional)</Label>
+                      <Input
+                        id="tesoreriaUrl"
+                        placeholder="http://otra-instancia:3000"
+                        value={config.notificaciones.tesoreriaWahaApiUrl || ''}
+                        onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, tesoreriaWahaApiUrl: e.target.value } })}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="md:col-span-2 pt-2">
