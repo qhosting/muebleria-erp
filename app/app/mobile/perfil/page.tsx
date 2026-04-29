@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { signOut, useSession } from 'next-auth/react';
 import { Settings, Printer, LogOut, RefreshCw, Bell, BellOff } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { Capacitor } from '@capacitor/core';
 import { APP_VERSION } from '@/lib/version';
 
 export default function MobilePerfilPage() {
