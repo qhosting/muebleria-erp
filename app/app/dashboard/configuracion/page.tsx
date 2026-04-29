@@ -98,6 +98,34 @@ export default function ConfiguracionPage() {
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [testPhone, setTestPhone] = useState('');
+  const [loadingTest, setLoadingTest] = useState(false);
+
+  const handleTestWhatsapp = async () => {
+    if (!testPhone) return;
+    setLoadingTest(true);
+    try {
+      const response = await fetch('/api/whatsapp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config: config.notificaciones,
+          phone: testPhone
+        })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        toast.success('Mensaje de prueba enviado con éxito');
+      } else {
+        throw new Error(data.error || 'Error al enviar prueba');
+      }
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setLoadingTest(false);
+    }
+  };
 
   useEffect(() => {
     const loadConfig = async () => {
@@ -341,6 +369,32 @@ export default function ConfiguracionPage() {
                     value={config.notificaciones.wahaApiKey}
                     onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, wahaApiKey: e.target.value } })}
                   />
+                </div>
+
+                <div className="md:col-span-2 pt-2">
+                  <Separator className="my-4" />
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <Label className="text-slate-900 font-semibold mb-2 block">Probar Conexión</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Número de WhatsApp (ej: 521442...)"
+                        value={testPhone}
+                        onChange={(e) => setTestPhone(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button 
+                        variant="secondary" 
+                        onClick={handleTestWhatsapp} 
+                        disabled={loadingTest || !testPhone}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {loadingTest ? 'Enviando...' : 'Enviar Prueba'}
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2">
+                      Ingresa tu número con código de país (ej: 521 para México) para recibir un mensaje de prueba.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
