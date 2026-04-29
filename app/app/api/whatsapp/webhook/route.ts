@@ -254,7 +254,7 @@ async function handleOficina(from: string, payload: any, session: string, agentN
     await db.leadChat.updateMany({ where: { telefono: from, leadId: null }, data: { leadId: lead.id } });
 
     // 6. Enviar respuesta por WhatsApp
-    const wahaConfig = await getWahaConfig(prisma, 'oficina');
+    const wahaConfig = await getWahaConfig(prisma, 'leads');
     if (wahaConfig.apiUrl) {
         await sendWahaMessage(wahaConfig, from, aiResponse.respuesta);
     }
