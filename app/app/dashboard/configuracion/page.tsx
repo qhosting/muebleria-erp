@@ -31,6 +31,7 @@ interface ConfiguracionSistema {
     direccion: string;
     telefono: string;
     email: string;
+    logoUrl?: string;
   };
   cobranza: {
     diasGracia: number;
@@ -78,7 +79,8 @@ export default function ConfiguracionPage() {
       nombre: 'Nombre de su Empresa',
       direccion: '',
       telefono: '',
-      email: ''
+      email: '',
+      logoUrl: ''
     },
     cobranza: {
       diasGracia: 3,
