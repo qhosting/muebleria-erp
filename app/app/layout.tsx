@@ -5,6 +5,7 @@ import './globals.css';
 import { Providers } from '@/components/providers';
 import { OfflineIndicator } from '@/components/pwa/offline-indicator';
 import { PWAInstallPrompt } from '@/components/pwa/pwa-install-prompt';
+import { PWAManager } from '@/components/pwa/pwa-manager';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -66,6 +67,7 @@ export default function RootLayout({
         <Providers>
           <OfflineIndicator />
           <PWAInstallPrompt />
+          <PWAManager />
           {children}
         </Providers>
       </body>

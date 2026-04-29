@@ -153,6 +153,12 @@ export async function PUT(
       }
     }
 
+    // Detectar si se asignó un nuevo cobrador para notificarle
+    const clienteActual = await prisma.cliente.findUnique({
+      where: { id: params.id },
+      select: { cobradorAsignadoId: true }
+    });
+
     const cliente = await prisma.cliente.update({
       where: { id: params.id },
       data: {
@@ -197,6 +203,21 @@ export async function PUT(
         },
       },
     });
+
+    // NOTIFICAR AL COBRADOR ASIGNADO
+    if (cobradorAsignadoId && cobradorAsignadoId !== clienteActual?.cobradorAsignadoId) {
+        try {
+            const { sendPushNotification } = await import('@/lib/notifications');
+            await sendPushNotification(
+                cobradorAsignadoId, 
+                '📍 Nueva Cuenta Asignada', 
+                `Se te ha asignado el cliente: ${cliente.nombreCompleto}. ¡Revisa tu ruta!`,
+                '/dashboard/cobranza-mobile'
+            );
+        } catch (nError) {
+            console.error('Error enviando notificación al cobrador:', nError);
+        }
+    }
 
     // Convert Decimal fields to numbers for JSON serialization
     const clienteSerializado = {

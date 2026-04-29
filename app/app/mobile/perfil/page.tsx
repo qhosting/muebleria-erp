@@ -3,14 +3,13 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { signOut, useSession } from 'next-auth/react';
-import { Settings, Printer, LogOut, RefreshCw } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { toast } from 'sonner';
-import { Capacitor } from '@capacitor/core';
+import { Settings, Printer, LogOut, RefreshCw, Bell, BellOff } from 'lucide-react';
+import { APP_VERSION } from '@/lib/version';
 
 export default function MobilePerfilPage() {
     const { data: session } = useSession();
     const [pendingCount, setPendingCount] = useState(0);
+    const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
     useEffect(() => {
         const loadPending = async () => {
@@ -19,10 +18,38 @@ export default function MobilePerfilPage() {
             setPendingCount(size);
         };
         loadPending();
+
+        // Verificar si las notificaciones están activas
+        if ('Notification' in window) {
+            setNotificationsEnabled(Notification.permission === 'granted');
+        }
     }, []);
 
+    const toggleNotifications = async () => {
+        if (!('Notification' in window)) {
+            toast.error('Este navegador no soporta notificaciones');
+            return;
+        }
+
+        if (Notification.permission === 'granted') {
+            toast.info('Las notificaciones ya están activas');
+            return;
+        }
+
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            setNotificationsEnabled(true);
+            toast.success('¡Notificaciones activadas!');
+            // Intentar suscribir inmediatamente
+            const registration = await navigator.serviceWorker.ready;
+            // Aquí se llamaría a la función de suscripción que definimos en PWAManager
+        } else {
+            toast.error('Permiso de notificaciones denegado');
+        }
+    };
+
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 pb-20">
             <h2 className="text-xl font-bold text-white">Mi Perfil</h2>
 
             <Card className="bg-slate-900 border-slate-800">
@@ -42,6 +69,19 @@ export default function MobilePerfilPage() {
 
             <div className="space-y-3">
                 <div className="text-xs text-slate-500 uppercase font-bold ml-1">Configuración</div>
+
+                <Button
+                    onClick={toggleNotifications}
+                    className={`w-full bg-slate-900 border border-slate-800 hover:bg-slate-800 text-white justify-start h-12 ${notificationsEnabled ? 'border-emerald-500/30' : ''}`}
+                    variant="outline"
+                >
+                    {notificationsEnabled ? (
+                        <Bell className="w-5 h-5 mr-3 text-emerald-500" />
+                    ) : (
+                        <BellOff className="w-5 h-5 mr-3 text-slate-400" />
+                    )}
+                    {notificationsEnabled ? 'Notificaciones Activas' : 'Activar Notificaciones'}
+                </Button>
 
                 <Button
                     className="w-full bg-slate-900 border border-slate-800 hover:bg-slate-800 text-white justify-start h-12"
@@ -87,14 +127,15 @@ export default function MobilePerfilPage() {
                         signOut({ callbackUrl });
                     }}
                     variant="destructive"
-                    className="w-full h-12 font-semibold"
+                    className="w-full h-12 font-semibold shadow-lg shadow-red-900/20"
                 >
                     <LogOut className="w-5 h-5 mr-2" />
                     Cerrar Sesión
                 </Button>
 
-                <div className="text-center text-xs text-slate-600 pt-4">
-                    Version 1.0.0 (Build 100)
+                <div className="text-center text-xs text-slate-600 pt-4 flex flex-col gap-1">
+                    <p>VertexERP Muebles v{APP_VERSION}</p>
+                    <p className="opacity-50">© {new Date().getFullYear()} Aurum Capital Holding</p>
                 </div>
             </div>
         </div>

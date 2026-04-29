@@ -230,28 +230,41 @@ async function handleOficina(from: string, payload: any, session: string, agentN
     });
 
     // 5. Gestionar el Lead
-    let lead = await prisma.lead.findFirst({ where: { telefono: from } });
-    const leadData: any = {
-        nombre: lead?.nombre || `Prospecto ${from}`,
-        telefono: from,
-        intencion: aiResponse.intencion,
-        urgencia: aiResponse.datos_extraidos.urgencia,
-        resumenInterno: aiResponse.resumen_interno,
-        respuestaIA: aiResponse.respuesta,
-        datosExtraidos: aiResponse.datos_extraidos,
-        origen: 'oficina' as const,
-        estado: aiResponse.intencion === 'GENERAL' ? 'nuevo' : 'contactado'
-    };
+    let lead = await db.lead.findUnique({ where: { telefono: from } });
+    
+    if (!lead) {
+        lead = await db.lead.create({
+            data: {
+                nombre: aiResponse.clienteNombre || `Prospecto ${from}`,
+                telefono: from,
+                estado: 'nuevo',
+                notas: `Captado por IA (${agentName}). Interés: ${aiResponse.interes || 'Ventas General'}`,
+                vendedorId: null
+            }
+        });
 
-    if (lead) {
-        await prisma.lead.update({ where: { id: lead.id }, data: leadData });
+        // NOTIFICAR A ADMINISTRADORES POR PUSH
+        try {
+            const { notifyByRole } = await import('@/lib/notifications');
+            await notifyByRole('admin', '🔥 Nuevo Lead Captado', `Un nuevo cliente (${from}) está interesado en: ${aiResponse.interes || 'productos'}.`, '/dashboard/ventas');
+        } catch (nError) {
+            console.error('Error enviando notificación de lead:', nError);
+        }
     } else {
-        lead = await prisma.lead.create({ data: leadData });
+        // Actualizar notas con el nuevo interés si aplica
+        await db.lead.update({
+            where: { id: lead.id },
+            data: {
+                notas: `${lead.notas}\n[${new Date().toLocaleDateString()}] Nuevo contacto: ${aiResponse.interes || 'Conversación'}`
+            }
+        });
     }
 
     // Vincular chat al lead
-    await db.leadChat.update({ where: { id: chat.id }, data: { leadId: lead.id } });
-    await db.leadChat.updateMany({ where: { telefono: from, leadId: null }, data: { leadId: lead.id } });
+    await db.leadChat.updateMany({ 
+        where: { telefono: from, leadId: null }, 
+        data: { leadId: lead.id } 
+    });
 
     // 6. Enviar respuesta por WhatsApp
     const wahaConfig = await getWahaConfig(prisma, 'leads');

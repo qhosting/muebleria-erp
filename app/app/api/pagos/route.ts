@@ -218,6 +218,20 @@ export async function POST(request: NextRequest) {
       return pago;
     });
 
+    // NOTIFICAR A ADMINISTRADORES POR PUSH
+    try {
+        const { notifyByRole } = await import('@/lib/notifications');
+        const formattedMonto = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(resultado.monto);
+        await notifyByRole(
+            'admin', 
+            '💰 Nuevo Depósito Recibido', 
+            `${resultado.cobrador?.name} recibió ${formattedMonto} de ${resultado.cliente?.nombreCompleto}.`,
+            '/dashboard/pagos'
+        );
+    } catch (nError) {
+        console.error('Error enviando notificación de pago:', nError);
+    }
+
     return NextResponse.json(resultado, { status: 201 });
   } catch (error) {
     console.error('Error al registrar pago:', error);

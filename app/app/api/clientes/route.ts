@@ -440,6 +440,25 @@ vendedorId: vendedor?.id || null,
       statusAprobacion: (cliente as any).statusAprobacion || 'PENDIENTE',
     };
 
+    // NOTIFICAR A ADMINISTRADORES Y JEFES DE VENTAS POR PUSH
+    try {
+        const { notifyByRole } = await import('@/lib/notifications');
+        await notifyByRole(
+            'admin', 
+            '🎉 ¡Nueva Venta Realizada!', 
+            `${cliente.vendedor || 'Un vendedor'} vendió: ${cliente.descripcionProducto} a ${cliente.nombreCompleto}.`,
+            '/dashboard/ventas'
+        );
+        await notifyByRole(
+            'jefe_ventas', 
+            '🎉 ¡Nueva Venta Realizada!', 
+            `${cliente.vendedor || 'Un vendedor'} vendió: ${cliente.descripcionProducto} a ${cliente.nombreCompleto}.`,
+            '/dashboard/ventas'
+        );
+    } catch (nError) {
+        console.error('Error enviando notificación de venta:', nError);
+    }
+
     return NextResponse.json(clienteSerializado, { status: 201 });
   } catch (error: any) {
     console.error('Error al crear cliente:', error);
