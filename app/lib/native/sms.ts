@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { CapacitorSms } from '@byteowls/capacitor-sms';
+import { SmsManager } from '@byteowls/capacitor-sms';
 import { toast } from 'sonner';
 
 /**
@@ -20,7 +20,7 @@ export async function sendNativeSMS(phoneNumber: string, message: string): Promi
     // Limpiar número de teléfono
     const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
     
-    await CapacitorSms.send({
+    await SmsManager.send({
       numbers: [cleanPhone],
       text: message,
     });
