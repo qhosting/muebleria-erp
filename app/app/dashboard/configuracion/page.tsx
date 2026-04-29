@@ -46,10 +46,14 @@ interface ConfiguracionSistema {
     // Leads / Ventas
     leadsWahaSession?: string;
     leadsWahaApiUrl?: string;
+    leadsAgentName?: string;
     openaiApiKey?: string;
     // Tesorería / Pagos
     tesoreriaWahaSession?: string;
     tesoreriaWahaApiUrl?: string;
+    tesoreriaAgentName?: string;
+    
+    globalAgentName?: string;
     
     emailEnabled: boolean;
     smsEnabled: boolean;
@@ -89,9 +93,12 @@ export default function ConfiguracionPage() {
       wahaApiKey: '',
       leadsWahaSession: '',
       leadsWahaApiUrl: '',
+      leadsAgentName: 'Sofía (Ventas)',
       openaiApiKey: '',
       tesoreriaWahaSession: '',
       tesoreriaWahaApiUrl: '',
+      tesoreriaAgentName: 'Asistente de Tesorería',
+      globalAgentName: 'Asistente Global',
       emailEnabled: true,
       smsEnabled: false,
       recordatoriosDias: 2
@@ -393,7 +400,16 @@ export default function ConfiguracionPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border p-4 rounded-lg bg-slate-50/50">
                     <div className="md:col-span-2 flex items-center gap-2">
                       <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Ventas y Leads (IA Sofía)</h4>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Ventas y Leads (Cerebro de IA)</h4>
+                    </div>
+                    <div>
+                      <Label htmlFor="leadsAgentName">Nombre del Agente / Personalidad</Label>
+                      <Input
+                        id="leadsAgentName"
+                        placeholder="Ej. Sofía (Ventas)"
+                        value={config.notificaciones.leadsAgentName || ''}
+                        onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, leadsAgentName: e.target.value } })}
+                      />
                     </div>
                     <div>
                       <Label htmlFor="leadsSession">Sesión WAHA (Ventas)</Label>
@@ -404,8 +420,8 @@ export default function ConfiguracionPage() {
                         onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, leadsWahaSession: e.target.value } })}
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="openaiKey">OpenAI API Key (Para IA Sofía)</Label>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="openaiKey">OpenAI API Key (Cerebro de IA)</Label>
                       <Input
                         id="openaiKey"
                         type="password"
@@ -413,13 +429,23 @@ export default function ConfiguracionPage() {
                         value={config.notificaciones.openaiApiKey || ''}
                         onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, openaiApiKey: e.target.value } })}
                       />
+                      <p className="text-[10px] text-slate-500 mt-1">Requerido para que la IA pueda conversar y detectar intenciones de venta.</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border p-4 rounded-lg bg-slate-50/50">
                     <div className="md:col-span-2 flex items-center gap-2">
                       <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Tesorería (Depósitos Bancarios)</h4>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Tesorería (Pagos y Tickets)</h4>
+                    </div>
+                    <div>
+                      <Label htmlFor="tesoreriaAgentName">Nombre del Agente</Label>
+                      <Input
+                        id="tesoreriaAgentName"
+                        placeholder="Ej. Asistente de Pagos"
+                        value={config.notificaciones.tesoreriaAgentName || ''}
+                        onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, tesoreriaAgentName: e.target.value } })}
+                      />
                     </div>
                     <div>
                       <Label htmlFor="tesoreriaSession">Sesión WAHA (Tesorería)</Label>
@@ -428,15 +454,6 @@ export default function ConfiguracionPage() {
                         placeholder="Ej. tesoreria_session"
                         value={config.notificaciones.tesoreriaWahaSession || ''}
                         onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, tesoreriaWahaSession: e.target.value } })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="tesoreriaUrl">URL API específica (Opcional)</Label>
-                      <Input
-                        id="tesoreriaUrl"
-                        placeholder="http://otra-instancia:3000"
-                        value={config.notificaciones.tesoreriaWahaApiUrl || ''}
-                        onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, tesoreriaWahaApiUrl: e.target.value } })}
                       />
                     </div>
                   </div>

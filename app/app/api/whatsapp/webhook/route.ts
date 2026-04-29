@@ -27,13 +27,23 @@ export async function POST(request: NextRequest) {
 
         console.log(`📩 [${session}] Mensaje de ${from}: ${messageType === 'image' ? '[IMAGEN]' : messageBody}`);
 
+        // Obtener configuración global para ver qué canal es este
+        const configRecord = await prisma.configuracionSistema.findUnique({
+            where: { clave: 'sistema' }
+        });
+        const notif = (configRecord?.notificaciones as any) || {};
+
         // RUTA 1: TESORERÍA (PROCESAMIENTO DE PAGOS)
-        if (session === 'tesoreria' || session === process.env.WAHA_SESSION_TESORERIA) {
-            return await handleTesoreria(from, payload, session);
+        const isTesoreria = session === 'tesoreria' || 
+                           session === notif.tesoreriaWahaSession ||
+                           session === process.env.WAHA_SESSION_TESORERIA;
+
+        if (isTesoreria) {
+            return await handleTesoreria(from, payload, session, notif.tesoreriaAgentName || 'Asistente de Tesorería');
         }
 
         // RUTA 2: OFICINA (LEADS / VENTAS / SOFÍA)
-        return await handleOficina(from, payload, session);
+        return await handleOficina(from, payload, session, notif.leadsAgentName || 'Sofía (Ventas)', notif.openaiApiKey);
 
     } catch (error: any) {
         console.error('❌ Webhook Error:', error.message);
@@ -44,8 +54,9 @@ export async function POST(request: NextRequest) {
 /**
  * Lógica para BotTesoreria: Recepción de tickets y conciliación
  */
-async function handleTesoreria(from: string, payload: any, session: string) {
+async function handleTesoreria(from: string, payload: any, session: string, agentName: string) {
     const config = await getWahaConfig(prisma, 'tesoreria');
+    const welcomeMsg = `Hola! 👋 Soy ${agentName}. Para registrar un pago, por favor envía la *foto de tu comprobante*.`;
 
     // 1. Identificación Automática del Cliente por Número de Teléfono
     const cliente = await prisma.cliente.findFirst({
@@ -112,7 +123,7 @@ async function handleTesoreria(from: string, payload: any, session: string) {
     }
 
     // Respuesta por defecto para Tesorería
-    await sendWahaMessage(config, from, "Hola! 👋 Soy el asistente de Tesorería. Para registrar un pago, por favor envía la *foto de tu comprobante*.");
+    await sendWahaMessage(config, from, welcomeMsg);
     return NextResponse.json({ status: 'waiting_receipt' });
 }
 
@@ -190,7 +201,7 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
 /**
  * Lógica para BotOficina: Sofia AI y Leads
  */
-async function handleOficina(from: string, payload: any, session: string) {
+async function handleOficina(from: string, payload: any, session: string, agentName: string, openaiKey?: string) {
     const messageBody = payload.body || '';
     if (!messageBody) return NextResponse.json({ status: 'no_body' });
 
@@ -207,11 +218,11 @@ async function handleOficina(from: string, payload: any, session: string) {
     });
 
     const historyText = history
-        .map((h: any) => `${h.rol === 'user' ? 'Cliente' : 'Sofía'}: ${h.mensaje}`)
+        .map((h: any) => `${h.rol === 'user' ? 'Cliente' : agentName}: ${h.mensaje}`)
         .join('\n');
 
     // 3. Detectar intención con IA
-    const aiResponse = await detectIntent(historyText, messageBody);
+    const aiResponse = await detectIntent(historyText, messageBody, agentName, openaiKey);
 
     // 4. Guardar respuesta de la IA
     const chat = await db.leadChat.create({

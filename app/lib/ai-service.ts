@@ -54,12 +54,14 @@ Responde SIEMPRE con este JSON exacto:
 }
 `;
 
-export async function detectIntent(history: string, message: string): Promise<AIResponse> {
+export async function detectIntent(history: string, message: string, agentName: string = "Sofía", openaiKeyOverride?: string): Promise<AIResponse> {
     const geminiKey = process.env.GEMINI_API_KEY;
     const openRouterKey = process.env.OPENROUTER_API_KEY;
-    const openAIKey = process.env.OPENAI_API_KEY;
+    const openAIKey = openaiKeyOverride || process.env.OPENAI_API_KEY;
 
-    const fullPrompt = `${SOFIA_PROMPT}
+    const dynamicPrompt = SOFIA_PROMPT.replace(/"Sofía"/g, `"${agentName}"`);
+
+    const fullPrompt = `${dynamicPrompt}
     
 ---
 ### 📜 HISTORIAL (Contexto):
@@ -73,14 +75,14 @@ ${history}
 `;
 
     try {
-        if (geminiKey) {
+        if (openAIKey) {
+            return await callOpenAI(openAIKey, fullPrompt);
+        } else if (geminiKey) {
             return await callGemini(geminiKey, fullPrompt);
         } else if (openRouterKey) {
             return await callOpenRouter(openRouterKey, fullPrompt);
-        } else if (openAIKey) {
-            return await callOpenAI(openAIKey, fullPrompt);
         } else {
-            throw new Error("No AI API Key configured");
+            throw new Error("No AI API Key configured (OpenAI or Gemini)");
         }
     } catch (error: any) {
         console.error("AI Service Error:", error.message);
