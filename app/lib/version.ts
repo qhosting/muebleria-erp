@@ -1,6 +1,6 @@
 
 // Configuración de versión de la aplicación
-export const APP_VERSION = '2.9.29';
+export const APP_VERSION = '2.9.30';
 export const BUILD_DATE = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 export const BUILD_NUMBER = Date.now().toString().slice(-6); // Últimos 6 dígitos del timestamp
 
