@@ -37,7 +37,8 @@ import {
   Target,
   MessageSquare,
   Bot,
-  Loader2
+  Loader2,
+  Smartphone
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
