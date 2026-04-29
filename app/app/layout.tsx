@@ -1,5 +1,5 @@
 
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
@@ -12,10 +12,24 @@ export const metadata: Metadata = {
   title: 'VertexERP Muebles - Sistema de Cobranza',
   description: 'Sistema integral de gestión de clientes y cobranza en campo',
   manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    title: 'VertexERP',
+    statusBarStyle: 'black-translucent',
+  },
+  icons: {
+    icon: '/favicon.ico',
+    apple: [
+      { url: '/icon-192x192.png' },
+      { url: '/icon-192x192.png', sizes: '152x152' },
+      { url: '/icon-192x192.png', sizes: '180x180' },
+      { url: '/icon-192x192.png', sizes: '167x167' },
+    ],
+  },
 };
 
 // 🚀 OPTIMIZACIÓN MÓVIL: Viewport optimizado para mejor rendimiento
-export const viewport = {
+export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5, // Permitir zoom para accesibilidad
@@ -31,38 +45,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <head>
-        {/* Favicon */}
-        <link rel="icon" href="/favicon.ico" />
-        
-        {/* PWA - Apple Touch Icons */}
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="152x152" href="/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="167x167" href="/icon-192x192.png" />
-        
-        {/* PWA - Apple Splash Screens (Common sizes) */}
-        <link rel="apple-touch-startup-image" href="/icon-512x512.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" />
-        <link rel="apple-touch-startup-image" href="/icon-512x512.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
-        
-        {/* PWA - Manifest */}
-        <link rel="manifest" href="/manifest.json" />
-        
-        {/* PWA - Mobile Web App Capable */}
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="VertexERP" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        
-        {/* PWA - Theme Color */}
-        <meta name="theme-color" content="#0F172A" />
-        <meta name="msapplication-TileColor" content="#0F172A" />
-        <meta name="msapplication-navbutton-color" content="#0F172A" />
-        
-        {/* PWA - Icons for other platforms */}
-        <meta name="msapplication-TileImage" content="/icon-192x192.png" />
-        
-        {/* PWA - Service Worker Registration */}
+      <body className={inter.className} suppressHydrationWarning>
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -80,8 +63,6 @@ export default function RootLayout({
             `,
           }}
         />
-      </head>
-      <body className={inter.className} suppressHydrationWarning>
         <Providers>
           <OfflineIndicator />
           <PWAInstallPrompt />
