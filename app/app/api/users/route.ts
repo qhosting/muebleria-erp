@@ -37,6 +37,8 @@ export async function GET(request: NextRequest) {
         role: true,
         codigoGestor: true,
         isActive: true,
+        enableLabsMobile: true,
+        enableNativeSms: true,
         createdAt: true,
         updatedAt: true,
         _count: {
@@ -45,7 +47,7 @@ export async function GET(request: NextRequest) {
             pagos: true,
           },
         },
-      },
+      } as any,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -78,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, password, name, role, codigoGestor, isActive = true } = body;
+    const { email, password, name, role, codigoGestor, isActive = true, enableLabsMobile = false, enableNativeSms = true } = body;
     
     console.log('📝 [POST /api/users] Datos recibidos:', { email, name, role, codigoGestor, isActive, hasPassword: !!password });
 
@@ -115,7 +117,9 @@ export async function POST(request: NextRequest) {
         role,
         codigoGestor: codigoGestor?.trim() || null,
         isActive,
-      },
+        enableLabsMobile,
+        enableNativeSms,
+      } as any,
       select: {
         id: true,
         email: true,
@@ -123,8 +127,10 @@ export async function POST(request: NextRequest) {
         role: true,
         codigoGestor: true,
         isActive: true,
+        enableLabsMobile: true,
+        enableNativeSms: true,
         createdAt: true,
-      },
+      } as any,
     });
 
     console.log('✅ [POST /api/users] Usuario creado exitosamente:', newUser.id);

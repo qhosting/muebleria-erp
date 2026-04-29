@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { 
   UserCheck, 
   Search, 
@@ -48,7 +49,9 @@ export default function UsuariosPage() {
     password: '',
     role: 'cobrador',
     codigoGestor: '',
-    isActive: true
+    isActive: true,
+    enableLabsMobile: false,
+    enableNativeSms: true
   });
 
   useEffect(() => {
@@ -102,7 +105,7 @@ export default function UsuariosPage() {
         toast.success(editingUser ? 'Usuario actualizado correctamente' : 'Usuario creado correctamente');
         setIsDialogOpen(false);
         setEditingUser(null);
-        setFormData({ name: '', email: '', password: '', role: 'cobrador', codigoGestor: '', isActive: true });
+        setFormData({ name: '', email: '', password: '', role: 'cobrador', codigoGestor: '', isActive: true, enableLabsMobile: false, enableNativeSms: true });
         fetchUsuarios();
       } else {
         // Obtener el mensaje de error del servidor
@@ -125,7 +128,9 @@ export default function UsuariosPage() {
       password: '',
       role: user.role || 'cobrador',
       codigoGestor: (user as any).codigoGestor || '',
-      isActive: user.isActive ?? true
+      isActive: user.isActive ?? true,
+      enableLabsMobile: (user as any).enableLabsMobile ?? false,
+      enableNativeSms: (user as any).enableNativeSms ?? true
     });
     setIsDialogOpen(true);
   };
@@ -187,7 +192,7 @@ export default function UsuariosPage() {
             <DialogTrigger asChild>
               <Button onClick={() => {
                 setEditingUser(null);
-                setFormData({ name: '', email: '', password: '', role: 'cobrador', codigoGestor: '', isActive: true });
+                setFormData({ name: '', email: '', password: '', role: 'cobrador', codigoGestor: '', isActive: true, enableLabsMobile: false, enableNativeSms: true });
               }}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nuevo Usuario
@@ -260,6 +265,32 @@ export default function UsuariosPage() {
                   <p className="text-xs text-gray-500 mt-1">
                     Utilizado para asignar clientes automáticamente al importar
                   </p>
+                </div>
+
+                <div className="space-y-4 border-t pt-4">
+                  <h3 className="text-sm font-medium">Configuración de SMS</h3>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="enableLabsMobile">Habilitar LabsMobile</Label>
+                      <p className="text-xs text-gray-500">Permitir envíos usando la API (costo empresa)</p>
+                    </div>
+                    <Switch
+                      id="enableLabsMobile"
+                      checked={formData.enableLabsMobile}
+                      onCheckedChange={(checked) => setFormData({ ...formData, enableLabsMobile: checked })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="enableNativeSms">Habilitar SMS Nativo</Label>
+                      <p className="text-xs text-gray-500">Permitir envíos desde el equipo móvil (sin costo empresa)</p>
+                    </div>
+                    <Switch
+                      id="enableNativeSms"
+                      checked={formData.enableNativeSms}
+                      onCheckedChange={(checked) => setFormData({ ...formData, enableNativeSms: checked })}
+                    />
+                  </div>
                 </div>
                 <div className="flex justify-end gap-3">
                   <Button 

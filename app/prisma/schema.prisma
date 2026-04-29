@@ -110,6 +110,9 @@ model User {
   impresoraTamanoFuente String?   @default("mediana")
   impresoraAutoImprimir Boolean?  @default(false)
   
+  enableLabsMobile      Boolean   @default(false)
+  enableNativeSms       Boolean   @default(true)
+  
   equipoMiembroId  String?
   
   accounts         Account[]
@@ -129,6 +132,8 @@ model User {
   equipo            EquipoVentas?   @relation("MiembroEquipo", fields: [equipoMiembroId], references: [id])
   presupuestos      PresupuestoVenta[] @relation("PresupuestoVendedor")
   convenios         ConvenioPago[]
+
+  dispositivosAutorizados DispositivoAutorizado[]
 
   @@map("users")
 }
@@ -684,4 +689,22 @@ model SmsLog {
   cliente       Cliente?     @relation(fields: [clienteId], references: [id])
 
   @@map("sms_logs")
+}
+
+model DispositivoAutorizado {
+  id              String   @id // UUID del hardware
+  nombre          String?
+  modelo          String?
+  sistemaOperativo String?
+  userId          String?
+  isAuthorized    Boolean  @default(false)
+  otpCode         String?  // Código para vinculación
+  otpExpires      DateTime?
+  lastLogin       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User?    @relation(fields: [userId], references: [id])
+
+  @@map("dispositivos_autorizados")
 }

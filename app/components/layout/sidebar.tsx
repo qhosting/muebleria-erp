@@ -112,6 +112,12 @@ const navigation: NavItem[] = [
     roles: ['admin', 'gestor_cobranza', 'cobrador'],
   },
   {
+    name: 'Campañas SMS',
+    href: '/dashboard/cobranza-mobile/sms',
+    icon: MessageSquare,
+    roles: ['cobrador'],
+  },
+  {
     name: 'Tesorería',
     href: '/dashboard/tesoreria',
     icon: Wallet,
@@ -133,6 +139,7 @@ const navigation: NavItem[] = [
     subItems: [
       { name: 'Ajustes Generales', href: '/dashboard/configuracion', icon: Settings, roles: ['admin'] },
       { name: 'Usuarios', href: '/dashboard/usuarios', icon: Users, roles: ['admin'] },
+      { name: 'Seguridad Equipos', href: '/dashboard/configuracion/dispositivos', icon: Smartphone, roles: ['admin'] },
       { name: 'Plantillas', href: '/dashboard/plantillas', icon: FileText, roles: ['admin', 'gestor_cobranza'] },
     ]
   },

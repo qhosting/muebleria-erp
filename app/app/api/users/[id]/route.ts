@@ -24,7 +24,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { email, name, role, codigoGestor, isActive, password } = body;
+    const { email, name, role, codigoGestor, isActive, password, enableLabsMobile, enableNativeSms } = body;
 
     const updateData: any = {
       email,
@@ -32,6 +32,8 @@ export async function PUT(
       role,
       codigoGestor: codigoGestor?.trim() || null,
       isActive,
+      enableLabsMobile,
+      enableNativeSms,
     };
 
     if (password) {
@@ -48,8 +50,10 @@ export async function PUT(
         role: true,
         codigoGestor: true,
         isActive: true,
+        enableLabsMobile: true,
+        enableNativeSms: true,
         updatedAt: true,
-      },
+      } as any,
     });
 
     return NextResponse.json(updatedUser);

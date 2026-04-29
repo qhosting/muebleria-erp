@@ -52,6 +52,8 @@ export const authOptions: NextAuthOptions = {
             email: user.email,
             name: user.name,
             role: user.role,
+            enableLabsMobile: user.enableLabsMobile,
+            enableNativeSms: user.enableNativeSms,
           };
         }
 
@@ -85,6 +87,8 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
+          enableLabsMobile: user.enableLabsMobile,
+          enableNativeSms: user.enableNativeSms,
         };
       },
     }),
@@ -128,6 +132,8 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = (user as any).role;
         token.id = user.id;
+        token.enableLabsMobile = (user as any).enableLabsMobile;
+        token.enableNativeSms = (user as any).enableNativeSms;
       }
       return token;
     },
@@ -135,6 +141,8 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).id = token.id || token.sub;
         (session.user as any).role = token.role;
+        (session.user as any).enableLabsMobile = token.enableLabsMobile;
+        (session.user as any).enableNativeSms = token.enableNativeSms;
       }
       return session;
     },
