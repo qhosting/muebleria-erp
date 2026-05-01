@@ -735,7 +735,7 @@ export function ImportarClientesModal({
                 </div>
                 <Progress value={progress} className="w-full max-w-md h-2 bg-slate-100 overflow-hidden" />
               </motion.div>
-            ) : (
+            ) : result ? (
               <motion.div 
                 key="results"
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -820,7 +820,7 @@ export function ImportarClientesModal({
                   </div>
                 )}
               </motion.div>
-            )}
+            ) : null}
           </AnimatePresence>
 
           {/* Footer de Acciones */}
