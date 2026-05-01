@@ -311,7 +311,6 @@ export function ImportarClientesModal({
       { key: 'nombreCompleto', label: 'Nombre Completo' },
       { key: 'descripcionProducto', label: 'Producto' },
       { key: 'diaPago', label: 'Día de Pago' },
-      { key: 'montoPago', label: 'Monto de Pago' },
       { key: 'periodicidad', label: 'Periodicidad' },
     ];
 
@@ -327,10 +326,12 @@ export function ImportarClientesModal({
       return `Fila ${rowNum}: 'Día de Pago' debe ser un número entre 1 (Lunes) y 7 (Domingo). Valor encontrado: ${row.diaPago}`;
     }
 
-    // Validate montoPago
-    const montoPago = parseFloat(row.montoPago);
-    if (isNaN(montoPago) || montoPago <= 0) {
-      return `Fila ${rowNum}: 'Monto de Pago' debe ser un número mayor a 0. Valor encontrado: ${row.montoPago}`;
+    // Validate montoPago (only if present)
+    if (row.montoPago) {
+      const montoPago = parseFloat(row.montoPago);
+      if (isNaN(montoPago) || montoPago < 0) {
+        return `Fila ${rowNum}: 'Monto de Pago' debe ser un número mayor o igual a 0. Valor encontrado: ${row.montoPago}`;
+      }
     }
 
     // Validate periodicidad
@@ -476,8 +477,8 @@ export function ImportarClientesModal({
             ...row,
             codigoCliente: row.codigoCliente?.trim() || null,
             fechaVenta: normalizedFecha,
-            montoPago: parseFloat(row.montoPago),
-            saldoActual: row.saldoActual ? parseFloat(row.saldoActual) : parseFloat(row.montoPago),
+            montoPago: row.montoPago ? parseFloat(row.montoPago) : 0,
+            saldoActual: row.saldoActual ? parseFloat(row.saldoActual) : (row.montoPago ? parseFloat(row.montoPago) : 0),
             importe1: row.importe1 ? parseFloat(row.importe1) : null,
             importe2: row.importe2 ? parseFloat(row.importe2) : null,
             importe3: row.importe3 ? parseFloat(row.importe3) : null,
