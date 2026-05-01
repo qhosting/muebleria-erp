@@ -9,9 +9,24 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
-import { Upload, Download, FileText, Loader2, CheckCircle, AlertTriangle, FileSpreadsheet, Trash2 } from 'lucide-react';
+import { 
+  Upload, 
+  Download, 
+  FileText, 
+  Loader2, 
+  CheckCircle, 
+  AlertTriangle, 
+  FileSpreadsheet, 
+  Trash2, 
+  Info, 
+  FileUp,
+  History,
+  XCircle
+} from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Switch } from '@/components/ui/switch';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 interface ImportarClientesModalProps {
   open: boolean;
@@ -216,7 +231,6 @@ export function ImportarClientesModal({
   };
 
   const parseCSV = (text: string): { data: any[], errors: any[] } => {
-    // ... (keep existing parseCSV code)
     // Normalizar saltos de línea y filtrar líneas vacías
     const lines = text.replace(/\r\n/g, '\n').split('\n');
 
@@ -295,7 +309,6 @@ export function ImportarClientesModal({
     // Check required fields with specific messages
     const requiredFields = [
       { key: 'nombreCompleto', label: 'Nombre Completo' },
-      { key: 'direccionCompleta', label: 'Dirección' },
       { key: 'descripcionProducto', label: 'Producto' },
       { key: 'diaPago', label: 'Día de Pago' },
       { key: 'montoPago', label: 'Monto de Pago' },
@@ -494,10 +507,7 @@ export function ImportarClientesModal({
       
       importResult.success = backendResult.created || 0;
       importResult.created = backendResult.created || 0;
-      importResult.updated = backendResult.updated || 0; // Si el backend separara created/updated
-      // Nota: El backend actual no separa created/updated en el retorno, vamos a ajustar el contador
-      // En realidad el backend devuelve { success, created, failed, deleted, deletedClientes }
-      // Reatribuimos según lo que devuelve el backend
+      importResult.updated = backendResult.updated || 0; 
       importResult.success = backendResult.created || 0;
       importResult.created = backendResult.created || 0;
       importResult.deleted = backendResult.deleted || 0;
@@ -510,11 +520,7 @@ export function ImportarClientesModal({
         toast.success(`Proceso completado exitosamente`);
         onSuccess();
 
-        // Welcome Mode Logi - Necesitamos los clientes creados
         if (isWelcomeMode && backendResult.created > 0) {
-           // Si se necesita el detalle de clientes creados para enviar bienvenida,
-           // tendríamos que modificar la API para que los devuelva o hacer un fetch posterior.
-           // Pero por ahora mantengamos la lógica anterior de que si hay éxitos se notifica.
            toast.info(`Se han importado ${backendResult.created} clientes.`);
         }
       }
@@ -549,204 +555,308 @@ export function ImportarClientesModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
-            <Upload className="h-5 w-5" />
-            <span>{isWelcomeMode ? 'Importar Nuevas (con Bienvenida)' : 'Importar Clientes'}</span>
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          {/* Download Template Section */}
-          <div className="border rounded-lg p-4">
-            <h3 className="font-medium mb-2 flex items-center space-x-2">
-              <Download className="h-4 w-4" />
-              <span>1. Descargar Plantilla</span>
-            </h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Descarga la plantilla Excel/CSV con el formato correcto para importar/actualizar clientes.
-              <span className="block mt-1 font-medium">
-                💡 El sistema detecta automáticamente si debe crear o actualizar según el código de cliente.
-              </span>
+      <DialogContent className="max-w-4xl p-0 overflow-hidden border-none shadow-2xl rounded-2xl">
+        {/* Header con gradiente premium */}
+        <div className="bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-700 p-6 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-3 text-2xl font-bold">
+              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                <FileUp className="h-6 w-6 text-white" />
+              </div>
+              <span>{isWelcomeMode ? 'Importación con Bienvenida' : 'Importar Clientes'}</span>
+            </DialogTitle>
+            <p className="text-indigo-100 mt-1 opacity-90">
+              Carga masiva de clientes desde Excel o CSV con validación inteligente.
             </p>
-            <Button
-              onClick={downloadTemplate}
-              disabled={loading}
-              variant="outline"
-              size="sm"
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <FileText className="h-4 w-4 mr-2" />
-              )}
-              Descargar Plantilla
-            </Button>
-          </div>
+          </DialogHeader>
+        </div>
 
-          {/* File Upload Section */}
-          <div className="border rounded-lg p-4">
-            <h3 className="font-medium mb-2 flex items-center space-x-2">
-              <Upload className="h-4 w-4" />
-              <span>2. Seleccionar Archivo</span>
-            </h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Selecciona el archivo Excel (.xlsx) o CSV con los datos de clientes a importar.
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="file-upload">Archivo Excel o CSV</Label>
-              <Input
-                id="file-upload"
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFileSelect}
-                disabled={importing}
-              />
-              {selectedFile && (
-                <div className="space-y-4">
-                  <p className="text-sm text-green-600 flex items-center space-x-1">
-                    <CheckCircle className="h-4 w-4" />
-                    <span>Archivo seleccionado: {selectedFile.name}</span>
+        <div className="p-8 bg-slate-50/50">
+          <AnimatePresence mode="wait">
+            {!importing && !result ? (
+              <motion.div 
+                key="setup"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="grid grid-cols-1 md:grid-cols-2 gap-8"
+              >
+                {/* Columna Izquierda: Instrucciones */}
+                <div className="space-y-6">
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-full">
+                    <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <Download className="h-5 w-5 text-indigo-500" />
+                      1. Preparación
+                    </h3>
+                    
+                    <div className="space-y-4 text-sm text-slate-600 mb-6">
+                      <div className="flex gap-3 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                        <Info className="h-5 w-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                        <p>
+                          Descarga la plantilla oficial. El sistema detecta automáticamente si debe **crear o actualizar** según el código.
+                        </p>
+                      </div>
+                      
+                      <ul className="space-y-2 ml-1">
+                        <li className="flex items-center gap-2">
+                          <div className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                          Formatos aceptados: .xlsx, .csv
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <div className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                          Periodicidad: semanal, quincenal, etc.
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <div className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                          Fechas: AAAA-MM-DD o DD/MM/AAAA
+                        </li>
+                      </ul>
+                    </div>
+
+                    <Button
+                      onClick={downloadTemplate}
+                      disabled={loading}
+                      className="w-full bg-white hover:bg-slate-50 text-indigo-600 border-2 border-indigo-100 hover:border-indigo-200 shadow-none py-6 rounded-xl transition-all duration-300 group"
+                    >
+                      {loading ? (
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      ) : (
+                        <FileSpreadsheet className="h-5 w-5 mr-2 group-hover:scale-110 transition-transform" />
+                      )}
+                      Descargar Plantilla Excel
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Columna Derecha: Carga */}
+                <div className="space-y-6">
+                  <div className={cn(
+                    "bg-white p-6 rounded-2xl shadow-sm border-2 transition-all duration-300",
+                    selectedFile ? "border-indigo-200 bg-indigo-50/10" : "border-slate-100"
+                  )}>
+                    <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <Upload className="h-5 w-5 text-indigo-500" />
+                      2. Carga de Archivo
+                    </h3>
+
+                    <div className="space-y-4">
+                      <div 
+                        className={cn(
+                          "relative border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer group",
+                          selectedFile ? "border-indigo-300 bg-white" : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50"
+                        )}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Input
+                          id="file-upload"
+                          ref={fileInputRef}
+                          type="file"
+                          className="hidden"
+                          accept=".csv,.xlsx,.xls"
+                          onChange={handleFileSelect}
+                        />
+                        
+                        <div className="flex flex-col items-center">
+                          <div className={cn(
+                            "p-3 rounded-full mb-3 transition-colors",
+                            selectedFile ? "bg-indigo-100 text-indigo-600" : "bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-500"
+                          )}>
+                            {selectedFile ? <FileText className="h-8 w-8" /> : <Upload className="h-8 w-8" />}
+                          </div>
+                          <p className="text-sm font-medium text-slate-700">
+                            {selectedFile ? selectedFile.name : "Selecciona o arrastra el archivo"}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Tamaño máx. 10MB
+                          </p>
+                        </div>
+                      </div>
+
+                      {selectedFile && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="pt-2 space-y-4"
+                        >
+                          <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-amber-100 rounded-lg">
+                                  <Trash2 className="h-4 w-4 text-amber-700" />
+                                </div>
+                                <div>
+                                  <Label htmlFor="cleanup-switch" className="text-amber-900 font-bold cursor-pointer">
+                                    Depuración Inteligente
+                                  </Label>
+                                  <p className="text-[10px] text-amber-700 opacity-80 uppercase tracking-wider font-semibold">
+                                    Solo códigos DQ/DP
+                                  </p>
+                                </div>
+                              </div>
+                              <Switch 
+                                id="cleanup-switch" 
+                                checked={cleanupEnabled}
+                                onCheckedChange={setCleanupEnabled}
+                                className="data-[state=checked]:bg-amber-600"
+                              />
+                            </div>
+                            
+                            {cleanupEnabled && (
+                              <p className="text-xs text-amber-800 leading-relaxed bg-white/50 p-2 rounded-lg border border-amber-200/50">
+                                Los clientes DQ/DP que **no estén** en este archivo serán marcados como inactivos automáticamente.
+                              </p>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ) : importing ? (
+              <motion.div 
+                key="importing"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="py-12 flex flex-col items-center justify-center space-y-6"
+              >
+                <div className="relative">
+                  <div className="h-24 w-24 rounded-full border-4 border-slate-100 border-t-indigo-600 animate-spin" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-lg font-bold text-indigo-600">{progress.toFixed(0)}%</span>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <h3 className="text-xl font-bold text-slate-800">Procesando Importación</h3>
+                  <p className="text-slate-500 max-w-xs mx-auto mt-2 text-sm leading-relaxed">
+                    Estamos validando tus datos y sincronizando con el servidor. Por favor no cierres esta ventana.
                   </p>
+                </div>
+                <Progress value={progress} className="w-full max-w-md h-2 bg-slate-100 overflow-hidden" />
+              </motion.div>
+            ) : (
+              <motion.div 
+                key="results"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="space-y-6"
+              >
+                {/* Resumen de Resultados */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-green-50 p-6 rounded-2xl border border-green-100 text-center">
+                    <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                    <div className="text-2xl font-bold text-green-700">{result.success}</div>
+                    <div className="text-xs text-green-600 uppercase font-bold tracking-wider">Éxito Total</div>
+                  </div>
+                  <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 text-center">
+                    <div className="h-8 w-8 text-blue-600 mx-auto mb-2 flex items-center justify-center font-bold text-xl">+</div>
+                    <div className="text-2xl font-bold text-blue-700">{result.created}</div>
+                    <div className="text-xs text-blue-600 uppercase font-bold tracking-wider">Creados</div>
+                  </div>
+                  <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100 text-center">
+                    <History className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+                    <div className="text-2xl font-bold text-purple-700">{result.updated}</div>
+                    <div className="text-xs text-purple-600 uppercase font-bold tracking-wider">Actualizados</div>
+                  </div>
+                </div>
 
-                  <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <div className="space-y-1">
-                      <Label htmlFor="cleanup-switch" className="text-amber-900 flex items-center gap-2">
+                {/* Sección de Depuración */}
+                {result.deleted ? result.deleted > 0 && (
+                  <div className="bg-slate-900 text-white p-6 rounded-2xl flex items-center justify-between overflow-hidden relative group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <Trash2 className="h-24 w-24" />
+                    </div>
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-2 text-amber-400 font-bold mb-1">
                         <Trash2 className="h-4 w-4" />
-                        Depurar clientes inactivos DQ/DP
-                      </Label>
-                      <p className="text-xs text-amber-700">
-                        Inactiva clientes que NO estén en el archivo (solo aplica a códigos DQ y DP).
+                        Depuración Completada
+                      </div>
+                      <p className="text-slate-400 text-sm max-w-md">
+                        Se han inactivado **{result.deleted}** clientes que ya no estaban en el archivo maestro.
                       </p>
                     </div>
-                    <Switch 
-                      id="cleanup-switch" 
-                      checked={cleanupEnabled}
-                      onCheckedChange={setCleanupEnabled}
-                    />
-                  </div>
-
-                  {cleanupEnabled && (
-                    <Alert variant="default" className="bg-orange-50 border-orange-200">
-                      <AlertTriangle className="h-4 w-4 text-orange-600" />
-                      <AlertDescription className="text-orange-800 text-xs">
-                        <strong>Atención:</strong> Esta acción marcará como inactivos a todos los clientes registrados con prefijo DQ o DP que no se encuentren presentes en su archivo actual.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Import Progress */}
-          {importing && (
-            <div className="border rounded-lg p-4">
-              <h3 className="font-medium mb-2">Importando Clientes...</h3>
-              <Progress value={progress} className="mb-2" />
-              <p className="text-sm text-gray-600">
-                {progress.toFixed(0)}% completado
-              </p>
-            </div>
-          )}
-
-          {/* Import Results */}
-          {result && (
-            <div className="border rounded-lg p-4">
-              <h3 className="font-medium mb-2">Resultados de la Importación</h3>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2 text-green-600">
-                  <CheckCircle className="h-4 w-4" />
-                  <span>{result.success} clientes procesados exitosamente</span>
-                </div>
-
-                {result.created > 0 && (
-                  <div className="flex items-center space-x-2 text-blue-600 text-sm">
-                    <span className="ml-6">→ {result.created} clientes creados</span>
-                  </div>
-                )}
-
-                {result.updated > 0 && (
-                  <div className="flex items-center space-x-2 text-purple-600 text-sm">
-                    <span className="ml-6">→ {result.updated} clientes actualizados</span>
-                  </div>
-                )}
-
-                {result.deleted ? result.deleted > 0 && (
-                  <div className="space-y-3 mt-4 pt-4 border-t">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2 text-red-600 font-medium">
-                        <Trash2 className="h-4 w-4" />
-                        <span>{result.deleted} clientes DQ/DP depurados (inactivos)</span>
-                      </div>
-                      <Button 
-                        size="sm" 
-                        variant="secondary" 
-                        className="h-8 bg-red-100 text-red-700 hover:bg-red-200"
-                        onClick={downloadCleanupReport}
-                      >
-                        <FileSpreadsheet className="h-4 w-4 mr-2" />
-                        Descargar Reporte
-                      </Button>
-                    </div>
-                    <p className="text-xs text-gray-500 ml-6">
-                      Estos clientes ya no aparecen en su archivo actual y han sido marcados como inactivos.
-                    </p>
+                    <Button 
+                      onClick={downloadCleanupReport}
+                      variant="secondary"
+                      className="relative z-10 bg-white hover:bg-slate-100 text-slate-900 border-none font-bold"
+                    >
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Reporte XLS
+                    </Button>
                   </div>
                 ) : null}
 
+                {/* Listado de Errores Mejorado */}
                 {result.errors.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2 text-orange-600">
-                      <AlertTriangle className="h-4 w-4" />
-                      <span>{result.errors.length} registros con errores/advertencias:</span>
+                  <div className="border border-slate-200 rounded-2xl bg-white overflow-hidden">
+                    <div className="bg-orange-50 px-4 py-3 border-b border-orange-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-orange-700 font-bold text-sm">
+                        <AlertTriangle className="h-4 w-4" />
+                        {result.errors.length} Registros con Observaciones
+                      </div>
                     </div>
-                    <div className="max-h-32 overflow-y-auto space-y-1">
-                      {result.errors.map((error, index) => (
-                        <Alert key={index} variant="destructive">
-                          <AlertDescription className="text-xs">
-                            {error.error}
-                          </AlertDescription>
-                        </Alert>
-                      ))}
+                    <div className="max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
+                      <table className="w-full text-left text-sm">
+                        <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-2 font-semibold">Fila</th>
+                            <th className="px-4 py-2 font-semibold">Error / Observación</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {result.errors.map((error, index) => (
+                            <tr key={index} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-4 py-3 text-slate-400 font-mono">#{error.row}</td>
+                              <td className="px-4 py-3 text-orange-800 flex items-start gap-2">
+                                <XCircle className="h-4 w-4 mt-0.5 text-orange-400 flex-shrink-0" />
+                                <span>{error.error}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}
-              </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Footer de Acciones */}
+          <div className="mt-8 flex items-center justify-between pt-6 border-t border-slate-100">
+            <div className="text-xs text-slate-400 italic">
+              {result ? 'Proceso finalizado' : importing ? 'Importando...' : 'Listo para procesar'}
             </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button
-              variant="outline"
-              onClick={handleClose}
-              disabled={importing}
-            >
-              {result ? 'Cerrar' : 'Cancelar'}
-            </Button>
-
-            {selectedFile && !result && (
+            
+            <div className="flex gap-3">
               <Button
-                onClick={importClientes}
+                variant="ghost"
+                onClick={handleClose}
                 disabled={importing}
+                className="text-slate-500 hover:text-slate-800 hover:bg-slate-100 font-medium px-6 py-5 rounded-xl"
               >
-                {importing ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Upload className="h-4 w-4 mr-2" />
-                )}
-                {isWelcomeMode ? 'Importar y Enviar Bienvenida' : 'Importar Clientes'}
+                {result ? 'Cerrar' : 'Cancelar'}
               </Button>
-            )}
 
-            {result && (
-              <Button onClick={resetModal} variant="outline">
-                Nueva Importación
-              </Button>
-            )}
+              {selectedFile && !result && !importing && (
+                <Button
+                  onClick={importClientes}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-5 rounded-xl shadow-lg shadow-indigo-200 transition-all hover:scale-[1.02] active:scale-95"
+                >
+                  <Upload className="h-5 w-5 mr-2" />
+                  {isWelcomeMode ? 'Iniciar y Enviar Bienvenida' : 'Iniciar Importación'}
+                </Button>
+              )}
+
+              {result && (
+                <Button 
+                  onClick={resetModal} 
+                  className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-8 py-5 rounded-xl transition-all"
+                >
+                  Nueva Importación
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>
