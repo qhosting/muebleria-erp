@@ -74,7 +74,7 @@ export default function MobileHome() {
 
             {/* ACCIONES RÁPIDAS */}
             <div className="grid grid-cols-2 gap-4">
-                <Link href="/mobile/cobranza" className="w-full">
+                <Link href="/mobile/clientes" className="w-full">
                     <ActionButton
                         icon={<DollarSign className="w-6 h-6 text-white" />}
                         label="Cobranza"
