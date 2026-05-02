@@ -231,16 +231,51 @@
   }
 }
 
+/* 🚀 PWA NATIVE MOBILE FEEL OPTIMIZATIONS */
+@layer base {
+  body {
+    /* Prevenir scroll elástico (bounce) en iOS en el body */
+    overscroll-behavior-y: none;
+    
+    /* Prevenir selección de texto accidental que rompe la ilusión de app */
+    user-select: none;
+    -webkit-user-select: none;
+    
+    /* Eliminar el resaltado azul al tocar elementos en Android */
+    -webkit-tap-highlight-color: transparent;
+    
+    /* Prevenir menú contextual de sistema al dejar presionado (iOS) */
+    -webkit-touch-callout: none;
+  }
+
+  /* Permitir selección solo en inputs y áreas de texto */
+  input, textarea, [contenteditable="true"] {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
+
+  /* Optimización para scroll fluido tipo nativo */
+  .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+}
+
 /* PWA fullscreen mode - Ajustar para standalone display */
 @media (display-mode: standalone) {
   body {
     padding-top: env(safe-area-inset-top);
   }
   
-  /* Agregar padding extra en iOS PWA */
+  /* Ajustar para el notch en iOS PWA */
   @supports (-webkit-touch-callout: none) {
     body {
-      padding-top: max(20px, env(safe-area-inset-top));
+      padding-top: env(safe-area-inset-top);
     }
+  }
+  
+  /* Ocultar elementos que solo deben verse en web si es necesario */
+  .web-only {
+    display: none !important;
   }
 }
