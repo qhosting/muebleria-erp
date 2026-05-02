@@ -75,31 +75,33 @@ export default function MobileHome() {
             {/* LISTA DE PRÓXIMOS CLIENTES (REAL DATA) */}
             <div className="space-y-3">
                 <div className="flex justify-between items-center px-2">
-                    <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Próximos Clientes</h3>
+                    <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Clientes de Hoy</h3>
                     <Link href="/mobile/clientes" className="text-xs text-sky-400 font-medium">Ver todos</Link>
                 </div>
 
                 {stats.proximosClientes.length > 0 ? (
                     (stats.proximosClientes as any[]).map((cliente) => (
-                        <div key={cliente.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between active:scale-95 transition-transform">
-                            <div className="flex items-center space-x-3">
-                                <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-emerald-500">
-                                    {cliente.nombre.charAt(0)}
+                        <Link key={cliente.id} href={`/mobile/clientes?search=${encodeURIComponent(cliente.nombre)}`} className="block">
+                            <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between active:scale-95 transition-transform">
+                                <div className="flex items-center space-x-3">
+                                    <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-emerald-500">
+                                        {cliente.nombre.charAt(0)}
+                                    </div>
+                                    <div className="max-w-[180px]">
+                                        <p className="font-bold text-slate-200 truncate">{cliente.nombre}</p>
+                                        <p className="text-[10px] text-slate-500 truncate">{cliente.direccion}</p>
+                                    </div>
                                 </div>
-                                <div className="max-w-[180px]">
-                                    <p className="font-bold text-slate-200 truncate">{cliente.nombre}</p>
-                                    <p className="text-[10px] text-slate-500 truncate">{cliente.direccion}</p>
+                                <div className="text-right">
+                                    <p className="font-mono text-emerald-500 font-bold">${cliente.saldo}</p>
+                                    <p className="text-[10px] text-slate-600 uppercase">{cliente.periodicidad}</p>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <p className="font-mono text-emerald-500 font-bold">${cliente.saldo}</p>
-                                <p className="text-[10px] text-slate-600 uppercase">{cliente.periodicidad}</p>
-                            </div>
-                        </div>
+                        </Link>
                     ))
                 ) : (
                     <div className="bg-slate-900/50 border border-dashed border-slate-800 p-8 rounded-xl text-center">
-                        <p className="text-slate-500 text-sm italic">No hay clientes pendientes en tu ruta</p>
+                        <p className="text-slate-500 text-sm italic">No tienes cobros programados para hoy</p>
                     </div>
                 )}
             </div>

@@ -33,6 +33,10 @@ export async function GET() {
     inicioCiclo.setDate(hoy.getDate() - diffToSaturday);
     inicioCiclo.setHours(0, 0, 0, 0);
 
+    let dayNumber = hoy.getDay();
+    if (dayNumber === 0) dayNumber = 7;
+    const diaHoy = dayNumber.toString();
+
     const [cobradoHoy, clientesPendientes, proximosClientes] = await Promise.all([
       // Suma de cobrado hoy por este cobrador
       prisma.pago.aggregate({
@@ -56,10 +60,11 @@ export async function GET() {
           }
         }
       }),
-      // Lista de los próximos 5 clientes pendientes reales
+      // Lista de los próximos clientes del DÍA que aún no han pagado
       prisma.cliente.findMany({
         where: {
           cobradorAsignadoId: isAdminOrSupervisor ? undefined : userId,
+          diaPago: diaHoy,
           statusCuenta: 'activo',
           saldoActual: { gt: 0 },
           pagos: {
@@ -69,9 +74,9 @@ export async function GET() {
             }
           }
         },
-        take: 5,
+        take: 10, // Aumentamos a 10 para que vea más del día
         orderBy: {
-          updatedAt: 'desc'
+          nombreCompleto: 'asc'
         }
       })
     ]);
