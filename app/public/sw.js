@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'vertexerp-v2.9.30';
+const CACHE_NAME = 'vertexerp-v2.9.31';
 const urlsToCache = [
   '/',
   '/login',
@@ -14,11 +14,11 @@ const urlsToCache = [
 
 // Instalar Service Worker
 self.addEventListener('install', (event) => {
-  console.log('[SW] Instalando Service Worker v2.9.30');
+  console.log('[SW] Instalando Service Worker v2.9.31');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('[SW] Cache VertexERP v2.9.30 abierto');
+        console.log('[SW] Cache VertexERP v2.9.31 abierto');
         return cache.addAll(urlsToCache);
       })
   );
@@ -27,7 +27,7 @@ self.addEventListener('install', (event) => {
 
 // Activar Service Worker y limpiar cachés antiguas
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activando Service Worker v2.9.30');
+  console.log('[SW] Activando Service Worker v2.9.31');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
