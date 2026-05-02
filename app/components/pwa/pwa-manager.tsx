@@ -45,18 +45,55 @@ export function PWAManager() {
       window.location.reload();
     });
 
-    // 3. Solicitar permiso de notificaciones de forma sutil
+    // 3. Verificación de Versión vía API (para APK y PWA persistente)
+    const checkVersion = async () => {
+      try {
+        const response = await fetch('/api/version', { cache: 'no-store' });
+        if (response.ok) {
+          const data = await response.json();
+          const serverVersion = data.version;
+          const localVersion = localStorage.getItem('vertex_app_version');
+
+          if (localVersion && localVersion !== serverVersion) {
+            console.log(`🔄 Nueva versión detectada: ${localVersion} -> ${serverVersion}`);
+            localStorage.setItem('vertex_app_version', serverVersion);
+            
+            toast('Actualización obligatoria', {
+              description: 'Se han aplicado cambios importantes en el servidor.',
+              action: {
+                label: 'Actualizar Ahora',
+                onClick: () => window.location.reload()
+              },
+              duration: 5000,
+            });
+
+            setTimeout(() => {
+              window.location.reload();
+            }, 6000);
+          } else if (!localVersion) {
+            localStorage.setItem('vertex_app_version', serverVersion);
+          }
+        }
+      } catch (error) {
+        console.warn("No se pudo verificar la versión:", error);
+      }
+    };
+
+    // Verificar al iniciar y cada 10 minutos
+    checkVersion();
+    const interval = setInterval(checkVersion, 10 * 60 * 1000);
+
+    // 4. Solicitar permiso de notificaciones
     const checkNotificationPermission = async () => {
       if (!('Notification' in window)) return;
       
-      if (Notification.permission === 'default') {
-        // No molestamos inmediatamente, esperamos a que el usuario interactúe
-      } else if (Notification.permission === 'granted') {
+      if (Notification.permission === 'granted') {
         subscribeToPush();
       }
     };
 
     checkNotificationPermission();
+    return () => clearInterval(interval);
   }, []);
 
   const subscribeToPush = async () => {
