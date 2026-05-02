@@ -17,8 +17,10 @@ export async function GET(req: NextRequest) {
     const userId = (session.user as any).id;
     const userRole = (session.user as any).role;
 
-    if (userRole !== 'cobrador' && userRole !== 'admin') {
-      return NextResponse.json({ error: 'Solo para cobradores' }, { status: 403 });
+    const isAdminOrSupervisor = ['admin', 'gestor_cobranza', 'reporte_cobranza'].includes(userRole);
+
+    if (!isAdminOrSupervisor && userRole !== 'cobrador') {
+      return NextResponse.json({ error: 'No autorizado para esta vista' }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     const clientes = await prisma.cliente.findMany({
       where: {
-        cobradorAsignadoId: userRole === 'admin' ? undefined : userId,
+        cobradorAsignadoId: isAdminOrSupervisor ? undefined : userId,
         statusCuenta: 'activo',
         OR: [
           { nombreCompleto: { contains: search, mode: 'insensitive' } },

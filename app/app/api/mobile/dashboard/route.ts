@@ -17,8 +17,10 @@ export async function GET() {
     const userId = (session.user as any).id;
     const userRole = (session.user as any).role;
 
-    if (userRole !== 'cobrador' && userRole !== 'admin') {
-      return NextResponse.json({ error: 'Solo para cobradores' }, { status: 403 });
+    const isAdminOrSupervisor = ['admin', 'gestor_cobranza', 'reporte_cobranza'].includes(userRole);
+
+    if (!isAdminOrSupervisor && userRole !== 'cobrador') {
+      return NextResponse.json({ error: 'No autorizado para esta vista' }, { status: 403 });
     }
 
     const hoy = new Date();
@@ -36,14 +38,14 @@ export async function GET() {
       prisma.pago.aggregate({
         _sum: { monto: true },
         where: {
-          cobradorId: userId,
+          cobradorId: isAdminOrSupervisor ? undefined : userId,
           fechaPago: { gte: inicioDia }
         }
       }),
       // Conteo de clientes asignados con saldo pendiente que NO han pagado esta semana
       prisma.cliente.count({
         where: {
-          cobradorAsignadoId: userId,
+          cobradorAsignadoId: isAdminOrSupervisor ? undefined : userId,
           statusCuenta: 'activo',
           saldoActual: { gt: 0 },
           pagos: {
@@ -57,7 +59,7 @@ export async function GET() {
       // Lista de los próximos 5 clientes pendientes reales
       prisma.cliente.findMany({
         where: {
-          cobradorAsignadoId: userId,
+          cobradorAsignadoId: isAdminOrSupervisor ? undefined : userId,
           statusCuenta: 'activo',
           saldoActual: { gt: 0 },
           pagos: {
@@ -85,7 +87,7 @@ export async function GET() {
         pagoSugerido: parseFloat(c.montoPago.toString()),
         periodicidad: c.periodicidad
       })),
-      rutaNombre: `Ruta de ${session.user.name || 'Cobranza'}`
+      rutaNombre: isAdminOrSupervisor ? "Consolidado General" : `Ruta de ${session.user.name || 'Cobranza'}`
     });
 
   } catch (error) {
