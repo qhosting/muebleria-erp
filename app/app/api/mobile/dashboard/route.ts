@@ -22,7 +22,11 @@ export async function GET() {
     }
 
     const hoy = new Date();
-    const inicioDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const dayOfWeek = hoy.getDay(); 
+    const diffToSaturday = (dayOfWeek + 1) % 7; 
+    const inicioCiclo = new Date(hoy);
+    inicioCiclo.setDate(hoy.getDate() - diffToSaturday);
+    inicioCiclo.setHours(0, 0, 0, 0);
 
     const [cobradoHoy, clientesPendientes, proximosClientes] = await Promise.all([
       // Suma de cobrado hoy por este cobrador
@@ -33,20 +37,32 @@ export async function GET() {
           fechaPago: { gte: inicioDia }
         }
       }),
-      // Conteo de clientes asignados con saldo pendiente
+      // Conteo de clientes asignados con saldo pendiente que NO han pagado esta semana
       prisma.cliente.count({
         where: {
           cobradorAsignadoId: userId,
           statusCuenta: 'activo',
-          saldoActual: { gt: 0 }
+          saldoActual: { gt: 0 },
+          pagos: {
+            none: {
+              fechaPago: { gte: inicioCiclo },
+              tipoPago: 'regular'
+            }
+          }
         }
       }),
-      // Lista de los próximos 5 clientes para mostrar en el home
+      // Lista de los próximos 5 clientes pendientes reales
       prisma.cliente.findMany({
         where: {
           cobradorAsignadoId: userId,
           statusCuenta: 'activo',
-          saldoActual: { gt: 0 }
+          saldoActual: { gt: 0 },
+          pagos: {
+            none: {
+              fechaPago: { gte: inicioCiclo },
+              tipoPago: 'regular'
+            }
+          }
         },
         take: 5,
         orderBy: {
