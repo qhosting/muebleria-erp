@@ -45,7 +45,7 @@ export default function LoginForm() {
 
   useEffect(() => {
     setMounted(true);
-    const savedUrl = localStorage.getItem('server_url') || '';
+    const savedUrl = localStorage.getItem('custom_server_url') || '';
     setServerUrl(savedUrl);
     
     const savedEmail = localStorage.getItem('remembered_email');
@@ -351,6 +351,71 @@ export default function LoginForm() {
             )}
           </CardContent>
         </Card>
+        )}
+
+        {/* Server Configuration Overlay for Native App */}
+        {showServerConfig && (
+          <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <Card className="w-full max-w-sm border-0 shadow-2xl">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  Configuración del Servidor
+                </CardTitle>
+                <CardDescription>
+                  Define la URL del servidor para este inquilino (Tenant).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase">URL del Servidor</label>
+                  <Input 
+                    placeholder="https://su-servidor.com" 
+                    value={serverUrl} 
+                    onChange={(e) => setServerUrl(e.target.value)} 
+                    className="h-11"
+                  />
+                  <p className="text-[10px] text-slate-400">Ejemplo: https://app.mueblerialaeconomica.com</p>
+                </div>
+                
+                <div className="flex gap-2 pt-2">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1" 
+                    onClick={() => {
+                      const saved = localStorage.getItem('custom_server_url') || '';
+                      setServerUrl(saved);
+                      setShowServerConfig(false);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    onClick={() => {
+                      if (!serverUrl) {
+                        localStorage.removeItem('custom_server_url');
+                        toast.success('Servidor reseteado a valor por defecto');
+                      } else {
+                        try {
+                          new URL(serverUrl); // Validar formato
+                          localStorage.setItem('custom_server_url', serverUrl);
+                          toast.success('Servidor configurado correctamente');
+                        } catch (e) {
+                          return toast.error('URL inválida');
+                        }
+                      }
+                      setShowServerConfig(false);
+                      // Recargar para aplicar cambios en api-config
+                      window.location.reload();
+                    }}
+                  >
+                    Guardar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         <div className="text-center mt-6">
