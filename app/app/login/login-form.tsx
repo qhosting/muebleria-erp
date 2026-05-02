@@ -230,8 +230,13 @@ export default function LoginForm() {
                   />
                 </div>
               ) : (
-                <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <Building2 className="h-8 w-8 text-white" />
+                <div className="relative w-20 h-20 rounded-2xl overflow-hidden shadow-xl border-4 border-white/10 bg-white/5 backdrop-blur-md">
+                   <Image 
+                    src="/icon-512x512.png" 
+                    alt="VertexERP" 
+                    fill 
+                    className="object-contain p-2"
+                  />
                 </div>
               )}
             </div>
