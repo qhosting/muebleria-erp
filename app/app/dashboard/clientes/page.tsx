@@ -77,6 +77,11 @@ export default function ClientesPage() {
 
   const userRole = (session?.user as any)?.role;
 
+  // Resetear a página 1 cuando cambian los filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCobrador, selectedDiaPago, isConsolidated]);
+
   useEffect(() => {
     if (session) {
       fetchClientes();
@@ -90,16 +95,9 @@ export default function ClientesPage() {
     }
   }, [session, currentPage, searchTerm, selectedCobrador, selectedDiaPago, isConsolidated]);
 
-  // Ajustar filtro inicial cuando se carga el rol del usuario
-  useEffect(() => {
-    if (userRole && userRole !== 'admin' && userRole !== 'gestor_cobranza' && selectedCobrador === 'all') {
-      // Para cobradores, no necesitan filtro de cobrador ya que solo ven sus clientes
-      setSelectedCobrador('');
-    }
-  }, [userRole]);
-
   const fetchClientes = async () => {
     try {
+      setLoading(true);
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: '20',
@@ -109,7 +107,7 @@ export default function ClientesPage() {
         consolidated: isConsolidated ? 'true' : 'false',
       });
 
-      const response = await fetch(`/api/clientes?${params}`);
+      const response = await fetch(`/api/clientes?${params}`, { cache: 'no-store' });
       if (response.ok) {
         const data: ClientesResponse = await response.json();
         setClientes(data.clientes);
