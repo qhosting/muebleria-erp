@@ -1,6 +1,7 @@
 "use client";
 
 import { usePlatform } from "@/hooks/usePlatform";
+import { usePathname } from "next/navigation";
 import { Network, Wifi, WifiOff, MapPin, Printer } from "lucide-react";
 
 interface CobradorLayoutProps {
@@ -9,11 +10,12 @@ interface CobradorLayoutProps {
 
 export default function CobradorLayout({ children }: CobradorLayoutProps) {
     const { isNative } = usePlatform();
+    const pathname = usePathname();
 
     return (
-        <div className="flex flex-col h-screen bg-slate-950 text-slate-100 overflow-hidden">
+        <div className="flex flex-col h-[100dvh] bg-slate-950 text-slate-100 overflow-hidden relative">
             {/* HEADER NATIVO */}
-            <header className="flex-none bg-slate-900 border-b border-slate-800 p-4 pt-safe-top">
+            <header className="flex-none bg-slate-900 border-b border-slate-800 p-4 pt-safe-top z-20 shadow-md">
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-lg font-bold text-emerald-400">VertexERP</h1>
@@ -30,17 +32,17 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
             </header>
 
             {/* CONTENIDO PRINCIPAL SCROLLEABLE */}
-            <main className="flex-1 overflow-y-auto p-4 pb-24">
+            <main className="flex-1 overflow-y-auto p-4 pb-24 z-10">
                 {children}
             </main>
 
             {/* BOTTOM NAVIGATION BAR */}
-            <nav className="flex-none bg-slate-900 border-t border-slate-800 pb-safe-bottom">
+            <nav className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 pb-safe-bottom z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.3)]">
                 <div className="grid grid-cols-4 h-16">
-                    <NavButton icon="home" label="Inicio" href="/mobile/home" active />
-                    <NavButton icon="users" label="Clientes" href="/mobile/clientes" />
-                    <NavButton icon="dollar" label="Caja" href="/mobile/caja" />
-                    <NavButton icon="menu" label="Menú" href="/mobile/menu" />
+                    <NavButton icon="home" label="Inicio" href="/mobile/home" active={pathname === "/mobile/home"} />
+                    <NavButton icon="users" label="Clientes" href="/mobile/clientes" active={pathname === "/mobile/clientes"} />
+                    <NavButton icon="dollar" label="Caja" href="/mobile/caja" active={pathname === "/mobile/caja"} />
+                    <NavButton icon="menu" label="Menú" href="/mobile/menu" active={pathname === "/mobile/menu"} />
                 </div>
             </nav>
         </div>
