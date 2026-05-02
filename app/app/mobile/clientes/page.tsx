@@ -8,6 +8,7 @@ export default function MobileClientes() {
     const { isNative } = usePlatform();
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedCliente, setSelectedCliente] = useState<any>(null);
+    const [detailCliente, setDetailCliente] = useState<any>(null);
     const [montoCobrar, setMontoCobrar] = useState("");
     const [pagoExitoso, setPagoExitoso] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -35,7 +36,12 @@ export default function MobileClientes() {
         return () => clearTimeout(timer);
     }, [searchTerm]);
 
+    const handleClienteClick = (cliente: any) => {
+        setDetailCliente(cliente);
+    };
+
     const handleCobrarClick = (cliente: any) => {
+        setDetailCliente(null);
         setSelectedCliente(cliente);
         setMontoCobrar(cliente.pagoSemanal.toString());
         setPagoExitoso(false);
@@ -179,7 +185,11 @@ Fecha: ${new Date().toLocaleDateString()}.
             {/* LISTA DE CLIENTES */}
             <div className="space-y-3">
                 {filteredClientes.map((cliente) => (
-                    <div key={cliente.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 active:scale-[0.99] transition-transform">
+                    <div 
+                        key={cliente.id} 
+                        className="bg-slate-900 border border-slate-800 rounded-xl p-4 active:scale-[0.99] transition-transform"
+                        onClick={() => handleClienteClick(cliente)}
+                    >
                         <div className="flex justify-between items-start">
                             <div className="max-w-[70%]">
                                 <h3 className="font-bold text-slate-200 truncate">{cliente.nombre}</h3>
@@ -210,17 +220,122 @@ Fecha: ${new Date().toLocaleDateString()}.
                                     <p className="text-base font-mono font-bold text-amber-500">${Math.round(cliente.saldoVencido)}</p>
                                 </div>
                             </div>
-                            <button
-                                onClick={() => handleCobrarClick(cliente)}
-                                className="bg-emerald-600 active:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center space-x-2 shadow-lg shadow-emerald-900/40"
-                            >
-                                <DollarSign className="w-4 h-4" />
-                                <span>Cobrar</span>
-                            </button>
+                            <div className="flex flex-col items-end gap-1">
+                                <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">D{cliente.diaPago}</p>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCobrarClick(cliente);
+                                    }}
+                                    className="bg-emerald-600 active:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center space-x-2 shadow-lg shadow-emerald-900/40"
+                                >
+                                    <DollarSign className="w-4 h-4" />
+                                    <span>Cobrar</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 ))}
             </div>
+
+            {/* MODAL DE DETALLE DEL CLIENTE */}
+            {detailCliente && (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-slate-900 w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-slate-800 shadow-2xl overflow-hidden max-h-[95vh] flex flex-col animate-in slide-in-from-bottom duration-300">
+                        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
+                            <h3 className="font-bold text-white">Perfil del Cliente</h3>
+                            <button onClick={() => setDetailCliente(null)} className="p-1 rounded-full hover:bg-slate-700">
+                                <X className="w-5 h-5 text-slate-400" />
+                            </button>
+                        </div>
+                        
+                        <div className="overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                            <div className="flex items-center space-x-4">
+                                <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-500 font-bold text-2xl">
+                                    {detailCliente.nombre.charAt(0)}
+                                </div>
+                                <div>
+                                    <h4 className="text-xl font-bold text-white leading-tight">{detailCliente.nombre}</h4>
+                                    <p className="text-sm text-slate-500 font-mono">Código: {detailCliente.codigoCliente}</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
+                                <InfoItem label="Periodicidad" value={detailCliente.periodicidad} />
+                                <InfoItem label="Pago Sugerido" value={`$${detailCliente.pagoSemanal}`} highlight="text-emerald-400" />
+                                <InfoItem label="Saldo Actual" value={`$${detailCliente.saldo}`} highlight="text-white" />
+                                <InfoItem label="Saldo Vencido" value={`$${Math.round(detailCliente.saldoVencido)}`} highlight="text-amber-500" />
+                                <InfoItem label="Días Vencido" value={detailCliente.diasVencidos} />
+                                <InfoItem label="Monto Crédito" value={`$${detailCliente.montoCredito}`} />
+                            </div>
+
+                            <div className="space-y-4 pt-2">
+                                <h5 className="text-[10px] uppercase font-bold text-slate-500 tracking-widest px-1">Esquema de Precios</h5>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                        <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Precio Contado</p>
+                                        <p className="text-sm font-bold text-slate-200">${detailCliente.precios.contado}</p>
+                                    </div>
+                                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                        <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Vendido en $</p>
+                                        <p className="text-sm font-bold text-slate-200">${detailCliente.vendidoEn}</p>
+                                    </div>
+                                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                        <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Precio 6 Meses</p>
+                                        <p className="text-sm font-bold text-slate-200">${detailCliente.precios.p6}</p>
+                                    </div>
+                                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                        <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Precio 12 Meses</p>
+                                        <p className="text-sm font-bold text-slate-200">${detailCliente.precios.p12}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 pt-2 border-t border-slate-800/50">
+                                <h5 className="text-[10px] uppercase font-bold text-slate-500 tracking-widest px-1">Información General</h5>
+                                <div className="space-y-4 bg-slate-950/30 p-4 rounded-2xl">
+                                    <div className="flex justify-between items-start border-b border-slate-800 pb-3">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-slate-500 uppercase font-bold">Producto</p>
+                                            <p className="text-sm text-slate-200 font-medium">{detailCliente.descripcionProducto}</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-slate-500 uppercase font-bold">Vendedor</p>
+                                            <p className="text-sm text-slate-300">{detailCliente.vendedorNombre}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-slate-500 uppercase font-bold">Aval</p>
+                                            <p className="text-sm text-slate-300">{detailCliente.aval}</p>
+                                        </div>
+                                        <div className="col-span-2 space-y-1">
+                                            <p className="text-[10px] text-slate-500 uppercase font-bold">Ocupación / Empleado</p>
+                                            <p className="text-sm text-slate-300">{detailCliente.empleado}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-slate-950 border-t border-slate-800 sticky bottom-0">
+                            <div className="grid grid-cols-3 gap-2">
+                                <button 
+                                    onClick={() => handleCobrarClick(detailCliente)} 
+                                    className="col-span-3 bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-2xl font-bold mb-2 shadow-lg shadow-emerald-900/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                                >
+                                    <DollarSign className="w-5 h-5" />
+                                    COBRAR AHORA
+                                </button>
+                                <button className="bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-[10px] font-bold uppercase tracking-tight active:scale-95 transition-all">PAGOS</button>
+                                <button className="bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-[10px] font-bold uppercase tracking-tight active:scale-95 transition-all">VERIFICAR VD</button>
+                                <button className="bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-[10px] font-bold uppercase tracking-tight active:scale-95 transition-all">CONVENIO</button>
+                                <button className="col-span-3 bg-amber-600/10 text-amber-500 py-3 rounded-xl text-[10px] font-bold uppercase mt-1 border border-amber-500/20 active:bg-amber-600/20 transition-all">AVISO DE COBRO</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* MODAL DE COBRO */}
             {selectedCliente && (
@@ -306,6 +421,15 @@ Fecha: ${new Date().toLocaleDateString()}.
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+function InfoItem({ label, value, highlight = "text-slate-300" }: any) {
+    return (
+        <div className="space-y-0.5">
+            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tight">{label}</p>
+            <p className={`text-sm font-bold truncate ${highlight}`}>{value}</p>
         </div>
     );
 }

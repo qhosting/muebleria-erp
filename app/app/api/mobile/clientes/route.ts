@@ -51,7 +51,9 @@ export async function GET(req: NextRequest) {
             tipoPago: 'regular'
           },
           take: 1
-        }
+        },
+        producto: true,
+        vendedorRel: true
       },
       orderBy: {
         nombreCompleto: 'asc'
@@ -60,15 +62,30 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(clientes.map(c => ({
         id: c.id,
+        codigoCliente: c.codigoCliente,
         nombre: c.nombreCompleto,
         direccion: c.direccionCompleta,
         saldo: parseFloat(c.saldoActual.toString()),
         saldoVencido: parseFloat(c.saldoVencido.toString()),
         diaPago: c.diaPago,
+        periodicidad: c.periodicidad,
         pagoSemanal: parseFloat(c.montoPago.toString()),
         telefono: c.telefono,
         estatus: c.saldoVencido.toNumber() > 0 ? 'atrasado' : 'aldia',
-        yaPagoEstaSemana: c.pagos.length > 0
+        yaPagoEstaSemana: c.pagos.length > 0,
+        diasVencidos: c.diasVencidos,
+        // Datos extendidos para el perfil
+        descripcionProducto: c.descripcionProducto,
+        vendedorNombre: c.vendedor || c.vendedorRel?.name || 'No asignado',
+        empleado: c.ocupacion || 'No especificado',
+        aval: c.avalId || 'No asignado',
+        precios: {
+            contado: c.producto?.precioVenta ? parseFloat(c.producto.precioVenta.toString()) : 0,
+            p6: c.producto?.precio6Meses ? parseFloat(c.producto.precio6Meses.toString()) : 0,
+            p12: c.producto?.precio12Meses ? parseFloat(c.producto.precio12Meses.toString()) : 0
+        },
+        montoCredito: c.importe1 ? parseFloat(c.importe1.toString()) : 0,
+        vendidoEn: c.importe2 ? parseFloat(c.importe2.toString()) : 0
     })));
 
   } catch (error) {
