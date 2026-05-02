@@ -22,6 +22,9 @@ export async function GET() {
     }
 
     const hoy = new Date();
+    const inicioDia = new Date(hoy);
+    inicioDia.setHours(0, 0, 0, 0);
+
     const dayOfWeek = hoy.getDay(); 
     const diffToSaturday = (dayOfWeek + 1) % 7; 
     const inicioCiclo = new Date(hoy);

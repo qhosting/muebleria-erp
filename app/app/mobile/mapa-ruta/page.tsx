@@ -17,32 +17,44 @@ export default function MobileMap() {
     const { isNative } = usePlatform();
     const [loading, setLoading] = useState(true);
     const [position, setPosition] = useState<[number, number] | null>(null);
-
-    // Mock Data de Clientes
-    const [puntosRuta, setPuntosRuta] = useState([
-        { id: 1, lat: 19.432608, lng: -99.133209, nombre: "Juan Pérez", direccion: "Centro Histórico", deuda: 1200 },
-        { id: 2, lat: 19.427025, lng: -99.167665, nombre: "María González", direccion: "Zona Rosa", deuda: 850 },
-        { id: 3, lat: 19.434222, lng: -99.143222, nombre: "Carlos López", direccion: "Alameda Central", deuda: 2500 }
-    ]);
+    const [puntosRuta, setPuntosRuta] = useState<any[]>([]);
 
     useEffect(() => {
-        // Simular obtención de ubicación del cobrador
+        // 1. Obtener ubicación actual del cobrador
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    setPosition([pos.coords.latitude, pos.coords.longitude]);
-                    setLoading(false);
-                },
-                () => {
-                    // Fallback location (CDMX Zócalo)
-                    setPosition([19.432608, -99.133209]);
-                    setLoading(false);
-                }
+                (pos) => setPosition([pos.coords.latitude, pos.coords.longitude]),
+                () => setPosition([19.432608, -99.133209]) // Fallback
             );
         } else {
             setPosition([19.432608, -99.133209]);
-            setLoading(false);
         }
+
+        // 2. Cargar clientes reales con coordenadas
+        const fetchRouteData = async () => {
+            try {
+                const response = await fetch('/api/mobile/clientes');
+                if (response.ok) {
+                    const data = await response.json();
+                    // Filtrar solo los que tienen coordenadas (o simularlas si faltan para demo)
+                    const validPoints = data.map((c: any) => ({
+                        id: c.id,
+                        lat: c.latitud || (19.432608 + (Math.random() - 0.5) * 0.02),
+                        lng: c.longitud || (-99.133209 + (Math.random() - 0.5) * 0.02),
+                        nombre: c.nombreCompleto,
+                        direccion: c.direccionCompleta,
+                        deuda: c.saldoActual
+                    }));
+                    setPuntosRuta(validPoints);
+                }
+            } catch (error) {
+                console.error("Error loading route points:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchRouteData();
     }, []);
 
     if (loading || !position) {

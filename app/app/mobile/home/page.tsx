@@ -62,11 +62,13 @@ export default function MobileHome() {
                 <div className="mt-4 pt-4 border-t border-slate-700 flex justify-between items-center">
                     <div className="flex items-center space-x-2 text-slate-300">
                         <MapPin className="w-4 h-4 text-sky-400" />
-                        <span className="text-sm">{stats.rutaNombre}</span>
+                        <span className="text-sm">{stats.rutaNombre || "Ruta General"}</span>
                     </div>
-                    <button className="bg-sky-600 hover:bg-sky-500 transition-colors text-white text-xs font-bold px-3 py-1.5 rounded-full">
-                        Iniciar Ruta
-                    </button>
+                    <Link href="/mobile/mapa-ruta">
+                        <button className="bg-sky-600 hover:bg-sky-500 transition-colors text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg active:scale-95 transition-transform">
+                            Iniciar Ruta
+                        </button>
+                    </Link>
                 </div>
             </div>
 
