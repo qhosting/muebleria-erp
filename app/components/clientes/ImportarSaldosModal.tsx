@@ -35,11 +35,14 @@ export function ImportarSaldosModal({
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+            const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+            const isCSV = file.name.endsWith('.csv');
+
+            if (isExcel || isCSV) {
                 setSelectedFile(file);
                 setResult(null);
             } else {
-                toast.error('Por favor seleccione un archivo Excel (.xlsx)');
+                toast.error('Por favor seleccione un archivo Excel (.xlsx) o CSV (.csv)');
                 if (fileInputRef.current) fileInputRef.current.value = '';
             }
         }
@@ -62,29 +65,62 @@ export function ImportarSaldosModal({
                     const workbook = XLSX.read(data, { type: 'binary' });
                     const sheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[sheetName];
-                    const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    // Obtener filas como arreglos para mapeo posicional inteligente
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" }) as any[][];
 
-                    if (jsonData.length === 0) {
+                    if (rows.length === 0) {
                         throw new Error('El archivo está vacío');
                     }
 
-                    for (let i = 0; i < jsonData.length; i++) {
-                        const row = jsonData[i];
-                        const rowNum = i + 2;
-                        setProgress(((i + 1) / jsonData.length) * 100);
+                    // Detectar si hay cabecera
+                    const isHeaderLine = (vals: any[]) => {
+                        const keywords = ['codigo', 'cliente', 'saldo', 'pagar', 'monto'];
+                        return vals.some(v => v && typeof v === 'string' && keywords.some(kw => v.toLowerCase().includes(kw)));
+                    };
 
-                        // Intentar detectar columnas (Codigo/CodigoCliente y Pago/Saldo/SaldoActual)
-                        const codigo = row.Codigo || row.codigoCliente || row.CODIGO;
-                        const saldo = row.SaldoActual !== undefined ? row.SaldoActual : (row.Pagar !== undefined ? row.Pagar : row.SALDO);
+                    const hasHeader = isHeaderLine(rows[0]);
+                    const headers = hasHeader ? rows[0].map(h => h?.toString().toLowerCase().trim() || "") : [];
+                    const startIndex = hasHeader ? 1 : 0;
 
-                        if (!codigo) {
-                            errors.push({ row: rowNum, error: 'Falta columna de Código de Cliente' });
+                    for (let i = startIndex; i < rows.length; i++) {
+                        const rowArr = rows[i];
+                        if (rowArr.length < 1) continue;
+
+                        const rowNum = i + 1;
+                        setProgress(((i + 1) / rows.length) * 100);
+
+                        // Mapeo inteligente
+                        let codigo = "";
+                        let saldo = "";
+
+                        if (hasHeader) {
+                            const idxCodigo = headers.findIndex(h => h.includes('cod') || h.includes('cli') || h.includes('id'));
+                            const idxSaldo = headers.findIndex(h => h.includes('sal') || h.includes('pag') || h.includes('mon'));
+                            
+                            codigo = idxCodigo !== -1 ? rowArr[idxCodigo] : rowArr[0];
+                            saldo = idxSaldo !== -1 ? rowArr[idxSaldo] : rowArr[1];
+                        } else {
+                            // Sin cabecera: Col 0 = Código, Col 1 = Saldo
+                            codigo = rowArr[0];
+                            saldo = rowArr[1];
+                        }
+
+                        if (!codigo || codigo.toString().trim() === "") {
+                            errors.push({ row: rowNum, error: 'Código de cliente vacío' });
                             failedCount++;
                             continue;
                         }
 
-                        if (saldo === undefined) {
-                            errors.push({ row: rowNum, error: 'Falta columna de Saldo' });
+                        if (saldo === undefined || saldo === null || saldo.toString().trim() === "") {
+                            errors.push({ row: rowNum, error: 'Saldo vacío' });
+                            failedCount++;
+                            continue;
+                        }
+
+                        const saldoNum = parseFloat(saldo.toString().replace(/[^0-9.-]/g, ''));
+                        if (isNaN(saldoNum)) {
+                            errors.push({ row: rowNum, error: `Saldo inválido: ${saldo}` });
                             failedCount++;
                             continue;
                         }
@@ -95,7 +131,7 @@ export function ImportarSaldosModal({
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                     codigoCliente: codigo.toString().trim(),
-                                    updateData: { saldoActual: parseFloat(saldo) }
+                                    updateData: { saldoActual: saldoNum }
                                 }),
                             });
 
@@ -103,7 +139,7 @@ export function ImportarSaldosModal({
                                 successCount++;
                             } else {
                                 const err = await response.json();
-                                errors.push({ row: rowNum, error: err.error || 'Error al actualizar' });
+                                errors.push({ row: rowNum, error: err.error || 'Cliente no encontrado' });
                                 failedCount++;
                             }
                         } catch (err) {
@@ -154,7 +190,7 @@ export function ImportarSaldosModal({
                         <Label>Seleccionar archivo SALDOS_DP.xlsx o SALDOS_DQ.xlsx</Label>
                         <Input
                             type="file"
-                            accept=".xlsx,.xls"
+                            accept=".xlsx,.xls,.csv"
                             onChange={handleFileSelect}
                             disabled={importing}
                             ref={fileInputRef}
