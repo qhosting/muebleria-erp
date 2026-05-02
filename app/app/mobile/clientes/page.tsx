@@ -207,7 +207,7 @@ Fecha: ${new Date().toLocaleDateString()}.
                                 </div>
                                 <div>
                                     <p className="text-[9px] text-amber-500 uppercase font-bold">Vencido</p>
-                                    <p className="text-base font-mono font-bold text-amber-500">${cliente.saldoVencido}</p>
+                                    <p className="text-base font-mono font-bold text-amber-500">${Math.round(cliente.saldoVencido)}</p>
                                 </div>
                             </div>
                             <button
