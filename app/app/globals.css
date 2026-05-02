@@ -233,19 +233,31 @@
 
 /* 🚀 PWA NATIVE MOBILE FEEL OPTIMIZATIONS */
 @layer base {
+  html, body {
+    /* Asegurar que el scroll funcione en contenedores hijos y el body */
+    height: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
   body {
-    /* Prevenir scroll elástico (bounce) en iOS en el body */
-    overscroll-behavior-y: none;
+    /* Permitir scroll pero contener el efecto de rebote en los bordes */
+    overscroll-behavior-y: contain;
     
-    /* Prevenir selección de texto accidental que rompe la ilusión de app */
+    /* Prevenir selección de texto accidental */
     user-select: none;
     -webkit-user-select: none;
     
-    /* Eliminar el resaltado azul al tocar elementos en Android */
+    /* Eliminar resaltado al tocar */
     -webkit-tap-highlight-color: transparent;
     
-    /* Prevenir menú contextual de sistema al dejar presionado (iOS) */
+    /* Prevenir menú contextual (iOS) */
     -webkit-touch-callout: none;
+    
+    /* Asegurar que el body sea el contenedor base */
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   /* Permitir selección solo en inputs y áreas de texto */
