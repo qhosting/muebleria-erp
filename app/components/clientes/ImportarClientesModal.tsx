@@ -169,58 +169,121 @@ export function ImportarClientesModal({
           const workbook = XLSX.read(data, { type: 'binary', cellDates: true, cellNF: false, cellText: false });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+          const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" }) as any[][];
+          
+          if (rows.length === 0) {
+            resolve({ data: [], errors: [{ row: 0, error: 'El archivo está vacío' }] });
+            return;
+          }
 
-          // Mapeo de formato Legacy DQ a Formato Interno
-          const mappedData = jsonData.map((row: any, index: number) => {
-            // Si detectamos las columnas del formato DQ.xlsx, aplicamos el mapeo
-            if (row.RazonSocial || row.Codigo || row.PagoSugerido) {
+          // Función para detectar si una línea es de cabecera
+          const isHeaderLine = (vals: any[]) => {
+            const headerKeywords = ['nombre', 'codigo', 'razon', 'saldo', 'pago', 'direccion', 'tel', 'calle', 'colonia'];
+            return vals.some(v => v && typeof v === 'string' && headerKeywords.some(kw => v.toLowerCase().includes(kw)));
+          };
+
+          const firstRow = rows[0];
+          const hasHeader = isHeaderLine(firstRow);
+          const headers = hasHeader ? firstRow.map(h => h?.toString().trim() || "") : [];
+          const startIndex = hasHeader ? 1 : 0;
+
+          // Mapa de alias para columnas
+          const aliasMap: Record<string, string[]> = {
+            codigoCliente: ['codigo', 'id', 'no.', 'cve', 'codigo de cliente'],
+            nombreCompleto: ['nombre', 'razon social', 'cliente', 'nombre completo', 'razón social'],
+            montoPago: ['pago', 'monto', 'cuota', 'pago sugerido', 'abono'],
+            saldoActual: ['saldo', 'deuda', 'pendiente', 'saldo actual', 'balance'],
+            direccionCompleta: ['direccion', 'calle', 'domicilio', 'ubicacion', 'dirección'],
+            telefono: ['telefono', 'tel', 'celular', 'whatsapp', 'teléfono'],
+            periodicidad: ['periodicidad', 'periodo', 'frecuencia'],
+            diaPago: ['dia', 'dia de pago', 'dia cobro']
+          };
+
+          const getInternalKey = (header: string, index: number): string | null => {
+            const clean = header.toLowerCase().trim();
+            for (const [key, aliases] of Object.entries(aliasMap)) {
+              if (clean === key.toLowerCase() || aliases.includes(clean) || aliases.some(a => clean.includes(a))) {
+                return key;
+              }
+            }
+            if (index === 0) return 'codigoCliente';
+            if (index === 1) return 'saldoActual';
+            return null;
+          };
+
+          const mappedData = [];
+
+          for (let i = startIndex; i < rows.length; i++) {
+            const rowArr = rows[i];
+            if (rowArr.length === 0) continue;
+
+            const isLegacy = hasHeader && (headers.includes('RazonSocial') || headers.includes('Codigo') || headers.includes('PagoSugerido'));
+
+            if (isLegacy) {
+              const rowObj: any = {};
+              headers.forEach((h, idx) => { rowObj[h] = rowArr[idx]; });
+
               const diaMap: Record<string, string> = {
                 'LUNES': '1', 'MARTES': '2', 'MIERCOLES': '3',
                 'JUEVES': '4', 'VIERNES': '5', 'SABADO': '6', 'DOMINGO': '7'
               };
 
-              // Construir dirección completa
               const direccionParts = [
-                row.Calle,
-                row.NumeroExterior ? `#${row.NumeroExterior}` : '',
-                row.NumeroInterior ? `Int ${row.NumeroInterior}` : '',
-                row.Colonia,
-                row.Municipio,
-                row.Estado,
-                row.CodigoPostal ? `CP ${row.CodigoPostal}` : ''
+                rowObj.Calle,
+                rowObj.NumeroExterior ? `#${rowObj.NumeroExterior}` : '',
+                rowObj.NumeroInterior ? `Int ${rowObj.NumeroInterior}` : '',
+                rowObj.Colonia,
+                rowObj.Municipio,
+                rowObj.Estado,
+                rowObj.CodigoPostal ? `CP ${rowObj.CodigoPostal}` : ''
               ].filter(Boolean);
 
-              return {
-                codigoCliente: row.Codigo?.toString() || null,
-                nombreCompleto: row.RazonSocial || "",
-                telefono: row.Telefono1?.toString() || row.Telefono2?.toString() || null,
-                vendedor: row.Vendedor || null,
-                codigoGestor: row.Gestor || null,
+              mappedData.push({
+                codigoCliente: rowObj.Codigo?.toString() || null,
+                nombreCompleto: rowObj.RazonSocial || "",
+                telefono: rowObj.Telefono1?.toString() || rowObj.Telefono2?.toString() || null,
+                vendedor: rowObj.Vendedor || null,
+                codigoGestor: rowObj.Gestor || null,
                 direccionCompleta: direccionParts.join(', '),
-                descripcionProducto: row.Producto || "Importación Legacy",
-                diaPago: diaMap[row.DiaCobro?.toString().toUpperCase()] || '1',
-                montoPago: parseFloat(row.PagoSugerido) || 0,
+                descripcionProducto: rowObj.Producto || "Importación Legacy",
+                diaPago: diaMap[rowObj.DiaCobro?.toString().toUpperCase()] || '1',
+                montoPago: parseFloat(rowObj.PagoSugerido) || 0,
                 periodicidad: (() => {
-                  const p = row.PeriodoPago?.toString().toLowerCase().trim() || 'semanal';
+                  const p = rowObj.PeriodoPago?.toString().toLowerCase().trim() || 'semanal';
                   if (p.includes('catorce')) return 'catorcenal';
                   if (p.includes('quince')) return 'quincenal';
                   if (p.includes('sema')) return 'semanal';
                   if (p.includes('mensu')) return 'mensual';
                   if (p.includes('diar')) return 'diario';
                   if (p.includes('ninguna')) return 'semanal';
-                  return 'semanal'; // Default fallback for any other unrecognized value
+                  return 'semanal';
                 })(),
-                saldoActual: parseFloat(row.SaldoActual) || 0,
-                fechaVenta: row.FechaContrato ? (row.FechaContrato instanceof Date ? row.FechaContrato.toISOString().split('T')[0] : row.FechaContrato.toString()) : null,
-                importe4: parseFloat(row.Pagar) || null,
-                diasVencidos: parseInt(row.DiasVencidos) || 0,
-                saldoVencido: parseFloat(row.SaldoVencido) || 0,
-                _originalRowIndex: index + 2
-              };
+                saldoActual: parseFloat(rowObj.SaldoActual) || 0,
+                fechaVenta: rowObj.FechaContrato ? (rowObj.FechaContrato instanceof Date ? rowObj.FechaContrato.toISOString().split('T')[0] : rowObj.FechaContrato.toString()) : null,
+                importe4: parseFloat(rowObj.Pagar) || null,
+                diasVencidos: parseInt(rowObj.DiasVencidos) || 0,
+                saldoVencido: parseFloat(rowObj.SaldoVencido) || 0,
+                _originalRowIndex: i + 1
+              });
+            } else {
+              const row: any = { _originalRowIndex: i + 1 };
+              rowArr.forEach((val, idx) => {
+                const key = headers[idx] ? getInternalKey(headers[idx], idx) : (idx === 0 ? 'codigoCliente' : idx === 1 ? 'saldoActual' : null);
+                if (key) {
+                  row[key] = val?.toString() || "";
+                }
+                if (headers[idx]) {
+                  row[headers[idx]] = val;
+                }
+                row[`col${idx}`] = val;
+              });
+
+              if (!row.codigoCliente) row.codigoCliente = rowArr[0]?.toString() || "";
+              if (!row.saldoActual) row.saldoActual = rowArr[1]?.toString() || "0";
+
+              mappedData.push(row);
             }
-            return { ...row, _originalRowIndex: index + 2 };
-          });
+          }
 
           resolve({ data: mappedData, errors: [] });
         } catch (error) {
@@ -271,33 +334,71 @@ export function ImportarClientesModal({
       return result;
     };
 
-    // Parsear headers usando la nueva función (la primera línea activa es header)
-    const headerLine = activeLines[0];
-    const headers = splitCSVLine(headerLine.content);
+    // Función para detectar si una línea es de cabecera
+    const isHeaderLine = (vals: string[]) => {
+      const headerKeywords = ['nombre', 'codigo', 'razon', 'saldo', 'pago', 'direccion', 'tel'];
+      return vals.some(v => headerKeywords.some(kw => v.toLowerCase().includes(kw)));
+    };
+
+    const firstLineValues = splitCSVLine(activeLines[0].content);
+    const hasHeader = isHeaderLine(firstLineValues);
+    
     const data = [];
     const errors = [];
+    
+    const headers = hasHeader ? firstLineValues.map(h => h.replace(/^\ufeff/, '').trim()) : [];
+    const startIndex = hasHeader ? 1 : 0;
 
-    for (let i = 1; i < activeLines.length; i++) {
+    // Mapa de alias para columnas
+    const aliasMap: Record<string, string[]> = {
+      codigoCliente: ['codigo', 'id', 'no.', 'cve', 'codigo de cliente'],
+      nombreCompleto: ['nombre', 'razon social', 'cliente', 'nombre completo'],
+      montoPago: ['pago', 'monto', 'cuota', 'pago sugerido', 'abono'],
+      saldoActual: ['saldo', 'deuda', 'pendiente', 'saldo actual', 'balance'],
+      direccionCompleta: ['direccion', 'calle', 'domicilio', 'ubicacion'],
+      telefono: ['telefono', 'tel', 'celular', 'whatsapp'],
+      periodicidad: ['periodicidad', 'periodo', 'frecuencia'],
+      diaPago: ['dia', 'dia de pago', 'dia cobro']
+    };
+
+    const getInternalKey = (header: string, index: number): string | null => {
+      const clean = header.toLowerCase().trim();
+      for (const [key, aliases] of Object.entries(aliasMap)) {
+        if (clean === key.toLowerCase() || aliases.includes(clean) || aliases.some(a => clean.includes(a))) {
+          return key;
+        }
+      }
+      // Mapeo posicional por defecto si no se encontró por nombre
+      if (index === 0) return 'codigoCliente';
+      if (index === 1) return 'saldoActual';
+      return null;
+    };
+
+    for (let i = startIndex; i < activeLines.length; i++) {
       const lineObj = activeLines[i];
       const values = splitCSVLine(lineObj.content);
 
-      // Validar que la fila tenga la cantidad correcta de columnas
-      if (values.length === headers.length) {
-        const row: any = {};
-        headers.forEach((header, index) => {
-          // Limpiar caracteres invisibles del header
-          const cleanHeader = header.replace(/^\ufeff/, '').trim();
-          row[cleanHeader] = values[index];
-        });
-        // Adjuntamos el número de fila original para referencia
-        row._originalRowIndex = lineObj.index;
-        data.push(row);
-      } else {
-        errors.push({
-          row: lineObj.index,
-          error: `Error de formato: La fila tiene ${values.length} columnas, se esperaban ${headers.length}. Verifique comas faltantes o sobran.`
-        });
-      }
+      const row: any = { _originalRowIndex: lineObj.index };
+      
+      // Mapeo inteligente
+      values.forEach((val, idx) => {
+        const key = headers[idx] ? getInternalKey(headers[idx], idx) : (idx === 0 ? 'codigoCliente' : idx === 1 ? 'saldoActual' : null);
+        if (key) {
+          row[key] = val;
+        }
+        // También guardar con el nombre original si existe
+        if (headers[idx]) {
+          row[headers[idx]] = val;
+        }
+        // Guardar por posición por si acaso
+        row[`col${idx}`] = val;
+      });
+
+      // Asegurar que codigoCliente y saldoActual estén mapeados por posición si falló lo demás
+      if (!row.codigoCliente) row.codigoCliente = values[0];
+      if (!row.saldoActual) row.saldoActual = values[1];
+
+      data.push(row);
     }
 
     return { data, errors };
