@@ -281,7 +281,6 @@ export default function MobileSmsCampaignPage() {
                 >
                   <Checkbox 
                     checked={selectedClients.includes(cliente.id)}
-                    onCheckedChange={() => handleToggleClient(cliente.id)}
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{cliente.nombreCompleto}</p>
