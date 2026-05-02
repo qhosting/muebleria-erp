@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 
     const clientes = await prisma.cliente.findMany({
       where: {
-        cobradorAsignadoId: userId,
+        cobradorAsignadoId: userRole === 'admin' ? undefined : userId,
         statusCuenta: 'activo',
         OR: [
           { nombreCompleto: { contains: search, mode: 'insensitive' } },
