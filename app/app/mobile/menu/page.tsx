@@ -81,7 +81,7 @@ export default function MobileMenu() {
                     <span>Cerrar Sesión</span>
                 </button>
                 <p className="text-center text-[10px] text-slate-600 mt-6 font-mono">
-                    VertexERP Mobile v2.9.32
+                    VertexERP Mobile v2.9.33
                 </p>
             </div>
         </div>
