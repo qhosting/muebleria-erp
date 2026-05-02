@@ -21,7 +21,7 @@ export default function MobileMenu() {
         {
             title: "Operación",
             items: [
-                { icon: <MessageSquare className="w-5 h-5" />, label: "Campaña SMS", href: "/dashboard/cobranza-mobile/sms", color: "text-sky-400" },
+                { icon: <MessageSquare className="w-5 h-5" />, label: "Campaña SMS", href: "/mobile/sms", color: "text-sky-400" },
                 { icon: <Database className="w-5 h-5" />, label: "Estado de Sincronización", href: "#", color: "text-emerald-400" },
             ]
         },
