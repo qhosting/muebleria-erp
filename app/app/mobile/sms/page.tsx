@@ -133,7 +133,7 @@ export default function MobileSmsCampaignPage() {
           result = await sendNativeSMS(cliente.telefono, message);
         } else {
           if (!navigator.onLine) {
-            toast.error('Se requiere conexión a internet para LabsMobile');
+            toast.error('Se requiere conexión a internet para envío vía Servidor');
             break;
           }
           const res = await fetch('/api/sms/campaign', {
@@ -320,7 +320,7 @@ export default function MobileSmsCampaignPage() {
                 disabled={selectedClients.length === 0}
               >
                 <CheckCircle2 className="h-5 w-5" />
-                Enviar vía LabsMobile (API)
+                Enviar vía Servidor (API)
               </Button>
             )}
           </>

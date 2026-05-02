@@ -374,7 +374,7 @@ export function SmsDashboard() {
                 </div>
                 <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg dark:bg-amber-900/20 dark:border-amber-900/30">
                   <p className="font-semibold text-amber-800 dark:text-amber-300">Límite de Caracteres</p>
-                  <p className="mt-1">Un SMS estándar tiene 160 caracteres. Si te pasas, LabsMobile cobrará 2 o más créditos por mensaje.</p>
+                  <p className="mt-1">Un SMS estándar tiene 160 caracteres. Si te pasas, se cobrarán 2 o más créditos por mensaje.</p>
                 </div>
                 <div className="p-3 bg-green-50 border border-green-100 rounded-lg dark:bg-green-900/20 dark:border-green-900/30">
                   <p className="font-semibold text-green-800 dark:text-green-300">Horarios</p>
