@@ -220,18 +220,9 @@ Fecha: ${new Date().toLocaleDateString()}.
                                     <p className="text-base font-mono font-bold text-amber-500">${Math.round(cliente.saldoVencido)}</p>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-end gap-1">
-                                <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">D{cliente.diaPago}</p>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleCobrarClick(cliente);
-                                    }}
-                                    className="bg-emerald-600 active:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center space-x-2 shadow-lg shadow-emerald-900/40"
-                                >
-                                    <DollarSign className="w-4 h-4" />
-                                    <span>Cobrar</span>
-                                </button>
+                            <div className="flex items-center gap-1 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Ver Perfil</span>
+                                <ChevronRight className="w-4 h-4 text-slate-500" />
                             </div>
                         </div>
                     </div>

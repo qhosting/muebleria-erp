@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'vertexerp-v2.9.33';
+const CACHE_NAME = 'vertexerp-v2.9.34';
 const urlsToCache = [
   '/',
   '/login',
