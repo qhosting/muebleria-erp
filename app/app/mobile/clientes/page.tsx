@@ -10,14 +10,27 @@ export default function MobileClientes() {
     const [selectedCliente, setSelectedCliente] = useState<any>(null);
     const [montoCobrar, setMontoCobrar] = useState("");
     const [pagoExitoso, setPagoExitoso] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [clientes, setClientes] = useState<any[]>([]);
 
-    // Mock Data
-    const [clientes] = useState([
-        { id: 1, nombre: "Juan Pérez", direccion: "Calle 5 de Mayo #123", saldo: 1500, pagoSemanal: 250, telefono: "5215512345678", estatus: "aldia" },
-        { id: 2, nombre: "María González", direccion: "Av. Reforma #45", saldo: 800, pagoSemanal: 200, telefono: "5215587654321", estatus: "atrasado" },
-        { id: 3, nombre: "Carlos López", direccion: "Privada Los Pinos #8", saldo: 200, pagoSemanal: 100, telefono: "5215511223344", estatus: "aldia" },
-        { id: 4, nombre: "Ana Rodríguez", direccion: "Blvd. Costero #99", saldo: 3200, pagoSemanal: 400, telefono: "5215599887766", estatus: "moroso" },
-    ]);
+    useEffect(() => {
+        const fetchClientes = async () => {
+            try {
+                const response = await fetch(`/api/mobile/clientes?q=${searchTerm}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setClientes(data);
+                }
+            } catch (error) {
+                console.error("Error fetching clientes:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        const timer = setTimeout(fetchClientes, 300);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
     const handleCobrarClick = (cliente: any) => {
         setSelectedCliente(cliente);
@@ -25,9 +38,32 @@ export default function MobileClientes() {
         setPagoExitoso(false);
     };
 
-    const confirmarCobro = () => {
-        // Aquí iría la lógica de guardar en IndexedDB / Sync
-        setPagoExitoso(true);
+    const confirmarCobro = async () => {
+        if (!selectedCliente || !montoCobrar) return;
+
+        const { agregarColaSincronizacion } = await import("@/lib/native/sync");
+        
+        const pagoPayload = {
+            clienteId: selectedCliente.id,
+            monto: parseFloat(montoCobrar),
+            fechaPago: new Date().toISOString(),
+            metodoPago: 'gestor',
+            tipoPago: 'regular'
+        };
+
+        try {
+            await agregarColaSincronizacion('pago', pagoPayload);
+            setPagoExitoso(true);
+            
+            // Actualizar saldo localmente para feedback inmediato
+            setClientes(prev => prev.map(c => 
+                c.id === selectedCliente.id 
+                ? { ...c, saldo: c.saldo - parseFloat(montoCobrar) } 
+                : c
+            ));
+        } catch (error) {
+            console.error("Error al registrar pago:", error);
+        }
     };
 
     const enviarWhatsApp = () => {

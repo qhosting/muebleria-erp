@@ -74,8 +74,15 @@ export async function sincronizarCola() {
 }
 
 async function enviarTareaAlServidor(tarea: TareaSincronizacion): Promise<boolean> {
-    // Aquí iría la llamada real al API
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+    const isNative = Capacitor.isNativePlatform();
+    let baseUrl = '';
+
+    if (isNative && typeof window !== 'undefined') {
+        const savedUrl = localStorage.getItem('custom_server_url');
+        if (savedUrl) {
+            baseUrl = savedUrl.endsWith('/') ? savedUrl.slice(0, -1) : savedUrl;
+        }
+    }
 
     let endpoint = '';
     switch (tarea.tipo) {
@@ -85,26 +92,28 @@ async function enviarTareaAlServidor(tarea: TareaSincronizacion): Promise<boolea
     }
 
     try {
-        // Si es modo desarrollo o demo, simulamos éxito
-        console.log(`Enviando ${tarea.tipo} al servidor:`, tarea.payload);
+        console.log(`📡 Sincronizando ${tarea.tipo} al servidor:`, tarea.payload);
 
-        // Simulación de latencia de red
-        await new Promise(resolve => setTimeout(resolve, 800));
-
-        // TODO: Descomentar llamada real cuando el API esté lista
-        /*
-        const response = await fetch(`${API_URL}${endpoint}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(tarea.payload)
+        const response = await fetch(`${baseUrl}${endpoint}`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                // En nativo pasamos credenciales si es necesario
+            },
+            body: JSON.stringify(tarea.payload)
         });
-        return response.ok;
-        */
 
-        return true; // Simulación exitosa
+        if (response.ok) {
+            console.log(`✅ ${tarea.tipo} sincronizado con éxito`);
+            return true;
+        } else {
+            const errorData = await response.json().catch(() => ({}));
+            console.error(`❌ Error al sincronizar ${tarea.tipo}:`, errorData);
+            return false;
+        }
 
     } catch (error) {
-        console.error('Error de red al enviar tarea:', error);
+        console.error('⚠️ Error de red al enviar tarea:', error);
         return false;
     }
 }

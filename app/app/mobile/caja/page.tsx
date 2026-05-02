@@ -5,22 +5,43 @@ import { usePlatform } from "@/hooks/usePlatform";
 import { Loader2, DollarSign, Printer, Download, CreditCard, ChevronUp, ChevronDown } from "lucide-react";
 
 export default function MobileCaja() {
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [isExpanded, setIsExpanded] = useState(false);
-
-    // Mock Data
     const [stats, setStats] = useState({
-        cobradoHoy: 2500,
-        pagosRegistrados: 12,
-        efectivo: 2000,
-        transferencia: 500,
+        cobradoHoy: 0,
+        pagosRegistrados: 0,
+        efectivo: 0,
+        transferencia: 0,
     });
+    const [pagos, setPagos] = useState<any[]>([]);
 
-    const [pagos, setPagos] = useState([
-        { id: 1, cliente: "Juan Pérez", monto: 200, hora: "10:30 AM", metodo: "Efectivo" },
-        { id: 2, cliente: "María González", monto: 500, hora: "11:15 AM", metodo: "Transferencia" },
-        { id: 3, cliente: "Tienda Don Pepe", monto: 1800, hora: "12:45 PM", metodo: "Efectivo" },
-    ]);
+    useEffect(() => {
+        const fetchCajaData = async () => {
+            try {
+                const response = await fetch('/api/mobile/caja');
+                if (response.ok) {
+                    const data = await response.json();
+                    setStats(data.stats);
+                    setPagos(data.pagos);
+                }
+            } catch (error) {
+                console.error("Error fetching caja data:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchCajaData();
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 space-y-4 text-slate-400">
+                <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
+                <p>Calculando arqueo de caja...</p>
+            </div>
+        );
+    }
 
     const toggleExpand = () => setIsExpanded(!isExpanded);
 

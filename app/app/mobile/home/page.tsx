@@ -11,20 +11,34 @@ export default function MobileHome() {
     const { isNative } = usePlatform();
     const [stats, setStats] = useState({
         cobradoHoy: 0,
-        clientesPendientes: 12,
-        rutaNombre: "Ruta Norte - Zona 1"
+        clientesPendientes: 0,
+        rutaNombre: "Cargando ruta...",
+        proximosClientes: []
     });
 
     useEffect(() => {
-        // Simular carga de datos iniciales
-        setTimeout(() => setLoading(false), 1000);
+        const fetchDashboardData = async () => {
+            try {
+                const response = await fetch('/api/mobile/dashboard');
+                if (response.ok) {
+                    const data = await response.json();
+                    setStats(data);
+                }
+            } catch (error) {
+                console.error("Error fetching dashboard data:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchDashboardData();
     }, []);
 
     if (loading) {
         return (
-            <div className="flex flex-col items-center justify-center p-8 space-y-4 text-slate-400">
-                <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-                <p>Cargando ruta...</p>
+            <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 space-y-4 text-slate-400">
+                <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
+                <p className="animate-pulse">Sincronizando datos...</p>
             </div>
         );
     }
@@ -79,27 +93,36 @@ export default function MobileHome() {
                 />
             </div>
 
-            {/* LISTA DE PRÓXIMOS CLIENTES (MOCK) */}
+            {/* LISTA DE PRÓXIMOS CLIENTES (REAL DATA) */}
             <div className="space-y-3">
-                <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider px-2">Próximos Clientes</h3>
+                <div className="flex justify-between items-center px-2">
+                    <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Próximos Clientes</h3>
+                    <Link href="/mobile/clientes" className="text-xs text-sky-400 font-medium">Ver todos</Link>
+                </div>
 
-                {[1, 2, 3].map((i) => (
-                    <div key={i} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between active:scale-95 transition-transform">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-slate-400">
-                                {String.fromCharCode(64 + i)}
+                {stats.proximosClientes.length > 0 ? (
+                    (stats.proximosClientes as any[]).map((cliente) => (
+                        <div key={cliente.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between active:scale-95 transition-transform">
+                            <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-emerald-500">
+                                    {cliente.nombre.charAt(0)}
+                                </div>
+                                <div className="max-w-[180px]">
+                                    <p className="font-bold text-slate-200 truncate">{cliente.nombre}</p>
+                                    <p className="text-[10px] text-slate-500 truncate">{cliente.direccion}</p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="font-bold text-slate-200">Cliente Ejemplo {i}</p>
-                                <p className="text-xs text-slate-500">Calle 5 de Mayo #12{i}</p>
+                            <div className="text-right">
+                                <p className="font-mono text-emerald-500 font-bold">${cliente.saldo}</p>
+                                <p className="text-[10px] text-slate-600 uppercase">{cliente.periodicidad}</p>
                             </div>
                         </div>
-                        <div className="text-right">
-                            <p className="font-mono text-emerald-500 font-bold">$250.00</p>
-                            <p className="text-[10px] text-slate-600">Semanal</p>
-                        </div>
+                    ))
+                ) : (
+                    <div className="bg-slate-900/50 border border-dashed border-slate-800 p-8 rounded-xl text-center">
+                        <p className="text-slate-500 text-sm italic">No hay clientes pendientes en tu ruta</p>
                     </div>
-                ))}
+                )}
             </div>
         </div>
     );
