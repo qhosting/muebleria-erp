@@ -13,6 +13,8 @@ export default function MobileClientes() {
     const [loading, setLoading] = useState(true);
     const [clientes, setClientes] = useState<any[]>([]);
     const [mostrarTodos, setMostrarTodos] = useState(false);
+    const [filtroDia, setFiltroDia] = useState("todos");
+    const [filtroEstatus, setFiltroEstatus] = useState("todos");
 
     useEffect(() => {
         const fetchClientes = async () => {
@@ -85,12 +87,32 @@ Fecha: ${new Date().toLocaleDateString()}.
     };
 
     const filteredClientes = clientes.filter(c => {
+        // Búsqueda por Nombre, Calle o Colonia (ya viene filtrado por API pero reforzamos localmente)
         const matchesSearch = c.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
             c.direccion.toLowerCase().includes(searchTerm.toLowerCase());
         
-        if (mostrarTodos) return matchesSearch;
-        return matchesSearch && !c.yaPagoEstaSemana;
+        // Filtro por Día
+        const matchesDia = filtroDia === "todos" || c.diaPago === filtroDia;
+
+        // Filtro Lento (Atrasado)
+        const matchesLento = filtroEstatus === "todos" || c.estatus === "atrasado";
+
+        // Filtro Pendientes vs Todos
+        const matchesPendiente = mostrarTodos || !c.yaPagoEstaSemana;
+
+        return matchesSearch && matchesDia && matchesLento && matchesPendiente;
     });
+
+    const dias = [
+        { id: "todos", label: "Día" },
+        { id: "1", label: "Lun" },
+        { id: "2", label: "Mar" },
+        { id: "3", label: "Mié" },
+        { id: "4", label: "Jue" },
+        { id: "5", label: "Vie" },
+        { id: "6", label: "Sáb" },
+        { id: "7", label: "Dom" }
+    ];
 
     return (
         <div className="space-y-4 pb-20">
@@ -100,27 +122,57 @@ Fecha: ${new Date().toLocaleDateString()}.
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="Buscar por nombre..."
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-slate-200 focus:outline-none focus:border-emerald-500"
+                        placeholder="Buscar por nombre, calle o colonia..."
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-slate-200 focus:outline-none focus:border-emerald-500 text-sm"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
 
-                <div className="flex items-center justify-between px-1">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-                        {mostrarTodos ? 'Mostrando Todos' : 'Solo Pendientes'} ({filteredClientes.length})
-                    </p>
-                    <button 
-                        onClick={() => setMostrarTodos(!mostrarTodos)}
-                        className={`text-xs px-3 py-1.5 rounded-full font-bold transition-colors ${
-                            mostrarTodos 
-                            ? 'bg-slate-800 text-slate-300' 
-                            : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        }`}
-                    >
-                        {mostrarTodos ? 'Ver Pendientes' : 'Ver Todos'}
-                    </button>
+                <div className="flex flex-col space-y-3">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                        {dias.map(dia => (
+                            <button
+                                key={dia.id}
+                                onClick={() => setFiltroDia(dia.id)}
+                                className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                                    filtroDia === dia.id 
+                                    ? 'bg-sky-600 text-white shadow-lg' 
+                                    : 'bg-slate-900 text-slate-500 border border-slate-800'
+                                }`}
+                            >
+                                {dia.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center justify-between px-1">
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => setMostrarTodos(!mostrarTodos)}
+                                className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase transition-colors ${
+                                    mostrarTodos 
+                                    ? 'bg-slate-800 text-slate-400' 
+                                    : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                }`}
+                            >
+                                {mostrarTodos ? 'Todos' : 'Pendientes'}
+                            </button>
+                            <button 
+                                onClick={() => setFiltroEstatus(filtroEstatus === "todos" ? "lento" : "todos")}
+                                className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase transition-colors ${
+                                    filtroEstatus === "lento" 
+                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
+                                    : 'bg-slate-800 text-slate-400'
+                                }`}
+                            >
+                                {filtroEstatus === "lento" ? 'Solo Lentos' : 'Todo Estatus'}
+                            </button>
+                        </div>
+                        <p className="text-[10px] text-slate-600 font-mono">
+                            {filteredClientes.length} Result.
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -129,29 +181,38 @@ Fecha: ${new Date().toLocaleDateString()}.
                 {filteredClientes.map((cliente) => (
                     <div key={cliente.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 active:scale-[0.99] transition-transform">
                         <div className="flex justify-between items-start">
-                            <div>
-                                <h3 className="font-bold text-slate-200">{cliente.nombre}</h3>
-                                <div className="flex items-center text-slate-500 text-xs mt-1">
-                                    <MapPin className="w-3 h-3 mr-1" />
-                                    {cliente.direccion}
+                            <div className="max-w-[70%]">
+                                <h3 className="font-bold text-slate-200 truncate">{cliente.nombre}</h3>
+                                <div className="flex items-start text-slate-500 text-[11px] mt-1">
+                                    <MapPin className="w-3 h-3 mr-1 mt-0.5 flex-shrink-0" />
+                                    <span className="line-clamp-1">{cliente.direccion}</span>
                                 </div>
                             </div>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full border capitalize ${cliente.estatus === 'aldia' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                    cliente.estatus === 'atrasado' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                        'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                }`}>
-                                {cliente.estatus}
-                            </span>
+                            <div className="flex flex-col items-end gap-1">
+                                <span className="text-[9px] font-bold text-sky-400 bg-sky-400/10 px-1.5 py-0.5 rounded border border-sky-400/20">D{cliente.diaPago}</span>
+                                <span className={`text-[9px] px-2 py-0.5 rounded-full border uppercase font-bold ${cliente.estatus === 'aldia' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                        cliente.estatus === 'atrasado' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                            'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                    }`}>
+                                    {cliente.estatus === 'atrasado' ? 'Lento' : cliente.estatus}
+                                </span>
+                            </div>
                         </div>
 
-                        <div className="mt-4 pt-4 border-t border-slate-800 flex justify-between items-center">
-                            <div>
-                                <p className="text-[10px] text-slate-500 uppercase">Saldo Pendiente</p>
-                                <p className="text-lg font-mono font-bold text-slate-200">${cliente.saldo}</p>
+                        <div className="mt-4 pt-4 border-t border-slate-800 flex justify-between items-end">
+                            <div className="flex gap-4">
+                                <div>
+                                    <p className="text-[9px] text-slate-500 uppercase font-bold">Saldo</p>
+                                    <p className="text-base font-mono font-bold text-slate-200">${cliente.saldo}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[9px] text-amber-500 uppercase font-bold">Vencido</p>
+                                    <p className="text-base font-mono font-bold text-amber-500">${cliente.saldoVencido}</p>
+                                </div>
                             </div>
                             <button
                                 onClick={() => handleCobrarClick(cliente)}
-                                className="bg-emerald-600 active:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 shadow-lg shadow-emerald-900/20"
+                                className="bg-emerald-600 active:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center space-x-2 shadow-lg shadow-emerald-900/40"
                             >
                                 <DollarSign className="w-4 h-4" />
                                 <span>Cobrar</span>

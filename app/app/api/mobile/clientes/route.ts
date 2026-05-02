@@ -63,6 +63,8 @@ export async function GET(req: NextRequest) {
         nombre: c.nombreCompleto,
         direccion: c.direccionCompleta,
         saldo: parseFloat(c.saldoActual.toString()),
+        saldoVencido: parseFloat(c.saldoVencido.toString()),
+        diaPago: c.diaPago,
         pagoSemanal: parseFloat(c.montoPago.toString()),
         telefono: c.telefono,
         estatus: c.saldoVencido.toNumber() > 0 ? 'atrasado' : 'aldia',
