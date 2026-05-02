@@ -72,29 +72,6 @@ export default function MobileHome() {
                 </div>
             </div>
 
-            {/* ACCIONES RÁPIDAS */}
-            <div className="grid grid-cols-2 gap-4">
-                <Link href="/mobile/clientes" className="w-full">
-                    <ActionButton
-                        icon={<DollarSign className="w-6 h-6 text-white" />}
-                        label="Cobranza"
-                        color="bg-emerald-600"
-                    />
-                </Link>
-                <Link href="/mobile/ventas" className="w-full">
-                    <ActionButton
-                        icon={<TrendingUp className="h-6 w-6 text-white" />}
-                        label="Ventas"
-                        color="bg-blue-600"
-                    />
-                </Link>
-                <ActionButton
-                    icon={<Printer className="w-6 h-6 text-white" />}
-                    label="Corte de Caja"
-                    color="bg-slate-700"
-                />
-            </div>
-
             {/* LISTA DE PRÓXIMOS CLIENTES (REAL DATA) */}
             <div className="space-y-3">
                 <div className="flex justify-between items-center px-2">
