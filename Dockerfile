@@ -1,8 +1,8 @@
 # Multi-stage build para optimizar el tamaño de la imagen
-FROM node:18-alpine3.19 AS base
+FROM node:20-slim AS base
 
-# Instalar dependencias necesarias para Prisma y Alpine
-RUN apk update && apk add --no-cache libc6-compat openssl bash
+# Instalar dependencias necesarias para Prisma y Debian
+RUN apt-get update && apt-get install -y openssl ca-certificates bash curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -131,7 +131,7 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Prisma configuration - avoid permission errors
-ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/node_modules/.prisma/client/libquery_engine-linux-musl-openssl-3.0.x.so.node
+ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node
 ENV PRISMA_ENGINES_MIRROR=https://binaries.prismacdn.com
 
 RUN addgroup --system --gid 1001 nodejs && \
