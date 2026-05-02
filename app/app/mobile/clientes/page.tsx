@@ -12,6 +12,7 @@ export default function MobileClientes() {
     const [pagoExitoso, setPagoExitoso] = useState(false);
     const [loading, setLoading] = useState(true);
     const [clientes, setClientes] = useState<any[]>([]);
+    const [mostrarTodos, setMostrarTodos] = useState(false);
 
     useEffect(() => {
         const fetchClientes = async () => {
@@ -55,10 +56,10 @@ export default function MobileClientes() {
             await agregarColaSincronizacion('pago', pagoPayload);
             setPagoExitoso(true);
             
-            // Actualizar saldo localmente para feedback inmediato
+            // Actualizar estado local
             setClientes(prev => prev.map(c => 
                 c.id === selectedCliente.id 
-                ? { ...c, saldo: c.saldo - parseFloat(montoCobrar) } 
+                ? { ...c, saldo: c.saldo - parseFloat(montoCobrar), yaPagoEstaSemana: true } 
                 : c
             ));
         } catch (error) {
@@ -70,7 +71,7 @@ export default function MobileClientes() {
         if (!selectedCliente) return;
 
         const mensaje = `Hola ${selectedCliente.nombre}, recibimos tu pago de $${montoCobrar}.
-Saldo restante: $${selectedCliente.saldo - Number(montoCobrar)}.
+Saldo restante: $${selectedCliente.saldo}.
 Fecha: ${new Date().toLocaleDateString()}.
 ¡Gracias por tu pago!`;
 
@@ -83,15 +84,18 @@ Fecha: ${new Date().toLocaleDateString()}.
         }
     };
 
-    const filteredClientes = clientes.filter(c =>
-        c.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.direccion.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredClientes = clientes.filter(c => {
+        const matchesSearch = c.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            c.direccion.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        if (mostrarTodos) return matchesSearch;
+        return matchesSearch && !c.yaPagoEstaSemana;
+    });
 
     return (
         <div className="space-y-4 pb-20">
-            {/* SEARCH BAR */}
-            <div className="sticky top-0 bg-slate-950 pt-2 pb-4 z-10 px-1">
+            {/* SEARCH BAR & FILTER */}
+            <div className="sticky top-0 bg-slate-950 pt-2 pb-4 z-10 px-1 space-y-3">
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
@@ -101,6 +105,22 @@ Fecha: ${new Date().toLocaleDateString()}.
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                </div>
+
+                <div className="flex items-center justify-between px-1">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                        {mostrarTodos ? 'Mostrando Todos' : 'Solo Pendientes'} ({filteredClientes.length})
+                    </p>
+                    <button 
+                        onClick={() => setMostrarTodos(!mostrarTodos)}
+                        className={`text-xs px-3 py-1.5 rounded-full font-bold transition-colors ${
+                            mostrarTodos 
+                            ? 'bg-slate-800 text-slate-300' 
+                            : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        }`}
+                    >
+                        {mostrarTodos ? 'Ver Pendientes' : 'Ver Todos'}
+                    </button>
                 </div>
             </div>
 

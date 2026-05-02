@@ -24,6 +24,14 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('q') || '';
 
+    // Lógica de ciclo semanal: Sábado a Viernes
+    const hoy = new Date();
+    const dayOfWeek = hoy.getDay(); // 0: Dom, 1: Lun, ..., 6: Sab
+    const diffToSaturday = (dayOfWeek + 1) % 7; 
+    const inicioCiclo = new Date(hoy);
+    inicioCiclo.setDate(hoy.getDate() - diffToSaturday);
+    inicioCiclo.setHours(0, 0, 0, 0);
+
     const clientes = await prisma.cliente.findMany({
       where: {
         cobradorAsignadoId: userId,
@@ -33,6 +41,15 @@ export async function GET(req: NextRequest) {
           { codigoCliente: { contains: search, mode: 'insensitive' } },
           { direccionCompleta: { contains: search, mode: 'insensitive' } }
         ]
+      },
+      include: {
+        pagos: {
+          where: {
+            fechaPago: { gte: inicioCiclo },
+            tipoPago: 'regular'
+          },
+          take: 1
+        }
       },
       orderBy: {
         nombreCompleto: 'asc'
@@ -46,7 +63,8 @@ export async function GET(req: NextRequest) {
         saldo: parseFloat(c.saldoActual.toString()),
         pagoSemanal: parseFloat(c.montoPago.toString()),
         telefono: c.telefono,
-        estatus: c.saldoVencido.toNumber() > 0 ? 'atrasado' : 'aldia'
+        estatus: c.saldoVencido.toNumber() > 0 ? 'atrasado' : 'aldia',
+        yaPagoEstaSemana: c.pagos.length > 0
     })));
 
   } catch (error) {
