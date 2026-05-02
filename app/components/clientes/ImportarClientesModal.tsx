@@ -208,7 +208,8 @@ export function ImportarClientesModal({
                   if (p.includes('sema')) return 'semanal';
                   if (p.includes('mensu')) return 'mensual';
                   if (p.includes('diar')) return 'diario';
-                  return p;
+                  if (p.includes('ninguna')) return 'semanal';
+                  return 'semanal'; // Default fallback for any other unrecognized value
                 })(),
                 saldoActual: parseFloat(row.SaldoActual) || 0,
                 fechaVenta: row.FechaContrato ? (row.FechaContrato instanceof Date ? row.FechaContrato.toISOString().split('T')[0] : row.FechaContrato.toString()) : null,
@@ -336,7 +337,14 @@ export function ImportarClientesModal({
 
     // Validate periodicidad
     const periodicidadValida = ['diario', 'semanal', 'catorcenal', 'quincenal', 'mensual'];
-    const periodicidad = row.periodicidad?.toLowerCase().trim();
+    let periodicidad = row.periodicidad?.toLowerCase().trim();
+    
+    // Handle (Ninguna) or empty
+    if (!periodicidad || periodicidad.includes('ninguna')) {
+      row.periodicidad = 'semanal'; // Auto-fix
+      periodicidad = 'semanal';
+    }
+
     if (!periodicidadValida.includes(periodicidad)) {
       return `Fila ${rowNum}: 'Periodicidad' inválida (${row.periodicidad}). Valores permitidos: ${periodicidadValida.join(', ')}`;
     }
