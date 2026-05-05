@@ -17,6 +17,13 @@ export default function MobileClientes() {
     const [mostrarTodos, setMostrarTodos] = useState(false);
     const [filtroDia, setFiltroDia] = useState("todos");
     const [filtroEstatus, setFiltroEstatus] = useState("todos");
+    
+    // Estados para el cobro
+    const [interesMoratorio, setInteresMoratorio] = useState("0");
+    const [gastosCobranza, setGastosCobranza] = useState("0");
+    const [tipoPago, setTipoPago] = useState("regular");
+    const [metodoPago, setMetodoPago] = useState("gestor");
+    const [concepto, setConcepto] = useState("");
 
     useEffect(() => {
         const fetchClientes = async () => {
@@ -45,6 +52,11 @@ export default function MobileClientes() {
         setDetailCliente(null);
         setSelectedCliente(cliente);
         setMontoCobrar(cliente.pagoSemanal.toString());
+        setInteresMoratorio("0");
+        setGastosCobranza("0");
+        setTipoPago("regular");
+        setMetodoPago("gestor");
+        setConcepto("");
         setPagoExitoso(false);
     };
 
@@ -53,12 +65,18 @@ export default function MobileClientes() {
 
         const { agregarColaSincronizacion } = await import("@/lib/native/sync");
         
+        const montoTotal = parseFloat(montoCobrar) + parseFloat(interesMoratorio) + parseFloat(gastosCobranza);
+        
         const pagoPayload = {
             clienteId: selectedCliente.id,
-            monto: parseFloat(montoCobrar),
+            monto: montoTotal,
+            montoAbono: parseFloat(montoCobrar),
+            interesMoratorio: parseFloat(interesMoratorio),
+            gastosCobranza: parseFloat(gastosCobranza),
             fechaPago: new Date().toISOString(),
-            metodoPago: 'gestor',
-            tipoPago: 'regular'
+            metodoPago,
+            tipoPago,
+            concepto: concepto || (tipoPago === 'regular' ? 'Pago de cuota' : tipoPago)
         };
 
         try {
@@ -346,33 +364,93 @@ Fecha: ${new Date().toLocaleDateString()}.
                         <div className="p-6 space-y-6">
                             {!pagoExitoso ? (
                                 <>
-                                    <div className="text-center">
-                                        <p className="text-slate-400 text-sm mb-1">{selectedCliente.nombre}</p>
+                                    <div className="text-center bg-slate-950/50 p-4 rounded-xl border border-slate-800">
+                                        <p className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mb-1">{selectedCliente.nombre}</p>
                                         <p className="text-3xl font-bold text-emerald-400 font-mono">
-                                            ${montoCobrar}
+                                            ${(parseFloat(montoCobrar || "0") + parseFloat(interesMoratorio || "0") + parseFloat(gastosCobranza || "0")).toFixed(2)}
                                         </p>
-                                        <p className="text-xs text-slate-500 mt-1">Pago Sugerido</p>
+                                        <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">Total a Recibir</p>
                                     </div>
 
                                     <div className="space-y-4">
-                                        <div>
-                                            <label className="text-xs text-slate-400 uppercase font-bold block mb-2">Monto a Cobrar</label>
-                                            <div className="relative">
-                                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 w-5 h-5" />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="col-span-2">
+                                                <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1.5 ml-1">Monto Abono (Saldo)</label>
+                                                <div className="relative">
+                                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 w-4 h-4" />
+                                                    <input
+                                                        type="number"
+                                                        value={montoCobrar}
+                                                        onChange={(e) => setMontoCobrar(e.target.value)}
+                                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-9 pr-4 text-white font-mono focus:outline-none focus:border-emerald-500 text-sm"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1.5 ml-1">Interés Mora</label>
                                                 <input
                                                     type="number"
-                                                    value={montoCobrar}
-                                                    onChange={(e) => setMontoCobrar(e.target.value)}
-                                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white font-mono text-lg focus:outline-none focus:border-emerald-500"
+                                                    value={interesMoratorio}
+                                                    onChange={(e) => setInteresMoratorio(e.target.value)}
+                                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-white font-mono focus:outline-none focus:border-orange-500 text-sm"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1.5 ml-1">Gastos Cobro</label>
+                                                <input
+                                                    type="number"
+                                                    value={gastosCobranza}
+                                                    onChange={(e) => setGastosCobranza(e.target.value)}
+                                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-white font-mono focus:outline-none focus:border-blue-500 text-sm"
                                                 />
                                             </div>
                                         </div>
 
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1.5 ml-1">Tipo Pago</label>
+                                                <select 
+                                                    value={tipoPago}
+                                                    onChange={(e) => setTipoPago(e.target.value)}
+                                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-white text-xs focus:outline-none focus:border-sky-500 appearance-none"
+                                                >
+                                                    <option value="regular">Regular</option>
+                                                    <option value="abono">Abono</option>
+                                                    <option value="moratorio">Mora</option>
+                                                    <option value="liquidacion">Liquidación</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1.5 ml-1">Método</label>
+                                                <select 
+                                                    value={metodoPago}
+                                                    onChange={(e) => setMetodoPago(e.target.value)}
+                                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-white text-xs focus:outline-none focus:border-sky-500 appearance-none"
+                                                >
+                                                    <option value="gestor">Efectivo</option>
+                                                    <option value="bancario">Bancario</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="text-[10px] text-slate-500 uppercase font-bold block mb-1.5 ml-1">Concepto / Notas</label>
+                                            <textarea
+                                                value={concepto}
+                                                onChange={(e) => setConcepto(e.target.value)}
+                                                rows={2}
+                                                placeholder="Opcional..."
+                                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-white text-xs focus:outline-none focus:border-emerald-500 resize-none"
+                                            />
+                                        </div>
+
                                         <button
                                             onClick={confirmarCobro}
-                                            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-transform flex items-center justify-center space-x-2"
+                                            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-900/30 active:scale-[0.98] transition-all flex items-center justify-center space-x-2 mt-2"
                                         >
-                                            <span>Confirmar Pago</span>
+                                            <span>Confirmar Cobro</span>
                                         </button>
                                     </div>
                                 </>
