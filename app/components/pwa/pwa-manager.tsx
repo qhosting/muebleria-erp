@@ -120,7 +120,7 @@ export function PWAManager() {
       if (!subscription) {
         // En un entorno real, usarías process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
         // Si no existe, no podemos suscribir.
-        const vapidPublicKey = 'BEl62i4nZSk9zjP_96S1x-N2p-4wYc_487F0X43hC9vJ5V-GRoA5S_R7Z5_89523'; // Placeholder
+        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BP6OyWqzh5Ah3ovavEBnz4Mz47WGowP6TJPdE3mO72Hd1LbRgzpj6oZvhk9X5On1Yvxia_MwLVb-BzL0_J8nCAc';
         
         try {
           subscription = await registration.pushManager.subscribe({
