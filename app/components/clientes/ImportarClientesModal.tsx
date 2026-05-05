@@ -160,7 +160,7 @@ export function ImportarClientesModal({
     }
   };
 
-  const parseXLSX = async (file: File): Promise<{ data: any[], errors: any[] }> => {
+  const parseXLSX = async (file: File): Promise<{ data: any[], errors: { row: number; error: string }[] }> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -212,7 +212,7 @@ export function ImportarClientesModal({
             return null;
           };
 
-          const mappedData = [];
+          const mappedData: any[] = [];
 
           for (let i = startIndex; i < rows.length; i++) {
             const rowArr = rows[i];
@@ -295,7 +295,7 @@ export function ImportarClientesModal({
     });
   };
 
-  const parseCSV = (text: string): { data: any[], errors: any[] } => {
+  const parseCSV = (text: string): { data: any[], errors: { row: number; error: string }[] } => {
     // Normalizar saltos de línea y filtrar líneas vacías
     const lines = text.replace(/\r\n/g, '\n').split('\n');
 
@@ -344,8 +344,8 @@ export function ImportarClientesModal({
     const firstLineValues = splitCSVLine(activeLines[0].content);
     const hasHeader = isHeaderLine(firstLineValues);
     
-    const data = [];
-    const errors = [];
+    const data: any[] = [];
+    const errors: { row: number; error: string }[] = [];
     
     const headers = hasHeader ? firstLineValues.map(h => h.replace(/^\ufeff/, '').trim()) : [];
     const startIndex = hasHeader ? 1 : 0;
