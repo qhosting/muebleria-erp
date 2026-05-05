@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer } from "lucide-react";
 import { usePlatform } from "@/hooks/usePlatform";
+import { formatWhatsAppNumber } from "@/lib/utils";
 
 export default function MobileClientes() {
     const { isNative } = usePlatform();
@@ -83,7 +84,8 @@ Saldo restante: $${selectedCliente.saldo}.
 Fecha: ${new Date().toLocaleDateString()}.
 ¡Gracias por tu pago!`;
 
-        const url = `https://wa.me/${selectedCliente.telefono}?text=${encodeURIComponent(mensaje)}`;
+        const telefono = formatWhatsAppNumber(selectedCliente.telefono);
+        const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
 
         if (isNative) {
             window.open(url, '_system');

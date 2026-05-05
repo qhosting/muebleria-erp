@@ -164,3 +164,18 @@ export function generateTicketContent(
     .replace('{{saldo_nuevo}}', formatCurrency(pago.saldoNuevo))
     .replace('{{cobrador}}', pago.cobrador?.name || '');
 }
+
+export function formatWhatsAppNumber(phone: string | null | undefined): string {
+  if (!phone) return '';
+  
+  // Limpiar caracteres no numéricos
+  const cleaned = phone.replace(/\D/g, '');
+  
+  // Si tiene 10 dígitos, asumir México (+52)
+  if (cleaned.length === 10) {
+    return `52${cleaned}`;
+  }
+  
+  // Si ya tiene código de país (ej. 521442...) o formato internacional
+  return cleaned;
+}
