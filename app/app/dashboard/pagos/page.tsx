@@ -52,6 +52,7 @@ interface EstadisticasPagos {
 
 export default function PagosPage() {
   const { data: session } = useSession();
+  const userRole = (session?.user as any)?.role;
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [cobradores, setCobradores] = useState<{ id: string; name: string }[]>([]);
   const [estadisticas, setEstadisticas] = useState<EstadisticasPagos | null>(null);
@@ -379,7 +380,7 @@ export default function PagosPage() {
                             >
                               Reimprimir
                             </Button>
-                            {session.user.role === 'admin' && (
+                            {userRole === 'admin' && (
                               <Button
                                 size="sm"
                                 variant="outline"
