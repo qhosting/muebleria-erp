@@ -311,7 +311,7 @@ Fecha: ${new Date().toLocaleDateString()}.
                             </div>
                         </div>
 
-                        <div className="p-4 bg-slate-950 border-t border-slate-800 sticky bottom-0">
+                        <div className="p-4 pb-20 bg-slate-950 border-t border-slate-800 sticky bottom-0">
                             <div className="grid grid-cols-3 gap-2">
                                 <button 
                                     onClick={() => handleCobrarClick(detailCliente)} 
@@ -333,7 +333,7 @@ Fecha: ${new Date().toLocaleDateString()}.
             {/* MODAL DE COBRO */}
             {selectedCliente && (
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className="bg-slate-900 w-full max-w-sm rounded-2xl border border-slate-800 shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300">
+                    <div className="bg-slate-900 w-full max-w-sm rounded-2xl border border-slate-800 shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 pb-20">
 
                         {/* Header Modal */}
                         <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
