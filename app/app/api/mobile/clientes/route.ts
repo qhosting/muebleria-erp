@@ -80,12 +80,12 @@ export async function GET(req: NextRequest) {
         empleado: c.ocupacion || 'No especificado',
         aval: c.avalId || 'No asignado',
         precios: {
-            contado: c.producto?.precioVenta ? parseFloat(c.producto.precioVenta.toString()) : 0,
-            p6: c.producto?.precio6Meses ? parseFloat(c.producto.precio6Meses.toString()) : 0,
-            p12: c.producto?.precio12Meses ? parseFloat(c.producto.precio12Meses.toString()) : 0
+            contado: c.importe1 ? Math.round(parseFloat(c.importe1.toString())) : 0,
+            p6: c.importe3 ? Math.round(parseFloat(c.importe3.toString())) : 0,
+            p12: c.importe4 ? Math.round(parseFloat(c.importe4.toString())) : 0
         },
-        montoCredito: c.importe1 ? parseFloat(c.importe1.toString()) : 0,
-        vendidoEn: c.importe2 ? parseFloat(c.importe2.toString()) : 0
+        montoCredito: c.importe1 ? Math.round(parseFloat(c.importe1.toString())) : 0,
+        vendidoEn: c.importe2 ? Math.round(parseFloat(c.importe2.toString())) : 0
     })));
 
   } catch (error) {

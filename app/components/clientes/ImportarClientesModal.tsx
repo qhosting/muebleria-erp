@@ -197,7 +197,11 @@ export function ImportarClientesModal({
             telefono: ['telefono', 'tel', 'celular', 'whatsapp', 'teléfono'],
             periodicidad: ['periodicidad', 'periodo', 'frecuencia'],
             diaPago: ['dia', 'dia de pago', 'dia cobro'],
-            codigoGestor: ['gestor', 'cobrador', 'codigo gestor', 'código gestor', 'codigo cobrador', 'cod gestor']
+            codigoGestor: ['gestor', 'cobrador', 'codigo gestor', 'código gestor', 'codigo cobrador', 'cod gestor'],
+            importe1: ['contado', 'precio contado', 'importe1'],
+            importe2: ['vendido', 'vendido en', 'importe2'],
+            importe3: ['p6', 'precio 6 meses', 'importe3'],
+            importe4: ['p12', 'precio 12 meses', 'importe4', 'pagar']
           };
 
           const getInternalKey = (header: string, index: number): string | null => {
