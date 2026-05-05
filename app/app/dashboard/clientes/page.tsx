@@ -32,6 +32,7 @@ import { formatCurrency, formatDate, getDayName, getPeriodicidadLabel } from '@/
 import { toast } from 'sonner';
 import { Cliente, User } from '@/lib/types';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { CobranzaModal } from '@/components/cobranza/cobranza-modal';
 
 interface ClientesResponse {
   clientes: Cliente[];
@@ -74,6 +75,8 @@ export default function ClientesPage() {
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
 
   const [isConsolidated, setIsConsolidated] = useState(false);
+  const [cobranzaModalOpen, setCobranzaModalOpen] = useState(false);
+  const [clienteParaCobrar, setClienteParaCobrar] = useState<Cliente | null>(null);
 
   const userRole = (session?.user as any)?.role;
 
@@ -223,6 +226,17 @@ export default function ClientesPage() {
   const handleModalSuccess = () => {
     fetchClientes();
     setSelectedCliente(null);
+  };
+
+  const handleCobrar = (cliente: Cliente) => {
+    setClienteParaCobrar(cliente);
+    setCobranzaModalOpen(true);
+  };
+
+  const handleCobranzaSuccess = () => {
+    fetchClientes();
+    setCobranzaModalOpen(false);
+    setClienteParaCobrar(null);
   };
 
   // Verificar permisos - cobradores solo pueden ver, no crear
@@ -449,6 +463,10 @@ export default function ClientesPage() {
                                 <Edit className="h-4 w-4 mr-2" />
                                 Editar Cliente
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleCobrar(cliente)}>
+                                <DollarSign className="h-4 w-4 mr-2" />
+                                Registrar Pago
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleDeleteCliente(cliente)}
                                 className="text-red-600"
@@ -606,6 +624,15 @@ export default function ClientesPage() {
             onSuccess={handleModalSuccess}
           />
         </>
+      )}
+
+      {clienteParaCobrar && (
+        <CobranzaModal
+          cliente={clienteParaCobrar}
+          isOpen={cobranzaModalOpen}
+          onClose={() => setCobranzaModalOpen(false)}
+          onSuccess={handleCobranzaSuccess}
+        />
       )}
     </DashboardLayout>
   );

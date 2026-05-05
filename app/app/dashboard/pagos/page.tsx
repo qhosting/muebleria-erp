@@ -17,7 +17,8 @@ import {
   Calendar,
   User,
   DollarSign,
-  FileText
+  FileText,
+  Trash2
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -125,6 +126,28 @@ export default function PagosPage() {
   const exportarPagos = () => {
     // Implementar exportación de pagos
     toast.success('Exportando pagos...');
+  };
+
+  const eliminarPago = async (pagoId: string) => {
+    if (!confirm('¿Está seguro de que desea CANCELAR este pago? El saldo del cliente será restaurado automáticamente.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/pagos/${pagoId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast.success('Pago cancelado exitosamente');
+        fetchPagos();
+      } else {
+        const data = await response.json();
+        throw new Error(data.error || 'Error al eliminar');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Error al eliminar pago');
+    }
   };
 
   const filteredPagos = pagos.filter(pago =>
@@ -356,6 +379,16 @@ export default function PagosPage() {
                             >
                               Reimprimir
                             </Button>
+                            {session.user.role === 'admin' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => eliminarPago(pago.id)}
+                                className="text-xs text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
