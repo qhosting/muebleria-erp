@@ -22,14 +22,14 @@ export default function MobileMenu() {
             title: "Operación",
             items: [
                 { icon: <MessageSquare className="w-5 h-5" />, label: "Campaña SMS", href: "/mobile/sms", color: "text-sky-400" },
-                { icon: <Database className="w-5 h-5" />, label: "Estado de Sincronización", href: "#", color: "text-emerald-400" },
+                { icon: <Database className="w-5 h-5" />, label: "Estado de Sincronización", href: "/mobile/sync", color: "text-emerald-400" },
             ]
         },
         {
             title: "Cuenta",
             items: [
                 { icon: <User className="w-5 h-5" />, label: "Mi Perfil", href: "/mobile/perfil", color: "text-slate-300" },
-                { icon: <ShieldCheck className="w-5 h-5" />, label: "Seguridad", href: "#", color: "text-slate-300" },
+                { icon: <ShieldCheck className="w-5 h-5" />, label: "Seguridad", href: "/mobile/seguridad", color: "text-slate-300" },
             ]
         }
     ];

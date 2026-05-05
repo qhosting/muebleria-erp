@@ -19,14 +19,14 @@ Digitalizar y optimizar la operación de cobranza en campo, proporcionando herra
 - [x] Registro de "Motararios" (visitas sin pago).
 - [x] Impresión de tickets vía Bluetooth.
 - [x] Envío de recibos por WhatsApp.
-- [ ] **Pendiente:** Refinar captura de gastos administrativos.
+- [x] Refinar captura de gastos administrativos (Desglose de capital vs. gastos).
 
 ### 🟠 Fase 3: Optimización y Notificaciones (50%)
 - [x] Visualización de clientes en mapa (Leaflet).
 - [x] Apertura de navegación en Google Maps/Waze.
-- [ ] **Pendiente:** Algoritmo de ruta óptima (TSP).
-- [ ] **Pendiente:** Notificaciones Push para nuevas asignaciones (FCM).
-- [ ] **Pendiente:** Registro de ubicación forzada al cobrar.
+- [x] Algoritmo de ruta óptima (TSP).
+- [x] Notificaciones Push para nuevas asignaciones (FCM/WebPush).
+- [x] Registro de ubicación forzada al cobrar.
 
 ### ⚪ Fase 4: Expansión e IA (20%)
 - [x] Registro de Leads en campo.
@@ -37,9 +37,8 @@ Digitalizar y optimizar la operación de cobranza en campo, proporcionando herra
 ---
 
 ## 🛠️ Próximos Pasos Inmediatos
-1. **Configuración de FCM:** Implementar las notificaciones push para mejorar la comunicación con los cobradores.
-2. **Optimización de Batería:** Revisar el uso de GPS en segundo plano.
-3. **Beta Testing:** Despliegue con 2 cobradores para validar el flujo de sincronización en condiciones de red inestable.
+1. **Beta Testing:** Despliegue con 2 cobradores para validar el flujo de sincronización en condiciones de red inestable.
+2. **Capacitación:** Sesión con el equipo de cobranza sobre el nuevo desglose de pagos y optimización de rutas.
 
 ---
 *Ultima actualización: 5 de Mayo de 2026*

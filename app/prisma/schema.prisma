@@ -177,6 +177,8 @@ model Cliente {
   importe2            Decimal?     @db.Decimal(10, 2)
   importe3            Decimal?     @db.Decimal(10, 2)
   importe4            Decimal?     @db.Decimal(10, 2)
+  latitud             String?
+  longitud            String?
   
   // Direccion detallada
   calle               String?
@@ -251,6 +253,8 @@ model Pago {
   cobradorId    String
   ticketId      String?
   monto         Decimal  @db.Decimal(10, 2)
+  interesMoratorio Decimal @default(0) @db.Decimal(10, 2)
+  gastosCobranza Decimal @default(0) @db.Decimal(10, 2)
   concepto      String?
   tipoPago      TipoPago @default(regular)
   fechaPago     DateTime @default(now())

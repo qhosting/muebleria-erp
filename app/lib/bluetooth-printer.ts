@@ -78,6 +78,8 @@ export interface TicketData {
   };
   pago: {
     monto: number;
+    interesMoratorio?: number;
+    gastosCobranza?: number;
     tipoPago: string;
     metodoPago: string;
     concepto?: string;
@@ -406,6 +408,43 @@ class BluetoothPrinterService {
     return char.repeat(length);
   }
 
+  async printCollectionReport(stats: { cobradoHoy: number, efectivo: number, transferencia: number }, pagos: any[]): Promise<boolean> {
+    try {
+      let ticket = '';
+      ticket += this.COMMANDS.CENTER;
+      ticket += this.COMMANDS.BOLD_ON;
+      ticket += 'REPORTE DIARIO DE COBRANZA' + this.LF;
+      ticket += new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString() + this.LF;
+      ticket += this.COMMANDS.BOLD_OFF;
+      ticket += this.createDivider() + this.LF;
+
+      ticket += this.COMMANDS.LEFT;
+      ticket += 'TOTAL COBRADO:' + this.rightAlignText(this.formatCurrency(stats.cobradoHoy)) + this.LF;
+      ticket += '  - Efectivo:' + this.rightAlignText(this.formatCurrency(stats.efectivo)) + this.LF;
+      ticket += '  - Transf:  ' + this.rightAlignText(this.formatCurrency(stats.transferencia)) + this.LF;
+      ticket += this.createDivider() + this.LF;
+
+      ticket += this.COMMANDS.BOLD_ON;
+      ticket += 'MOVIMIENTOS (' + pagos.length + '):' + this.LF;
+      ticket += this.COMMANDS.BOLD_OFF;
+
+      pagos.forEach(p => {
+        const line = `${p.hora} ${p.cliente.substring(0, 15)}`;
+        ticket += line + this.rightAlignText(this.formatCurrency(p.monto)) + this.LF;
+      });
+
+      ticket += this.createDivider() + this.LF;
+      ticket += this.LF + this.LF + this.LF;
+      ticket += this.COMMANDS.CUT;
+
+      await this.sendData(ticket);
+      return true;
+    } catch (error) {
+      console.error('Error al imprimir reporte:', error);
+      throw error;
+    }
+  }
+
   async printTicket(ticketData: TicketData): Promise<void> {
     if (!this.connection.isConnected) {
       throw new Error('Impresora no conectada');
@@ -486,7 +525,24 @@ class BluetoothPrinterService {
       ticket += this.COMMANDS.BOLD_OFF;
 
       ticket += 'Saldo Anterior:' + this.rightAlignText(this.formatCurrency(ticketData.saldos.anterior)) + this.LF;
-      ticket += 'Pago Recibido:' + this.rightAlignText(this.formatCurrency(ticketData.pago.monto)) + this.LF;
+      
+      // Desglose de Pago
+      ticket += 'Abono a Saldo:' + this.rightAlignText(this.formatCurrency(ticketData.pago.monto)) + this.LF;
+      
+      if (ticketData.pago.interesMoratorio && ticketData.pago.interesMoratorio > 0) {
+        ticket += 'Int. Moratorio:' + this.rightAlignText(this.formatCurrency(ticketData.pago.interesMoratorio)) + this.LF;
+      }
+      
+      if (ticketData.pago.gastosCobranza && ticketData.pago.gastosCobranza > 0) {
+        ticket += 'Gastos Cobranza:' + this.rightAlignText(this.formatCurrency(ticketData.pago.gastosCobranza)) + this.LF;
+      }
+
+      const totalRecibido = ticketData.pago.monto + (ticketData.pago.interesMoratorio || 0) + (ticketData.pago.gastosCobranza || 0);
+      
+      ticket += this.COMMANDS.BOLD_ON;
+      ticket += 'TOTAL RECIBIDO:' + this.rightAlignText(this.formatCurrency(totalRecibido)) + this.LF;
+      ticket += this.COMMANDS.BOLD_OFF;
+      
       ticket += this.createDivider() + this.LF;
       ticket += this.COMMANDS.BOLD_ON;
       ticket += 'Saldo Actual:' + this.rightAlignText(this.formatCurrency(ticketData.saldos.nuevo)) + this.LF;

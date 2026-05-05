@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { signOut, useSession } from 'next-auth/react';
-import { Settings, Printer, LogOut, RefreshCw, Bell, BellOff } from 'lucide-react';
+import { Settings, Printer, LogOut, RefreshCw, Bell, BellOff, WifiOff, Globe } from 'lucide-react';
+import { db } from '@/lib/offline-db';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
@@ -13,6 +14,7 @@ export default function MobilePerfilPage() {
     const { data: session } = useSession();
     const [pendingCount, setPendingCount] = useState(0);
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+    const [preferOffline, setPreferOffline] = useState(false);
 
     useEffect(() => {
         const loadPending = async () => {
@@ -26,7 +28,19 @@ export default function MobilePerfilPage() {
         if ('Notification' in window) {
             setNotificationsEnabled(Notification.permission === 'granted');
         }
-    }, []);
+
+        // Cargar ajustes offline
+        const loadSettings = async () => {
+            if (session?.user) {
+                const userId = (session.user as any).id;
+                const settings = await db.settings.get(userId);
+                if (settings) {
+                    setPreferOffline(!!settings.preferOffline);
+                }
+            }
+        };
+        loadSettings();
+    }, [session]);
 
     const toggleNotifications = async () => {
         if (!('Notification' in window)) {
@@ -48,6 +62,19 @@ export default function MobilePerfilPage() {
             // Aquí se llamaría a la función de suscripción que definimos en PWAManager
         } else {
             toast.error('Permiso de notificaciones denegado');
+    const togglePreferOffline = async () => {
+        if (!session?.user) return;
+        const userId = (session.user as any).id;
+        const newValue = !preferOffline;
+        
+        try {
+            await db.settings.update(userId, { preferOffline: newValue });
+            setPreferOffline(newValue);
+            toast.success(newValue ? 'Modo Offline activado' : 'Sincronización automática activada', {
+                description: newValue ? 'Los datos se sincronizarán solo cuando tú lo decidas.' : 'Los datos se subirán automáticamente al detectar señal.'
+            });
+        } catch (error) {
+            toast.error('Error al guardar configuración');
         }
     };
 
@@ -84,6 +111,27 @@ export default function MobilePerfilPage() {
                         <BellOff className="w-5 h-5 mr-3 text-slate-400" />
                     )}
                     {notificationsEnabled ? 'Notificaciones Activas' : 'Activar Notificaciones'}
+                </Button>
+
+                <Button
+                    onClick={togglePreferOffline}
+                    className={`w-full bg-slate-900 border border-slate-800 hover:bg-slate-800 text-white justify-between h-14 ${preferOffline ? 'border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.1)]' : ''}`}
+                    variant="outline"
+                >
+                    <div className="flex items-center">
+                        {preferOffline ? (
+                            <WifiOff className="w-5 h-5 mr-3 text-amber-500" />
+                        ) : (
+                            <Globe className="w-5 h-5 mr-3 text-sky-400" />
+                        )}
+                        <div className="text-left">
+                            <p className="text-sm">Modo Offline Preferido</p>
+                            <p className="text-[10px] text-slate-500">{preferOffline ? 'Ahorro de datos activo' : 'Sincronización automática'}</p>
+                        </div>
+                    </div>
+                    <div className={`w-10 h-5 rounded-full relative transition-colors ${preferOffline ? 'bg-amber-600' : 'bg-slate-700'}`}>
+                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${preferOffline ? 'right-1' : 'left-1'}`}></div>
+                    </div>
                 </Button>
 
                 <Button

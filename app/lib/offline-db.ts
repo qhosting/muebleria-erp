@@ -16,6 +16,8 @@ export interface OfflineCliente {
   cobradorAsignadoId: string;
   saldoConsolidado?: number;
   notas?: string;
+  latitud?: number;
+  longitud?: number;
   // Metadatos offline
   lastSync: number;
   syncStatus: 'synced' | 'pending' | 'conflict';
@@ -31,6 +33,10 @@ export interface OfflinePago {
   cobradorId: string;
   metodoPago: 'gestor' | 'bancario';
   numeroRecibo?: string;
+  interesMoratorio?: number;
+  gastosCobranza?: number;
+  latitud?: string | null;
+  longitud?: string | null;
   // Metadatos offline
   localId: string; // ID temporal local hasta sincronizar
   syncStatus: 'pending' | 'syncing' | 'synced' | 'failed';
@@ -70,6 +76,8 @@ export interface AppSettings {
   lastFullSync?: number;
   syncEnabled: boolean;
   autoSync: boolean;
+  preferOffline?: boolean;
+  syncOnlyOnWifi?: boolean;
   bluetoothPrinter?: string;
   printFormat: 'thermal' | 'standard';
   offlineMode: boolean;

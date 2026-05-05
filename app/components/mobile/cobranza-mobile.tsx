@@ -41,6 +41,8 @@ import { formatCurrency, getDayName } from '@/lib/utils';
 import { toast } from 'sonner';
 import { FooterVersion } from '@/components/version-info';
 import { PWAInstallButton } from '@/components/pwa/pwa-install-button';
+import { optimizeRoute } from '@/lib/tsp-algorithm';
+import { obtenerUbicacionCobrador } from '@/lib/native/location';
 
 interface CobranzaMobileProps {
   initialClientes?: OfflineCliente[];
@@ -57,8 +59,10 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
     return diasMap[today];
   });
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-  const [sortBy, setSortBy] = useState<'nombre' | 'saldo' | 'dia'>('nombre');
+  const [sortBy, setSortBy] = useState<'nombre' | 'saldo' | 'dia' | 'ruta'>('nombre');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizedIds, setOptimizedIds] = useState<string[]>([]);
   const [selectedCliente, setSelectedCliente] = useState<OfflineCliente | null>(null);
   const [showCobroModal, setShowCobroModal] = useState(false);
   const [showPagosModal, setShowPagosModal] = useState(false);
@@ -96,11 +100,32 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // 🚀 ESCUCHA DE SINCRONIZACIÓN REMOTA (FORZADA POR ADMIN)
+    const handleServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'REMOTE_SYNC_REQUESTED' && userId) {
+        console.log('⚡ Recibida orden de sincronización remota del Administrador');
+        toast.info('Sincronización remota iniciada por el administrador', {
+            description: 'Subiendo datos pendientes ahora mismo...',
+            duration: 5000
+        });
+        
+        // Sincronizar ignorando preferencias
+        syncService.syncAll(userId, true);
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+    }
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
+      }
     };
-  }, []);
+  }, [userId]);
 
   // 🚀 OPTIMIZACIÓN CRÍTICA: Cargar clientes con useCallback para evitar re-creaciones
   const loadClientesOffline = useCallback(async () => {
@@ -281,6 +306,14 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
           case 'dia':
             comparison = parseInt(a.diaPago) - parseInt(b.diaPago);
             break;
+          case 'ruta':
+            const indexA = optimizedIds.indexOf(a.id);
+            const indexB = optimizedIds.indexOf(b.id);
+            if (indexA === -1 && indexB === -1) comparison = 0;
+            else if (indexA === -1) comparison = 1;
+            else if (indexB === -1) comparison = -1;
+            else comparison = indexA - indexB;
+            break;
         }
 
         return sortOrder === 'asc' ? comparison : -comparison;
@@ -288,6 +321,12 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
   }, [clientesOffline, searchTerm, selectedDia, sortBy, sortOrder]);
 
   // 🚀 OPTIMIZACIÓN: Memoizar estadísticas calculadas
+  useEffect(() => {
+    if (userId) {
+      localStorage.setItem('last_cobrador_id', userId);
+    }
+  }, [userId]);
+
   const clientStats = useMemo(() => {
     const totalSaldoPendiente = filteredClientes.reduce((sum, c) => sum + c.saldoPendiente, 0);
     const clientesConDeuda = filteredClientes.filter(c => c.saldoPendiente > 0).length;
@@ -340,6 +379,41 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
 
   const toggleSort = () => {
     setSortOrder(prevOrder => prevOrder === 'asc' ? 'desc' : 'asc');
+  };
+
+  const handleOptimizeRoute = async () => {
+    setIsOptimizing(true);
+    try {
+      // Para optimizar ruta, no necesitamos precisión extrema de GPS (ahorra batería)
+      // Aceptamos una ubicación de hasta 5 minutos de antigüedad
+      const coords: any = await obtenerUbicacionCobrador(false, 300000); 
+      
+      // Filtrar clientes que tienen coordenadas
+      const clientsWithCoords = clientesOffline
+        .filter(c => c.latitud && c.longitud)
+        .map(c => ({
+          id: c.id,
+          lat: parseFloat(c.latitud!.toString()),
+          lng: parseFloat(c.longitud!.toString())
+        }));
+
+      if (clientsWithCoords.length === 0) {
+        toast.error('No hay clientes con coordenadas para optimizar');
+        return;
+      }
+
+      const startPoint = { id: 'current', lat: coords.lat, lng: coords.lng };
+      const optimized = optimizeRoute(startPoint, clientsWithCoords);
+      
+      setOptimizedIds(optimized.map(o => o.id));
+      setSortBy('ruta');
+      toast.success('Ruta optimizada según tu ubicación actual');
+    } catch (error) {
+      console.error('Error optimizando ruta:', error);
+      toast.error('Error al obtener ubicación GPS');
+    } finally {
+      setIsOptimizing(false);
+    }
   };
 
   if (userRole !== 'cobrador') {
@@ -456,9 +530,9 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
                 <SelectItem value="nombre">Por nombre</SelectItem>
                 <SelectItem value="saldo">Por saldo</SelectItem>
                 <SelectItem value="dia">Por día</SelectItem>
+                <SelectItem value="ruta">Por ruta optimizada</SelectItem>
               </SelectContent>
             </Select>
-
             <Button
               variant="outline"
               size="icon"
@@ -470,6 +544,17 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
               ) : (
                 <SortDesc className="w-4 h-4" />
               )}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleOptimizeRoute}
+              className={`flex-shrink-0 ${sortBy === 'ruta' ? 'bg-primary/10 border-primary text-primary' : ''}`}
+              disabled={isOptimizing}
+              title="Optimizar Ruta (TSP)"
+            >
+              <RefreshCw className={`w-4 h-4 ${isOptimizing ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </div>

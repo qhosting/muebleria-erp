@@ -34,18 +34,20 @@ export class SyncService {
     // 🚀 OPTIMIZACIÓN MÓVIL: Sincronizar cada 15 minutos en lugar de 5 (menos agresivo)
     // También verificar si realmente hay datos pendientes antes de sincronizar
     this.autoSyncInterval = setInterval(async () => {
-      if (navigator.onLine && !this.syncInProgress) {
+      // 🚀 OPTIMIZACIÓN: Solo sincronizar si NO está activado el "Modo Offline Preferido"
+      const settings = await db.settings.get(cobradorId);
+      
+      if (navigator.onLine && !this.syncInProgress && !settings?.preferOffline) {
         try {
-          // Solo sincronizar si hay datos pendientes
           const pendingCount = await db.syncQueue.where('status').equals('pending').count();
           if (pendingCount > 0) {
-            await this.syncAll(cobradorId, false); // silent sync
+            await this.syncAll(cobradorId, false);
           }
         } catch (error) {
           console.error('Error en auto-sync:', error);
         }
       }
-    }, 15 * 60 * 1000); // 15 minutos en lugar de 5
+    }, 15 * 60 * 1000); // 15 minutos
   }
 
   public stopAutoSync() {
@@ -151,6 +153,10 @@ export class SyncService {
           fechaPago: pago.fechaPago,
           metodoPago: pago.metodoPago,
           numeroRecibo: pago.numeroRecibo,
+          interesMoratorio: pago.interesMoratorio || 0,
+          gastosCobranza: pago.gastosCobranza || 0,
+          latitud: pago.latitud,
+          longitud: pago.longitud,
           localId: pago.localId
         };
 
@@ -350,12 +356,21 @@ export const syncService = SyncService.getInstance();
 // Event listeners para manejo de conectividad (solo en el cliente)
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
-    console.log('Conexión restaurada - intentando sincronizar');
+    console.log('Conexión restaurada - intentando sincronizar automáticamente');
     toast.success('Conexión restaurada');
-  });
-
-  window.addEventListener('offline', () => {
-    console.log('Conexión perdida - modo offline');
-    toast.info('Sin conexión - trabajando offline');
+    
+    // Disparar sincronización inmediata si hay un cobrador en sesión
+    // Nota: El cobradorId se obtiene del contexto de la app o se espera al siguiente heartbeat
+    // Pero podemos forzar una revisión de la cola
+    const lastCobradorId = localStorage.getItem('last_cobrador_id');
+    if (lastCobradorId) {
+        db.settings.get(lastCobradorId).then(settings => {
+            if (!settings?.preferOffline) {
+                syncService.syncAll(lastCobradorId, false);
+            } else {
+                console.log('Online detectado, pero se respeta el Modo Offline Preferido');
+            }
+        });
+    }
   });
 }

@@ -160,6 +160,23 @@ export function useBluetoothPrinter() {
     }
   };
 
+  const printCollectionReport = async (stats: { cobradoHoy: number, efectivo: number, transferencia: number }, pagos: any[]): Promise<boolean> => {
+    if (!isConnected) {
+      toast.error('Impresora no conectada');
+      return false;
+    }
+
+    try {
+      await bluetoothPrinter.printCollectionReport(stats, pagos);
+      toast.success('Reporte impreso exitosamente');
+      return true;
+    } catch (error: any) {
+      const message = error.message || 'Error imprimiendo reporte';
+      toast.error(message);
+      return false;
+    }
+  };
+
   return {
     isConnected,
     isConnecting,
@@ -172,6 +189,7 @@ export function useBluetoothPrinter() {
     reconnectToPrinter,
     disconnectFromPrinter,
     printTicket,
+    printCollectionReport,
     printTestPage,
     updateConnectionStatus
   };

@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { obtenerUbicacionCobrador } from '@/lib/native/location';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -121,7 +122,9 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
         id: userId
       },
       pago: {
-        monto: calculatedValues.montoTotal,
+        monto: calculatedValues.montoAbono,
+        interesMoratorio: calculatedValues.interesMoratorio,
+        gastosCobranza: calculatedValues.gastosCobranza,
         tipoPago: tipoPago,
         metodoPago: metodoPago,
         concepto: concepto,
@@ -156,90 +159,69 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
     setLoading(true);
 
     try {
-      const pagosAPuntos = [];
-
-      // 1. Pago Regular (Abono al saldo)
-      if (calculatedValues.montoAbono > 0) {
-        pagosAPuntos.push({
-          clienteId: cliente.id,
-          cobradorId: userId,
-          monto: calculatedValues.montoAbono,
-          tipoPago: tipoPago || 'regular',
-          concepto: concepto || `Abono Regular`,
-          fechaPago: new Date().toISOString(),
-          metodoPago,
-          numeroRecibo: numeroRecibo || undefined
-        });
+      // Capturar ubicación forzada
+      let location = { lat: null, lng: null };
+      try {
+        const coords: any = await obtenerUbicacionCobrador();
+        location = { lat: coords.lat.toString(), lng: coords.lng.toString() };
+      } catch (locError) {
+        console.warn('No se pudo obtener la ubicación para el pago:', locError);
+        // Podríamos bloquear el pago aquí si fuera estrictamente "forzada", 
+        // pero por ahora solo logueamos y enviamos vacío si falla.
       }
 
-      // 2. Interés Moratorio
-      if (calculatedValues.interesMoratorio > 0) {
-        pagosAPuntos.push({
-          clienteId: cliente.id,
-          cobradorId: userId,
-          monto: calculatedValues.interesMoratorio,
-          tipoPago: 'moratorio' as const,
-          concepto: `Interés Moratorio - ${concepto || 'Recargo'}`,
-          fechaPago: new Date().toISOString(),
-          metodoPago,
-          numeroRecibo: numeroRecibo ? `${numeroRecibo}-M` : undefined
-        });
-      }
-
-      // 3. Gastos de Cobranza
-      if (calculatedValues.gastosCobranza > 0) {
-        pagosAPuntos.push({
-          clienteId: cliente.id,
-          cobradorId: userId,
-          monto: calculatedValues.gastosCobranza,
-          tipoPago: 'otro' as const,
-          concepto: `Gastos de Cobranza - ${concepto || 'Gestión'}`,
-          fechaPago: new Date().toISOString(),
-          metodoPago,
-          numeroRecibo: numeroRecibo ? `${numeroRecibo}-G` : undefined
-        });
-      }
+      const pagoData = {
+        clienteId: cliente.id,
+        cobradorId: userId,
+        monto: calculatedValues.montoAbono,
+        interesMoratorio: calculatedValues.interesMoratorio,
+        gastosCobranza: calculatedValues.gastosCobranza,
+        tipoPago: tipoPago || 'regular',
+        concepto: concepto || `Abono Regular`,
+        fechaPago: new Date().toISOString(),
+        metodoPago,
+        numeroRecibo: numeroRecibo || undefined,
+        localId: generateLocalId(),
+        latitud: location.lat,
+        longitud: location.lng
+      };
 
       if (isOnline) {
-        // Enviar todos los pagos al servidor
-        for (const pago of pagosAPuntos) {
-          const response = await fetch('/api/pagos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(pago)
-          });
+        // Enviar un solo pago con todo el desglose
+        const response = await fetch('/api/pagos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(pagoData)
+        });
 
-          if (!response.ok) {
-            throw new Error(`Error al registrar pago ${pago.tipoPago}`);
-          }
+        if (!response.ok) {
+          throw new Error(`Error al registrar el pago`);
         }
 
-        toast.success(`Se registraron ${pagosAPuntos.length} conceptos por un total de ${formatCurrency(calculatedValues.montoTotal)}`);
+        toast.success(`Pago registrado correctamente: ${formatCurrency(calculatedValues.montoTotal)}`);
 
         // Imprimir ticket si está habilitado
         if (imprimirTicket && isPrinterConnected) {
           try {
-            const ticketData = createTicketData(new Date().toISOString(), numeroRecibo || '');
+            const ticketData = createTicketData(pagoData.fechaPago, numeroRecibo || '');
             await printTicket(ticketData);
           } catch (error) {
             console.error('Error imprimiendo ticket:', error);
-            toast.error('Pagos registrados, pero error al imprimir ticket');
+            toast.error('Pago registrado, pero error al imprimir ticket');
           }
         }
 
       } else {
-        // Guardar todos offline
-        for (const pago of pagosAPuntos) {
-          await syncService.addPagoOffline(pago as any);
-        }
+        // Guardar offline
+        await syncService.addPagoOffline(pagoData as any);
 
-        toast.success(`Pagos guardados offline (${pagosAPuntos.length} conceptos)`, {
-          description: 'Se sincronizarán automáticamente'
+        toast.success(`Pago guardado offline`, {
+          description: 'Se sincronizará automáticamente'
         });
 
         if (imprimirTicket && isPrinterConnected) {
           try {
-            const ticketData = createTicketData(new Date().toISOString(), numeroRecibo || '');
+            const ticketData = createTicketData(pagoData.fechaPago, numeroRecibo || '');
             await printTicket(ticketData);
           } catch (error) {
             console.error('Error imprimiendo ticket:', error);

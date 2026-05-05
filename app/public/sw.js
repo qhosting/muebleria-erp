@@ -86,6 +86,22 @@ self.addEventListener('push', (event) => {
     event.waitUntil(
       self.registration.showNotification(data.title || 'VertexERP', options)
     );
+
+    // 🚀 DETECCIÓN DE SINCRONIZACIÓN FORZADA
+    if (data.type === 'FORCE_SYNC') {
+      console.log('[SW] Recibida orden de sincronización forzada remota');
+      event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+          clientList.forEach(client => {
+            client.postMessage({
+              type: 'REMOTE_SYNC_REQUESTED',
+              force: true,
+              timestamp: Date.now()
+            });
+          });
+        })
+      );
+    }
   } catch (e) {
     console.error('[SW] Error procesando notificación push:', e);
   }

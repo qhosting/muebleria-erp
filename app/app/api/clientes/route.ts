@@ -455,8 +455,19 @@ vendedorId: vendedor?.id || null,
             `${cliente.vendedor || 'Un vendedor'} vendió: ${cliente.descripcionProducto} a ${cliente.nombreCompleto}.`,
             '/dashboard/ventas'
         );
+
+        // NOTIFICAR AL COBRADOR ASIGNADO
+        if (cliente.cobradorAsignadoId) {
+            const { sendPushNotification } = await import('@/lib/notifications');
+            await sendPushNotification(
+                cliente.cobradorAsignadoId, 
+                '📍 Nueva Cuenta Asignada', 
+                `Se te ha asignado el cliente: ${cliente.nombreCompleto}. ¡Revisa tu ruta!`,
+                '/dashboard/cobranza-mobile'
+            );
+        }
     } catch (nError) {
-        console.error('Error enviando notificación de venta:', nError);
+        console.error('Error enviando notificación push:', nError);
     }
 
     return NextResponse.json(clienteSerializado, { status: 201 });

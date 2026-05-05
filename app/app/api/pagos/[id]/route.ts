@@ -3,6 +3,65 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const pago = await prisma.pago.findUnique({
+      where: { id: params.id },
+      include: {
+        cliente: {
+          select: {
+            id: true,
+            nombreCompleto: true,
+            telefono: true,
+            direccionCompleta: true,
+            diaPago: true,
+            saldoActual: true,
+          }
+        },
+        cobrador: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    if (!pago) {
+      return NextResponse.json({ error: 'Pago no encontrado' }, { status: 404 });
+    }
+
+    // Convertir Decimal a Number
+    const pagoAny = pago as any;
+    const pagoSerializado = {
+      ...pagoAny,
+      monto: parseFloat(pagoAny.monto.toString()),
+      interesMoratorio: pagoAny.interesMoratorio ? parseFloat(pagoAny.interesMoratorio.toString()) : 0,
+      gastosCobranza: pagoAny.gastosCobranza ? parseFloat(pagoAny.gastosCobranza.toString()) : 0,
+      saldoAnterior: parseFloat(pagoAny.saldoAnterior.toString()),
+      saldoNuevo: parseFloat(pagoAny.saldoNuevo.toString()),
+      cliente: {
+        ...pagoAny.cliente,
+        saldoActual: parseFloat(pagoAny.cliente.saldoActual.toString()),
+      }
+    };
+
+    return NextResponse.json(pagoSerializado);
+  } catch (error) {
+    console.error('Error al obtener pago:', error);
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+  }
+}
 
 export async function DELETE(
   request: NextRequest,

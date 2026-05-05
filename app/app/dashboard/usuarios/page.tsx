@@ -20,7 +20,8 @@ import {
   Trash2, 
   Shield, 
   Users,
-  Mail
+  Mail,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { User } from '@/lib/types';
@@ -157,6 +158,30 @@ export default function UsuariosPage() {
     } catch (error) {
       console.error('❌ Error en handleDelete:', error);
       toast.error('Error de conexión al eliminar usuario');
+    }
+  };
+
+  const handleForceSync = async (userId: string) => {
+    try {
+      console.log('⚡ Solicitando sincronización forzada para usuario:', userId);
+      toast.info('Enviando señal de sincronización...');
+      
+      const response = await fetch('/api/admin/sync-force', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success(data.message);
+      } else {
+        toast.error(data.error || 'Error al enviar señal');
+      }
+    } catch (error) {
+      console.error('❌ Error en handleForceSync:', error);
+      toast.error('Error al conectar con el servidor de notificaciones');
     }
   };
 
@@ -394,6 +419,18 @@ export default function UsuariosPage() {
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
+
+                      {(usuario.role === 'cobrador' || usuario.role === 'gestor_cobranza') && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title="Forzar Sincronización Remota"
+                          onClick={() => handleForceSync(usuario.id)}
+                          className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>

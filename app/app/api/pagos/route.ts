@@ -126,6 +126,8 @@ export async function POST(request: NextRequest) {
     const {
       clienteId,
       monto,
+      interesMoratorio = 0,
+      gastosCobranza = 0,
       concepto,
       tipoPago = 'regular',
       fechaPago,
@@ -134,7 +136,17 @@ export async function POST(request: NextRequest) {
       localId
     } = body;
 
-    console.log('Recibiendo pago:', { clienteId, monto, tipoPago, concepto, metodoPago, numeroRecibo, localId });
+    console.log('Recibiendo pago:', { 
+      clienteId, 
+      monto, 
+      interesMoratorio, 
+      gastosCobranza, 
+      tipoPago, 
+      concepto, 
+      metodoPago, 
+      numeroRecibo, 
+      localId 
+    });
 
     if (!clienteId || !monto) {
       return NextResponse.json(
@@ -158,6 +170,9 @@ export async function POST(request: NextRequest) {
     }
 
     const montoNumerico = parseFloat(monto);
+    const interesNumerico = parseFloat(interesMoratorio.toString()) || 0;
+    const gastosNumerico = parseFloat(gastosCobranza.toString()) || 0;
+    
     const saldoAnterior = parseFloat(cliente.saldoActual.toString());
     let saldoNuevo = saldoAnterior;
 
@@ -183,6 +198,8 @@ export async function POST(request: NextRequest) {
           clienteId,
           cobradorId: userRole === 'cobrador' ? userId : (body.cobradorId || userId),
           monto: montoNumerico,
+          interesMoratorio: interesNumerico,
+          gastosCobranza: gastosNumerico,
           concepto: concepto || 'Pago de cuota',
           tipoPago,
           fechaPago: finalFechaPago,
@@ -221,11 +238,13 @@ export async function POST(request: NextRequest) {
     // NOTIFICAR A ADMINISTRADORES POR PUSH
     try {
         const { notifyByRole } = await import('@/lib/notifications');
-        const formattedMonto = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(resultado.monto);
+        const totalRecibido = montoNumerico + interesNumerico + gastosNumerico;
+        const formattedTotal = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(totalRecibido);
+        
         await notifyByRole(
             'admin', 
             '💰 Nuevo Depósito Recibido', 
-            `${resultado.cobrador?.name} recibió ${formattedMonto} de ${resultado.cliente?.nombreCompleto}.`,
+            `${resultado.cobrador?.name} recibió ${formattedTotal} de ${resultado.cliente?.nombreCompleto}.`,
             '/dashboard/pagos'
         );
     } catch (nError) {
