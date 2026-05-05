@@ -79,9 +79,20 @@ export function PWAManager() {
       }
     };
 
-    // Verificar al iniciar y cada 10 minutos
+    // Verificar al iniciar y cada 5 minutos
     checkVersion();
-    const interval = setInterval(checkVersion, 10 * 60 * 1000);
+    const interval = setInterval(checkVersion, 5 * 60 * 1000);
+
+    // 🚀 FORZAR ACTUALIZACIÓN: Verificar cuando el usuario vuelve a la app
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkVersion();
+        // Forzar al navegador a buscar un nuevo SW
+        navigator.serviceWorker.ready.then(reg => reg.update());
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // 4. Solicitar permiso de notificaciones
     const checkNotificationPermission = async () => {
@@ -93,7 +104,10 @@ export function PWAManager() {
     };
 
     checkNotificationPermission();
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const subscribeToPush = async () => {
