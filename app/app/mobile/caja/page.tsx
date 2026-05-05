@@ -14,7 +14,8 @@ export default function MobileCaja() {
         cobradoHoy: 0,
         pagosRegistrados: 0,
         efectivo: 0,
-        transferencia: 0,
+        bancarioManual: 0,
+        bancarioBot: 0,
     });
     const [pagos, setPagos] = useState<any[]>([]);
     const { isConnected, printTicket, printCollectionReport, connectToPrinter } = useBluetoothPrinter();
@@ -151,14 +152,18 @@ export default function MobileCaja() {
                     <p className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">Total Cobrado Hoy</p>
                     <p className="text-4xl font-bold text-emerald-400 tracking-tighter">${stats.cobradoHoy.toLocaleString()}</p>
 
-                    <div className="mt-6 grid grid-cols-2 gap-4 border-t border-slate-700/50 pt-4">
+                    <div className="mt-6 grid grid-cols-3 gap-2 border-t border-slate-700/50 pt-4">
                         <div>
                             <p className="text-[10px] text-slate-500 uppercase">Efectivo</p>
-                            <p className="text-lg font-mono text-slate-200">${stats.efectivo.toLocaleString()}</p>
+                            <p className="text-sm font-mono text-slate-200">${stats.efectivo.toLocaleString()}</p>
+                        </div>
+                        <div className="text-center">
+                            <p className="text-[10px] text-slate-500 uppercase">Bancario M.</p>
+                            <p className="text-sm font-mono text-slate-200">${stats.bancarioManual.toLocaleString()}</p>
                         </div>
                         <div className="text-right">
-                            <p className="text-[10px] text-slate-500 uppercase">Transferencia</p>
-                            <p className="text-lg font-mono text-slate-200">${stats.transferencia.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500 uppercase">Bancario Bot</p>
+                            <p className="text-sm font-mono text-emerald-400">${stats.bancarioBot.toLocaleString()}</p>
                         </div>
                     </div>
                 </div>

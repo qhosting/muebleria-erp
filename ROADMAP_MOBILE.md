@@ -20,6 +20,7 @@ Digitalizar y optimizar la operación de cobranza en campo, proporcionando herra
 - [x] Impresión de tickets vía Bluetooth.
 - [x] Envío de recibos por WhatsApp.
 - [x] Refinar captura de gastos administrativos (Desglose de capital vs. gastos).
+- [x] Identificar depósitos bancarios (Gestor vs Bot) en CAJA.
 
 ### 🟠 Fase 3: Optimización y Notificaciones (50%)
 - [x] Visualización de clientes en mapa (Leaflet).

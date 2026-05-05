@@ -408,7 +408,7 @@ class BluetoothPrinterService {
     return char.repeat(length);
   }
 
-  async printCollectionReport(stats: { cobradoHoy: number, efectivo: number, transferencia: number }, pagos: any[]): Promise<boolean> {
+  async printCollectionReport(stats: { cobradoHoy: number, efectivo: number, bancarioManual: number, bancarioBot: number }, pagos: any[]): Promise<boolean> {
     try {
       let ticket = '';
       ticket += this.COMMANDS.CENTER;
@@ -420,8 +420,9 @@ class BluetoothPrinterService {
 
       ticket += this.COMMANDS.LEFT;
       ticket += 'TOTAL COBRADO:' + this.rightAlignText(this.formatCurrency(stats.cobradoHoy)) + this.LF;
-      ticket += '  - Efectivo:' + this.rightAlignText(this.formatCurrency(stats.efectivo)) + this.LF;
-      ticket += '  - Transf:  ' + this.rightAlignText(this.formatCurrency(stats.transferencia)) + this.LF;
+      ticket += '  - Efectivo: ' + this.rightAlignText(this.formatCurrency(stats.efectivo)) + this.LF;
+      ticket += '  - Bancario M:' + this.rightAlignText(this.formatCurrency(stats.bancarioManual)) + this.LF;
+      ticket += '  - Bancario B:' + this.rightAlignText(this.formatCurrency(stats.bancarioBot)) + this.LF;
       ticket += this.createDivider() + this.LF;
 
       ticket += this.COMMANDS.BOLD_ON;

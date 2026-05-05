@@ -31,7 +31,7 @@ export interface OfflinePago {
   concepto: string;
   fechaPago: string;
   cobradorId: string;
-  metodoPago: 'gestor' | 'bancario';
+  metodoPago: 'gestor' | 'bancario' | 'bancario_bot';
   numeroRecibo?: string;
   interesMoratorio?: number;
   gastosCobranza?: number;

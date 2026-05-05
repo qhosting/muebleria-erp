@@ -160,7 +160,7 @@ export function useBluetoothPrinter() {
     }
   };
 
-  const printCollectionReport = async (stats: { cobradoHoy: number, efectivo: number, transferencia: number }, pagos: any[]): Promise<boolean> => {
+  const printCollectionReport = async (stats: { cobradoHoy: number, efectivo: number, bancarioManual: number, bancarioBot: number }, pagos: any[]): Promise<boolean> => {
     if (!isConnected) {
       toast.error('Impresora no conectada');
       return false;

@@ -57,11 +57,10 @@ export default function MobilePerfilPage() {
         if (permission === 'granted') {
             setNotificationsEnabled(true);
             toast.success('¡Notificaciones activadas!');
-            // Intentar suscribir inmediatamente
-            const registration = await navigator.serviceWorker.ready;
-            // Aquí se llamaría a la función de suscripción que definimos en PWAManager
         } else {
             toast.error('Permiso de notificaciones denegado');
+        }
+    };
     const togglePreferOffline = async () => {
         if (!session?.user) return;
         const userId = (session.user as any).id;

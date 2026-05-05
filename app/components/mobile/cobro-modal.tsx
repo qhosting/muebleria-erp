@@ -416,8 +416,8 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="gestor">Efectivo</SelectItem>
-                  <SelectItem value="bancario">Bancario</SelectItem>
+                  <SelectItem value="gestor">Efectivo (Gestor)</SelectItem>
+                  <SelectItem value="bancario">Bancario (Manual)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

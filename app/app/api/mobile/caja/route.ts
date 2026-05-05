@@ -44,16 +44,21 @@ export async function GET() {
       .filter(p => p.metodoPago === 'gestor' || p.metodoPago === 'efectivo')
       .reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
 
-    const transferencia = pagos
-      .filter(p => p.metodoPago === 'transferencia' || p.metodoPago === 'banco')
+    const bancarioManual = pagos
+      .filter(p => p.metodoPago === 'bancario' || p.metodoPago === 'transferencia')
+      .reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+
+    const bancarioBot = pagos
+      .filter(p => p.metodoPago === 'bancario_bot' || p.metodoPago === 'bot')
       .reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
 
     return NextResponse.json({
       stats: {
-        cobradoHoy: efectivo + transferencia,
+        cobradoHoy: efectivo + bancarioManual + bancarioBot,
         pagosRegistrados: pagos.length,
         efectivo,
-        transferencia
+        bancarioManual,
+        bancarioBot
       },
       pagos: pagos.map(p => ({
         id: p.id,

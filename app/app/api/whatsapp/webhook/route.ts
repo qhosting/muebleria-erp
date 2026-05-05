@@ -174,16 +174,49 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
         let mensajeFinal = `✅ ¡Comprobante EN PROCESO de VALIDACIÓN!\n\n📌 *Detalles del Ticket*\n- 🆔 ID: ${ticket.id}\n- 📄 Contrato: ${contractId}\n- 💰 Monto: $${extracted.monto}\n- 🔢 Referencia: ${extracted.referencia || 'N/A'}`;
         
         if (movimiento) {
-            // Si hay coincidencia, conciliar inmediatamente
-            await prisma.movimientoBancario.update({
-                where: { id: movimiento.id },
-                data: { ticketId: ticket.id, clienteId: clienteRecord.id, fechaIdentificado: new Date() }
+            // Si hay coincidencia, conciliar inmediatamente y CREAR EL PAGO
+            await prisma.$transaction(async (tx) => {
+                // 1. Vincular movimiento y ticket
+                await tx.movimientoBancario.update({
+                    where: { id: movimiento.id },
+                    data: { ticketId: ticket.id, clienteId: clienteRecord.id, fechaIdentificado: new Date() }
+                });
+
+                // 2. Marcar ticket como conciliado
+                await tx.ticket.update({
+                    where: { id: ticket.id },
+                    data: { conciliado: true }
+                });
+
+                // 3. CREAR EL PAGO AUTOMÁTICO (BOT)
+                const saldoAnterior = parseFloat(clienteRecord.saldoActual.toString());
+                const montoPago = parseFloat(extracted.monto);
+                const saldoNuevo = Math.max(0, saldoAnterior - montoPago);
+
+                await tx.pago.create({
+                    data: {
+                        clienteId: clienteRecord.id,
+                        cobradorId: clienteRecord.cobradorAsignadoId || 'system', // O un ID de sistema
+                        ticketId: ticket.id,
+                        monto: montoPago,
+                        concepto: `PAGO AUTOMÁTICO BOT (WHATSAPP) - Ref: ${extracted.referencia || 'N/A'}`,
+                        tipoPago: 'regular',
+                        fechaPago: extracted.fecha ? new Date(extracted.fecha) : new Date(),
+                        metodoPago: 'bancario_bot',
+                        saldoAnterior,
+                        saldoNuevo,
+                        sincronizado: true
+                    }
+                });
+
+                // 4. Actualizar saldo del cliente
+                await tx.cliente.update({
+                    where: { id: clienteRecord.id },
+                    data: { saldoActual: saldoNuevo }
+                });
             });
-            await prisma.ticket.update({
-                where: { id: ticket.id },
-                data: { conciliado: true }
-            });
-            mensajeFinal += `\n\n⚡ *CONCILIADO AUTOMÁTICAMENTE* ⚡`;
+            
+            mensajeFinal += `\n\n⚡ *CONCILIADO AUTOMÁTICAMENTE* ⚡\n💰 Pago aplicado a tu saldo.`;
         } else {
             mensajeFinal += `\n\n⚡ *PENDIENTE DE CONCILIACIÓN BANCARIA* ⚡`;
         }
