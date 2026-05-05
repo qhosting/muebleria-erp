@@ -35,6 +35,21 @@ export async function POST(req: Request) {
             });
             codigosActivosEnBD = clientesActivosDQDP.map(c => c.codigoCliente);
         }
+        
+        // ── Fase 1.5: Obtener mapeo de códigos de gestores a IDs de usuarios ──
+        const codigosGestoresUnicos = Array.from(new Set(
+            clientes.map((c: any) => c.codigoGestor?.toString().trim()).filter(Boolean)
+        )) as string[];
+        
+        const gestores = await prisma.user.findMany({
+            where: {
+                codigoGestor: { in: codigosGestoresUnicos },
+                isActive: true
+            },
+            select: { id: true, codigoGestor: true }
+        });
+        
+        const gestorMap = new Map(gestores.map(g => [g.codigoGestor, g.id]));
 
         // ── Fase 2: Upsert de clientes importados ──
         for (const c of clientes) {
@@ -69,6 +84,8 @@ export async function POST(req: Request) {
                     diasVencidos: parseInt(c.diasVencidos) || 0,
                     saldoVencido: parseFloat(c.saldoVencido) || 0,
                     vendedor: c.vendedor || null,
+                    // Asignar cobrador si se encontró el código
+                    cobradorAsignadoId: c.codigoGestor ? (gestorMap.get(c.codigoGestor.toString().trim()) || null) : null,
                     // Al reimportar un cliente activo, limpiar fecha de inactivación si existía
                     fechaInactivacion: null,
                 };

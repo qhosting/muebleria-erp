@@ -45,8 +45,9 @@ interface CobroModalProps {
 
 export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: CobroModalProps) {
   const { data: session } = useSession();
-  const [monto, setMonto] = useState('');
-  const [montoMoratorio, setMontoMoratorio] = useState('');
+  const [montoAbono, setMontoAbono] = useState('');
+  const [interesMoratorio, setInteresMoratorio] = useState('');
+  const [gastosCobranza, setGastosCobranza] = useState('');
   const [tipoPago, setTipoPago] = useState<'regular' | 'abono' | 'liquidacion' | 'moratorio'>('regular');
   const [metodoPago, setMetodoPago] = useState<'gestor' | 'bancario'>('gestor');
   const [concepto, setConcepto] = useState('');
@@ -57,8 +58,10 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
   const [calculatedValues, setCalculatedValues] = useState({
     saldoAnterior: 0,
     saldoNuevo: 0,
-    montoParaSaldo: 0,
-    montoMoratorio: 0
+    montoTotal: 0,
+    montoAbono: 0,
+    interesMoratorio: 0,
+    gastosCobranza: 0
   });
 
   const userId = (session?.user as any)?.id;
@@ -67,8 +70,9 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
   // Reset form cuando se abre el modal
   useEffect(() => {
     if (isOpen) {
-      setMonto('');
-      setMontoMoratorio('');
+      setMontoAbono('');
+      setInteresMoratorio('');
+      setGastosCobranza('');
       setTipoPago('regular');
       setMetodoPago('gestor');
       setConcepto('');
@@ -76,39 +80,32 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
       setCalculatedValues({
         saldoAnterior: cliente.saldoPendiente,
         saldoNuevo: cliente.saldoPendiente,
-        montoParaSaldo: 0,
-        montoMoratorio: 0
+        montoTotal: 0,
+        montoAbono: 0,
+        interesMoratorio: 0,
+        gastosCobranza: 0
       });
     }
   }, [isOpen, cliente]);
 
   // Calcular nuevo saldo cuando cambia el monto o moratorio
   useEffect(() => {
-    const montoNum = parseFloat(monto) || 0;
-    const moratorioNum = parseFloat(montoMoratorio) || 0;
+    const abonoNum = parseFloat(montoAbono) || 0;
+    const moratorioNum = parseFloat(interesMoratorio) || 0;
+    const gastosNum = parseFloat(gastosCobranza) || 0;
 
-    // Validar que el moratorio no sea mayor al monto total
-    const moratorioFinal = Math.min(moratorioNum, montoNum);
-    const montoParaSaldo = montoNum - moratorioFinal;
+    const montoTotal = abonoNum + moratorioNum + gastosNum;
+    const nuevoSaldo = Math.max(0, cliente.saldoPendiente - abonoNum);
 
-    if (montoNum > 0) {
-      const nuevoSaldo = Math.max(0, cliente.saldoPendiente - montoParaSaldo);
-
-      setCalculatedValues({
-        saldoAnterior: cliente.saldoPendiente,
-        saldoNuevo: nuevoSaldo,
-        montoParaSaldo: montoParaSaldo,
-        montoMoratorio: moratorioFinal
-      });
-    } else {
-      setCalculatedValues({
-        saldoAnterior: cliente.saldoPendiente,
-        saldoNuevo: cliente.saldoPendiente,
-        montoParaSaldo: 0,
-        montoMoratorio: 0
-      });
-    }
-  }, [monto, montoMoratorio, cliente.saldoPendiente]);
+    setCalculatedValues({
+      saldoAnterior: cliente.saldoPendiente,
+      saldoNuevo: nuevoSaldo,
+      montoTotal: montoTotal,
+      montoAbono: abonoNum,
+      interesMoratorio: moratorioNum,
+      gastosCobranza: gastosNum
+    });
+  }, [montoAbono, interesMoratorio, gastosCobranza, cliente.saldoPendiente]);
 
   const createTicketData = (fechaPago: string, numeroReciboFinal: string): TicketData => {
     return {
@@ -124,7 +121,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
         id: userId
       },
       pago: {
-        monto: parseFloat(monto),
+        monto: calculatedValues.montoTotal,
         tipoPago: tipoPago,
         metodoPago: metodoPago,
         concepto: concepto,
@@ -133,7 +130,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
       saldos: {
         anterior: calculatedValues.saldoAnterior,
         nuevo: calculatedValues.saldoNuevo,
-        consolidado: (cliente.saldoConsolidado || cliente.saldoPendiente) - calculatedValues.montoParaSaldo
+        consolidado: (cliente.saldoConsolidado || cliente.saldoPendiente) - calculatedValues.montoAbono
       },
       empresa: {
         nombre: 'MUEBLERIA LA ECONOMICA',
@@ -146,7 +143,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!monto || parseFloat(monto) <= 0) {
+    if (calculatedValues.montoTotal <= 0) {
       toast.error('Por favor ingrese un monto válido');
       return;
     }
@@ -159,100 +156,93 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
     setLoading(true);
 
     try {
-      const pagoRegular = {
-        id: '', // Se generará en el servidor
-        clienteId: cliente.id,
-        cobradorId: userId,
-        monto: calculatedValues.montoParaSaldo, // Solo el monto que va al saldo
-        tipoPago,
-        concepto: concepto || `Pago ${tipoPago}`,
-        fechaPago: new Date().toISOString(),
-        metodoPago,
-        numeroRecibo: numeroRecibo || undefined
-      };
+      const pagosAPuntos = [];
 
-      const pagoMoratorio = calculatedValues.montoMoratorio > 0 ? {
-        id: '', // Se generará en el servidor
-        clienteId: cliente.id,
-        cobradorId: userId,
-        monto: calculatedValues.montoMoratorio,
-        tipoPago: 'mora' as const,
-        concepto: `Moratorio - ${concepto || 'Recargo por mora'}`,
-        fechaPago: new Date().toISOString(),
-        metodoPago,
-        numeroRecibo: numeroRecibo ? `${numeroRecibo}-M` : undefined
-      } : null;
+      // 1. Pago Regular (Abono al saldo)
+      if (calculatedValues.montoAbono > 0) {
+        pagosAPuntos.push({
+          clienteId: cliente.id,
+          cobradorId: userId,
+          monto: calculatedValues.montoAbono,
+          tipoPago: tipoPago || 'regular',
+          concepto: concepto || `Abono Regular`,
+          fechaPago: new Date().toISOString(),
+          metodoPago,
+          numeroRecibo: numeroRecibo || undefined
+        });
+      }
+
+      // 2. Interés Moratorio
+      if (calculatedValues.interesMoratorio > 0) {
+        pagosAPuntos.push({
+          clienteId: cliente.id,
+          cobradorId: userId,
+          monto: calculatedValues.interesMoratorio,
+          tipoPago: 'moratorio' as const,
+          concepto: `Interés Moratorio - ${concepto || 'Recargo'}`,
+          fechaPago: new Date().toISOString(),
+          metodoPago,
+          numeroRecibo: numeroRecibo ? `${numeroRecibo}-M` : undefined
+        });
+      }
+
+      // 3. Gastos de Cobranza
+      if (calculatedValues.gastosCobranza > 0) {
+        pagosAPuntos.push({
+          clienteId: cliente.id,
+          cobradorId: userId,
+          monto: calculatedValues.gastosCobranza,
+          tipoPago: 'otro' as const,
+          concepto: `Gastos de Cobranza - ${concepto || 'Gestión'}`,
+          fechaPago: new Date().toISOString(),
+          metodoPago,
+          numeroRecibo: numeroRecibo ? `${numeroRecibo}-G` : undefined
+        });
+      }
 
       if (isOnline) {
-        // Registrar pago regular
-        const responsePrincipal = await fetch('/api/pagos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(pagoRegular)
-        });
-
-        if (!responsePrincipal.ok) {
-          throw new Error('Error al procesar el pago regular');
-        }
-
-        // Registrar pago moratorio si existe
-        if (pagoMoratorio) {
-          const responseMoratorio = await fetch('/api/pagos', {
+        // Enviar todos los pagos al servidor
+        for (const pago of pagosAPuntos) {
+          const response = await fetch('/api/pagos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(pagoMoratorio)
+            body: JSON.stringify(pago)
           });
 
-          if (!responseMoratorio.ok) {
-            console.error('Error al registrar moratorio, pero pago regular fue exitoso');
+          if (!response.ok) {
+            throw new Error(`Error al registrar pago ${pago.tipoPago}`);
           }
         }
 
-        const mensaje = pagoMoratorio
-          ? `Pago registrado exitosamente: ${formatCurrency(calculatedValues.montoParaSaldo)} al saldo + ${formatCurrency(calculatedValues.montoMoratorio)} moratorio`
-          : 'Pago registrado exitosamente';
+        toast.success(`Se registraron ${pagosAPuntos.length} conceptos por un total de ${formatCurrency(calculatedValues.montoTotal)}`);
 
-        toast.success(mensaje);
-
-        // Imprimir ticket si está habilitado y la impresora está conectada
+        // Imprimir ticket si está habilitado
         if (imprimirTicket && isPrinterConnected) {
           try {
-            const ticketData = createTicketData(pagoRegular.fechaPago, pagoRegular.numeroRecibo || '');
+            const ticketData = createTicketData(new Date().toISOString(), numeroRecibo || '');
             await printTicket(ticketData);
           } catch (error) {
             console.error('Error imprimiendo ticket:', error);
-            toast.error('El pago se registró correctamente, pero hubo un error al imprimir el ticket');
+            toast.error('Pagos registrados, pero error al imprimir ticket');
           }
         }
 
       } else {
-        // Si está offline, guardar localmente
-        console.log('Guardando pago regular offline:', pagoRegular);
-        await syncService.addPagoOffline(pagoRegular);
-
-        if (pagoMoratorio) {
-          console.log('Guardando pago moratorio offline:', pagoMoratorio);
-          await syncService.addPagoOffline(pagoMoratorio);
+        // Guardar todos offline
+        for (const pago of pagosAPuntos) {
+          await syncService.addPagoOffline(pago as any);
         }
 
-        const mensaje = pagoMoratorio
-          ? `Pagos guardados offline: Regular (${formatCurrency(calculatedValues.montoParaSaldo)}) + Moratorio (${formatCurrency(calculatedValues.montoMoratorio)})`
-          : 'Pago guardado offline';
-
-        toast.success(mensaje, {
-          description: 'Se sincronizará cuando tengas conexión'
+        toast.success(`Pagos guardados offline (${pagosAPuntos.length} conceptos)`, {
+          description: 'Se sincronizarán automáticamente'
         });
 
-        console.log(`Pagos offline guardados - Regular: ${!!pagoRegular}, Moratorio: ${!!pagoMoratorio}`);
-
-        // Imprimir ticket si está habilitado y la impresora está conectada (también offline)
         if (imprimirTicket && isPrinterConnected) {
           try {
-            const ticketData = createTicketData(pagoRegular.fechaPago, pagoRegular.numeroRecibo || '');
+            const ticketData = createTicketData(new Date().toISOString(), numeroRecibo || '');
             await printTicket(ticketData);
           } catch (error) {
             console.error('Error imprimiendo ticket:', error);
-            toast.error('El pago se guardó offline correctamente, pero hubo un error al imprimir el ticket');
           }
         }
       }
@@ -261,7 +251,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
       onClose();
 
     } catch (error) {
-      console.error('Error processing payment:', error);
+      console.error('Error processing payments:', error);
       toast.error('Error al procesar el pago');
     } finally {
       setLoading(false);
@@ -269,7 +259,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
   };
 
   const handleQuickAmount = (amount: number) => {
-    setMonto(amount.toString());
+    setMontoAbono(amount.toString());
   };
 
   const getQuickAmounts = () => {
@@ -309,7 +299,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
           </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 pb-20">
           {/* Información del cliente */}
           <Card>
             <CardHeader className="pb-2">
@@ -335,7 +325,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
 
           {/* Botones de monto rápido */}
           <div className="space-y-2">
-            <Label className="text-sm">Montos Rápidos</Label>
+            <Label className="text-sm">Abono Rápido a Saldo</Label>
             <div className="grid grid-cols-2 gap-2">
               {getQuickAmounts().map((amount, index) => (
                 <Button
@@ -352,170 +342,172 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
             </div>
           </div>
 
-          {/* Monto personalizado */}
-          <div className="space-y-2">
-            <Label htmlFor="monto">Monto a Cobrar *</Label>
-            <div className="relative">
-              <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Detalle del Cobro</h3>
+            
+            {/* Abono a Saldo */}
+            <div className="space-y-2">
+              <Label htmlFor="montoAbono" className="text-emerald-700 font-bold">Abono a Saldo *</Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-emerald-500" />
+                <Input
+                  id="montoAbono"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={montoAbono}
+                  onChange={(e) => setMontoAbono(e.target.value)}
+                  placeholder="0.00"
+                  className="pl-9 border-emerald-200 focus-visible:ring-emerald-500"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Interés Moratorio */}
+              <div className="space-y-2">
+                <Label htmlFor="interesMoratorio" className="text-orange-700">Int. Moratorio</Label>
+                <div className="relative">
+                  <AlertTriangle className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-orange-500" />
+                  <Input
+                    id="interesMoratorio"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={interesMoratorio}
+                    onChange={(e) => setInteresMoratorio(e.target.value)}
+                    placeholder="0.00"
+                    className="pl-9 border-orange-200 focus-visible:ring-orange-500"
+                  />
+                </div>
+              </div>
+
+              {/* Gastos de Cobranza */}
+              <div className="space-y-2">
+                <Label htmlFor="gastosCobranza" className="text-blue-700">Gastos Cobranza</Label>
+                <div className="relative">
+                  <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-blue-500" />
+                  <Input
+                    id="gastosCobranza"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={gastosCobranza}
+                    onChange={(e) => setGastosCobranza(e.target.value)}
+                    placeholder="0.00"
+                    className="pl-9 border-blue-200 focus-visible:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Total Calculado */}
+            <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
+              <span className="font-bold text-slate-700 text-sm">TOTAL A RECIBIR:</span>
+              <span className="text-xl font-black text-slate-900">{formatCurrency(calculatedValues.montoTotal)}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* Tipo de pago */}
+            <div className="space-y-2">
+              <Label htmlFor="tipoPago" className="text-xs font-bold text-slate-500 uppercase">Tipo de Pago</Label>
+              <Select value={tipoPago} onValueChange={(value: any) => setTipoPago(value)}>
+                <SelectTrigger className="h-10 bg-slate-50 border-slate-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="regular">Regular</SelectItem>
+                  <SelectItem value="abono">Abono</SelectItem>
+                  <SelectItem value="moratorio">Mora</SelectItem>
+                  <SelectItem value="liquidacion">Liquidación</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Método de pago */}
+            <div className="space-y-2">
+              <Label htmlFor="metodoPago" className="text-xs font-bold text-slate-500 uppercase">Método</Label>
+              <Select value={metodoPago} onValueChange={(value: any) => setMetodoPago(value)}>
+                <SelectTrigger className="h-10 bg-slate-50 border-slate-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gestor">Efectivo</SelectItem>
+                  <SelectItem value="bancario">Bancario</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Número de recibo y Concepto agrupados */}
+          <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+            <div className="space-y-1.5">
+              <Label htmlFor="numeroRecibo" className="text-[10px] font-bold text-slate-400 uppercase">Número de Recibo</Label>
               <Input
-                id="monto"
-                type="number"
-                step="0.01"
-                min="0"
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
-                placeholder="0.00"
-                className="pl-9"
-                required
+                id="numeroRecibo"
+                value={numeroRecibo}
+                onChange={(e) => setNumeroRecibo(e.target.value)}
+                placeholder="Ej: 001234"
+                className="h-9 bg-white"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="concepto" className="text-[10px] font-bold text-slate-400 uppercase">Concepto / Notas</Label>
+              <Textarea
+                id="concepto"
+                value={concepto}
+                onChange={(e) => setConcepto(e.target.value)}
+                placeholder="Notas adicionales..."
+                rows={2}
+                className="bg-white text-sm"
               />
             </div>
           </div>
 
-          {/* Monto Moratorio */}
-          <div className="space-y-2">
-            <Label htmlFor="montoMoratorio">Monto Moratorio (Opcional)</Label>
-            <div className="relative">
-              <AlertTriangle className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-orange-500" />
-              <Input
-                id="montoMoratorio"
-                type="number"
-                step="0.01"
-                min="0"
-                max={monto || "0"}
-                value={montoMoratorio}
-                onChange={(e) => setMontoMoratorio(e.target.value)}
-                placeholder="0.00"
-                className="pl-9"
-              />
-            </div>
-            <div className="text-xs text-muted-foreground">
-              El monto moratorio se registra por separado y NO se aplica al saldo pendiente
-            </div>
-          </div>
-
-          {/* Tipo de pago */}
-          <div className="space-y-2">
-            <Label htmlFor="tipoPago">Tipo de Pago</Label>
-            <Select value={tipoPago} onValueChange={(value: any) => setTipoPago(value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="regular">Pago Regular</SelectItem>
-                <SelectItem value="abono">Abono</SelectItem>
-                <SelectItem value="moratorio">Pago de Mora</SelectItem>
-                <SelectItem value="liquidacion">Liquidación</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Método de pago */}
-          <div className="space-y-2">
-            <Label htmlFor="metodoPago">Método de Pago</Label>
-            <Select value={metodoPago} onValueChange={(value: any) => setMetodoPago(value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gestor">Gestor (Efectivo en campo)</SelectItem>
-                <SelectItem value="bancario">Bancario (Transferencia)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Número de recibo */}
-          <div className="space-y-2">
-            <Label htmlFor="numeroRecibo">Número de Recibo (Opcional)</Label>
-            <Input
-              id="numeroRecibo"
-              value={numeroRecibo}
-              onChange={(e) => setNumeroRecibo(e.target.value)}
-              placeholder="Ej: 001234"
-            />
-          </div>
-
-          {/* Concepto */}
-          <div className="space-y-2">
-            <Label htmlFor="concepto">Concepto (Opcional)</Label>
-            <Textarea
-              id="concepto"
-              value={concepto}
-              onChange={(e) => setConcepto(e.target.value)}
-              placeholder="Descripción adicional del pago..."
-              rows={2}
-            />
-          </div>
-
-          {/* Cálculo del nuevo saldo */}
-          {monto && parseFloat(monto) > 0 && (
-            <Card>
+          {calculatedValues.montoTotal > 0 && (
+            <Card className="bg-slate-900 text-white border-none shadow-inner">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Calculator className="w-4 h-4" />
-                  Resumen del Pago
+                <CardTitle className="text-sm flex items-center gap-2 text-slate-300">
+                  <Calculator className="w-4 h-4 text-emerald-400" />
+                  Impacto Contable
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Saldo Anterior:</span>
-                  <span className="font-medium text-red-600">
+                  <span className="text-slate-400">Saldo Anterior:</span>
+                  <span className="font-medium text-rose-400">
                     {formatCurrency(calculatedValues.saldoAnterior)}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span>Monto Total Cobrado:</span>
-                  <span className="font-medium text-blue-600">
-                    {formatCurrency(parseFloat(monto) || 0)}
+                
+                <div className="flex justify-between text-sm text-emerald-400">
+                  <span>Abono a Saldo:</span>
+                  <span className="font-bold">
+                    -{formatCurrency(calculatedValues.montoAbono)}
                   </span>
                 </div>
 
-                {calculatedValues.montoMoratorio > 0 && (
-                  <>
-                    <div className="flex justify-between text-sm text-orange-600">
-                      <span>├ Moratorio:</span>
-                      <span className="font-medium">
-                        {formatCurrency(calculatedValues.montoMoratorio)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm text-green-600">
-                      <span>└ Aplicado al saldo:</span>
-                      <span className="font-medium">
-                        -{formatCurrency(calculatedValues.montoParaSaldo)}
-                      </span>
-                    </div>
-                  </>
-                )}
-
-                {calculatedValues.montoMoratorio === 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span>Aplicado al saldo:</span>
-                    <span className="font-medium text-green-600">
-                      -{formatCurrency(calculatedValues.montoParaSaldo)}
-                    </span>
-                  </div>
-                )}
-
-                <div className="flex justify-between text-sm pt-2 border-t">
-                  <span>Nuevo Saldo:</span>
-                  <span className={`font-semibold ${calculatedValues.saldoNuevo > 0 ? 'text-red-600' : 'text-green-600'
-                    }`}>
+                <div className="flex justify-between text-sm pt-2 border-t border-slate-700">
+                  <span className="text-slate-300 font-bold">Nuevo Saldo:</span>
+                  <span className={`font-black ${calculatedValues.saldoNuevo > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                     {formatCurrency(calculatedValues.saldoNuevo)}
                   </span>
                 </div>
 
-                {calculatedValues.saldoNuevo === 0 && (
-                  <div className="flex items-center gap-1 text-green-600 text-sm mt-2">
-                    <CheckCircle className="w-4 h-4" />
-                    ¡Cliente quedará al día!
-                  </div>
-                )}
-
-                {calculatedValues.montoMoratorio > 0 && (
-                  <div className="p-2 bg-orange-50 rounded text-xs text-orange-700 mt-2">
-                    <AlertTriangle className="w-3 h-3 inline mr-1" />
-                    Se registrarán 2 pagos: uno regular por {formatCurrency(calculatedValues.montoParaSaldo)} y uno moratorio por {formatCurrency(calculatedValues.montoMoratorio)}
-                  </div>
-                )}
+                <div className="mt-4 p-2 bg-slate-800 rounded text-[10px] space-y-1">
+                  <p className="text-slate-400 flex justify-between">
+                    <span>• Interés Moratorio:</span>
+                    <span className="text-orange-400">{formatCurrency(calculatedValues.interesMoratorio)}</span>
+                  </p>
+                  <p className="text-slate-400 flex justify-between">
+                    <span>• Gastos Cobranza:</span>
+                    <span className="text-blue-400">{formatCurrency(calculatedValues.gastosCobranza)}</span>
+                  </p>
+                  <p className="text-slate-500 italic mt-1">* Estos montos NO reducen el saldo principal</p>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -590,15 +582,15 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
 
             <Button
               type="submit"
-              disabled={loading || !monto || parseFloat(monto) <= 0}
-              className="flex-1"
+              disabled={loading || calculatedValues.montoTotal <= 0}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700"
             >
               {loading ? (
                 'Procesando...'
               ) : (
                 <>
                   <Save className="w-4 h-4 mr-2" />
-                  Registrar
+                  Registrar {formatCurrency(calculatedValues.montoTotal)}
                 </>
               )}
             </Button>
@@ -613,6 +605,9 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
               </div>
             </div>
           )}
+
+          {/* Espacio extra para evitar que el menú inferior tape los botones */}
+          <div className="h-20" />
         </form>
 
         {/* Modal de Configuración de Impresora */}

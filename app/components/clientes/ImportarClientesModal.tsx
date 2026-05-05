@@ -196,7 +196,8 @@ export function ImportarClientesModal({
             direccionCompleta: ['direccion', 'calle', 'domicilio', 'ubicacion', 'dirección'],
             telefono: ['telefono', 'tel', 'celular', 'whatsapp', 'teléfono'],
             periodicidad: ['periodicidad', 'periodo', 'frecuencia'],
-            diaPago: ['dia', 'dia de pago', 'dia cobro']
+            diaPago: ['dia', 'dia de pago', 'dia cobro'],
+            codigoGestor: ['gestor', 'cobrador', 'codigo gestor', 'código gestor', 'codigo cobrador', 'cod gestor']
           };
 
           const getInternalKey = (header: string, index: number): string | null => {
@@ -358,7 +359,8 @@ export function ImportarClientesModal({
       direccionCompleta: ['direccion', 'calle', 'domicilio', 'ubicacion'],
       telefono: ['telefono', 'tel', 'celular', 'whatsapp'],
       periodicidad: ['periodicidad', 'periodo', 'frecuencia'],
-      diaPago: ['dia', 'dia de pago', 'dia cobro']
+      diaPago: ['dia', 'dia de pago', 'dia cobro'],
+      codigoGestor: ['gestor', 'cobrador', 'codigo gestor', 'código gestor', 'codigo cobrador', 'cod gestor']
     };
 
     const getInternalKey = (header: string, index: number): string | null => {
@@ -592,6 +594,7 @@ export function ImportarClientesModal({
             importe2: row.importe2 ? parseFloat(row.importe2) : null,
             importe3: row.importe3 ? parseFloat(row.importe3) : null,
             importe4: row.importe4 ? parseFloat(row.importe4) : null,
+            codigoGestor: row.codigoGestor?.toString().trim() || null,
           });
         }
       }
