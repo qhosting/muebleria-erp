@@ -18,10 +18,12 @@ import {
   User,
   DollarSign,
   FileText,
-  Trash2
+  Trash2,
+  Edit
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
+import { EditPagoModal } from '@/components/pagos/EditPagoModal';
 
 interface Pago {
   id: string;
@@ -61,6 +63,10 @@ export default function PagosPage() {
   const [selectedTipo, setSelectedTipo] = useState('all');
   const [selectedCobrador, setSelectedCobrador] = useState('all');
   const [selectedFecha, setSelectedFecha] = useState('');
+  
+  // Edit modal states
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [pagoParaEditar, setPagoParaEditar] = useState<Pago | null>(null);
 
   useEffect(() => {
     fetchCobradores();
@@ -149,6 +155,17 @@ export default function PagosPage() {
     } catch (error: any) {
       toast.error(error.message || 'Error al eliminar pago');
     }
+  };
+
+  const handleEditPago = (pago: Pago) => {
+    setPagoParaEditar(pago);
+    setEditModalOpen(true);
+  };
+
+  const handleEditSuccess = () => {
+    fetchPagos();
+    setEditModalOpen(false);
+    setPagoParaEditar(null);
   };
 
   const filteredPagos = pagos.filter(pago =>
@@ -375,6 +392,14 @@ export default function PagosPage() {
                             <Button
                               size="sm"
                               variant="outline"
+                              onClick={() => handleEditPago(pago)}
+                              className="text-xs"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
                               onClick={() => reimprimir(pago.id)}
                               className="text-xs"
                             >
@@ -401,6 +426,14 @@ export default function PagosPage() {
           </CardContent>
         </Card>
       </div>
+
+      <EditPagoModal 
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        pago={pagoParaEditar}
+        cobradores={cobradores}
+        onSuccess={handleEditSuccess}
+      />
     </DashboardLayout>
   );
 }

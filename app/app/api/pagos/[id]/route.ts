@@ -52,3 +52,47 @@ export async function DELETE(
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || (session.user as any).role !== 'admin') {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const pagoId = params.id;
+    const body = await request.json();
+    const { concepto, metodoPago, tipoPago, cobradorId, fechaPago } = body;
+
+    const pagoExistente = await prisma.pago.findUnique({
+      where: { id: pagoId }
+    });
+
+    if (!pagoExistente) {
+      return NextResponse.json({ error: 'Pago no encontrado' }, { status: 404 });
+    }
+
+    const updatedPago = await prisma.pago.update({
+      where: { id: pagoId },
+      data: {
+        concepto: concepto !== undefined ? concepto : pagoExistente.concepto,
+        metodoPago: metodoPago !== undefined ? metodoPago : pagoExistente.metodoPago,
+        tipoPago: tipoPago !== undefined ? tipoPago : pagoExistente.tipoPago,
+        cobradorId: cobradorId !== undefined ? cobradorId : pagoExistente.cobradorId,
+        fechaPago: fechaPago !== undefined ? new Date(fechaPago) : pagoExistente.fechaPago,
+      },
+      include: {
+        cliente: { select: { nombreCompleto: true } },
+        cobrador: { select: { name: true } }
+      }
+    });
+
+    return NextResponse.json(updatedPago);
+  } catch (error) {
+    console.error('Error al actualizar pago:', error);
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+  }
+}
