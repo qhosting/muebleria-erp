@@ -44,6 +44,7 @@ enum TipoPago {
 enum TipoPlantilla {
   ticket
   bienvenida
+  aviso
 }
 
 enum MotivoMotarario {
@@ -132,6 +133,8 @@ model User {
   equipo            EquipoVentas?   @relation("MiembroEquipo", fields: [equipoMiembroId], references: [id])
   presupuestos      PresupuestoVenta[] @relation("PresupuestoVendedor")
   convenios         ConvenioPago[]
+  arqueos           Arqueo[]        @relation("CobradorArqueo")
+  avisosCobro       AvisoCobro[]    @relation("CobradorAviso")
 
   dispositivosAutorizados DispositivoAutorizado[]
   pushSubscriptions       PushSubscription[]
@@ -243,6 +246,7 @@ model Cliente {
   verificaciones      VerificacionDomiciliaria[]
   convenios           ConvenioPago[]
   smsLogs             SmsLog[]
+  avisosCobro         AvisoCobro[] @relation("ClienteAviso")
 
   @@map("clientes")
 }
@@ -600,6 +604,7 @@ model ConvenioPago {
   tipoConvenio  String
   monto         Float
   fecha         DateTime
+  status        String   @default("PENDIENTE") // PENDIENTE, CUMPLIDO, INCUMPLIDO
   comentario    String?
   latitud       String?
   longitud      String?
@@ -726,4 +731,35 @@ model DispositivoAutorizado {
   user            User?    @relation(fields: [userId], references: [id])
 
   @@map("dispositivos_autorizados")
+}
+
+model Arqueo {
+  id              String   @id @default(cuid())
+  cobradorId      String
+  fecha           DateTime @default(now())
+  montoSistema    Decimal  @db.Decimal(10, 2)
+  montoFisico     Decimal  @db.Decimal(10, 2)
+  diferencia      Decimal  @db.Decimal(10, 2)
+  observaciones   String?
+  
+  cobrador        User     @relation("CobradorArqueo", fields: [cobradorId], references: [id])
+
+  @@map("arqueos")
+}
+
+model AvisoCobro {
+  id           String   @id @default(cuid())
+  clienteId    String
+  userId       String
+  monto        Decimal  @db.Decimal(10, 2)
+  saldoVencido Decimal  @db.Decimal(10, 2)
+  tipo         String   @default("IMPRESO") // IMPRESO, WHATSAPP
+  createdAt    DateTime @default(now())
+  
+  cliente      Cliente  @relation("ClienteAviso", fields: [clienteId], references: [id])
+  user         User     @relation("CobradorAviso", fields: [userId], references: [id])
+
+  @@index([clienteId])
+  @@index([userId])
+  @@map("avisos_cobro")
 }

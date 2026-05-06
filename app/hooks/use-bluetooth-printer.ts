@@ -203,6 +203,22 @@ export function useBluetoothPrinter() {
     }
   };
 
+  const printArqueo = async (data: { sistema: number, fisico: number, diferencia: number }): Promise<boolean> => {
+    if (!isConnected) {
+      toast.error('Impresora no conectada');
+      return false;
+    }
+
+    try {
+      await bluetoothPrinter.printArqueo(data);
+      toast.success('Comprobante de arqueo impreso');
+      return true;
+    } catch (error: any) {
+      toast.error('Error imprimiendo arqueo');
+      return false;
+    }
+  };
+
   return {
     isConnected,
     isConnecting,
@@ -217,6 +233,7 @@ export function useBluetoothPrinter() {
     printTicket,
     printCollectionReport,
     printCollectionNotice,
+    printArqueo,
     printTestPage,
     updateConnectionStatus
   };

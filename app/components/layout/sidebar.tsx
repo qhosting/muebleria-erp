@@ -84,7 +84,6 @@ const navigation: NavItem[] = [
     subItems: [
       { name: 'Morosidad', href: '/dashboard/morosidad', icon: AlertTriangle },
       { name: 'Pagos', href: '/dashboard/pagos', icon: Receipt },
-      { name: 'Saldos', href: '/dashboard/saldos', icon: Upload },
       { name: 'Campañas SMS', href: '/dashboard/sms', icon: MessageSquare },
     ]
   },

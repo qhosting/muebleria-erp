@@ -168,9 +168,9 @@ export default function ReportesPage() {
       ['Cobrador', 'Total Cobrado', 'Pagos Regulares', 'Pagos Moratorios', 'Cantidad Pagos'],
       ...reporte.reportePorCobrador.map(c => [
         c.cobrador,
-        formatCurrency(c.totalCobrado),
-        formatCurrency(c.pagosRegulares),
-        formatCurrency(c.pagosMoratorios),
+        Math.round(c.totalCobrado).toString(),
+        Math.round(c.pagosRegulares).toString(),
+        Math.round(c.pagosMoratorios).toString(),
         c.cantidadPagos.toString()
       ])
     ].map(row => row.join(',')).join('\n');

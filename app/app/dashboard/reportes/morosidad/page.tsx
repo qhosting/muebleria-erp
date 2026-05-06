@@ -94,8 +94,8 @@ export default function MorosidadPage() {
             c.codigoCliente,
             c.nombreCompleto,
             c.cobradorAsignado?.name || 'N/A',
-            c.saldoActual.toString(),
-            c.saldoVencido.toString(),
+            Math.round(c.saldoActual).toString(),
+            Math.round(c.saldoVencido).toString(),
             c.diasVencidos.toString(),
             c.periodicidad
         ]);

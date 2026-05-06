@@ -7,16 +7,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number | string | null | undefined): string {
+export function formatCurrency(amount: number | string | null | undefined, decimals: number = 0): string {
   const value = typeof amount === 'string' ? parseFloat(amount) : amount;
   
   if (value === null || value === undefined || isNaN(value as number)) {
-    return '$0.00';
+    return decimals === 0 ? '$0' : `$0.${'0'.repeat(decimals)}`;
   }
 
   return new Intl.NumberFormat('es-MX', {
     style: 'currency',
     currency: 'MXN',
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   }).format(value as number);
 }
 

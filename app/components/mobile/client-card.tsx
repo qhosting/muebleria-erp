@@ -127,7 +127,7 @@ export function ClientCard({
             </h3>
             <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1 font-medium">
               <Calendar className="w-4 h-4" />
-              {getDayName(cliente.diaPago)} - ${Math.round(cliente.montoAcordado)}
+              {getDayName(cliente.diaPago)} - {formatCurrency(cliente.montoAcordado)}
             </p>
           </div>
 
@@ -184,7 +184,7 @@ export function ClientCard({
           <div className="text-center">
             <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Saldo Pendiente</div>
             <div className={`text-xl font-black ${getSaldoColor()}`}>
-              ${Math.round(cliente.saldoPendiente)}
+              {formatCurrency(cliente.saldoPendiente)}
             </div>
           </div>
 

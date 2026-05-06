@@ -4,6 +4,8 @@ import { X, Phone, MapPin, Calendar, Printer, User, ShoppingBag, CreditCard, Dol
 import { OfflineCliente } from "@/lib/offline-db";
 import { formatCurrency, getDayName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { toast } from "sonner";
 
 interface ProfileModalProps {
     cliente: OfflineCliente;
@@ -12,7 +14,61 @@ interface ProfileModalProps {
 }
 
 export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
-    return (
+    const [sending, setSending] = useState(false);
+
+    const handleWhatsAppAviso = async () => {
+        const mensaje = `*AVISO DE COBRO - MUEBLERIA LA ECONOMICA*\n\nHola ${cliente.nombreCompleto},\n\nLe enviamos un recordatorio de su estado de cuenta:\n\n*Saldo Actual:* ${formatCurrency(cliente.saldoPendiente)}\n*Saldo Vencido:* ${formatCurrency(cliente.saldoVencido || 0)}\n*Días de Atraso:* ${cliente.diasVencidos || 0}\n\nFavor de regularizarse a la brevedad para evitar recargos. ¡Gracias!`;
+        const url = `https://wa.me/52${cliente.telefono}?text=${encodeURIComponent(mensaje)}`;
+        
+        // Registrar en BD
+        try {
+            await fetch('/api/mobile/avisos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    clienteId: cliente.id,
+                    monto: Number(cliente.saldoPendiente),
+                    saldoVencido: Number(cliente.saldoVencido || 0),
+                    tipo: 'WHATSAPP'
+                })
+            });
+        } catch (e) {
+            console.error('Error al registrar aviso WA:', e);
+        }
+
+        window.open(url, '_blank');
+    };
+
+    const handlePrintAviso = async () => {
+        setSending(true);
+        try {
+            const success = await onAviso(cliente);
+            if (success) {
+                // Registrar en BD
+                await fetch('/api/mobile/avisos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clienteId: cliente.id,
+                        monto: Number(cliente.saldoPendiente),
+                        saldoVencido: Number(cliente.saldoVencido || 0),
+                        tipo: 'IMPRESO'
+                    })
+                });
+            } else {
+                toast.error('Fallo la impresora. ¿Deseas enviar por WhatsApp?', {
+                    action: {
+                        label: 'Enviar WA',
+                        onClick: handleWhatsAppAviso
+                    }
+                });
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setSending(false);
+        }
+    };
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-slate-900 w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-slate-800 shadow-2xl overflow-hidden max-h-[95vh] flex flex-col animate-in slide-in-from-bottom duration-300">
                 <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
@@ -38,11 +94,11 @@ export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-sm">
                             <p className="text-[10px] text-slate-500 uppercase font-black mb-1 tracking-widest">Saldo Actual</p>
-                            <p className="text-2xl font-black text-white">${Math.round(cliente.saldoPendiente)}</p>
+                            <p className="text-2xl font-black text-white">{formatCurrency(cliente.saldoPendiente)}</p>
                         </div>
                         <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-sm">
                             <p className="text-[10px] text-slate-500 uppercase font-black mb-1 tracking-widest">Saldo Vencido</p>
-                            <p className="text-2xl font-black text-amber-500">${Math.round(cliente.saldoVencido || 0)}</p>
+                            <p className="text-2xl font-black text-amber-500">{formatCurrency(cliente.saldoVencido || 0)}</p>
                         </div>
                     </div>
 
@@ -72,7 +128,7 @@ export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
                             <DetailRow label="Producto" value={cliente.descripcionProducto} icon={<ShoppingBag className="w-4 h-4" />} />
                             <DetailRow label="Vendedor" value={cliente.vendedorNombre} icon={<User className="w-4 h-4" />} />
                             <DetailRow label="Periodicidad" value={cliente.diaPago ? `Paga los ${getDayName(cliente.diaPago)}` : 'N/A'} icon={<Calendar className="w-4 h-4" />} />
-                            <DetailRow label="Pago Acordado" value={`$${Math.round(cliente.montoAcordado)}`} icon={<DollarSign className="w-4 h-4" />} highlight="text-emerald-400" />
+                            <DetailRow label="Pago Acordado" value={formatCurrency(cliente.montoAcordado)} icon={<DollarSign className="w-4 h-4" />} highlight="text-emerald-400" />
                         </div>
                     </div>
 
@@ -100,11 +156,19 @@ export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
                 {/* Acciones Inferiores */}
                 <div className="p-6 bg-slate-800/80 border-t border-slate-700/50 grid grid-cols-1 gap-3">
                     <Button 
-                        onClick={() => onAviso(cliente)}
-                        className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black py-7 rounded-2xl text-base shadow-lg shadow-amber-900/20 active:scale-95 transition-all flex items-center justify-center gap-3"
+                        onClick={handlePrintAviso}
+                        disabled={sending}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-7 rounded-2xl text-base shadow-lg shadow-emerald-900/20 active:scale-95 transition-all flex items-center justify-center gap-3"
                     >
                         <Printer className="w-6 h-6" />
-                        IMPRIMIR AVISO DE COBRO
+                        {sending ? 'IMPRIMIENDO...' : 'IMPRIMIR AVISO DE COBRO'}
+                    </Button>
+                    <Button 
+                        onClick={handleWhatsAppAviso}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-7 rounded-2xl text-base shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-3"
+                    >
+                        <MessageSquare className="w-6 h-6" />
+                        ENVIAR POR WHATSAPP
                     </Button>
                     <Button 
                         variant="ghost" 
@@ -124,7 +188,7 @@ function PriceCard({ label, value }: { label: string, value?: number }) {
     return (
         <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800/50 shadow-inner">
             <p className="text-[9px] text-slate-500 uppercase font-black mb-1 tracking-tighter">{label}</p>
-            <p className="text-lg font-black text-slate-200">${Math.round(value)}</p>
+            <p className="text-lg font-black text-slate-200">{formatCurrency(value)}</p>
         </div>
     );
 }

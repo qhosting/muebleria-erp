@@ -365,7 +365,9 @@ class BluetoothPrinterService {
   private formatCurrency(amount: number): string {
     return new Intl.NumberFormat('es-MX', {
       style: 'currency',
-      currency: 'MXN'
+      currency: 'MXN',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(amount);
   }
 
@@ -469,36 +471,35 @@ class BluetoothPrinterService {
       ticket += this.COMMANDS.INIT;
       ticket += this.COMMANDS.CENTER;
       ticket += this.COMMANDS.BOLD_ON;
-      ticket += 'MUEBLERIA LA ECONOMICA' + this.LF;
       ticket += 'AVISO DE COBRO' + this.LF;
       ticket += this.COMMANDS.BOLD_OFF;
-      ticket += new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString() + this.LF;
+      ticket += this.formatDate(new Date().toISOString()) + this.LF;
       ticket += this.createDivider() + this.LF;
 
       ticket += this.COMMANDS.LEFT;
-      ticket += 'CLIENTE: ' + cliente.nombre.toUpperCase() + this.LF;
-      ticket += 'CONTRATO: ' + (cliente.codigoCliente || 'N/A') + this.LF;
+      ticket += 'CLIENTE: ' + (cliente.nombreCompleto || cliente.nombre).toUpperCase() + this.LF;
+      ticket += 'CODIGO:  ' + (cliente.codigoCliente || cliente.id?.substring(0, 8) || 'N/A') + this.LF;
       ticket += this.createDivider() + this.LF;
 
       ticket += this.COMMANDS.BOLD_ON;
       ticket += 'ESTADO DE CUENTA:' + this.LF;
       ticket += this.COMMANDS.BOLD_OFF;
-      ticket += 'SALDO TOTAL:   ' + this.rightAlignText(this.formatCurrency(cliente.saldo)) + this.LF;
-      ticket += 'SALDO VENCIDO: ' + this.rightAlignText(this.formatCurrency(cliente.saldoVencido)) + this.LF;
-      ticket += 'PAGO SUGERIDO: ' + this.rightAlignText(this.formatCurrency(cliente.pagoSemanal)) + this.LF;
+      ticket += 'SALDO ACTUAL:  ' + this.rightAlignText(this.formatCurrency(cliente.saldoPendiente || cliente.saldo)) + this.LF;
+      ticket += 'SALDO VENCIDO: ' + this.rightAlignText(this.formatCurrency(cliente.saldoVencido || 0)) + this.LF;
+      ticket += 'DIAS ATRASO:   ' + this.rightAlignText((cliente.diasVencidos || 0).toString()) + this.LF;
       ticket += this.createDivider() + this.LF;
 
       ticket += this.COMMANDS.CENTER;
       ticket += this.COMMANDS.BOLD_ON;
-      ticket += '¡EVITE RECARGOS!' + this.LF;
+      ticket += '¡URGENTE!' + this.LF;
       ticket += this.COMMANDS.BOLD_OFF;
-      ticket += 'Le recordamos que su cuenta' + this.LF;
-      ticket += 'presenta un atraso.' + this.LF;
       ticket += 'Favor de regularizarse' + this.LF;
-      ticket += 'lo antes posible.' + this.LF;
+      ticket += 'a la brevedad posible.' + this.LF;
+      ticket += 'Evite cargos adicionales' + this.LF;
+      ticket += 'y afectaciones a su credito.' + this.LF;
       
       ticket += this.LF + this.createDivider() + this.LF;
-      ticket += 'COBRADOR: ' + (cliente.cobradorNombre || 'GESTOR') + this.LF;
+      ticket += 'GESTIÓN: ' + (cliente.cobradorNombre || 'DEPARTAMENTO DE COBRANZA') + this.LF;
       ticket += this.LF + this.LF + this.LF;
       ticket += this.COMMANDS.CUT;
 
@@ -506,6 +507,46 @@ class BluetoothPrinterService {
       return true;
     } catch (error) {
       console.error('Error al imprimir aviso:', error);
+      throw error;
+    }
+  }
+
+  async printArqueo(data: { sistema: number, fisico: number, diferencia: number }): Promise<boolean> {
+    try {
+      let ticket = '';
+      ticket += this.COMMANDS.INIT;
+      ticket += this.COMMANDS.CENTER;
+      ticket += this.COMMANDS.BOLD_ON;
+      ticket += 'ARQUEO DE CAJA' + this.LF;
+      ticket += new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString() + this.LF;
+      ticket += this.COMMANDS.BOLD_OFF;
+      ticket += this.createDivider() + this.LF;
+
+      ticket += this.COMMANDS.LEFT;
+      ticket += 'EFECTIVO SISTEMA: ' + this.rightAlignText(this.formatCurrency(data.sistema)) + this.LF;
+      ticket += 'EFECTIVO FISICO:  ' + this.rightAlignText(this.formatCurrency(data.fisico)) + this.LF;
+      ticket += this.createDivider() + this.LF;
+
+      ticket += this.COMMANDS.BOLD_ON;
+      ticket += 'DIFERENCIA:       ' + this.rightAlignText(this.formatCurrency(data.diferencia)) + this.LF;
+      ticket += this.COMMANDS.BOLD_OFF;
+      ticket += this.createDivider() + this.LF;
+
+      ticket += this.COMMANDS.CENTER;
+      if (data.diferencia === 0) {
+        ticket += 'CAJA CUADRADA CORRECTAMENTE' + this.LF;
+      } else {
+        ticket += data.diferencia > 0 ? 'EXISTE SOBRANTE' : 'EXISTE FALTANTE';
+        ticket += this.LF;
+      }
+      
+      ticket += this.LF + this.LF + this.LF;
+      ticket += this.COMMANDS.CUT;
+
+      await this.sendData(ticket);
+      return true;
+    } catch (error) {
+      console.error('Error al imprimir arqueo:', error);
       throw error;
     }
   }
@@ -592,14 +633,14 @@ class BluetoothPrinterService {
       ticket += 'Saldo Anterior:' + this.rightAlignText(this.formatCurrency(ticketData.saldos.anterior)) + this.LF;
       
       // Desglose de Pago
-      ticket += 'Abono a Saldo:' + this.rightAlignText(this.formatCurrency(ticketData.pago.monto)) + this.LF;
+      ticket += 'Pago:' + this.rightAlignText(this.formatCurrency(ticketData.pago.monto)) + this.LF;
       
       if (ticketData.pago.interesMoratorio && ticketData.pago.interesMoratorio > 0) {
-        ticket += 'Int. Moratorio:' + this.rightAlignText(this.formatCurrency(ticketData.pago.interesMoratorio)) + this.LF;
+        ticket += 'Moratorio:' + this.rightAlignText(this.formatCurrency(ticketData.pago.interesMoratorio)) + this.LF;
       }
       
       if (ticketData.pago.gastosCobranza && ticketData.pago.gastosCobranza > 0) {
-        ticket += 'Gastos Cobranza:' + this.rightAlignText(this.formatCurrency(ticketData.pago.gastosCobranza)) + this.LF;
+        ticket += 'Gastos de Cobranza:' + this.rightAlignText(this.formatCurrency(ticketData.pago.gastosCobranza)) + this.LF;
       }
 
       const totalRecibido = ticketData.pago.monto + (ticketData.pago.interesMoratorio || 0) + (ticketData.pago.gastosCobranza || 0);

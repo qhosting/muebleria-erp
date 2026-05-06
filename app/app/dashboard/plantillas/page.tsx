@@ -30,7 +30,7 @@ interface Plantilla {
   id: string;
   nombre: string;
   contenido: string;
-  tipo: 'ticket' | 'bienvenida';
+  tipo: 'ticket' | 'bienvenida' | 'aviso';
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -59,6 +59,19 @@ const VARIABLES_BIENVENIDA = [
   { name: '{{empresa_nombre}}', description: 'Nombre de la empresa' },
 ];
 
+const VARIABLES_AVISO = [
+  { name: '{{cliente_nombre}}', description: 'Nombre completo del cliente' },
+  { name: '{{cliente_codigo}}', description: 'Código único del cliente' },
+  { name: '{{saldo_pendiente}}', description: 'Saldo total actual' },
+  { name: '{{saldo_vencido}}', description: 'Monto en mora' },
+  { name: '{{dias_vencidos}}', description: 'Días de atraso' },
+  { name: '{{monto_acordado}}', description: 'Monto de pago regular' },
+  { name: '{{dia_pago}}', description: 'Día de pago' },
+  { name: '{{empresa_nombre}}', description: 'Nombre de la empresa' },
+  { name: '{{empresa_telefono}}', description: 'Teléfono de la empresa' },
+  { name: '{{empresa_direccion}}', description: 'Dirección de la empresa' },
+];
+
 const PLANTILLA_PREDETERMINADA = `
 ================================
     {{empresa_nombre}}
@@ -77,6 +90,31 @@ Cobrador: {{cobrador}}
 ================================
         ¡Gracias por su pago!
 ================================
+`.trim();
+
+const PLANTILLA_AVISO_PREDETERMINADA = `
+********************************
+        AVISO DE COBRO
+********************************
+{{empresa_nombre}}
+--------------------------------
+CLIENTE: {{cliente_nombre}}
+CODIGO: {{cliente_codigo}}
+--------------------------------
+ESTADO DE CUENTA:
+Saldo Total: {{saldo_pendiente}}
+Saldo Vencido: {{saldo_vencido}}
+Días de Atraso: {{dias_vencidos}}
+--------------------------------
+Le recordamos que su día de
+pago es el {{dia_pago}}.
+
+Favor de regularizarse a la
+brevedad para evitar recargos.
+--------------------------------
+{{empresa_direccion}}
+Tel: {{empresa_telefono}}
+********************************
 `.trim();
 
 export default function PlantillasPage() {
@@ -201,7 +239,7 @@ export default function PlantillasPage() {
     const targetTipo = tipo || activeTab;
     setFormData({
       nombre: '',
-      contenido: targetTipo === 'ticket' ? PLANTILLA_PREDETERMINADA : '',
+      contenido: targetTipo === 'ticket' ? PLANTILLA_PREDETERMINADA : (targetTipo === 'aviso' ? PLANTILLA_AVISO_PREDETERMINADA : ''),
       tipo: targetTipo,
       isActive: true
     });
@@ -239,9 +277,13 @@ export default function PlantillasPage() {
       '{{empresa_nombre}}': 'VertexERP Muebles',
       '{{empresa_telefono}}': '555-1234',
       '{{empresa_direccion}}': 'Av. Principal 123, Col. Centro',
-      '{{monto_pago}}': '$500.00',
+      '{{monto_pago}}': '$500',
       '{{periodicidad}}': 'Semanal',
-      '{{dia_pago}}': 'Lunes',
+      '{{dia_pago}}': 'LUNES',
+      '{{saldo_pendiente}}': '$2,500',
+      '{{saldo_vencido}}': '$1,000',
+      '{{dias_vencidos}}': '15',
+      '{{monto_acordado}}': '$500',
     };
 
     let preview = plantilla.contenido;
@@ -257,6 +299,7 @@ export default function PlantillasPage() {
 
   const plantillasTicket = plantillas.filter(p => p.tipo === 'ticket');
   const plantillasBienvenida = plantillas.filter(p => p.tipo === 'bienvenida');
+  const plantillasAviso = plantillas.filter(p => p.tipo === 'aviso');
 
   return (
     <DashboardLayout>
@@ -277,14 +320,18 @@ export default function PlantillasPage() {
         </div>
 
         <Tabs defaultValue="ticket" onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-2xl grid-cols-3">
             <TabsTrigger value="ticket" className="flex items-center gap-2">
               <Printer className="h-4 w-4" />
-              Tickets de Pago
+              Tickets
+            </TabsTrigger>
+            <TabsTrigger value="aviso" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Avisos de Cobro
             </TabsTrigger>
             <TabsTrigger value="bienvenida" className="flex items-center gap-2">
               <Smartphone className="h-4 w-4" />
-              Mensajes de Bienvenida
+              Bienvenida
             </TabsTrigger>
           </TabsList>
 
@@ -311,13 +358,28 @@ export default function PlantillasPage() {
               tipo="bienvenida"
             />
           </TabsContent>
+
+          <TabsContent value="aviso" className="mt-6">
+            <PlantillaList
+              plantillas={plantillasAviso}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onToggle={handleToggleActive}
+              onPreview={previewPlantilla}
+              loading={loading}
+              tipo="aviso"
+            />
+          </TabsContent>
         </Tabs>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {editingPlantilla ? 'Editar Plantilla' : 'Nueva Plantilla'} ({formData.tipo === 'ticket' ? 'Ticket' : 'Bienvenida'})
+                {editingPlantilla ? 'Editar Plantilla' : 'Nueva Plantilla'} ({
+                    formData.tipo === 'ticket' ? 'Ticket' : 
+                    formData.tipo === 'aviso' ? 'Aviso' : 'Bienvenida'
+                })
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -359,7 +421,7 @@ export default function PlantillasPage() {
                 <div>
                   <Label>Variables Disponibles</Label>
                   <div className="grid grid-cols-1 gap-2 mt-2 max-h-[400px] overflow-y-auto p-1">
-                    {(formData.tipo === 'ticket' ? VARIABLES_TICKET : VARIABLES_BIENVENIDA).map((v) => (
+                    {(formData.tipo === 'ticket' ? VARIABLES_TICKET : (formData.tipo === 'aviso' ? VARIABLES_AVISO : VARIABLES_BIENVENIDA)).map((v) => (
                       <Button
                         key={v.name}
                         type="button"

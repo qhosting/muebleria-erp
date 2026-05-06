@@ -2,7 +2,8 @@
 
 import { usePlatform } from "@/hooks/usePlatform";
 import { usePathname } from "next/navigation";
-import { Network, Wifi, WifiOff, MapPin, Printer } from "lucide-react";
+import { Network, Wifi, WifiOff, MapPin, Printer, MessageSquare } from "lucide-react";
+import { useState, useEffect } from "react";
 
 interface CobradorLayoutProps {
     children: React.ReactNode;
@@ -11,6 +12,25 @@ interface CobradorLayoutProps {
 export default function CobradorLayout({ children }: CobradorLayoutProps) {
     const { isNative } = usePlatform();
     const pathname = usePathname();
+    const [pendingCount, setPendingCount] = useState(0);
+
+    useEffect(() => {
+        const fetchPending = async () => {
+            try {
+                const response = await fetch('/api/mobile/convenios');
+                if (response.ok) {
+                    const data = await response.json();
+                    setPendingCount(data.convenios?.length || 0);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        };
+        fetchPending();
+        // Refresh every 2 minutes
+        const interval = setInterval(fetchPending, 120000);
+        return () => clearInterval(interval);
+    }, []);
 
     return (
         <div className="flex flex-col h-[100dvh] bg-slate-950 text-slate-100 overflow-hidden relative">
@@ -38,18 +58,19 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
 
             {/* BOTTOM NAVIGATION BAR */}
             <nav className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 pb-safe-bottom z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.3)]">
-                <div className="grid grid-cols-4 h-16">
+                <div className="grid grid-cols-5 h-16">
                     <NavButton icon="home" label="Inicio" href="/mobile/home" active={pathname === "/mobile/home"} />
                     <NavButton icon="users" label="Clientes" href="/mobile/clientes" active={pathname === "/mobile/clientes"} />
+                    <NavButton icon="convenios" label="Convenios" href="/mobile/convenios" active={pathname === "/mobile/convenios"} badge={pendingCount > 0 ? pendingCount : undefined} />
                     <NavButton icon="dollar" label="Caja" href="/mobile/caja" active={pathname === "/mobile/caja"} />
-                    <NavButton icon="menu" label="Menú" href="/mobile/menu" active={pathname === "/mobile/menu"} />
+                    <NavButton icon="menu" label="Menú" href="/mobile/menu" active={pathname === "/mobile/menu"} badge={pendingCount > 0 ? true : false} />
                 </div>
             </nav>
         </div>
     );
 }
 
-function NavButton({ icon, label, href, active = false }: any) {
+function NavButton({ icon, label, href, active = false, badge }: any) {
     // Icon mapping simple
     const Icons: any = {
         home: (
@@ -61,14 +82,25 @@ function NavButton({ icon, label, href, active = false }: any) {
         dollar: (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="12" x="2" y="6" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01" /><path d="M18 12h.01" /></svg>
         ),
+        convenios: (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /><path d="m9 16 2 2 4-4" /></svg>
+        ),
         menu: (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" /></svg>
         )
     };
 
     return (
-        <a href={href} className={`flex flex-col items-center justify-center space-y-1 ${active ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-100'}`}>
-            {Icons[icon]}
+        <a href={href} className={`flex flex-col items-center justify-center space-y-1 relative ${active ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-100'}`}>
+            <div className="relative">
+                {Icons[icon]}
+                {badge && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border border-slate-900"></span>
+                    </span>
+                )}
+            </div>
             <span className="text-[10px] font-medium">{label}</span>
         </a>
     )

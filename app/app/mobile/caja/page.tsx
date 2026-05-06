@@ -6,6 +6,7 @@ import { Loader2, DollarSign, Printer, Download, CreditCard, ChevronUp, ChevronD
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
+import { ArqueoModal } from "@/components/mobile/arqueo-modal";
 
 export default function MobileCaja() {
     const [loading, setLoading] = useState(true);
@@ -22,9 +23,10 @@ export default function MobileCaja() {
         cuentasBancarioBot: 0,
     });
     const [pagos, setPagos] = useState<any[]>([]);
-    const { isConnected, printTicket, printCollectionReport, connectToPrinter } = useBluetoothPrinter();
+    const { isConnected, printTicket, printCollectionReport, printArqueo, connectToPrinter } = useBluetoothPrinter();
     const [printing, setPrinting] = useState<string | null>(null);
     const [selectedPago, setSelectedPago] = useState<any | null>(null);
+    const [showArqueoModal, setShowArqueoModal] = useState(false);
 
     useEffect(() => {
         const fetchCajaData = async () => {
@@ -143,6 +145,30 @@ export default function MobileCaja() {
         }
     };
 
+    const handlePrintArqueo = async (arqueo: any) => {
+        try {
+            // Guardar en base de datos primero
+            const saveResponse = await fetch('/api/mobile/arqueos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(arqueo)
+            });
+
+            if (!saveResponse.ok) {
+                console.error("Error al guardar arqueo en DB");
+            } else {
+                toast.success("Arqueo guardado en sistema");
+            }
+
+            // Luego imprimir
+            await printArqueo(arqueo);
+            setShowArqueoModal(false);
+        } catch (error) {
+            console.error("Error procesando arqueo:", error);
+            toast.error("Error al procesar arqueo");
+        }
+    };
+
     return (
         <div className="space-y-6 pt-2">
             {/* RESUMEN PRINCIPAL */}
@@ -186,7 +212,10 @@ export default function MobileCaja() {
                     <Printer className={`w-6 h-6 text-sky-400 ${printing === "report" ? "animate-pulse" : ""}`} />
                     <span className="text-xs font-bold">Imprimir Reporte</span>
                 </button>
-                <button className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 p-4 rounded-xl flex flex-col items-center justify-center space-y-2 transition-colors active:scale-95">
+                <button 
+                    onClick={() => setShowArqueoModal(true)}
+                    className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 p-4 rounded-xl flex flex-col items-center justify-center space-y-2 transition-colors active:scale-95"
+                >
                     <CreditCard className="w-6 h-6 text-amber-400" />
                     <span className="text-xs font-bold">Arqueo de Caja</span>
                 </button>
@@ -339,6 +368,13 @@ export default function MobileCaja() {
                     <span>Cerrar Caja del Día</span>
                 </button>
             </div>
+
+            <ArqueoModal 
+                isOpen={showArqueoModal}
+                onClose={() => setShowArqueoModal(false)}
+                sistemaEfectivo={stats.efectivo}
+                onPrint={handlePrintArqueo}
+            />
         </div>
     );
 }
