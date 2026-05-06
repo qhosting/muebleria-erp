@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
         sincronizacion,
         impresion,
         contpaqi
-      },
+      } as any,
       create: {
         clave: 'sistema',
         empresa,
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
         sincronizacion,
         impresion,
         contpaqi
-      }
+      } as any
     });
 
     return NextResponse.json({
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
         notificaciones: config.notificaciones,
         sincronizacion: config.sincronizacion,
         impresion: config.impresion,
-        contpaqi: config.contpaqi
+        contpaqi: (config as any).contpaqi
       }
     });
   } catch (error) {
