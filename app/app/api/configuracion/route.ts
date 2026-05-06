@@ -153,25 +153,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { empresa, cobranza, notificaciones, sincronizacion, impresion } = body;
-
-    // Validar que todos los campos requeridos estén presentes
-    if (!empresa || !cobranza || !notificaciones || !sincronizacion || !impresion) {
-      const missingFields = [];
-      if (!empresa) missingFields.push('empresa');
-      if (!cobranza) missingFields.push('cobranza');
-      if (!notificaciones) missingFields.push('notificaciones');
-      if (!sincronizacion) missingFields.push('sincronizacion');
-      if (!impresion) missingFields.push('impresion');
-
-      return NextResponse.json(
-        {
-          error: 'Faltan campos requeridos',
-          missingFields
-        },
-        { status: 400 }
-      );
-    }
+    const { empresa, cobranza, notificaciones, sincronizacion, impresion, contpaqi } = body;
 
     // Actualizar o crear configuración
     const config = await prisma.configuracionSistema.upsert({
@@ -181,7 +163,8 @@ export async function POST(request: NextRequest) {
         cobranza,
         notificaciones,
         sincronizacion,
-        impresion
+        impresion,
+        contpaqi
       },
       create: {
         clave: 'sistema',
@@ -189,7 +172,8 @@ export async function POST(request: NextRequest) {
         cobranza,
         notificaciones,
         sincronizacion,
-        impresion
+        impresion,
+        contpaqi
       }
     });
 
@@ -200,7 +184,8 @@ export async function POST(request: NextRequest) {
         cobranza: config.cobranza,
         notificaciones: config.notificaciones,
         sincronizacion: config.sincronizacion,
-        impresion: config.impresion
+        impresion: config.impresion,
+        contpaqi: config.contpaqi
       }
     });
   } catch (error) {

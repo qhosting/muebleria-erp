@@ -591,6 +591,7 @@ model ConfiguracionSistema {
   notificaciones Json
   sincronizacion Json
   impresion      Json
+  contpaqi       Json?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

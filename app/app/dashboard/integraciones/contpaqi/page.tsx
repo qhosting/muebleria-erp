@@ -72,6 +72,35 @@ export default function ContpaqiPage() {
     }
   };
 
+  const handleSave = async () => {
+    try {
+      // Primero obtener la configuración completa para no sobreescribir otros módulos
+      const res = await fetch('/api/configuracion');
+      const currentConfig = await res.json();
+
+      const response = await fetch('/api/configuracion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...currentConfig,
+          contpaqi: {
+            apiUrl: config.apiUrl,
+            apiKey: config.apiKey,
+            conceptoAbono: config.conceptoAbono
+          }
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Configuración guardada en la base de datos');
+      } else {
+        throw new Error('Error al guardar');
+      }
+    } catch (error) {
+      toast.error('No se pudo guardar la configuración');
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-500">
@@ -165,7 +194,7 @@ export default function ContpaqiPage() {
                   <RefreshCcw className={`h-4 w-4 mr-2 ${status === 'loading' && 'animate-spin'}`} />
                   Probar Conexión
                 </Button>
-                <Button className="bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-100">
+                <Button className="bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-100" onClick={handleSave}>
                   <Save className="h-4 w-4 mr-2" />
                   Guardar Cambios
                 </Button>
