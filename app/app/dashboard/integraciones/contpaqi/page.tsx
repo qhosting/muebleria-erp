@@ -45,6 +45,10 @@ interface EmpresaContpaqi {
   clasificacion: string;
   ruta: string;
   isActive: boolean;
+  mapping?: {
+    clientes?: Record<string, string>;
+    productos?: Record<string, string>;
+  };
 }
 
 export default function ContpaqiMultiPage() {
@@ -85,9 +89,43 @@ export default function ContpaqiMultiPage() {
       conceptoAbono: 'ABONO CLIENTE',
       clasificacion: 'COBRANZA NORMAL',
       ruta: '',
-      isActive: true
+      isActive: true,
+      mapping: {
+        clientes: {
+          nombreCompleto: 'Nombre',
+          codigoCliente: 'Codigo',
+          saldoActual: 'Saldo',
+          direccionCompleta: 'Direccion'
+        },
+        productos: {
+          nombre: 'Nombre',
+          codigo: 'Codigo',
+          precioVenta: 'Precio',
+          existencias: 'Existencias'
+        }
+      }
     };
     setEmpresas([...empresas, newEmpresa]);
+  };
+
+  const handleUpdateMapping = (empresaId: string, type: 'clientes' | 'productos', field: string, value: string) => {
+    setEmpresas(empresas.map(e => {
+      if (e.id === empresaId) {
+        const mapping = e.mapping || {};
+        const typeMapping = mapping[type] || {};
+        return {
+          ...e,
+          mapping: {
+            ...mapping,
+            [type]: {
+              ...typeMapping,
+              [field]: value
+            }
+          }
+        };
+      }
+      return e;
+    }));
   };
 
   const handleRemoveEmpresa = (id: string) => {
@@ -424,6 +462,106 @@ export default function ContpaqiMultiPage() {
                             onChange={(e) => handleUpdateEmpresa(empresa.id, 'ruta', e.target.value)}
                             className="bg-white/80"
                           />
+                        </div>
+                    </div>
+
+                    <div className="space-y-4 pt-4">
+                      <div className="flex items-center gap-2 text-slate-900 font-bold border-b border-slate-100 pb-2">
+                        <LucideIcons.Link2 className="h-4 w-4 text-emerald-500" />
+                        Mapeo de Datos (VertexERP ← Contpaqi)
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Clientes Mapping */}
+                        <div className="space-y-3">
+                          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <LucideIcons.Users className="h-3 w-3" />
+                            Catálogo Clientes
+                          </h4>
+                          <div className="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                            <div className="grid grid-cols-2 gap-3 items-center">
+                              <Label className="text-[10px] text-slate-500">Nombre Completo</Label>
+                              <Input 
+                                value={empresa.mapping?.clientes?.nombreCompleto || 'Nombre'} 
+                                onChange={(e) => handleUpdateMapping(empresa.id, 'clientes', 'nombreCompleto', e.target.value)}
+                                className="h-8 text-xs bg-white"
+                                placeholder="Campo en Contpaqi"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 items-center">
+                              <Label className="text-[10px] text-slate-500">Código Cliente</Label>
+                              <Input 
+                                value={empresa.mapping?.clientes?.codigoCliente || 'Codigo'} 
+                                onChange={(e) => handleUpdateMapping(empresa.id, 'clientes', 'codigoCliente', e.target.value)}
+                                className="h-8 text-xs bg-white"
+                                placeholder="Campo en Contpaqi"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 items-center">
+                              <Label className="text-[10px] text-slate-500">Saldo Actual</Label>
+                              <Input 
+                                value={empresa.mapping?.clientes?.saldoActual || 'Saldo'} 
+                                onChange={(e) => handleUpdateMapping(empresa.id, 'clientes', 'saldoActual', e.target.value)}
+                                className="h-8 text-xs bg-white"
+                                placeholder="Campo en Contpaqi"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 items-center">
+                              <Label className="text-[10px] text-slate-500">Dirección</Label>
+                              <Input 
+                                value={empresa.mapping?.clientes?.direccionCompleta || 'Direccion'} 
+                                onChange={(e) => handleUpdateMapping(empresa.id, 'clientes', 'direccionCompleta', e.target.value)}
+                                className="h-8 text-xs bg-white"
+                                placeholder="Campo en Contpaqi"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Productos Mapping */}
+                        <div className="space-y-3">
+                          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <LucideIcons.Package className="h-3 w-3" />
+                            Catálogo Productos
+                          </h4>
+                          <div className="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                            <div className="grid grid-cols-2 gap-3 items-center">
+                              <Label className="text-[10px] text-slate-500">Nombre Producto</Label>
+                              <Input 
+                                value={empresa.mapping?.productos?.nombre || 'Nombre'} 
+                                onChange={(e) => handleUpdateMapping(empresa.id, 'productos', 'nombre', e.target.value)}
+                                className="h-8 text-xs bg-white"
+                                placeholder="Campo en Contpaqi"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 items-center">
+                              <Label className="text-[10px] text-slate-500">Código</Label>
+                              <Input 
+                                value={empresa.mapping?.productos?.codigo || 'Codigo'} 
+                                onChange={(e) => handleUpdateMapping(empresa.id, 'productos', 'codigo', e.target.value)}
+                                className="h-8 text-xs bg-white"
+                                placeholder="Campo en Contpaqi"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 items-center">
+                              <Label className="text-[10px] text-slate-500">Precio Venta</Label>
+                              <Input 
+                                value={empresa.mapping?.productos?.precioVenta || 'Precio'} 
+                                onChange={(e) => handleUpdateMapping(empresa.id, 'productos', 'precioVenta', e.target.value)}
+                                className="h-8 text-xs bg-white"
+                                placeholder="Campo en Contpaqi"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 items-center">
+                              <Label className="text-[10px] text-slate-500">Existencias</Label>
+                              <Input 
+                                value={empresa.mapping?.productos?.existencias || 'Existencias'} 
+                                onChange={(e) => handleUpdateMapping(empresa.id, 'productos', 'existencias', e.target.value)}
+                                className="h-8 text-xs bg-white"
+                                placeholder="Campo en Contpaqi"
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
