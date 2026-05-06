@@ -15,7 +15,9 @@ import {
   Key,
   Clock,
   User as UserIcon,
-  HardDrive
+  HardDrive,
+  MapPin,
+  ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -56,6 +58,8 @@ interface Dispositivo {
     name: string;
     email: string;
   };
+  latitud: string | null;
+  longitud: string | null;
 }
 
 export default function DispositivosAdminPage() {
@@ -181,6 +185,7 @@ export default function DispositivosAdminPage() {
                   <TableHead>Dispositivo / ID</TableHead>
                   <TableHead>Usuario Vinculado</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Ubicación</TableHead>
                   <TableHead>Última Conexión</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -220,6 +225,26 @@ export default function DispositivosAdminPage() {
                         <Badge variant="outline" className="text-slate-500">
                           <Clock className="h-3 w-3 mr-1" /> Pendiente
                         </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {device.latitud && device.longitud ? (
+                        <div className="flex flex-col gap-1">
+                          <Button 
+                            variant="link" 
+                            size="sm" 
+                            className="h-auto p-0 text-sky-600 font-bold flex items-center gap-1 justify-start"
+                            onClick={() => window.open(`https://www.google.com/maps?q=${device.latitud},${device.longitud}`, '_blank')}
+                          >
+                            <MapPin className="h-3 w-3" /> Ver Mapa
+                            <ExternalLink className="h-2 w-2" />
+                          </Button>
+                          <span className="text-[9px] text-slate-400 font-mono">
+                            {parseFloat(device.latitud).toFixed(4)}, {parseFloat(device.longitud).toFixed(4)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 italic">No disponible</span>
                       )}
                     </TableCell>
                     <TableCell>

@@ -725,6 +725,8 @@ model DispositivoAutorizado {
   otpCode         String?  // Código para vinculación
   otpExpires      DateTime?
   lastLogin       DateTime?
+  latitud         String?
+  longitud        String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

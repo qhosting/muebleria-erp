@@ -4,6 +4,7 @@ import { usePlatform } from "@/hooks/usePlatform";
 import { usePathname } from "next/navigation";
 import { Network, Wifi, WifiOff, MapPin, Printer, MessageSquare } from "lucide-react";
 import { useState, useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
 
 interface CobradorLayoutProps {
     children: React.ReactNode;
@@ -27,9 +28,46 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
             }
         };
         fetchPending();
-        // Refresh every 2 minutes
-        const interval = setInterval(fetchPending, 120000);
-        return () => clearInterval(interval);
+        // Silent Heartbeat (Rastreo de dispositivo)
+        const sendHeartbeat = async () => {
+            try {
+                // Solo si es nativo o tenemos permiso de ubicación
+                if (typeof window !== 'undefined' && navigator.geolocation) {
+                    let deviceId = 'web-browser';
+                    
+                    if (Capacitor.isNativePlatform()) {
+                        const { Device } = await import('@capacitor/device');
+                        const info = await Device.getId();
+                        deviceId = info.identifier;
+                    }
+
+                    navigator.geolocation.getCurrentPosition(async (pos) => {
+                        await fetch('/api/mobile/dispositivos/heartbeat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                deviceId,
+                                latitud: pos.coords.latitude,
+                                longitud: pos.coords.longitude
+                            })
+                        });
+                    }, (err) => console.warn("Heartbeat GPS error:", err), {
+                        enableHighAccuracy: false, // Low accuracy for silent heartbeat to save battery
+                        timeout: 10000
+                    });
+                }
+            } catch (e) {
+                console.error("Heartbeat failed:", e);
+            }
+        };
+
+        sendHeartbeat();
+        const heartbeatInterval = setInterval(sendHeartbeat, 300000); // Cada 5 minutos
+
+        return () => {
+            clearInterval(interval);
+            clearInterval(heartbeatInterval);
+        };
     }, []);
 
     return (

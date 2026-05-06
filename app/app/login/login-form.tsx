@@ -5,12 +5,12 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { signIn, useSession } from 'next-auth/react';
+import { signIn, useSession, signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Building2, LogIn, Loader2, Settings, Smartphone, MessageSquare, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Building2, LogIn, Loader2, Settings, Smartphone, MessageSquare, ShieldCheck, ArrowLeft, ShieldAlert, Key } from 'lucide-react';
 import { toast } from 'sonner';
 import ClientDashboard from '@/components/ecommerce/ClientDashboard';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,6 +42,12 @@ export default function LoginForm() {
   const [companyName, setCompanyName] = useState('');
   const [companyLogo, setCompanyLogo] = useState('');
   const [isConfigLoading, setIsConfigLoading] = useState(true);
+  
+  // Device Security
+  const [showDeviceLinking, setShowDeviceLinking] = useState(false);
+  const [deviceId, setDeviceId] = useState('');
+  const [deviceLinkOtp, setDeviceLinkOtp] = useState('');
+  const [isAuthorized, setIsAuthorized] = useState(true);
 
   useEffect(() => {
     setMounted(true);
@@ -182,11 +188,73 @@ export default function LoginForm() {
     }
   };
 
+  const handleDeviceLink = async () => {
+    if (deviceLinkOtp.length < 6) return toast.error('Ingrese el código de 6 dígitos');
+    setIsLoading(true);
+    try {
+      const sessionRes = await fetch('/api/auth/session');
+      const sessionData = await sessionRes.json();
+      const userId = sessionData.user.id;
+
+      const res = await fetch('/api/dispositivos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceId,
+          action: 'VERIFY_OTP',
+          otp: deviceLinkOtp,
+          userId
+        })
+      });
+
+      if (res.ok) {
+        toast.success('Dispositivo vinculado correctamente');
+        setIsAuthorized(true);
+        setShowDeviceLinking(false);
+        handleSuccessfulLogin();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Código inválido');
+      }
+    } catch (e) {
+      toast.error('Error de conexión');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSuccessfulLogin = async () => {
     // Redirigir según el rol
     const res = await fetch('/api/auth/session');
     const session = await res.json();
     const userRole = session.user.role;
+    const userId = session.user.id;
+
+    // --- SEGURIDAD DE DISPOSITIVO (SOLO COBRADORES/VENDEDORES EN NATIVO) ---
+    if (Capacitor.isNativePlatform() && ['cobrador', 'vendedor', 'jefe_ventas'].includes(userRole)) {
+      try {
+        const { Device } = await import('@capacitor/device');
+        const info = await Device.getId();
+        const currentDeviceId = info.identifier;
+        setDeviceId(currentDeviceId);
+
+        const hbRes = await fetch('/api/mobile/dispositivos/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceId: currentDeviceId })
+        });
+        const hbData = await hbRes.json();
+
+        if (!hbData.authorized) {
+          setIsAuthorized(false);
+          setShowDeviceLinking(true);
+          setIsLoading(false);
+          return;
+        }
+      } catch (e) {
+        console.error("Device check failed:", e);
+      }
+    }
     
     let redirectUrl = '/dashboard';
     if (userRole === 'cobrador') redirectUrl = '/mobile/home';
@@ -264,6 +332,53 @@ export default function LoginForm() {
               setOtpCode('');
             }} 
           />
+        ) : showDeviceLinking ? (
+          <Card className="shadow-2xl border-0 overflow-hidden border-t-4 border-amber-500">
+            <CardHeader className="text-center">
+              <div className="mx-auto w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mb-4">
+                <ShieldAlert className="w-8 h-8 text-amber-500" />
+              </div>
+              <CardTitle className="text-xl">Vincular Dispositivo</CardTitle>
+              <CardDescription className="text-xs">
+                Este equipo no está autorizado. Solicita un código al administrador para activarlo.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">ID del Dispositivo</p>
+                <p className="text-xs font-mono text-slate-600 break-all">{deviceId}</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase text-center block">Código de Activación</label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input 
+                    placeholder="000000" 
+                    value={deviceLinkOtp} 
+                    onChange={(e) => setDeviceLinkOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} 
+                    className="h-14 pl-10 text-2xl font-black text-center tracking-[0.4em]" 
+                  />
+                </div>
+              </div>
+
+              <Button onClick={handleDeviceLink} className="w-full h-12 bg-blue-600 hover:bg-blue-700 font-bold text-lg" disabled={isLoading}>
+                {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Activar Equipo Ahora'}
+              </Button>
+
+              <button 
+                onClick={() => {
+                   setShowDeviceLinking(false);
+                   setIsLoading(false);
+                   // Cerrar sesión para que pueda intentar con otro usuario si quiere
+                   signOut({ redirect: false });
+                }}
+                className="w-full text-center text-xs text-slate-400 hover:text-slate-600"
+              >
+                Cancelar y cerrar sesión
+              </button>
+            </CardContent>
+          </Card>
         ) : (
           <Card className="shadow-2xl border-0 overflow-hidden">
           <CardHeader className="space-y-1">

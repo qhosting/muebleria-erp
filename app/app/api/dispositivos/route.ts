@@ -13,6 +13,16 @@ async function checkAdmin() {
   return true;
 }
 
+/**
+ * Validar si un dispositivo está autorizado
+ */
+export async function checkDeviceStatus(deviceId: string) {
+  const device = await prisma.dispositivoAutorizado.findUnique({
+    where: { id: deviceId }
+  });
+  return device?.isAuthorized || false;
+}
+
 export async function GET(request: NextRequest) {
   if (!(await checkAdmin())) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -43,13 +53,16 @@ export async function GET(request: NextRequest) {
  * Generar OTP para un dispositivo o actualizar su estado
  */
 export async function POST(request: NextRequest) {
-  if (!(await checkAdmin())) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
-
   try {
     const body = await request.json();
     const { deviceId, action } = body;
+
+    // Acciones administrativas protegidas
+    if (action === 'GENERATE_OTP') {
+      if (!(await checkAdmin())) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+      }
+    }
 
     if (!deviceId) {
       return NextResponse.json({ error: 'Device ID is required' }, { status: 400 });
@@ -70,6 +83,43 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json({ otp, expires: device.otpExpires });
+    }
+
+    if (action === 'VERIFY_OTP') {
+      const { otp, userId } = body;
+      
+      if (!otp || !userId) {
+        return NextResponse.json({ error: 'Código y Usuario son requeridos' }, { status: 400 });
+      }
+
+      const device = await prisma.dispositivoAutorizado.findUnique({
+        where: { id: deviceId }
+      });
+
+      if (!device) {
+        return NextResponse.json({ error: 'Dispositivo no reconocido' }, { status: 404 });
+      }
+
+      if (device.otpCode !== otp) {
+        return NextResponse.json({ error: 'Código incorrecto' }, { status: 400 });
+      }
+
+      if (device.otpExpires && new Date() > device.otpExpires) {
+        return NextResponse.json({ error: 'Código expirado' }, { status: 400 });
+      }
+
+      // Vincular y autorizar
+      const updatedDevice = await prisma.dispositivoAutorizado.update({
+        where: { id: deviceId },
+        data: {
+          isAuthorized: true,
+          userId,
+          otpCode: null, // Limpiar código usado
+          otpExpires: null
+        }
+      });
+
+      return NextResponse.json({ success: true, device: updatedDevice });
     }
 
     return NextResponse.json({ error: 'Acción no soportada' }, { status: 400 });
