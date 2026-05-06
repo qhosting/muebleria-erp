@@ -40,25 +40,31 @@ export async function GET() {
       }
     });
 
-    const efectivo = pagos
-      .filter(p => p.metodoPago === 'gestor' || p.metodoPago === 'efectivo')
-      .reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const pagosEfectivo = pagos.filter(p => p.metodoPago === 'gestor' || p.metodoPago === 'efectivo');
+    const efectivo = pagosEfectivo.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const cuentasEfectivo = new Set(pagosEfectivo.map(p => p.clienteId)).size;
 
-    const bancarioManual = pagos
-      .filter(p => p.metodoPago === 'bancario' || p.metodoPago === 'transferencia')
-      .reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const pagosBancarioManual = pagos.filter(p => p.metodoPago === 'bancario' || p.metodoPago === 'transferencia');
+    const bancarioManual = pagosBancarioManual.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const cuentasBancarioManual = new Set(pagosBancarioManual.map(p => p.clienteId)).size;
 
-    const bancarioBot = pagos
-      .filter(p => p.metodoPago === 'bancario_bot' || p.metodoPago === 'bot')
-      .reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const pagosBancarioBot = pagos.filter(p => p.metodoPago === 'bancario_bot' || p.metodoPago === 'bot');
+    const bancarioBot = pagosBancarioBot.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const cuentasBancarioBot = new Set(pagosBancarioBot.map(p => p.clienteId)).size;
+
+    const cuentasTotales = new Set(pagos.map(p => p.clienteId)).size;
 
     return NextResponse.json({
       stats: {
         cobradoHoy: efectivo + bancarioManual + bancarioBot,
         pagosRegistrados: pagos.length,
+        cuentasTotales,
         efectivo,
+        cuentasEfectivo,
         bancarioManual,
-        bancarioBot
+        cuentasBancarioManual,
+        bancarioBot,
+        cuentasBancarioBot
       },
       pagos: pagos.map(p => ({
         id: p.id,

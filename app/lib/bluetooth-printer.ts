@@ -408,7 +408,16 @@ class BluetoothPrinterService {
     return char.repeat(length);
   }
 
-  async printCollectionReport(stats: { cobradoHoy: number, efectivo: number, bancarioManual: number, bancarioBot: number }, pagos: any[]): Promise<boolean> {
+  async printCollectionReport(stats: { 
+    cobradoHoy: number, 
+    efectivo: number, 
+    bancarioManual: number, 
+    bancarioBot: number,
+    cuentasTotales: number,
+    cuentasEfectivo: number,
+    cuentasBancarioManual: number,
+    cuentasBancarioBot: number
+  }, pagos: any[]): Promise<boolean> {
     try {
       let ticket = '';
       ticket += this.COMMANDS.CENTER;
@@ -420,9 +429,17 @@ class BluetoothPrinterService {
 
       ticket += this.COMMANDS.LEFT;
       ticket += 'TOTAL COBRADO:' + this.rightAlignText(this.formatCurrency(stats.cobradoHoy)) + this.LF;
-      ticket += '  - Efectivo: ' + this.rightAlignText(this.formatCurrency(stats.efectivo)) + this.LF;
-      ticket += '  - Bancario M:' + this.rightAlignText(this.formatCurrency(stats.bancarioManual)) + this.LF;
-      ticket += '  - Bancario B:' + this.rightAlignText(this.formatCurrency(stats.bancarioBot)) + this.LF;
+      ticket += '  CUENTAS: ' + this.rightAlignText(stats.cuentasTotales.toString()) + this.LF;
+      ticket += this.createDivider() + this.LF;
+
+      ticket += 'EFECTIVO:    ' + this.rightAlignText(this.formatCurrency(stats.efectivo)) + this.LF;
+      ticket += '  (' + stats.cuentasEfectivo + ' CTAS)' + this.LF;
+      
+      ticket += 'BANCARIO M:  ' + this.rightAlignText(this.formatCurrency(stats.bancarioManual)) + this.LF;
+      ticket += '  (' + stats.cuentasBancarioManual + ' CTAS)' + this.LF;
+      
+      ticket += 'BANCARIO B:  ' + this.rightAlignText(this.formatCurrency(stats.bancarioBot)) + this.LF;
+      ticket += '  (' + stats.cuentasBancarioBot + ' CTAS)' + this.LF;
       ticket += this.createDivider() + this.LF;
 
       ticket += this.COMMANDS.BOLD_ON;
@@ -442,6 +459,53 @@ class BluetoothPrinterService {
       return true;
     } catch (error) {
       console.error('Error al imprimir reporte:', error);
+      throw error;
+    }
+  }
+
+  async printCollectionNotice(cliente: any): Promise<boolean> {
+    try {
+      let ticket = '';
+      ticket += this.COMMANDS.INIT;
+      ticket += this.COMMANDS.CENTER;
+      ticket += this.COMMANDS.BOLD_ON;
+      ticket += 'MUEBLERIA LA ECONOMICA' + this.LF;
+      ticket += 'AVISO DE COBRO' + this.LF;
+      ticket += this.COMMANDS.BOLD_OFF;
+      ticket += new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString() + this.LF;
+      ticket += this.createDivider() + this.LF;
+
+      ticket += this.COMMANDS.LEFT;
+      ticket += 'CLIENTE: ' + cliente.nombre.toUpperCase() + this.LF;
+      ticket += 'CONTRATO: ' + (cliente.codigoCliente || 'N/A') + this.LF;
+      ticket += this.createDivider() + this.LF;
+
+      ticket += this.COMMANDS.BOLD_ON;
+      ticket += 'ESTADO DE CUENTA:' + this.LF;
+      ticket += this.COMMANDS.BOLD_OFF;
+      ticket += 'SALDO TOTAL:   ' + this.rightAlignText(this.formatCurrency(cliente.saldo)) + this.LF;
+      ticket += 'SALDO VENCIDO: ' + this.rightAlignText(this.formatCurrency(cliente.saldoVencido)) + this.LF;
+      ticket += 'PAGO SUGERIDO: ' + this.rightAlignText(this.formatCurrency(cliente.pagoSemanal)) + this.LF;
+      ticket += this.createDivider() + this.LF;
+
+      ticket += this.COMMANDS.CENTER;
+      ticket += this.COMMANDS.BOLD_ON;
+      ticket += '¡EVITE RECARGOS!' + this.LF;
+      ticket += this.COMMANDS.BOLD_OFF;
+      ticket += 'Le recordamos que su cuenta' + this.LF;
+      ticket += 'presenta un atraso.' + this.LF;
+      ticket += 'Favor de regularizarse' + this.LF;
+      ticket += 'lo antes posible.' + this.LF;
+      
+      ticket += this.LF + this.createDivider() + this.LF;
+      ticket += 'COBRADOR: ' + (cliente.cobradorNombre || 'GESTOR') + this.LF;
+      ticket += this.LF + this.LF + this.LF;
+      ticket += this.COMMANDS.CUT;
+
+      await this.sendData(ticket);
+      return true;
+    } catch (error) {
+      console.error('Error al imprimir aviso:', error);
       throw error;
     }
   }

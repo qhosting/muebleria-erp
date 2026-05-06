@@ -37,12 +37,14 @@ import { PagosModal } from './pagos-modal';
 import { MotararioModal } from './motarario-modal';
 import { ConvenioModal } from './convenio-modal';
 import { VerificacionModal } from './verificacion-modal';
+import { ProfileModal } from './profile-modal';
 import { formatCurrency, getDayName } from '@/lib/utils';
 import { toast } from 'sonner';
 import { FooterVersion } from '@/components/version-info';
 import { PWAInstallButton } from '@/components/pwa/pwa-install-button';
 import { optimizeRoute } from '@/lib/tsp-algorithm';
 import { obtenerUbicacionCobrador } from '@/lib/native/location';
+import { useBluetoothPrinter } from '@/hooks/use-bluetooth-printer';
 
 interface CobranzaMobileProps {
   initialClientes?: OfflineCliente[];
@@ -69,10 +71,12 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
   const [showMotararioModal, setShowMotararioModal] = useState(false);
   const [showConvenioModal, setShowConvenioModal] = useState(false);
   const [showVerificacionModal, setShowVerificacionModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [isOnline, setIsOnline] = useState(typeof window !== 'undefined' ? navigator.onLine : true);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [clientesOffline, setClientesOffline] = useState<OfflineCliente[]>([]);
+  const { isConnected, printCollectionNotice, connectToPrinter } = useBluetoothPrinter();
 
   const userRole = (session?.user as any)?.role;
   const userId = (session?.user as any)?.id;
@@ -361,6 +365,40 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
     setShowMotararioModal(true);
   };
 
+  const handleAviso = async (cliente: OfflineCliente) => {
+    if (!isConnected) {
+      toast.error("Impresora no conectada", {
+        action: {
+          label: "Conectar",
+          onClick: () => connectToPrinter()
+        }
+      });
+      return;
+    }
+
+    try {
+      toast.info("Imprimiendo aviso...");
+      // Mapear OfflineCliente al formato esperado por printCollectionNotice si es necesario
+      const noticeData = {
+        nombre: cliente.nombreCompleto,
+        codigoCliente: cliente.id, // O el campo real
+        saldo: cliente.saldoPendiente,
+        saldoVencido: cliente.saldoVencido || 0,
+        pagoSemanal: cliente.montoAcordado,
+        cobradorNombre: session?.user?.name || 'GESTOR'
+      };
+      await printCollectionNotice(noticeData);
+    } catch (error) {
+      console.error("Error al imprimir aviso:", error);
+      toast.error("Error al imprimir aviso de cobro");
+    }
+  };
+
+  const handleVerPerfil = (cliente: OfflineCliente) => {
+    setSelectedCliente(cliente);
+    setShowProfileModal(true);
+  };
+
   // 🚀 OPTIMIZACIÓN: Handler optimizado con useCallback
   const handleModalSuccess = useCallback(async () => {
     try {
@@ -443,21 +481,20 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
   return (
     <LayoutWrapper>
       <div className={disableLayout ? "" : "max-w-md mx-auto space-y-4 pb-20"}>
-        {/* Header con estado de conexión */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between py-2">
           <div>
-            <h1 className="text-xl font-semibold">Cobranza Móvil</h1>
-            <p className="text-sm text-muted-foreground">
-              {filteredClientes.length} clientes
+            <h1 className="text-3xl font-black tracking-tight">Cobranza</h1>
+            <p className="text-base text-muted-foreground font-medium">
+              {filteredClientes.length} clientes asignados
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <Badge variant={isOnline ? 'default' : 'secondary'}>
+            <Badge variant={isOnline ? 'default' : 'secondary'} className="px-3 py-1 text-xs font-bold">
               {isOnline ? (
-                <><Wifi className="w-3 h-3 mr-1" />Online</>
+                <><Wifi className="w-4 h-4 mr-1 text-emerald-400" />Online</>
               ) : (
-                <><WifiOff className="w-3 h-3 mr-1" />Offline</>
+                <><WifiOff className="w-4 h-4 mr-1 text-slate-400" />Offline</>
               )}
             </Badge>
           </div>
@@ -472,25 +509,25 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
         </div>
 
         {/* Estadísticas rápidas */}
-        <div className="grid grid-cols-3 gap-2">
-          <Card className="text-center">
-            <CardContent className="p-3">
-              <div className="text-lg font-semibold text-green-600">{clientStats.clientesAlDia}</div>
-              <div className="text-xs text-muted-foreground">Al día</div>
+        <div className="grid grid-cols-3 gap-3">
+          <Card className="text-center shadow-sm border-slate-200">
+            <CardContent className="p-4">
+              <div className="text-2xl font-black text-emerald-600">{clientStats.clientesAlDia}</div>
+              <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Al día</div>
             </CardContent>
           </Card>
 
-          <Card className="text-center">
-            <CardContent className="p-3">
-              <div className="text-lg font-semibold text-red-600">{clientStats.clientesConDeuda}</div>
-              <div className="text-xs text-muted-foreground">Con deuda</div>
+          <Card className="text-center shadow-sm border-slate-200">
+            <CardContent className="p-4">
+              <div className="text-2xl font-black text-red-600">{clientStats.clientesConDeuda}</div>
+              <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Con deuda</div>
             </CardContent>
           </Card>
 
-          <Card className="text-center">
-            <CardContent className="p-3">
-              <div className="text-sm font-semibold">{formatCurrency(clientStats.totalSaldoPendiente)}</div>
-              <div className="text-xs text-muted-foreground">Total</div>
+          <Card className="text-center shadow-sm border-slate-200">
+            <CardContent className="p-4">
+              <div className="text-xl font-black">{formatCurrency(clientStats.totalSaldoPendiente)}</div>
+              <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Total</div>
             </CardContent>
           </Card>
         </div>
@@ -498,18 +535,18 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
         {/* Filtros y búsqueda */}
         <div className="space-y-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
               placeholder="Buscar cliente..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
+              className="pl-12 h-14 text-lg"
             />
           </div>
 
           <div className="flex gap-2">
             <Select value={selectedDia} onValueChange={setSelectedDia}>
-              <SelectTrigger className="flex-1">
+              <SelectTrigger className="flex-1 h-14 text-lg">
                 <SelectValue placeholder="Día" />
               </SelectTrigger>
               <SelectContent>
@@ -523,7 +560,7 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
             </Select>
 
             <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-              <SelectTrigger className="flex-1">
+              <SelectTrigger className="flex-1 h-14 text-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -537,12 +574,12 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
               variant="outline"
               size="icon"
               onClick={toggleSort}
-              className="flex-shrink-0"
+              className="flex-shrink-0 h-14 w-14 rounded-xl"
             >
               {sortOrder === 'asc' ? (
-                <SortAsc className="w-4 h-4" />
+                <SortAsc className="w-5 h-5" />
               ) : (
-                <SortDesc className="w-4 h-4" />
+                <SortDesc className="w-5 h-5" />
               )}
             </Button>
 
@@ -550,11 +587,11 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
               variant="outline"
               size="icon"
               onClick={handleOptimizeRoute}
-              className={`flex-shrink-0 ${sortBy === 'ruta' ? 'bg-primary/10 border-primary text-primary' : ''}`}
+              className={`flex-shrink-0 h-14 w-14 rounded-xl ${sortBy === 'ruta' ? 'bg-primary/10 border-primary text-primary' : ''}`}
               disabled={isOptimizing}
               title="Optimizar Ruta (TSP)"
             >
-              <RefreshCw className={`w-4 h-4 ${isOptimizing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-5 h-5 ${isOptimizing ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </div>
@@ -587,6 +624,8 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
                 onVerificar={handleVerificar}
                 onConvenio={handleConvenio}
                 onMotarario={handleMotarario}
+                onAviso={handleAviso}
+                onVerPerfil={handleVerPerfil}
                 showSyncStatus={true}
               />
             ))}
@@ -634,6 +673,14 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
               onSuccess={handleModalSuccess}
               isOnline={isOnline}
             />
+
+            {showProfileModal && (
+              <ProfileModal
+                cliente={selectedCliente}
+                onClose={() => setShowProfileModal(false)}
+                onAviso={handleAviso}
+              />
+            )}
           </>
         )}
 

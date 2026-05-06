@@ -21,7 +21,8 @@ import {
   AlertTriangle,
   UserCheck,
   Handshake,
-  MoreHorizontal
+  MoreHorizontal,
+  Printer
 } from 'lucide-react';
 import { OfflineCliente } from '@/lib/offline-db';
 import { formatCurrency, getDayName } from '@/lib/utils';
@@ -37,6 +38,8 @@ interface ClientCardProps {
   onConvenio: (cliente: OfflineCliente) => void;
   onMotarario: (cliente: OfflineCliente) => void;
   onCall?: (telefono: string) => void;
+  onAviso: (cliente: OfflineCliente) => void;
+  onVerPerfil?: (cliente: OfflineCliente) => void;
   showSyncStatus?: boolean;
 }
 
@@ -49,6 +52,8 @@ export function ClientCard({
   onConvenio,
   onMotarario,
   onCall,
+  onAviso,
+  onVerPerfil,
   showSyncStatus = true
 }: ClientCardProps) {
   const [calling, setCalling] = useState(false);
@@ -110,16 +115,19 @@ export function ClientCard({
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader className="pb-2">
+    <Card 
+      className="w-full active:scale-[0.98] transition-transform cursor-pointer overflow-hidden border-slate-200 shadow-sm hover:shadow-md"
+      onClick={() => onVerPerfil?.(cliente)}
+    >
+      <CardHeader className="pb-3 pt-4">
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-sm leading-tight truncate">
+            <h3 className="font-bold text-lg leading-tight truncate">
               {cliente.nombreCompleto}
             </h3>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
-              {getDayName(cliente.diaPago)} - {formatCurrency(cliente.montoAcordado)}
+            <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1 font-medium">
+              <Calendar className="w-4 h-4" />
+              {getDayName(cliente.diaPago)} - ${Math.round(cliente.montoAcordado)}
             </p>
           </div>
 
@@ -129,11 +137,11 @@ export function ClientCard({
             {showSyncStatus && (
               <div className="flex items-center">
                 {cliente.syncStatus === 'synced' ? (
-                  <CheckCircle className="w-3 h-3 text-green-500" />
+                  <CheckCircle className="w-4 h-4 text-green-500" />
                 ) : cliente.syncStatus === 'pending' ? (
-                  <Clock className="w-3 h-3 text-orange-500" />
+                  <Clock className="w-4 h-4 text-orange-500" />
                 ) : (
-                  <AlertTriangle className="w-3 h-3 text-red-500" />
+                  <AlertTriangle className="w-4 h-4 text-red-500" />
                 )}
               </div>
             )}
@@ -141,45 +149,48 @@ export function ClientCard({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-4 pb-4">
         {/* Información de contacto y ubicación */}
-        <div className="space-y-2">
+        <div className="space-y-3">
           {cliente.telefono && (
-            <div className="flex items-center gap-2 text-sm">
-              <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <span className="flex-1 truncate">{cliente.telefono}</span>
+            <div className="flex items-center gap-3 text-base">
+              <Phone className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+              <span className="flex-1 truncate font-medium">{cliente.telefono}</span>
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={handleCall}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCall();
+                }}
                 disabled={calling}
-                className="h-6 w-6 p-0"
+                className="h-8 w-8 p-0"
               >
-                <Phone className="w-3 h-3" />
+                <Phone className="w-4 h-4" />
               </Button>
             </div>
           )}
 
-          <div className="flex items-start gap-2 text-sm">
-            <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-            <span className="text-xs text-muted-foreground line-clamp-2">
+          <div className="flex items-start gap-3 text-base">
+            <MapPin className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+            <span className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
               {cliente.direccion}
             </span>
           </div>
         </div>
 
         {/* Información financiera */}
-        <div className="grid grid-cols-2 gap-3 p-3 bg-muted/50 rounded-lg">
+        <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-xl border border-muted">
           <div className="text-center">
-            <div className="text-xs text-muted-foreground">Saldo Pendiente</div>
-            <div className={`text-sm font-semibold ${getSaldoColor()}`}>
-              {formatCurrency(cliente.saldoPendiente)}
+            <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Saldo Pendiente</div>
+            <div className={`text-xl font-black ${getSaldoColor()}`}>
+              ${Math.round(cliente.saldoPendiente)}
             </div>
           </div>
 
           <div className="text-center">
-            <div className="text-xs text-muted-foreground">Último Pago</div>
-            <div className="text-sm">
+            <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Último Pago</div>
+            <div className="text-sm font-bold">
               {cliente.fechaUltimoPago
                 ? formatDistanceToNow(new Date(cliente.fechaUltimoPago), {
                   addSuffix: true,
@@ -249,6 +260,15 @@ export function ClientCard({
               Motarario
             </Button>
           </div>
+
+          <Button
+            onClick={() => onAviso(cliente)}
+            variant="outline"
+            className="w-full h-9 text-[10px] border-amber-200 text-amber-700 hover:bg-amber-50"
+          >
+            <Printer className="w-3 h-3 mr-1" />
+            AVISO DE COBRO
+          </Button>
         </div>
 
         {/* Indicador de conectividad */}

@@ -11,6 +11,7 @@ export interface OfflineCliente {
   diaPago: string;
   montoAcordado: number;
   saldoPendiente: number;
+  saldoVencido?: number;
   fechaUltimoPago?: string;
   statusCuenta: 'activo' | 'suspendido' | 'cancelado';
   cobradorAsignadoId: string;
@@ -18,6 +19,18 @@ export interface OfflineCliente {
   notas?: string;
   latitud?: number;
   longitud?: number;
+  // Datos extendidos para perfil
+  descripcionProducto?: string;
+  vendedorNombre?: string;
+  empleado?: string;
+  aval?: string;
+  montoCredito?: number;
+  vendidoEn?: number;
+  precios?: {
+    contado: number;
+    p6: number;
+    p12: number;
+  };
   // Metadatos offline
   lastSync: number;
   syncStatus: 'synced' | 'pending' | 'conflict';

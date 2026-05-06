@@ -68,6 +68,17 @@ export async function GET(
         statusCuenta: true,
         cobradorAsignadoId: true,
         updatedAt: true,
+        descripcionProducto: true,
+        vendedor: true,
+        vendedorRel: { select: { name: true } },
+        ocupacion: true,
+        avalId: true,
+        importe1: true,
+        importe2: true,
+        importe3: true,
+        importe4: true,
+        saldoVencido: true,
+        diasVencidos: true,
         pagos: {
           select: {
             fechaPago: true,
@@ -111,7 +122,20 @@ export async function GET(
       fechaUltimoPago: cliente.pagos[0]?.fechaPago?.toISOString(),
       statusCuenta: cliente.statusCuenta,
       cobradorAsignadoId: cliente.cobradorAsignadoId,
-      notas: null
+      notas: null,
+      saldoVencido: parseFloat(cliente.saldoVencido?.toString() || '0'),
+      diasVencidos: cliente.diasVencidos || 0,
+      descripcionProducto: cliente.descripcionProducto,
+      vendedorNombre: cliente.vendedor || cliente.vendedorRel?.name || 'No asignado',
+      empleado: cliente.ocupacion || 'No especificado',
+      aval: cliente.avalId || 'No asignado',
+      montoCredito: cliente.importe1 ? Number(cliente.importe1) : 0,
+      vendidoEn: cliente.importe2 ? Number(cliente.importe2) : 0,
+      precios: {
+        contado: cliente.importe1 ? Number(cliente.importe1) : 0,
+        p6: cliente.importe3 ? Number(cliente.importe3) : 0,
+        p12: cliente.importe4 ? Number(cliente.importe4) : 0
+      }
     }));
 
     return NextResponse.json(clientesOffline);

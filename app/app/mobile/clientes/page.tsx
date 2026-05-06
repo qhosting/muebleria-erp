@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer } from "lucide-react";
 import { usePlatform } from "@/hooks/usePlatform";
 import { formatWhatsAppNumber } from "@/lib/utils";
+import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
+import { toast } from "sonner";
 
 export default function MobileClientes() {
     const { isNative } = usePlatform();
+    const { isConnected, printCollectionNotice, connectToPrinter } = useBluetoothPrinter();
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedCliente, setSelectedCliente] = useState<any>(null);
     const [detailCliente, setDetailCliente] = useState<any>(null);
@@ -109,6 +112,26 @@ Fecha: ${new Date().toLocaleDateString()}.
             window.open(url, '_system');
         } else {
             window.open(url, '_blank');
+        }
+    };
+
+    const handleAvisoCobro = async (cliente: any) => {
+        if (!isConnected) {
+            toast.error("Impresora no conectada", {
+                action: {
+                    label: "Conectar",
+                    onClick: () => connectToPrinter()
+                }
+            });
+            return;
+        }
+
+        try {
+            toast.info("Imprimiendo aviso...");
+            await printCollectionNotice(cliente);
+        } catch (error) {
+            console.error("Error al imprimir aviso:", error);
+            toast.error("Error al imprimir aviso de cobro");
         }
     };
 
@@ -285,19 +308,19 @@ Fecha: ${new Date().toLocaleDateString()}.
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                                         <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Precio Contado</p>
-                                        <p className="text-sm font-bold text-slate-200">${detailCliente.precios.contado}</p>
+                                        <p className="text-sm font-bold text-slate-200">${detailCliente.precios?.contado || 0}</p>
                                     </div>
                                     <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                                         <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Vendido en $</p>
-                                        <p className="text-sm font-bold text-slate-200">${detailCliente.vendidoEn}</p>
+                                        <p className="text-sm font-bold text-slate-200">${detailCliente.vendidoEn || 0}</p>
                                     </div>
                                     <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                                         <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Precio 6 Meses</p>
-                                        <p className="text-sm font-bold text-slate-200">${detailCliente.precios.p6}</p>
+                                        <p className="text-sm font-bold text-slate-200">${detailCliente.precios?.p6 || 0}</p>
                                     </div>
                                     <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                                         <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Precio 12 Meses</p>
-                                        <p className="text-sm font-bold text-slate-200">${detailCliente.precios.p12}</p>
+                                        <p className="text-sm font-bold text-slate-200">${detailCliente.precios?.p12 || 0}</p>
                                     </div>
                                 </div>
                             </div>
@@ -341,7 +364,13 @@ Fecha: ${new Date().toLocaleDateString()}.
                                 <button className="bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-[10px] font-bold uppercase tracking-tight active:scale-95 transition-all">PAGOS</button>
                                 <button className="bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-[10px] font-bold uppercase tracking-tight active:scale-95 transition-all">VERIFICAR VD</button>
                                 <button className="bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-[10px] font-bold uppercase tracking-tight active:scale-95 transition-all">CONVENIO</button>
-                                <button className="col-span-3 bg-amber-600/10 text-amber-500 py-3 rounded-xl text-[10px] font-bold uppercase mt-1 border border-amber-500/20 active:bg-amber-600/20 transition-all">AVISO DE COBRO</button>
+                                <button 
+                                    onClick={() => handleAvisoCobro(detailCliente)}
+                                    className="col-span-3 bg-amber-600/10 text-amber-500 py-3 rounded-xl text-[10px] font-bold uppercase mt-1 border border-amber-500/20 active:bg-amber-600/20 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Printer className="w-3 h-3" />
+                                    AVISO DE COBRO
+                                </button>
                             </div>
                         </div>
                     </div>

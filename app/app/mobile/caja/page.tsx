@@ -13,9 +13,13 @@ export default function MobileCaja() {
     const [stats, setStats] = useState({
         cobradoHoy: 0,
         pagosRegistrados: 0,
+        cuentasTotales: 0,
         efectivo: 0,
+        cuentasEfectivo: 0,
         bancarioManual: 0,
+        cuentasBancarioManual: 0,
         bancarioBot: 0,
+        cuentasBancarioBot: 0,
     });
     const [pagos, setPagos] = useState<any[]>([]);
     const { isConnected, printTicket, printCollectionReport, connectToPrinter } = useBluetoothPrinter();
@@ -140,30 +144,33 @@ export default function MobileCaja() {
     };
 
     return (
-        <div className="space-y-6">
-            {/* HEADER CAJA */}
-            <h1 className="text-2xl font-bold text-slate-100 mb-4 px-2">Caja Diaria</h1>
-
+        <div className="space-y-6 pt-2">
             {/* RESUMEN PRINCIPAL */}
             <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700 shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none"></div>
 
                 <div className="relative z-10">
-                    <p className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">Total Cobrado Hoy</p>
-                    <p className="text-4xl font-bold text-emerald-400 tracking-tighter">${stats.cobradoHoy.toLocaleString()}</p>
+                    <div className="flex justify-between items-end mb-1">
+                        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Total Cobrado Hoy</p>
+                        <p className="text-emerald-500/80 text-[10px] font-black uppercase tracking-widest">{stats.cuentasTotales} CUENTAS</p>
+                    </div>
+                    <p className="text-5xl font-black text-white tracking-tighter">${stats.cobradoHoy.toLocaleString()}</p>
 
                     <div className="mt-6 grid grid-cols-3 gap-2 border-t border-slate-700/50 pt-4">
                         <div>
-                            <p className="text-[10px] text-slate-500 uppercase">Efectivo</p>
-                            <p className="text-sm font-mono text-slate-200">${stats.efectivo.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase">Efectivo</p>
+                            <p className="text-lg font-black text-slate-200">${stats.efectivo.toLocaleString()}</p>
+                            <p className="text-[9px] text-slate-500 font-bold uppercase">{stats.cuentasEfectivo} CTAS</p>
                         </div>
                         <div className="text-center">
-                            <p className="text-[10px] text-slate-500 uppercase">Bancario M.</p>
-                            <p className="text-sm font-mono text-slate-200">${stats.bancarioManual.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase">Bancario M.</p>
+                            <p className="text-lg font-black text-slate-200">${stats.bancarioManual.toLocaleString()}</p>
+                            <p className="text-[9px] text-slate-500 font-bold uppercase">{stats.cuentasBancarioManual} CTAS</p>
                         </div>
                         <div className="text-right">
-                            <p className="text-[10px] text-slate-500 uppercase">Bancario Bot</p>
-                            <p className="text-sm font-mono text-emerald-400">${stats.bancarioBot.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase">Bancario Bot</p>
+                            <p className="text-lg font-black text-emerald-400">${stats.bancarioBot.toLocaleString()}</p>
+                            <p className="text-[9px] text-emerald-500/50 font-bold uppercase">{stats.cuentasBancarioBot} CTAS</p>
                         </div>
                     </div>
                 </div>
