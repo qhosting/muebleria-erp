@@ -133,7 +133,9 @@ export async function POST(request: NextRequest) {
       fechaPago,
       metodoPago = 'gestor',
       numeroRecibo,
-      localId
+      localId,
+      latitud,
+      longitud
     } = body;
 
     console.log('Recibiendo pago:', { 
@@ -145,7 +147,9 @@ export async function POST(request: NextRequest) {
       concepto, 
       metodoPago, 
       numeroRecibo, 
-      localId 
+      localId,
+      latitud,
+      longitud
     });
 
     if (!clienteId || !monto) {
@@ -208,6 +212,8 @@ export async function POST(request: NextRequest) {
           saldoAnterior,
           saldoNuevo,
           sincronizado: true,
+          latitud: latitud?.toString(),
+          longitud: longitud?.toString(),
         },
         include: {
           cliente: {

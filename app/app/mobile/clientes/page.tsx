@@ -80,6 +80,24 @@ export default function MobileClientes() {
     const confirmarCobro = async () => {
         if (!selectedCliente || !montoCobrar) return;
 
+        let latitud = null;
+        let longitud = null;
+
+        // Intentar obtener ubicación GPS
+        try {
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 5000,
+                    maximumAge: 0
+                });
+            });
+            latitud = position.coords.latitude.toString();
+            longitud = position.coords.longitude.toString();
+        } catch (error) {
+            console.warn("No se pudo obtener ubicación GPS para el cobro:", error);
+        }
+
         const { agregarColaSincronizacion } = await import("@/lib/native/sync");
         
         const montoTotal = parseFloat(montoCobrar) + parseFloat(interesMoratorio) + parseFloat(gastosCobranza);
@@ -93,7 +111,9 @@ export default function MobileClientes() {
             fechaPago: new Date().toISOString(),
             metodoPago,
             tipoPago,
-            concepto: concepto || (tipoPago === 'regular' ? 'Pago de cuota' : tipoPago)
+            concepto: concepto || (tipoPago === 'regular' ? 'Pago de cuota' : tipoPago),
+            latitud,
+            longitud
         };
 
         try {

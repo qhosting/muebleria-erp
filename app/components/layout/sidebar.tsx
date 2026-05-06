@@ -38,7 +38,8 @@ import {
   MessageSquare,
   Bot,
   Loader2,
-  Smartphone
+  Smartphone,
+  Activity
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -84,6 +85,8 @@ const navigation: NavItem[] = [
     subItems: [
       { name: 'Morosidad', href: '/dashboard/morosidad', icon: AlertTriangle },
       { name: 'Pagos', href: '/dashboard/pagos', icon: Receipt },
+      { name: 'Monitoreo Vivo', href: '/dashboard/monitoreo', icon: Activity },
+      { name: 'Análisis de Rutas', href: '/dashboard/rutas', icon: Route },
       { name: 'Campañas SMS', href: '/dashboard/sms', icon: MessageSquare },
     ]
   },
@@ -105,12 +108,7 @@ const navigation: NavItem[] = [
       { name: 'Convenios de Pago', href: '/dashboard/reportes/convenios', icon: FileText },
     ]
   },
-  {
-    name: 'Rutas',
-    href: '/dashboard/rutas',
-    icon: Route,
-    roles: ['admin', 'gestor_cobranza', 'cobrador'],
-  },
+
   {
     name: 'Campañas SMS',
     href: '/dashboard/cobranza-mobile/sms',
