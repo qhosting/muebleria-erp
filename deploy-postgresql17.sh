@@ -1,7 +1,7 @@
 
 #!/bin/bash
 
-echo "🐘 MUEBLERIA LA ECONOMICA - PostgreSQL 17 Compatibility"
+echo "🐘 VertexERP Muebles - PostgreSQL 17 Compatibility"
 echo "======================================================="
 
 # Colores
@@ -63,5 +63,6 @@ echo ""
 
 echo -e "${GREEN}✅ SISTEMA LISTO PARA POSTGRESQL 17${NC}"
 echo ""
-echo "Tu aplicación MUEBLERIA LA ECONOMICA funcionará"
+echo "Tu aplicación VertexERP Muebles funcionará"
 echo "perfectamente con PostgreSQL 17 sin modificaciones."
+

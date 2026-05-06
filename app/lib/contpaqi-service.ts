@@ -62,6 +62,18 @@ export class ContpaqiService {
         return await this.request('/api/agentes');
     }
 
+    async getEmpresas() {
+        return await this.request('/api/empresas');
+    }
+
+    async getConceptos() {
+        return await this.request('/api/conceptos');
+    }
+
+    async getClasificaciones() {
+        return await this.request('/api/clasificaciones');
+    }
+
     // --- DOCUMENTOS ---
 
     async createDocumento(data: any) {

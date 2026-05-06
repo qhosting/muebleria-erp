@@ -2,7 +2,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Iniciando despliegue de MUEBLERIA LA ECONOMICA..."
+echo "🚀 Iniciando despliegue de VertexERP Muebles..."
 
 # Wait for database to be ready
 echo "⏳ Esperando conexión a la base de datos..."
@@ -24,3 +24,4 @@ if [ -z "$*" ]; then
 else
   exec "$@"
 fi
+

@@ -164,7 +164,7 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
         nuevo: pago.saldoNuevo
       },
       empresa: {
-        nombre: 'MUEBLERIA LA ECONOMICA',
+        nombre: 'VertexERP Muebles',
         direccion: 'Dirección de la empresa',
         telefono: 'Tel: (555) 123-4567'
       }
@@ -602,3 +602,4 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
     </Dialog>
   );
 }
+

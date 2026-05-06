@@ -130,7 +130,7 @@ export default function MobileCaja() {
                     nuevo: data.saldoNuevo,
                 },
                 empresa: {
-                    nombre: 'MUEBLERIA LA ECONOMICA',
+                    nombre: 'VertexERP Muebles',
                     direccion: 'Dirección de la empresa',
                     telefono: 'Tel: (555) 123-4567'
                 }
@@ -378,3 +378,4 @@ export default function MobileCaja() {
         </div>
     );
 }
+

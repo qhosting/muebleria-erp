@@ -1,7 +1,7 @@
 
 #!/bin/bash
 
-echo "🔍 MUEBLERIA LA ECONOMICA - Verificación Post-Deployment"
+echo "🔍 VertexERP Muebles - Verificación Post-Deployment"
 echo "======================================================"
 
 # Función para verificar URL
@@ -39,7 +39,7 @@ check_url "$APP_URL/dashboard" "Dashboard"
 
 echo ""
 echo "📱 Verificaciones manuales recomendadas:"
-echo "1. ✅ Login con usuario admin: admin@economica.local / admin123"
+echo "1. ✅ Login con usuario admin: admin@vertexerp.local / admin123"
 echo "2. ✅ Acceso al dashboard de administración"
 echo "3. ✅ Creación/edición de clientes"
 echo "4. ✅ Sistema de cobranza móvil"
@@ -55,3 +55,4 @@ echo "4. 📊 Verificar reportes con datos reales"
 
 echo ""
 echo "✅ Verificación completada para: $APP_URL"
+

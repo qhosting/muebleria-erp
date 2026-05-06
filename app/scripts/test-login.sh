@@ -9,10 +9,10 @@ BASE_URL="http://localhost:3000"
 
 # Usuarios de prueba
 declare -A usuarios=(
-    ["admin"]="admin@economica.local:admin123"
-    ["gestor"]="gestor@economica.local:gestor123"
-    ["cobrador"]="cobrador@economica.local:cobrador123"
-    ["reportes"]="reportes@economica.local:reportes123"
+    ["admin"]="admin@vertexerp.local:admin123"
+    ["gestor"]="gestor@vertexerp.local:gestor123"
+    ["cobrador"]="cobrador@vertexerp.local:cobrador123"
+    ["reportes"]="reportes@vertexerp.local:reportes123"
 )
 
 for rol in "${!usuarios[@]}"; do

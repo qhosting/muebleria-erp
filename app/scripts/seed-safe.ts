@@ -33,59 +33,59 @@ async function main() {
     
     // Usuario admin
     const adminUser = await prisma.user.upsert({
-      where: { email: 'admin@economica.local' },
+      where: { email: 'admin@vertexerp.local' },
       update: {},
       create: {
-        email: 'admin@economica.local',
+        email: 'admin@vertexerp.local',
         name: 'Administrador Sistema',
         password: await bcrypt.hash('admin123', 12),
         role: 'admin',
         isActive: true,
       },
     });
-    console.log('✅ Admin verificado: admin@economica.local');
+    console.log('✅ Admin verificado: admin@vertexerp.local');
 
     // Usuario gestor de cobranza
     const gestorUser = await prisma.user.upsert({
-      where: { email: 'gestor@economica.local' },
+      where: { email: 'gestor@vertexerp.local' },
       update: {},
       create: {
-        email: 'gestor@economica.local',
+        email: 'gestor@vertexerp.local',
         name: 'Gestor de Cobranza',
         password: await bcrypt.hash('gestor123', 12),
         role: 'gestor_cobranza',
         isActive: true,
       },
     });
-    console.log('✅ Gestor verificado: gestor@economica.local');
+    console.log('✅ Gestor verificado: gestor@vertexerp.local');
 
     // Usuario cobrador
     const cobradorUser = await prisma.user.upsert({
-      where: { email: 'cobrador@economica.local' },
+      where: { email: 'cobrador@vertexerp.local' },
       update: {},
       create: {
-        email: 'cobrador@economica.local',
+        email: 'cobrador@vertexerp.local',
         name: 'Cobrador de Campo',
         password: await bcrypt.hash('cobrador123', 12),
         role: 'cobrador',
         isActive: true,
       },
     });
-    console.log('✅ Cobrador verificado: cobrador@economica.local');
+    console.log('✅ Cobrador verificado: cobrador@vertexerp.local');
 
     // Usuario de reportes
     const reporteUser = await prisma.user.upsert({
-      where: { email: 'reportes@economica.local' },
+      where: { email: 'reportes@vertexerp.local' },
       update: {},
       create: {
-        email: 'reportes@economica.local',
+        email: 'reportes@vertexerp.local',
         name: 'Usuario de Reportes',
         password: await bcrypt.hash('reportes123', 12),
         role: 'reporte_cobranza',
         isActive: true,
       },
     });
-    console.log('✅ Reportes verificado: reportes@economica.local');
+    console.log('✅ Reportes verificado: reportes@vertexerp.local');
 
     // Crear plantillas de ticket (solo si no existen)
     console.log('\n🎫 Verificando plantillas de ticket...');

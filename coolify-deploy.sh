@@ -2,7 +2,7 @@
 #!/bin/bash
 
 # =============================================================================
-# 🚀 COOLIFY AUTO-DEPLOY SCRIPT - MUEBLERIA LA ECONOMICA
+# 🚀 COOLIFY AUTO-DEPLOY SCRIPT - VertexERP Muebles
 # =============================================================================
 # Este script despliega automáticamente la aplicación en Coolify usando la API REST
 # Autor: DeepAgent Assistant
@@ -35,7 +35,7 @@ BRANCH="main"
 # Verificar si existe archivo de configuración
 CONFIG_FILE="coolify-config.env"
 
-print_header "🚀 COOLIFY AUTO-DEPLOY - MUEBLERIA LA ECONOMICA"
+print_header "🚀 COOLIFY AUTO-DEPLOY - VertexERP Muebles"
 echo "=================================================================="
 
 # Función para solicitar datos de configuración
@@ -166,7 +166,7 @@ create_application() {
     
     app_data='{
         "name": "'$APP_NAME'",
-        "description": "Sistema de gestión y cobranza MUEBLERIA LA ECONOMICA",
+        "description": "Sistema de gestión y cobranza VertexERP Muebles",
         "git_repository": "'$REPO_URL'",
         "git_branch": "'$BRANCH'",
         "build_pack": "dockerfile",
@@ -309,3 +309,4 @@ fi
 
 # Ejecutar función principal
 main "$@"
+

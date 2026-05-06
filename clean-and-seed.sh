@@ -1,7 +1,7 @@
 
 #!/bin/bash
 
-echo "🧹 MUEBLERIA LA ECONOMICA - Limpieza y Configuración de Usuarios Esenciales"
+echo "🧹 VertexERP Muebles - Limpieza y Configuración de Usuarios Esenciales"
 echo "=========================================================================="
 
 # Colores
@@ -54,10 +54,10 @@ if [ $? -eq 0 ]; then
     echo ""
     echo -e "${BLUE}👥 USUARIOS CONFIGURADOS:${NC}"
     echo "----------------------------------------"
-    echo "👑 Admin:    admin@economica.local / admin123"
-    echo "👤 Gestor:   gestor@economica.local / gestor123"  
-    echo "🚚 Cobrador: cobrador@economica.local / cobrador123"
-    echo "📊 Reportes: reportes@economica.local / reportes123"
+    echo "👑 Admin:    admin@vertexerp.local / admin123"
+    echo "👤 Gestor:   gestor@vertexerp.local / gestor123"  
+    echo "🚚 Cobrador: cobrador@vertexerp.local / cobrador123"
+    echo "📊 Reportes: reportes@vertexerp.local / reportes123"
     echo "----------------------------------------"
     echo ""
     echo -e "${YELLOW}📊 ESTADÍSTICAS DE LA BASE DE DATOS:${NC}"
@@ -79,3 +79,4 @@ else
     echo "Revisa los logs arriba para más detalles"
     exit 1
 fi
+

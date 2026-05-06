@@ -24,6 +24,14 @@ import {
   ArrowRight
 } from 'lucide-react'; // Nota: corrigiendo a lucide-react si es necesario, pero asumo lucide-react
 import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 
 // Re-importing icons correctly
 import * as LucideIcons from 'lucide-react';
@@ -44,6 +52,9 @@ export default function ContpaqiMultiPage() {
   const [loading, setLoading] = useState(true);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState(0);
+  const [metadata, setMetadata] = useState<Record<string, any>>({});
+  const [fetchingMetadata, setFetchingMetadata] = useState<Record<string, boolean>>({});
+
 
   useEffect(() => {
     fetchConfig();
@@ -85,6 +96,51 @@ export default function ContpaqiMultiPage() {
 
   const handleUpdateEmpresa = (id: string, field: keyof EmpresaContpaqi, value: any) => {
     setEmpresas(empresas.map(e => e.id === id ? { ...e, [field]: value } : e));
+    
+    // Si se cambia el nombre de la empresa, intentar cargar conceptos y clasificaciones
+    if (field === 'nombre') {
+      const empresa = empresas.find(e => e.id === id);
+      if (empresa) {
+        handleFetchMetadata({ ...empresa, nombre: value }, 'conceptos');
+        handleFetchMetadata({ ...empresa, nombre: value }, 'clasificaciones');
+      }
+    }
+  };
+
+  const handleFetchMetadata = async (empresa: EmpresaContpaqi, type: 'empresas' | 'conceptos' | 'clasificaciones') => {
+    const key = `${empresa.id}-${type}`;
+    setFetchingMetadata(prev => ({ ...prev, [key]: true }));
+    try {
+      const response = await fetch('/api/contpaqi/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiUrl: empresa.apiUrl,
+          apiKey: empresa.apiKey,
+          type,
+          empresa: empresa.nombre
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al conectar con el servidor');
+      }
+      
+      const data = await response.json();
+      setMetadata(prev => ({
+        ...prev,
+        [empresa.id]: {
+          ...(prev[empresa.id] || {}),
+          [type]: data
+        }
+      }));
+      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} cargados correctamente`);
+    } catch (error: any) {
+      toast.error(`Error: ${error.message}`);
+    } finally {
+      setFetchingMetadata(prev => ({ ...prev, [key]: false }));
+    }
   };
 
   const handleSaveAll = async () => {
@@ -213,20 +269,78 @@ export default function ContpaqiMultiPage() {
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Nombre de Empresa (DB)</Label>
-                        <Input 
-                          value={empresa.nombre} 
-                          onChange={(e) => handleUpdateEmpresa(empresa.id, 'nombre', e.target.value)}
-                          className="bg-white/80 border-slate-200"
-                        />
+                        <div className="flex justify-between items-center">
+                          <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Nombre de Empresa (DB)</Label>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 text-[10px] text-blue-600 hover:text-blue-700 p-0"
+                            onClick={() => handleFetchMetadata(empresa, 'empresas')}
+                            disabled={fetchingMetadata[`${empresa.id}-empresas`]}
+                          >
+                            <LucideIcons.RefreshCcw className={`h-3 w-3 mr-1 ${fetchingMetadata[`${empresa.id}-empresas`] ? 'animate-spin' : ''}`} />
+                            Cargar Empresas
+                          </Button>
+                        </div>
+                        {metadata[empresa.id]?.empresas ? (
+                          <Select 
+                            value={empresa.nombre} 
+                            onValueChange={(val) => handleUpdateEmpresa(empresa.id, 'nombre', val)}
+                          >
+                            <SelectTrigger className="bg-white/80 border-slate-200">
+                              <SelectValue placeholder="Seleccionar empresa" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {metadata[empresa.id].empresas.map((e: any) => (
+                                <SelectItem key={e.id || e.nombre} value={e.nombre}>{e.nombre}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input 
+                            value={empresa.nombre} 
+                            onChange={(e) => handleUpdateEmpresa(empresa.id, 'nombre', e.target.value)}
+                            className="bg-white/80 border-slate-200"
+                          />
+                        )}
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Concepto de Abono</Label>
-                        <Input 
-                          value={empresa.conceptoAbono} 
-                          onChange={(e) => handleUpdateEmpresa(empresa.id, 'conceptoAbono', e.target.value)}
-                          className="bg-white/80 border-slate-200"
-                        />
+                        <div className="flex justify-between items-center">
+                          <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Concepto de Abono</Label>
+                          {empresa.nombre && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-6 text-[10px] text-blue-600 hover:text-blue-700 p-0"
+                              onClick={() => handleFetchMetadata(empresa, 'conceptos')}
+                              disabled={fetchingMetadata[`${empresa.id}-conceptos`]}
+                            >
+                              <LucideIcons.RefreshCcw className={`h-3 w-3 mr-1 ${fetchingMetadata[`${empresa.id}-conceptos`] ? 'animate-spin' : ''}`} />
+                              Conceptos
+                            </Button>
+                          )}
+                        </div>
+                        {metadata[empresa.id]?.conceptos ? (
+                          <Select 
+                            value={empresa.conceptoAbono} 
+                            onValueChange={(val) => handleUpdateEmpresa(empresa.id, 'conceptoAbono', val)}
+                          >
+                            <SelectTrigger className="bg-white/80 border-slate-200">
+                              <SelectValue placeholder="Seleccionar concepto" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {metadata[empresa.id].conceptos.map((c: any) => (
+                                <SelectItem key={c.id || c.codigo || c.nombre} value={c.nombre}>{c.nombre}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input 
+                            value={empresa.conceptoAbono} 
+                            onChange={(e) => handleUpdateEmpresa(empresa.id, 'conceptoAbono', e.target.value)}
+                            className="bg-white/80 border-slate-200"
+                          />
+                        )}
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">URL Servidor</Label>
@@ -254,13 +368,43 @@ export default function ContpaqiMultiPage() {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                          <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Clasificación Principal</Label>
-                          <Input 
-                            placeholder="Ej: COBRANZA NORMAL"
-                            value={empresa.clasificacion} 
-                            onChange={(e) => handleUpdateEmpresa(empresa.id, 'clasificacion', e.target.value)}
-                            className="bg-white/80"
-                          />
+                          <div className="flex justify-between items-center">
+                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Clasificación Principal</Label>
+                            {empresa.nombre && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 text-[10px] text-blue-600 hover:text-blue-700 p-0"
+                                onClick={() => handleFetchMetadata(empresa, 'clasificaciones')}
+                                disabled={fetchingMetadata[`${empresa.id}-clasificaciones`]}
+                              >
+                                <LucideIcons.RefreshCcw className={`h-3 w-3 mr-1 ${fetchingMetadata[`${empresa.id}-clasificaciones`] ? 'animate-spin' : ''}`} />
+                                Clasificaciones
+                              </Button>
+                            )}
+                          </div>
+                          {metadata[empresa.id]?.clasificaciones ? (
+                            <Select 
+                              value={empresa.clasificacion} 
+                              onValueChange={(val) => handleUpdateEmpresa(empresa.id, 'clasificacion', val)}
+                            >
+                              <SelectTrigger className="bg-white/80 border-slate-200">
+                                <SelectValue placeholder="Seleccionar clasificación" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {metadata[empresa.id].clasificaciones.map((c: any) => (
+                                  <SelectItem key={c.id || c.codigo || c.nombre} value={c.nombre}>{c.nombre}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input 
+                              placeholder="Ej: COBRANZA NORMAL"
+                              value={empresa.clasificacion} 
+                              onChange={(e) => handleUpdateEmpresa(empresa.id, 'clasificacion', e.target.value)}
+                              className="bg-white/80"
+                            />
+                          )}
                         </div>
                         <div className="space-y-2">
                           <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ruta / Clasif 2</Label>

@@ -136,7 +136,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
         consolidado: (cliente.saldoConsolidado || cliente.saldoPendiente) - calculatedValues.montoAbono
       },
       empresa: {
-        nombre: 'MUEBLERIA LA ECONOMICA',
+        nombre: 'VertexERP Muebles',
         direccion: 'Dirección de la empresa',
         telefono: 'Tel: (555) 123-4567'
       }
@@ -601,3 +601,4 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
     </Dialog>
   );
 }
+

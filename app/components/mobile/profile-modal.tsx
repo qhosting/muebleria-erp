@@ -17,7 +17,7 @@ export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
     const [sending, setSending] = useState(false);
 
     const handleWhatsAppAviso = async () => {
-        const mensaje = `*AVISO DE COBRO - MUEBLERIA LA ECONOMICA*\n\nHola ${cliente.nombreCompleto},\n\nLe enviamos un recordatorio de su estado de cuenta:\n\n*Saldo Actual:* ${formatCurrency(cliente.saldoPendiente)}\n*Saldo Vencido:* ${formatCurrency(cliente.saldoVencido || 0)}\n*Días de Atraso:* ${(cliente as any).diasVencidos || 0}\n\nFavor de regularizarse a la brevedad para evitar recargos. ¡Gracias!`;
+        const mensaje = `*AVISO DE COBRO - VertexERP Muebles*\n\nHola ${cliente.nombreCompleto},\n\nLe enviamos un recordatorio de su estado de cuenta:\n\n*Saldo Actual:* ${formatCurrency(cliente.saldoPendiente)}\n*Saldo Vencido:* ${formatCurrency(cliente.saldoVencido || 0)}\n*Días de Atraso:* ${(cliente as any).diasVencidos || 0}\n\nFavor de regularizarse a la brevedad para evitar recargos. ¡Gracias!`;
         const url = `https://wa.me/52${cliente.telefono}?text=${encodeURIComponent(mensaje)}`;
         
         // Registrar en BD
@@ -207,3 +207,4 @@ function DetailRow({ label, value, icon, highlight = "text-slate-300" }: { label
         </div>
     );
 }
+

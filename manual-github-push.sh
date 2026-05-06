@@ -1,7 +1,7 @@
 
 #!/bin/bash
 
-echo "🔐 Push Manual a GitHub - MUEBLERIA LA ECONOMICA"
+echo "🔐 Push Manual a GitHub - VertexERP Muebles"
 echo "==============================================="
 
 # Colores para output
@@ -106,3 +106,4 @@ echo "  🐳 Configuración Docker completa"
 echo "  📚 Documentación detallada"
 echo "  🔧 Scripts de instalación automática"
 echo "  ⚡ Optimizaciones de producción"
+

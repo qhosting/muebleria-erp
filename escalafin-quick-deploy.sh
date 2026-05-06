@@ -60,7 +60,7 @@ app_response=$(curl -s -X POST "https://adm.escalafin.com/api/v1/applications" \
     -H "Content-Type: application/json" \
     -d "{
         \"name\": \"muebleria-la-economica\",
-        \"description\": \"Sistema de gestión MUEBLERIA LA ECONOMICA\",
+        \"description\": \"Sistema de gestión VertexERP Muebles\",
         \"git_repository\": \"https://github.com/qhosting/muebleria-la-economica.git\",
         \"git_branch\": \"main\",
         \"build_pack\": \"dockerfile\",
@@ -129,3 +129,4 @@ else
     print_info "Respuesta de la API:"
     echo "$app_response" | jq '.' 2>/dev/null || echo "$app_response"
 fi
+

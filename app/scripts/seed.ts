@@ -21,10 +21,10 @@ async function main() {
     
     // Usuario admin
     const adminUser = await prisma.user.upsert({
-      where: { email: 'admin@economica.local' },
+      where: { email: 'admin@vertexerp.local' },
       update: {},
       create: {
-        email: 'admin@economica.local',
+        email: 'admin@vertexerp.local',
         name: 'Administrador Sistema',
         password: await bcrypt.hash('admin123', 12),
         role: 'admin',
@@ -34,10 +34,10 @@ async function main() {
 
     // Usuario gestor de cobranza
     const gestorUser = await prisma.user.upsert({
-      where: { email: 'gestor@economica.local' },
+      where: { email: 'gestor@vertexerp.local' },
       update: {},
       create: {
-        email: 'gestor@economica.local',
+        email: 'gestor@vertexerp.local',
         name: 'Gestor de Cobranza',
         password: await bcrypt.hash('gestor123', 12),
         role: 'gestor_cobranza',
@@ -47,10 +47,10 @@ async function main() {
 
     // Usuario de reportes
     const reporteUser = await prisma.user.upsert({
-      where: { email: 'reportes@economica.local' },
+      where: { email: 'reportes@vertexerp.local' },
       update: {},
       create: {
-        email: 'reportes@economica.local',
+        email: 'reportes@vertexerp.local',
         name: 'Usuario de Reportes',
         password: await bcrypt.hash('reportes123', 12),
         role: 'reporte_cobranza',
@@ -321,9 +321,9 @@ Cobrador: {{cobrador}}
     console.log(`- ${await prisma.rutaCobranza.count()} rutas de cobranza`);
 
     console.log('\n🔑 Credenciales de acceso:');
-    console.log('👑 Admin:    admin@economica.local / admin123');
-    console.log('👤 Gestor:   gestor@economica.local / gestor123');
-    console.log('📊 Reportes: reportes@economica.local / reportes123');
+    console.log('👑 Admin:    admin@vertexerp.local / admin123');
+    console.log('👤 Gestor:   gestor@vertexerp.local / gestor123');
+    console.log('📊 Reportes: reportes@vertexerp.local / reportes123');
     console.log('\n🚚 Gestores de Campo (5):');
     console.log('   ruta0@local.com / ruta123 (RUTA0) - 200 clientes: CL1-CL200');
     console.log('   ruta1@local.com / ruta123 (RUTA1) - 200 clientes: CL201-CL400');

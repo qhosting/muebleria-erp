@@ -1,7 +1,7 @@
 
 #!/bin/bash
 
-echo "🚀 Desplegando MUEBLERIA LA ECONOMICA con Docker"
+echo "🚀 Desplegando VertexERP Muebles con Docker"
 echo "================================================"
 
 # Colores para output
@@ -106,3 +106,4 @@ echo "   Reiniciar: docker-compose restart"
 echo "   Acceder a la BD: docker-compose exec postgres psql -U postgres -d muebleria_db"
 echo ""
 print_message "¡El sistema está listo para usar!"
+

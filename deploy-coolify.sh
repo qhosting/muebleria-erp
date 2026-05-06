@@ -1,7 +1,7 @@
 
 #!/bin/bash
 
-echo "🚀 MUEBLERIA LA ECONOMICA - Deployment Script"
+echo "🚀 VertexERP Muebles - Deployment Script"
 echo "=============================================="
 
 # Colores para output
@@ -31,10 +31,10 @@ echo "PORT=3000"
 echo ""
 
 echo -e "${YELLOW}👥 USUARIOS ESENCIALES DEL SISTEMA:${NC}"
-echo "Admin:    admin@economica.local / admin123"
-echo "Gestor:   gestor@economica.local / gestor123" 
-echo "Cobrador: cobrador@economica.local / cobrador123"
-echo "Reportes: reportes@economica.local / reportes123"
+echo "Admin:    admin@vertexerp.local / admin123"
+echo "Gestor:   gestor@vertexerp.local / gestor123" 
+echo "Cobrador: cobrador@vertexerp.local / cobrador123"
+echo "Reportes: reportes@vertexerp.local / reportes123"
 echo ""
 
 echo -e "${GREEN}✅ PASOS PARA DEPLOYMENT EN COOLIFY:${NC}"
@@ -59,3 +59,4 @@ echo "- Verificar sincronización de datos"
 echo ""
 
 echo -e "${GREEN}🎯 ¡Tu aplicación está lista para producción!${NC}"
+

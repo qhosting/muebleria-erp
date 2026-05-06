@@ -1,6 +1,6 @@
 
 // Service Worker para PWA
-const CACHE_NAME = 'laeconomica-v1';
+const CACHE_NAME = 'vertexerp-v1';
 const urlsToCache = [
   '/',
   '/dashboard',

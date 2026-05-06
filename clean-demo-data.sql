@@ -1,6 +1,6 @@
 -- ============================================
 -- SCRIPT DE LIMPIEZA DE DATOS DEMO
--- MUEBLERIA LA ECONOMICA
+-- VertexERP Muebles
 -- ============================================
 -- ADVERTENCIA: Este script eliminará TODOS los datos
 -- excepto el usuario admin
@@ -65,3 +65,4 @@ UNION ALL
 SELECT 'GASTOS', COUNT(*) FROM "Gasto"
 UNION ALL
 SELECT 'USUARIOS', COUNT(*) FROM "User";
+

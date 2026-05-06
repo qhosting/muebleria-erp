@@ -1,10 +1,9 @@
-
 {
-  "name": "MUEBLERIA LA ECONOMICA",
+  "name": "VertexERP Muebles",
   "scope": "/",
   "lang": "es-MX",
   "dir": "ltr",
-  "short_name": "LaEconomica",
+  "short_name": "VertexERP",
   "description": "Sistema integral de gestión de clientes y cobranza en campo",
   "start_url": "/dashboard",
   "display": "standalone",
@@ -45,3 +44,4 @@
   ],
   "prefer_related_applications": false
 }
+

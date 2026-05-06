@@ -264,7 +264,7 @@ async function handleOficina(from: string, payload: any, session: string, agentN
     });
 
     // 5. Gestionar el Lead
-    let lead = await db.lead.findUnique({ where: { telefono: from } });
+    let lead = await db.lead.findFirst({ where: { telefono: from } });
     
     if (!lead) {
         lead = await db.lead.create({

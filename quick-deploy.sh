@@ -1,7 +1,7 @@
 
 #!/bin/bash
 
-echo "🚀 Despliegue Rápido - MUEBLERIA LA ECONOMICA"
+echo "🚀 Despliegue Rápido - VertexERP Muebles"
 echo "============================================="
 
 # Colores para output
@@ -100,3 +100,4 @@ echo "   📧 cobrador@muebleria.com (password123)"
 echo "   📧 reportes@muebleria.com (password123)"
 echo ""
 print_message "¡Sistema listo para usar!"
+

@@ -2,7 +2,7 @@
 #!/bin/bash
 
 # =============================================================================
-# 🚀 COOLIFY ONE-CLICK DEPLOY - MUEBLERIA LA ECONOMICA
+# 🚀 COOLIFY ONE-CLICK DEPLOY - VertexERP Muebles
 # =============================================================================
 # Script ultra-simplificado para despliegue en un comando
 # Solo necesitas: URL_COOLIFY, TOKEN, SERVER_ID, DESTINATION_ID
@@ -45,7 +45,7 @@ response=$(curl -s -X POST "$COOLIFY_URL/api/v1/applications" \
   -H "Content-Type: application/json" \
   -d "{
     \"name\": \"muebleria-la-economica\",
-    \"description\": \"Sistema de gestión MUEBLERIA LA ECONOMICA\",
+    \"description\": \"Sistema de gestión VertexERP Muebles\",
     \"git_repository\": \"https://github.com/qhosting/muebleria-la-economica.git\",
     \"git_branch\": \"main\",
     \"build_pack\": \"dockerfile\",
@@ -77,3 +77,4 @@ else
     print_error "Error al crear la aplicación:"
     echo "$response"
 fi
+

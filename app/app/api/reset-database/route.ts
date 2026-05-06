@@ -27,10 +27,10 @@ export async function POST(request: NextRequest) {
       where: {
         email: {
           notIn: [
-            'admin@economica.local',
-            'gestor@economica.local',
-            'cobrador@economica.local',
-            'reportes@economica.local',
+            'admin@vertexerp.local',
+            'gestor@vertexerp.local',
+            'cobrador@vertexerp.local',
+            'reportes@vertexerp.local',
             'cristal@muebleria.com'
           ]
         }
@@ -39,10 +39,10 @@ export async function POST(request: NextRequest) {
 
     // Recrear usuarios por defecto si no existen
     await prisma.user.upsert({
-      where: { email: 'admin@economica.local' },
+      where: { email: 'admin@vertexerp.local' },
       update: {},
       create: {
-        email: 'admin@economica.local',
+        email: 'admin@vertexerp.local',
         name: 'Administrador Sistema',
         password: await bcrypt.hash('admin123', 12),
         role: 'admin',
@@ -51,10 +51,10 @@ export async function POST(request: NextRequest) {
     });
 
     await prisma.user.upsert({
-      where: { email: 'gestor@economica.local' },
+      where: { email: 'gestor@vertexerp.local' },
       update: {},
       create: {
-        email: 'gestor@economica.local',
+        email: 'gestor@vertexerp.local',
         name: 'Gestor de Cobranza',
         password: await bcrypt.hash('gestor123', 12),
         role: 'gestor_cobranza',
@@ -63,10 +63,10 @@ export async function POST(request: NextRequest) {
     });
 
     await prisma.user.upsert({
-      where: { email: 'cobrador@economica.local' },
+      where: { email: 'cobrador@vertexerp.local' },
       update: {},
       create: {
-        email: 'cobrador@economica.local',
+        email: 'cobrador@vertexerp.local',
         name: 'Cobrador de Campo',
         password: await bcrypt.hash('cobrador123', 12),
         role: 'cobrador',
@@ -75,10 +75,10 @@ export async function POST(request: NextRequest) {
     });
 
     await prisma.user.upsert({
-      where: { email: 'reportes@economica.local' },
+      where: { email: 'reportes@vertexerp.local' },
       update: {},
       create: {
-        email: 'reportes@economica.local',
+        email: 'reportes@vertexerp.local',
         name: 'Usuario de Reportes',
         password: await bcrypt.hash('reportes123', 12),
         role: 'reporte_cobranza',

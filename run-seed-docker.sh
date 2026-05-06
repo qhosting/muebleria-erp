@@ -89,10 +89,10 @@ if docker exec "$CONTAINER_NAME" npx tsx --require dotenv/config scripts/seed.ts
     echo -e "${GREEN}✅ ¡Seed completado exitosamente!${NC}"
     echo ""
     echo -e "${BLUE}📊 Usuarios creados:${NC}"
-    echo "   - admin@economica.local (admin123)"
-    echo "   - gestor@economica.local (gestor123)"
-    echo "   - cobrador@economica.local (cobrador123)"
-    echo "   - reportes@economica.local (reportes123)"
+    echo "   - admin@vertexerp.local (admin123)"
+    echo "   - gestor@vertexerp.local (gestor123)"
+    echo "   - cobrador@vertexerp.local (cobrador123)"
+    echo "   - reportes@vertexerp.local (reportes123)"
     exit 0
 fi
 

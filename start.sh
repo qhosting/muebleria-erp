@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================="
-echo "  MUEBLERIA LA ECONOMICA - STARTING UP"
+echo "  VertexERP Muebles - STARTING UP"
 echo "=========================================="
 echo "Date: $(date)"
 echo "PWD: $(pwd)"
@@ -73,3 +73,4 @@ echo "=========================================="
 echo "  STARTING NEXT.JS ON 0.0.0.0:${PORT:-3000}"
 echo "=========================================="
 exec node_modules/.bin/next start -H 0.0.0.0 -p ${PORT:-3000}
+

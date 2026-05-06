@@ -1,5 +1,5 @@
 
-# 🚀 Guía de Deployment - MUEBLERIA LA ECONOMICA
+# 🚀 Guía de Deployment - VertexERP Muebles
 
 ## Opción 1: Deployment en Coolify (Recomendado)
 
@@ -101,10 +101,10 @@ Formato: `postgresql://usuario:password@host:5432/database`
 
 ### 3. Usuarios por Defecto (Solo usuarios esenciales)
 ```
-Admin:    admin@economica.local / admin123
-Gestor:   gestor@economica.local / gestor123  
-Cobrador: cobrador@economica.local / cobrador123
-Reportes: reportes@economica.local / reportes123
+Admin:    admin@vertexerp.local / admin123
+Gestor:   gestor@vertexerp.local / gestor123  
+Cobrador: cobrador@vertexerp.local / cobrador123
+Reportes: reportes@vertexerp.local / reportes123
 ```
 
 ---
@@ -142,3 +142,4 @@ docker-compose up -d --build
 ---
 
 ¡Tu aplicación está lista para producción! 🏢✨
+

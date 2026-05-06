@@ -2,12 +2,12 @@
 
 # ============================================
 # SCRIPT DE LIMPIEZA DE DATOS DEMO
-# MUEBLERIA LA ECONOMICA
+# VertexERP Muebles
 # ============================================
 
 set -e
 
-echo "🧹 LIMPIEZA DE DATOS DEMO - MUEBLERIA LA ECONOMICA"
+echo "🧹 LIMPIEZA DE DATOS DEMO - VertexERP Muebles"
 echo "=================================================="
 echo ""
 echo "⚠️  ADVERTENCIA: Este script eliminará TODOS los datos demo"
@@ -72,3 +72,4 @@ echo "   1. Inicia sesión con el usuario admin"
 echo "   2. Crea tus datos reales de producción"
 echo "   3. Los datos serán persistentes en todos los deploys"
 echo ""
+

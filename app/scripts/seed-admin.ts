@@ -23,7 +23,7 @@ async function seedAdmin() {
     
     const admin = await prisma.user.create({
       data: {
-        email: 'admin@laeconomica.com',
+        email: 'admin@vertexerp.com',
         password: hashedPassword,
         name: 'Administrador',
         role: 'admin',

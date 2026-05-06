@@ -29,7 +29,7 @@ REPO_URL="https://github.com/qhosting/muebleria-la-economica.git"
 NEXTAUTH_SECRET=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
 JWT_SECRET=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
 
-print_header "🚀 DESPLIEGUE ESCALAFIN - MUEBLERIA LA ECONOMICA"
+print_header "🚀 DESPLIEGUE ESCALAFIN - VertexERP Muebles"
 print_header "================================================="
 echo ""
 
@@ -146,7 +146,7 @@ create_application_manual() {
     local app_data=$(cat << EOF
 {
     "name": "$APP_NAME",
-    "description": "Sistema de gestión MUEBLERIA LA ECONOMICA",
+    "description": "Sistema de gestión VertexERP Muebles",
     "git_repository": "$REPO_URL",
     "git_branch": "main",
     "build_pack": "dockerfile",
@@ -310,3 +310,4 @@ print_header "🎉 PROCESO COMPLETADO"
 print_header "===================="
 print_success "Configuración: $COOLIFY_URL → https://$APP_DOMAIN"
 print_info "En caso de problemas, revisa: escalafin-deployment-info.txt"
+

@@ -2,7 +2,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Configuración de GitHub para MUEBLERIA LA ECONOMICA"
+echo "🚀 Configuración de GitHub para VertexERP Muebles"
 echo "=================================================="
 
 # Verificar que estamos en el directorio correcto
@@ -93,3 +93,4 @@ if [ "$created_repo" = "y" ] || [ "$created_repo" = "Y" ]; then
 else
     echo "⏸️  Proceso pausado. Primero crea el repositorio en GitHub."
 fi
+
