@@ -67,8 +67,12 @@ export class ContpaqiService {
             '/api/empresas',
             '/api/v1/empresas',
             '/api/Comercial/Empresas',
+            '/api/Comercial/Generales/Empresas',
             '/api/v1/Comercial/Empresas',
-            '/api/Catalogos/Empresas'
+            '/api/Catalogos/Empresas',
+            '/api/generales/empresas',
+            '/api/sistema/empresas',
+            '/api/configuracion/empresas'
         ];
 
         for (const endpoint of endpoints) {
@@ -76,11 +80,15 @@ export class ContpaqiService {
                 console.log(`🔍 Intentando cargar empresas desde: ${endpoint}`);
                 return await this.request(endpoint);
             } catch (e) {
+                // Si el error es 404, seguimos probando. Si es otro error (ej: 401), paramos.
+                if (!(e as Error).message.includes('404')) {
+                    throw e;
+                }
                 console.warn(`⚠️ Falló endpoint ${endpoint}:`, (e as Error).message);
                 continue;
             }
         }
-        throw new Error('No se pudo encontrar el endpoint de empresas en el servidor Contpaqi.');
+        throw new Error('No se pudo encontrar el endpoint de empresas en el servidor Contpaqi. Por favor, verifica la documentación de tu API wrapper.');
     }
 
     async getConceptos() {
