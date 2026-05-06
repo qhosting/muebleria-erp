@@ -63,15 +63,31 @@ export class ContpaqiService {
     }
 
     async getEmpresas() {
-        return await this.request('/api/empresas');
+        try {
+            return await this.request('/api/empresas');
+        } catch (e) {
+            try {
+                return await this.request('/api/Comercial/Empresas');
+            } catch (e2) {
+                return await this.request('/api/Catalogos/Empresas');
+            }
+        }
     }
 
     async getConceptos() {
-        return await this.request('/api/conceptos');
+        try {
+            return await this.request('/api/conceptos');
+        } catch (e) {
+            return await this.request('/api/Comercial/Conceptos');
+        }
     }
 
     async getClasificaciones() {
-        return await this.request('/api/clasificaciones');
+        try {
+            return await this.request('/api/clasificaciones');
+        } catch (e) {
+            return await this.request('/api/Comercial/Clasificaciones');
+        }
     }
 
     // --- DOCUMENTOS ---

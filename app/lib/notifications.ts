@@ -7,8 +7,8 @@ import { UserRole } from '@prisma/client';
 // publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
 // privateVapidKey = process.env.VAPID_PRIVATE_KEY
 
-const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BP6OyWqzh5Ah3ovavEBnz4Mz47WGowP6TJPdE3mO72Hd1LbRgzpj6oZvhk9X5On1Yvxia_MwLVb-BzL0_J8nCAc';
-const privateVapidKey = process.env.VAPID_PRIVATE_KEY || 'Un1mwQxvEERfTtDXyttg-fMCg36ggDrdHlU-Jk-K5Ac';
+const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BL_I_l-1LTgZfbhmYuXF6Fku1heSS7xtrSzqUeDwK6XgMJI4XWple_UMvABaoZHn6kI5Io83XlCIJSZIwgUlcRM';
+const privateVapidKey = process.env.VAPID_PRIVATE_KEY || 'oYRqUVqTqkhRWB2RzRpB_GhdMRTwCvXfQ98cTWORG78';
 
 webpush.setVapidDetails(
     'mailto:soporte@vertexerp.mx',

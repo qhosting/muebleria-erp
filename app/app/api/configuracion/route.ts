@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       if (!config) {
         return NextResponse.json({
           empresa: {
-            nombre: 'Mueblería La Económica',
+            nombre: 'VertexERP Muebles',
             direccion: 'Av. Principal 123, Col. Centro',
             telefono: '555-1234',
             email: 'contacto@muebleria.com'
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     if (!config) {
       const defaultConfig = {
         empresa: {
-          nombre: 'Mueblería La Económica',
+          nombre: 'VertexERP Muebles',
           direccion: 'Av. Principal 123, Col. Centro',
           telefono: '555-1234',
           email: 'contacto@muebleria.com'
