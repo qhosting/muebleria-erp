@@ -22,7 +22,7 @@ import {
   Users,
   Package,
   ArrowRight
-} from 'lucide-center'; // Nota: corrigiendo a lucide-react si es necesario, pero asumo lucide-react
+} from 'lucide-react'; // Nota: corrigiendo a lucide-react si es necesario, pero asumo lucide-react
 import { toast } from 'sonner';
 
 // Re-importing icons correctly
