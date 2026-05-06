@@ -10,7 +10,8 @@ import {
     ShieldCheck, 
     ChevronRight,
     Smartphone,
-    Database
+    Database,
+    Trophy
 } from "lucide-react";
 import Link from "next/link";
 
@@ -21,6 +22,7 @@ export default function MobileMenu() {
         {
             title: "Operación",
             items: [
+                { icon: <Trophy className="w-5 h-5" />, label: "Mis Metas y Logros", href: "/mobile/metas", color: "text-yellow-400" },
                 { icon: <MessageSquare className="w-5 h-5" />, label: "Campaña SMS", href: "/mobile/sms", color: "text-sky-400" },
                 { icon: <Database className="w-5 h-5" />, label: "Estado de Sincronización", href: "/mobile/sync", color: "text-emerald-400" },
             ]

@@ -12,6 +12,7 @@ export interface OfflineCliente {
   montoAcordado: number;
   saldoPendiente: number;
   saldoVencido?: number;
+  diasVencidos?: number;
   fechaUltimoPago?: string;
   statusCuenta: 'activo' | 'suspendido' | 'cancelado';
   cobradorAsignadoId: string;

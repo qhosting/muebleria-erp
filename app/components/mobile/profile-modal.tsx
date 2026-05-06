@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Phone, MapPin, Calendar, Printer, User, ShoppingBag, CreditCard, DollarSign } from "lucide-react";
+import { X, Phone, MapPin, Calendar, Printer, User, ShoppingBag, CreditCard, DollarSign, MessageSquare } from "lucide-react";
 import { OfflineCliente } from "@/lib/offline-db";
 import { formatCurrency, getDayName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -10,14 +10,14 @@ import { toast } from "sonner";
 interface ProfileModalProps {
     cliente: OfflineCliente;
     onClose: () => void;
-    onAviso: (cliente: OfflineCliente) => void;
+    onAviso: (cliente: OfflineCliente) => Promise<boolean> | any;
 }
 
 export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
     const [sending, setSending] = useState(false);
 
     const handleWhatsAppAviso = async () => {
-        const mensaje = `*AVISO DE COBRO - MUEBLERIA LA ECONOMICA*\n\nHola ${cliente.nombreCompleto},\n\nLe enviamos un recordatorio de su estado de cuenta:\n\n*Saldo Actual:* ${formatCurrency(cliente.saldoPendiente)}\n*Saldo Vencido:* ${formatCurrency(cliente.saldoVencido || 0)}\n*Días de Atraso:* ${cliente.diasVencidos || 0}\n\nFavor de regularizarse a la brevedad para evitar recargos. ¡Gracias!`;
+        const mensaje = `*AVISO DE COBRO - MUEBLERIA LA ECONOMICA*\n\nHola ${cliente.nombreCompleto},\n\nLe enviamos un recordatorio de su estado de cuenta:\n\n*Saldo Actual:* ${formatCurrency(cliente.saldoPendiente)}\n*Saldo Vencido:* ${formatCurrency(cliente.saldoVencido || 0)}\n*Días de Atraso:* ${(cliente as any).diasVencidos || 0}\n\nFavor de regularizarse a la brevedad para evitar recargos. ¡Gracias!`;
         const url = `https://wa.me/52${cliente.telefono}?text=${encodeURIComponent(mensaje)}`;
         
         // Registrar en BD
