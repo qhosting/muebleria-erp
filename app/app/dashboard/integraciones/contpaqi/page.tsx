@@ -463,6 +463,7 @@ export default function ContpaqiMultiPage() {
                             className="bg-white/80"
                           />
                         </div>
+                      </div>
                     </div>
 
                     <div className="space-y-4 pt-4">
