@@ -16,20 +16,25 @@ export interface WahaConfig {
  * @param botType Opcional: 'tesoreria' o 'leads' para buscar configuración específica
  */
 export async function getWahaConfig(prisma?: any, botType?: 'tesoreria' | 'leads'): Promise<WahaConfig> {
-    // 1. Prioridad: Variables de Entorno
+    let botApiUrl = process.env.WAHA_API_URL || '';
+    let botApiKey = process.env.WAHA_API_KEY || '';
     let session = process.env.WAHA_SESSION_NAME || process.env.WAHA_SESSION || 'default';
     
     // Si se especifica un tipo de bot, intentamos buscar su variable de entorno específica
-    if (botType === 'tesoreria' && process.env.WAHA_SESSION_TESORERIA) {
-        session = process.env.WAHA_SESSION_TESORERIA;
-    } else if (botType === 'leads' && process.env.WAHA_SESSION_LEADS) {
-        session = process.env.WAHA_SESSION_LEADS;
+    if (botType === 'tesoreria') {
+        if (process.env.WAHA_SESSION_TESORERIA) session = process.env.WAHA_SESSION_TESORERIA;
+        if (process.env.WAHA_API_URL_TESORERIA) botApiUrl = process.env.WAHA_API_URL_TESORERIA;
+        if (process.env.WAHA_API_KEY_TESORERIA) botApiKey = process.env.WAHA_API_KEY_TESORERIA;
+    } else if (botType === 'leads') {
+        if (process.env.WAHA_SESSION_LEADS) session = process.env.WAHA_SESSION_LEADS;
+        if (process.env.WAHA_API_URL_LEADS) botApiUrl = process.env.WAHA_API_URL_LEADS;
+        if (process.env.WAHA_API_KEY_LEADS) botApiKey = process.env.WAHA_API_KEY_LEADS;
     }
 
     const envConfig: WahaConfig = {
-        apiUrl: process.env.WAHA_API_URL || '',
+        apiUrl: botApiUrl,
         session: session,
-        apiKey: process.env.WAHA_API_KEY
+        apiKey: botApiKey
     };
 
     if (envConfig.apiUrl && envConfig.session !== 'default') {

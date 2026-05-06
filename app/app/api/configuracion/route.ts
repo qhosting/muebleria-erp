@@ -75,10 +75,31 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Integrar variables de entorno si la base de datos está vacía para WAHA y Departamentos
+    const notif = (config?.notificaciones as any) || {};
+    const finalNotificaciones = {
+      ...notif,
+      // Globales
+      wahaApiUrl: notif.wahaApiUrl || process.env.WAHA_API_URL || '',
+      wahaApiKey: notif.wahaApiKey || process.env.WAHA_API_KEY || '',
+      wahaSessionName: notif.wahaSessionName || process.env.WAHA_SESSION_NAME || 'default',
+      openaiApiKey: notif.openaiApiKey || process.env.OPENAI_API_KEY || '',
+      
+      // Ventas / Leads
+      leadsWahaSession: notif.leadsWahaSession || process.env.WAHA_SESSION_LEADS || '',
+      leadsWahaApiUrl: notif.leadsWahaApiUrl || process.env.WAHA_API_URL_LEADS || '',
+      leadsAgentName: notif.leadsAgentName || 'Sofía (Ventas)',
+      
+      // Tesorería
+      tesoreriaWahaSession: notif.tesoreriaWahaSession || process.env.WAHA_SESSION_TESORERIA || '',
+      tesoreriaWahaApiUrl: notif.tesoreriaWahaApiUrl || process.env.WAHA_API_URL_TESORERIA || '',
+      tesoreriaAgentName: notif.tesoreriaAgentName || 'Asistente de Tesorería'
+    };
+
     return NextResponse.json({
       empresa: config.empresa,
       cobranza: config.cobranza,
-      notificaciones: config.notificaciones,
+      notificaciones: finalNotificaciones,
       sincronizacion: config.sincronizacion,
       impresion: config.impresion
     });

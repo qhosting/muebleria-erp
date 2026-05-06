@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
         // RUTA 1: TESORERÍA (PROCESAMIENTO DE PAGOS)
         const isTesoreria = session === 'tesoreria' || 
                            session === notif.tesoreriaWahaSession ||
+                           session === notif.wahaSessionName ||
                            session === process.env.WAHA_SESSION_TESORERIA;
 
         if (isTesoreria) {
@@ -268,10 +269,10 @@ async function handleOficina(from: string, payload: any, session: string, agentN
     if (!lead) {
         lead = await db.lead.create({
             data: {
-                nombre: aiResponse.clienteNombre || `Prospecto ${from}`,
+                nombre: `Prospecto ${from}`,
                 telefono: from,
                 estado: 'nuevo',
-                notas: `Captado por IA (${agentName}). Interés: ${aiResponse.interes || 'Ventas General'}`,
+                notas: `Captado por IA (${agentName}). Interés: ${aiResponse.datos_extraidos.producto || 'Ventas General'}`,
                 vendedorId: null
             }
         });
@@ -279,7 +280,7 @@ async function handleOficina(from: string, payload: any, session: string, agentN
         // NOTIFICAR A ADMINISTRADORES POR PUSH
         try {
             const { notifyByRole } = await import('@/lib/notifications');
-            await notifyByRole('admin', '🔥 Nuevo Lead Captado', `Un nuevo cliente (${from}) está interesado en: ${aiResponse.interes || 'productos'}.`, '/dashboard/ventas');
+            await notifyByRole('admin', '🔥 Nuevo Lead Captado', `Un nuevo cliente (${from}) está interesado en: ${aiResponse.datos_extraidos.producto || 'productos'}.`, '/dashboard/ventas');
         } catch (nError) {
             console.error('Error enviando notificación de lead:', nError);
         }
@@ -288,7 +289,7 @@ async function handleOficina(from: string, payload: any, session: string, agentN
         await db.lead.update({
             where: { id: lead.id },
             data: {
-                notas: `${lead.notas}\n[${new Date().toLocaleDateString()}] Nuevo contacto: ${aiResponse.interes || 'Conversación'}`
+                notas: `${lead.notas}\n[${new Date().toLocaleDateString()}] Nuevo contacto: ${aiResponse.datos_extraidos.producto || 'Conversación'}`
             }
         });
     }

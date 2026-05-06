@@ -29,6 +29,13 @@ TU OBJETIVO:
 2. Si es una duda vaga, conversa para entender qué quieren.
 3. SI DETECTAS UNA INTENCIÓN CLARA (Venta, Cobranza, Reporte): Tu trabajo termina. Despídete indicando que un humano los contactará.
 
+---
+### 📜 HISTORIAL (Contexto):
+"""
+{{history}}
+"""
+---
+
 ### 🚨 REGLAS DE CLASIFICACIÓN (INTENCIONES):
 
 1. "GENERAL":
@@ -40,8 +47,10 @@ TU OBJETIVO:
    - CUÁNDO USAR: En el momento EXACTO en que el cliente define qué quiere (ej: "Quiero el matrimonial", "Busco crédito", "Quiero pagar", "Tengo una queja").
    - TU RESPUESTA: **DEBE SER FINAL.** No hagas más preguntas. Di: "¡Entendido! 📝 He pasado tu solicitud a un asesor. Te contactarán en breve por aquí."
 
+---
 ### 🛡️ FORMATO JSON (OBLIGATORIO):
 Responde SIEMPRE con este JSON exacto:
+
 {
   "intencion": "VENTA" | "COBRANZA" | "SOPORTE" | "GARANTIA" | "GENERAL" | "HUMANO",
   "respuesta": "Texto para el cliente",
@@ -52,6 +61,36 @@ Responde SIEMPRE con este JSON exacto:
       "urgencia": "ALTA" | "MEDIA" | "BAJA"
   }
 }
+
+---
+### 💡 EJEMPLOS DE COMPORTAMIENTO:
+
+Caso 1 (Venta Clara - CIERRE INMEDIATO):
+Usuario: "Hola, me interesa el colchón matrimonial a crédito"
+JSON: {
+  "intencion": "VENTA",
+  "respuesta": "¡Perfecto! 🛏️ Hemos recibido tu solicitud de crédito para el colchón Matrimonial. Un asesor revisará tus datos y te escribirá en unos momentos. ⏳",
+  "resumen_interno": "Interés definido: Colchón Matrimonial con Crédito.",
+  "datos_extraidos": { "producto": "Colchón Matrimonial", "urgencia": "ALTA" }
+}
+
+Caso 2 (Cobranza - CIERRE INMEDIATO):
+Usuario: "Quiero saber cuánto debo"
+JSON: {
+  "intencion": "COBRANZA",
+  "respuesta": "Gracias por escribirnos. 📉 He notificado al departamento de cobranza. En breve te enviarán tu estado de cuenta por este medio.",
+  "resumen_interno": "Solicita saldo deudor.",
+  "datos_extraidos": { "producto": null, "urgencia": "MEDIA" }
+}
+
+Caso 3 (Indefinido - CONVERSAR):
+Usuario: "Me das información?"
+JSON: {
+  "intencion": "GENERAL",
+  "respuesta": "¡Hola! 👋 Con gusto. ¿Te interesa un colchón, una base o saber sobre nuestro crédito?",
+  "resumen_interno": "Pide info general. Indagando necesidad.",
+  "datos_extraidos": { "producto": null, "urgencia": "BAJA" }
+}
 `;
 
 export async function detectIntent(history: string, message: string, agentName: string = "Sofía", openaiKeyOverride?: string): Promise<AIResponse> {
@@ -59,17 +98,13 @@ export async function detectIntent(history: string, message: string, agentName: 
     const openRouterKey = process.env.OPENROUTER_API_KEY;
     const openAIKey = openaiKeyOverride || process.env.OPENAI_API_KEY;
 
-    const dynamicPrompt = SOFIA_PROMPT.replace(/"Sofía"/g, `"${agentName}"`);
+    const dynamicPrompt = SOFIA_PROMPT
+        .replace(/"Sofía"/g, `"${agentName}"`)
+        .replace(/{{history}}/g, history);
 
     const fullPrompt = `${dynamicPrompt}
-    
----
-### 📜 HISTORIAL (Contexto):
-"""
-${history}
-"""
----
 
+---
 ### 📩 MENSAJE ACTUAL:
 "${message}"
 `;
@@ -251,19 +286,21 @@ export async function extractTicketFromImage(base64Image: string): Promise<any> 
     Si un campo no se encuentra, su valor debe ser null. No inventes datos ni incluyas texto adicional.
 
     INSTRUCCIONES POR CAMPO:
-    - "contrato": Busca patrones como DQXXXXXXX o DPXXXXXXX (donde X son números) dentro de cualquier parte del ticket (Concepto, Referencia, Descripción). Si lo encuentras, extráelo.
+    - "contrato": Este valor se proporciona externamente o mediante contexto previo, no lo busques en la imagen si no es evidente.
     - "monto": El importe principal de la transacción, ignorando siempre comisiones, IVA o el "PAGO TOTAL".
-    - "referencia": Busca el número de "REFERENCIA". Si está oculto con asteriscos (ej: **********1858), extrae solo la parte numérica.
+    - "referencia": Busca el número de "REFERENCIA". Si está oculto con asteriscos (ej: **********1858), extrae solo la parte numérica. Si el campo no existe, el valor es null.
     - "folio": 
-        1. Prioridad 1: Busca "# DE AFILIACION" o "AFILIACION".
-        2. Prioridad 2: Busca "AUTORIZACION".
-        3. Prioridad 3: Busca "FOLIO DE VENTA".
+        1. Prioridad 1 (Depósitos en efectivo): Busca un campo etiquetado como "# DE AFILIACION" o "AFILIACION". Este es el valor más importante para los tickets de OXXO o tiendas similares.
+        2. Prioridad 2 (Otros comprobantes): Si no encuentras una afiliación, busca el número de "AUTORIZACION".
+        3. Prioridad 3 (Último recurso): Si ninguno de los anteriores existe, busca "FOLIO DE VENTA".
+        4. Si no encuentras ninguno de los tres, el valor debe ser null.
     - "fecha": La fecha de la operación, formateada como AAAA-MM-DD.
     - "hr": La hora de la operación, formateada como HH:MM:SS (completa con :00 si es necesario).
-    - "claverastreo": Busca el campo "CLAVE DE RASTREO". Si aparece en dos líneas, júntalas sin espacios ni guiones.
+    - "claverastreo": Busca un campo explícitamente llamado "CLAVE DE RASTREO". Si el valor aparece en dos líneas o párrafos, júntalos en una sola cadena de texto sin espacios ni guiones en medio. Si el campo no está claramente presente, el valor debe ser null.
 
-    EJEMPLO DE RESPUESTA:
+    EJEMPLOS DE RESPUESTA:
     {"contrato":"DQ2506016","monto":500.00,"referencia":"1858","folio":"4090400","fecha":"2025-08-11","hr":"11:25:00","claverastreo":null}
+    {"contrato":"DQ2411240","monto":460.00,"referencia":"9135156","folio":null,"fecha":"2025-09-06","hr":"18:30:00","claverastreo":"SPIN20250906183029308UEQ0SSPJC"}
     `;
 
     const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiKey;
