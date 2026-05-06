@@ -27,6 +27,7 @@ export default function ContpaqiPage() {
   const [config, setConfig] = useState({
     apiUrl: 'http://vortex520.qhosting.net:5000',
     apiKey: 'VERTEX123_CONTPAQI_ERP_2024',
+    conceptoAbono: 'ABONO CLIENTE',
     webhookUrl: 'https://erp.mueblesdaso.com/api/contpaqi/webhook'
   });
 
@@ -132,20 +133,31 @@ export default function ContpaqiPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="webhookUrl">Webhook de Retorno (VertexERP)</Label>
-                <div className="flex gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="conceptoAbono">Concepto de Abono (Contpaqi)</Label>
                   <Input 
-                    id="webhookUrl" 
-                    value={config.webhookUrl} 
-                    readOnly
-                    className="bg-slate-50 text-slate-500 italic"
+                    id="conceptoAbono" 
+                    value={config.conceptoAbono} 
+                    onChange={(e) => setConfig({...config, conceptoAbono: e.target.value})}
+                    placeholder="Ej: ABONO CLIENTE"
+                    className="bg-white"
                   />
-                  <Button variant="outline" size="icon" onClick={() => window.open(config.webhookUrl, '_blank')}>
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
                 </div>
-                <p className="text-[10px] text-slate-400">Esta es la URL que Contpaqi usará para notificarnos cambios en tiempo real.</p>
+                <div className="space-y-2">
+                  <Label htmlFor="webhookUrl">Webhook de Retorno (VertexERP)</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      id="webhookUrl" 
+                      value={config.webhookUrl} 
+                      readOnly
+                      className="bg-slate-50 text-slate-500 italic"
+                    />
+                    <Button variant="outline" size="icon" onClick={() => window.open(config.webhookUrl, '_blank')}>
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-2">

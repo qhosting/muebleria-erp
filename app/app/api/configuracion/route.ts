@@ -99,7 +99,8 @@ export async function GET(request: NextRequest) {
     // Configuración de Contpaqi
     const contpaqiConfig = {
       apiUrl: (config as any).contpaqi?.apiUrl || process.env.CONTPAQI_API_URL || 'http://vortex520.qhosting.net:5000',
-      apiKey: (config as any).contpaqi?.apiKey || process.env.CONTPAQI_API_KEY || 'VERTEX123_CONTPAQI_ERP_2024'
+      apiKey: (config as any).contpaqi?.apiKey || process.env.CONTPAQI_API_KEY || 'VERTEX123_CONTPAQI_ERP_2024',
+      conceptoAbono: (config as any).contpaqi?.conceptoAbono || process.env.CONTPAQI_CONCEPTO_ABONO || 'ABONO CLIENTE'
     };
 
     return NextResponse.json({
