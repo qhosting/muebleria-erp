@@ -15,8 +15,24 @@ export class ContpaqiService {
         this.config = config;
     }
 
+    private cleanEmpresaName(name: string): string {
+        if (!name) return '';
+        if (name.includes(' - ')) {
+            return name.split(' - ')[1].trim();
+        }
+        return name.trim();
+    }
+
     private async request(endpoint: string, method: string = 'GET', body?: any) {
-        const url = `${this.config.apiUrl}${endpoint}`;
+        // Limpiamos el nombre de la empresa si viene en la query string
+        let finalEndpoint = endpoint;
+        if (endpoint.includes('empresa=')) {
+            const parts = endpoint.split('empresa=');
+            const empresaValue = decodeURIComponent(parts[1]);
+            finalEndpoint = `${parts[0]}empresa=${encodeURIComponent(this.cleanEmpresaName(empresaValue))}`;
+        }
+
+        const url = `${this.config.apiUrl}${finalEndpoint}`;
         const headers = {
             'Content-Type': 'application/json',
             'X-API-Key': this.config.apiKey

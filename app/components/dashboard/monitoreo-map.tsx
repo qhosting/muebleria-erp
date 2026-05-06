@@ -67,7 +67,7 @@ export default function MonitoreoMap({ pagos, center = [20.5888, -100.3899] }: M
                                     </div>
                                     <div className="flex justify-between text-xs">
                                         <span className="text-gray-400">Fecha:</span>
-                                        <span className="text-gray-600">{formatDate(new Date(pago.fechaPago))}</span>
+                                        <span className="text-gray-600">{pago.fechaPago ? formatDate(pago.fechaPago) : 'N/A'}</span>
                                     </div>
                                     <div className="flex justify-between text-xs">
                                         <span className="text-gray-400">Método:</span>

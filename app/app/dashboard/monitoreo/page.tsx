@@ -141,7 +141,9 @@ export default function MonitoreoPage() {
                                         <div key={pago.id} className="p-3 hover:bg-slate-50 transition-colors cursor-pointer group">
                                             <div className="flex justify-between items-start mb-1">
                                                 <p className="text-xs font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">{pago.cliente?.nombreCompleto}</p>
-                                                <span className="text-[10px] font-mono text-slate-400">{new Date(pago.fechaPago).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                <span className="text-[10px] font-mono text-slate-400">
+                                                    {pago.fechaPago ? new Date(pago.fechaPago).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'}) : '--:--'}
+                                                </span>
                                             </div>
                                             <div className="flex justify-between items-center">
                                                 <span className="text-[10px] text-slate-500 font-medium">{pago.cobrador?.name}</span>
