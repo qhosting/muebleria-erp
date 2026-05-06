@@ -96,12 +96,19 @@ export async function GET(request: NextRequest) {
       tesoreriaAgentName: notif.tesoreriaAgentName || 'Asistente de Tesorería'
     };
 
+    // Configuración de Contpaqi
+    const contpaqiConfig = {
+      apiUrl: (config as any).contpaqi?.apiUrl || process.env.CONTPAQI_API_URL || 'http://vortex520.qhosting.net:5000',
+      apiKey: (config as any).contpaqi?.apiKey || process.env.CONTPAQI_API_KEY || 'VERTEX123_CONTPAQI_ERP_2024'
+    };
+
     return NextResponse.json({
       empresa: config.empresa,
       cobranza: config.cobranza,
       notificaciones: finalNotificaciones,
       sincronizacion: config.sincronizacion,
-      impresion: config.impresion
+      impresion: config.impresion,
+      contpaqi: contpaqiConfig
     });
   } catch (error) {
     console.error('Error al obtener configuración:', error);

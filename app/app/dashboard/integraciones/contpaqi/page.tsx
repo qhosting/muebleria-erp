@@ -34,6 +34,27 @@ export default function ContpaqiPage() {
   const [syncProgress, setSyncProgress] = useState(0);
   const [lastSync, setLastSync] = useState<string | null>(null);
 
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch('/api/configuracion');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.contpaqi) {
+            setConfig(prev => ({
+              ...prev,
+              apiUrl: data.contpaqi.apiUrl || prev.apiUrl,
+              apiKey: data.contpaqi.apiKey || prev.apiKey
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error cargando configuración:', error);
+      }
+    };
+    fetchConfig();
+  }, []);
+
   const checkConnection = async () => {
     setStatus('loading');
     try {
