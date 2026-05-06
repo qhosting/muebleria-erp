@@ -34,9 +34,10 @@ export default function ContpaqiPage() {
   const [syncProgress, setSyncProgress] = useState(0);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [clasificacion, setClasificacion] = useState('');
+  const [ruta, setRuta] = useState('');
 
   useEffect(() => {
-    // ... (rest of useEffect)
+    // ...
   }, []);
 
   const checkConnection = async () => {
@@ -46,7 +47,11 @@ export default function ContpaqiPage() {
   const handleSync = async (target: string) => {
     setSyncProgress(10);
     try {
-      const url = `/api/contpaqi/sync?target=${target}${clasificacion ? `&clasificacion=${clasificacion}` : ''}`;
+      let query = `?target=${target}`;
+      if (clasificacion) query += `&clasificacion=${clasificacion}`;
+      if (ruta) query += `&ruta=${ruta}`;
+      
+      const url = `/api/contpaqi/sync${query}`;
       const response = await fetch(url);
       setSyncProgress(50);
       const data = await response.json();
@@ -166,17 +171,29 @@ export default function ContpaqiPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Filtros */}
-              <div className="space-y-2 pb-2 border-b border-slate-100">
+              <div className="space-y-4 pb-4 border-b border-slate-100">
                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Filtros Avanzados</Label>
-                <div className="space-y-1">
-                  <Label htmlFor="filterClasif" className="text-xs text-slate-500">Clasificación de Clientes</Label>
-                  <Input 
-                    id="filterClasif"
-                    placeholder="Ej: MAYOREO, NORMAL..."
-                    value={clasificacion}
-                    onChange={(e) => setClasificacion(e.target.value)}
-                    className="h-8 text-xs bg-white"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="filterClasif" className="text-xs text-slate-500">Clasificación de Clientes</Label>
+                    <Input 
+                      id="filterClasif"
+                      placeholder="Ej: COBRANZA NORMAL"
+                      value={clasificacion}
+                      onChange={(e) => setClasificacion(e.target.value)}
+                      className="h-8 text-xs bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="filterRuta" className="text-xs text-slate-500">Ruta (Clasificación 2)</Label>
+                    <Input 
+                      id="filterRuta"
+                      placeholder="Ej: RUTA 1"
+                      value={ruta}
+                      onChange={(e) => setRuta(e.target.value)}
+                      className="h-8 text-xs bg-white"
+                    />
+                  </div>
                 </div>
               </div>
 
