@@ -38,8 +38,10 @@ export class ContpaqiService {
 
     // --- CATÁLOGOS ---
 
-    async getClientes(tipo: number = 1) {
-        return await this.request(`/api/clientes?tipo=${tipo}`);
+    async getClientes(tipo: number = 1, clasificacion?: string) {
+        let query = `?tipo=${tipo}`;
+        if (clasificacion) query += `&clasificacion=${clasificacion}`;
+        return await this.request(`/api/clientes${query}`);
     }
 
     async getCliente(codigo: string) {

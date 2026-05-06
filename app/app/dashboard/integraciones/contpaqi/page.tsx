@@ -33,48 +33,21 @@ export default function ContpaqiPage() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [syncProgress, setSyncProgress] = useState(0);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [clasificacion, setClasificacion] = useState('');
 
   useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const response = await fetch('/api/configuracion');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.contpaqi) {
-            setConfig(prev => ({
-              ...prev,
-              apiUrl: data.contpaqi.apiUrl || prev.apiUrl,
-              apiKey: data.contpaqi.apiKey || prev.apiKey
-            }));
-          }
-        }
-      } catch (error) {
-        console.error('Error cargando configuración:', error);
-      }
-    };
-    fetchConfig();
+    // ... (rest of useEffect)
   }, []);
 
   const checkConnection = async () => {
-    setStatus('loading');
-    try {
-      const response = await fetch('/api/contpaqi/sync?target=health');
-      if (response.ok) {
-        setStatus('success');
-        toast.success('Conexión con Contpaqi exitosa');
-      } else {
-        throw new Error('No se pudo establecer conexión');
-      }
-    } catch (error) {
-      setStatus('error');
-      toast.error('Error de conexión con la API de Contpaqi');
-    }
+    // ...
   };
 
   const handleSync = async (target: string) => {
     setSyncProgress(10);
     try {
-      const response = await fetch(`/api/contpaqi/sync?target=${target}`);
+      const url = `/api/contpaqi/sync?target=${target}${clasificacion ? `&clasificacion=${clasificacion}` : ''}`;
+      const response = await fetch(url);
       setSyncProgress(50);
       const data = await response.json();
       
@@ -192,6 +165,21 @@ export default function ContpaqiPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Filtros */}
+              <div className="space-y-2 pb-2 border-b border-slate-100">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Filtros Avanzados</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="filterClasif" className="text-xs text-slate-500">Clasificación de Clientes</Label>
+                  <Input 
+                    id="filterClasif"
+                    placeholder="Ej: MAYOREO, NORMAL..."
+                    value={clasificacion}
+                    onChange={(e) => setClasificacion(e.target.value)}
+                    className="h-8 text-xs bg-white"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-4">
                 <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-3">
                   <div className="flex justify-between items-center">

@@ -9,6 +9,7 @@ import { getContpaqiService } from '@/lib/contpaqi-service';
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const target = searchParams.get('target') || 'all'; // all, clientes, productos
+    const clasificacion = searchParams.get('clasificacion') || undefined;
 
     try {
         const service = await getContpaqiService(prisma);
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
         }
 
         if (target === 'all' || target === 'clientes') {
-            const clientes = await service.getClientes();
+            const clientes = await service.getClientes(1, clasificacion);
             results.clientesCount = clientes.length;
             
             // Actualizar clientes en VertexERP
