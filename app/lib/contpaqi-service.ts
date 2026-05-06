@@ -30,7 +30,7 @@ export class ContpaqiService {
 
         if (!response.ok) {
             const error = await response.text();
-            throw new Error(`Contpaqi API Error (${response.status}): ${error}`);
+            throw new Error(`Contpaqi API Error (${response.status}) at ${url}: ${error}`);
         }
 
         return await response.json();
@@ -63,15 +63,24 @@ export class ContpaqiService {
     }
 
     async getEmpresas() {
-        try {
-            return await this.request('/api/empresas');
-        } catch (e) {
+        const endpoints = [
+            '/api/empresas',
+            '/api/v1/empresas',
+            '/api/Comercial/Empresas',
+            '/api/v1/Comercial/Empresas',
+            '/api/Catalogos/Empresas'
+        ];
+
+        for (const endpoint of endpoints) {
             try {
-                return await this.request('/api/Comercial/Empresas');
-            } catch (e2) {
-                return await this.request('/api/Catalogos/Empresas');
+                console.log(`🔍 Intentando cargar empresas desde: ${endpoint}`);
+                return await this.request(endpoint);
+            } catch (e) {
+                console.warn(`⚠️ Falló endpoint ${endpoint}:`, (e as Error).message);
+                continue;
             }
         }
+        throw new Error('No se pudo encontrar el endpoint de empresas en el servidor Contpaqi.');
     }
 
     async getConceptos() {
