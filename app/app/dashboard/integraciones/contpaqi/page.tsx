@@ -320,7 +320,12 @@ export default function ContpaqiMultiPage() {
                             </Button>
                           )}
                         </div>
-                        {metadata[empresa.id]?.conceptos ? (
+                        {fetchingMetadata[`${empresa.id}-conceptos`] ? (
+                          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
+                            <LucideIcons.RefreshCcw className="h-4 w-4 animate-spin text-blue-500" />
+                            <span className="text-xs text-slate-500">Cargando conceptos...</span>
+                          </div>
+                        ) : metadata[empresa.id]?.conceptos ? (
                           <Select 
                             value={empresa.conceptoAbono} 
                             onValueChange={(val) => handleUpdateEmpresa(empresa.id, 'conceptoAbono', val)}
@@ -383,7 +388,12 @@ export default function ContpaqiMultiPage() {
                               </Button>
                             )}
                           </div>
-                          {metadata[empresa.id]?.clasificaciones ? (
+                          {fetchingMetadata[`${empresa.id}-clasificaciones`] ? (
+                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
+                              <LucideIcons.RefreshCcw className="h-4 w-4 animate-spin text-indigo-500" />
+                              <span className="text-xs text-slate-500">Cargando clasificaciones...</span>
+                            </div>
+                          ) : metadata[empresa.id]?.clasificaciones ? (
                             <Select 
                               value={empresa.clasificacion} 
                               onValueChange={(val) => handleUpdateEmpresa(empresa.id, 'clasificacion', val)}

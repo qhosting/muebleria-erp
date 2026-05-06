@@ -24,14 +24,10 @@ export async function POST(request: NextRequest) {
                 data = await service.getEmpresas();
                 break;
             case 'conceptos':
-                // Algunas implementaciones de la API requieren abrir la empresa primero
-                // Si la API es stateless, el nombre de la empresa podría pasarse en la URL o header
-                // Por ahora asumimos que la API sabe qué empresa consultar si se configuró en el servidor
-                // o que getConceptos devuelve los de la empresa "actual".
-                data = await service.getConceptos();
+                data = await service.getConceptos(empresa);
                 break;
             case 'clasificaciones':
-                data = await service.getClasificaciones();
+                data = await service.getClasificaciones(empresa);
                 break;
             default:
                 return NextResponse.json({ error: 'Tipo de metadato no válido' }, { status: 400 });

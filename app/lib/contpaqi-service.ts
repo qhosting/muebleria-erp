@@ -91,19 +91,21 @@ export class ContpaqiService {
         throw new Error('No se pudo encontrar el endpoint de empresas en el servidor Contpaqi. Por favor, verifica la documentación de tu API wrapper.');
     }
 
-    async getConceptos() {
+    async getConceptos(empresa?: string) {
+        const query = empresa ? `?empresa=${encodeURIComponent(empresa)}` : '';
         try {
-            return await this.request('/api/conceptos');
+            return await this.request(`/api/conceptos${query}`);
         } catch (e) {
-            return await this.request('/api/Comercial/Conceptos');
+            return await this.request(`/api/Comercial/Conceptos${query}`);
         }
     }
 
-    async getClasificaciones() {
+    async getClasificaciones(empresa?: string) {
+        const query = empresa ? `?empresa=${encodeURIComponent(empresa)}` : '';
         try {
-            return await this.request('/api/clasificaciones');
+            return await this.request(`/api/clasificaciones${query}`);
         } catch (e) {
-            return await this.request('/api/Comercial/Clasificaciones');
+            return await this.request(`/api/Comercial/Clasificaciones${query}`);
         }
     }
 
