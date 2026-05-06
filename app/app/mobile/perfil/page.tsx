@@ -184,7 +184,7 @@ export default function MobilePerfilPage() {
                 </Button>
 
                 <div className="text-center text-xs text-slate-600 pt-4 flex flex-col gap-1">
-                    <p>VertexERP Muebles v{APP_VERSION}</p>
+                    <p>VertexERP Muebles</p>
                     <p className="opacity-50">© {new Date().getFullYear()} Aurum Capital Holding</p>
                 </div>
             </div>

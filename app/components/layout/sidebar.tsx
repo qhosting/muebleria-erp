@@ -350,10 +350,6 @@ export function Sidebar({ className, session }: SidebarProps) {
                 {userRole === 'vendedor' && 'Vendedor'}
                 {userRole === 'jefe_ventas' && 'Jefe de Ventas'}
               </p>
-              {/* Version Info */}
-              <div className="flex justify-center">
-                <VersionInfo showButton={true} />
-              </div>
             </div>
           )}
           <Button

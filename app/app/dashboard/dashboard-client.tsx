@@ -163,8 +163,6 @@ export function DashboardClient({ session: initialSession }: DashboardClientProp
           </div>
         </div>
 
-        {/* Version Banner */}
-        <VersionInfo compact />
 
         {/* Stats Grid - Solo para roles con permisos */}
         {stats && userRole !== 'cobrador' && (
