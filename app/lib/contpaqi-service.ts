@@ -81,7 +81,9 @@ export class ContpaqiService {
 
     // --- SALUD ---
     async verificarConexion() {
-        return await this.request('/api/health/verificar');
+        // El endpoint /health/verificar a veces falla en el servidor, 
+        // usamos /api/conceptos que es más estable para probar la conexión
+        return await this.request('/api/conceptos');
     }
 }
 
