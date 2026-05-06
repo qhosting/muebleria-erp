@@ -69,6 +69,8 @@ export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
             setSending(false);
         }
     };
+
+    return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-slate-900 w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-slate-800 shadow-2xl overflow-hidden max-h-[95vh] flex flex-col animate-in slide-in-from-bottom duration-300">
                 <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
