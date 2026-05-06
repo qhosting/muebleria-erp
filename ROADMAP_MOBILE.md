@@ -13,33 +13,35 @@ Digitalizar y optimizar la operación de cobranza en campo, proporcionando herra
 - [x] Lógica de autenticación con sesión persistente.
 - [x] Sincronización básica de clientes y pagos.
 
-### 🟡 Fase 2: Operación en Campo (90%)
+### 🟢 Fase 2: Operación en Campo (100%)
 - [x] Lista de clientes asignados con búsqueda.
 - [x] Registro de pagos (Capital, Interés, Moras).
 - [x] Registro de "Motararios" (visitas sin pago).
 - [x] Impresión de tickets vía Bluetooth.
-- [x] Envío de recibos por WhatsApp.
-- [x] Refinar captura de gastos administrativos (Desglose de capital vs. gastos).
+- [x] Envío de recibos y Avisos de Cobro por WhatsApp.
+- [x] Refinar captura de gastos administrativos.
 - [x] Identificar depósitos bancarios (Gestor vs Bot) en CAJA.
 
-### 🟠 Fase 3: Optimización y Notificaciones (50%)
+### 🟡 Fase 3: Optimización y Notificaciones (85%)
 - [x] Visualización de clientes en mapa (Leaflet).
 - [x] Apertura de navegación en Google Maps/Waze.
 - [x] Algoritmo de ruta óptima (TSP).
-- [x] Notificaciones Push para nuevas asignaciones (FCM/WebPush).
+- [x] Registro de Avisos de Cobro (Auditoría).
+- [x] Seguimiento de Convenios de Pago en la App.
+- [x] Indicadores de notificación (Red dots) en navegación.
 - [x] Registro de ubicación forzada al cobrar.
 
-### ⚪ Fase 4: Expansión e IA (20%)
+### 🟠 Fase 4: Expansión e IA (30%)
 - [x] Registro de Leads en campo.
-- [ ] **Pendiente:** Conversión Lead -> Cliente desde la App.
+- [ ] **Prioridad:** Conversión Lead -> Cliente desde la App (Flujo de aprobación).
 - [ ] **Pendiente:** Asistente de voz para notas de cobranza.
 - [ ] **Pendiente:** Dashboard de metas y gamificación para el cobrador.
 
 ---
 
 ## 🛠️ Próximos Pasos Inmediatos
-1. **Beta Testing:** Despliegue con 2 cobradores para validar el flujo de sincronización en condiciones de red inestable.
-2. **Capacitación:** Sesión con el equipo de cobranza sobre el nuevo desglose de pagos y optimización de rutas.
+1. **Flujo Lead -> Cliente:** Implementar la lógica para que el cobrador pueda formalizar un contrato desde el celular.
+2. **Validación de Avisos:** Revisar en el panel administrativo el reporte de avisos entregados.
 
 ---
 *Ultima actualización: 5 de Mayo de 2026*

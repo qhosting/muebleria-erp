@@ -8,18 +8,36 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { LeadModal } from "@/components/mobile/lead-modal";
-import { TrendingUp, Target, Package, DollarSign, Calendar, ChevronRight, User, MapPin } from "lucide-react";
+import { LeadConversionModal } from "@/components/mobile/lead-conversion-modal";
+import { TrendingUp, Target, Package, DollarSign, Calendar, ChevronRight, User, MapPin, UserPlus, Star, Tag, UserCheck } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 export default function SalesMobilePage() {
   const [data, setData] = useState<any>(null);
+  const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedLead, setSelectedLead] = useState<any>(null);
+  const [showConvertModal, setShowConvertModal] = useState(false);
 
   useEffect(() => {
     fetchMetrics();
+    fetchLeads();
   }, []);
+
+  const fetchLeads = async () => {
+    try {
+      const res = await fetch("/api/ventas/leads");
+      if (res.ok) {
+        const json = await res.json();
+        // Solo mostrar los que no han sido convertidos (estado !== 'convertido')
+        setLeads(json.filter((l: any) => l.estado !== 'convertido'));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchMetrics = async () => {
     setLoading(true);
@@ -153,6 +171,69 @@ export default function SalesMobilePage() {
             )}
           </div>
         </div>
+
+        {/* --- MIS PROSPECTOS (LEADS) --- */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <Star className="h-5 w-5 text-amber-500" />
+              Mis Prospectos
+            </h2>
+            <Badge variant="outline" className="rounded-full bg-white">{leads.length}</Badge>
+          </div>
+
+          <div className="space-y-3">
+            {leads.length === 0 ? (
+              <div className="p-8 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                <UserPlus className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-xs text-gray-500">No tienes prospectos pendientes.</p>
+              </div>
+            ) : (
+              leads.map((lead: any) => (
+                <Card key={lead.id} className="border-none shadow-sm rounded-2xl overflow-hidden">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-bold text-gray-900">{lead.nombre}</p>
+                        <p className="text-xs text-gray-500">{lead.telefono || "Sin teléfono"}</p>
+                      </div>
+                      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none">
+                        {lead.estado}
+                      </Badge>
+                    </div>
+                    
+                    <div className="flex items-center gap-1.5 text-xs text-gray-600 mb-4">
+                      <Tag className="h-3 w-3" />
+                      <span>Interés: {lead.interes || "General"}</span>
+                    </div>
+
+                    <Button 
+                      className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2"
+                      onClick={() => {
+                        setSelectedLead(lead);
+                        setShowConvertModal(true);
+                      }}
+                    >
+                      <UserCheck className="h-4 w-4" />
+                      CONVERTIR A CLIENTE
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* MODALES */}
+        <LeadConversionModal 
+          lead={selectedLead} 
+          open={showConvertModal} 
+          onOpenChange={setShowConvertModal}
+          onSuccess={() => {
+            fetchMetrics();
+            fetchLeads();
+          }}
+        />
       </div>
     </DashboardLayout>
   );
