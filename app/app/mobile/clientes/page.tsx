@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer } from "lucide-react";
+import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake } from "lucide-react";
 import { usePlatform } from "@/hooks/usePlatform";
 import { formatWhatsAppNumber } from "@/lib/utils";
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
+import { VerificacionModal } from "@/components/mobile/verificacion-modal";
+import { ConvenioModal } from "@/components/mobile/convenio-modal";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 export default function MobileClientes() {
@@ -27,6 +30,17 @@ export default function MobileClientes() {
     const [tipoPago, setTipoPago] = useState("regular");
     const [metodoPago, setMetodoPago] = useState("gestor");
     const [concepto, setConcepto] = useState("");
+    
+    // Estados para historial de pagos
+    const [historicoPagos, setHistoricoPagos] = useState<any[]>([]);
+    const [verHistorico, setVerHistorico] = useState(false);
+    const [cargandoHistorico, setCargandoHistorico] = useState(false);
+
+    // Estados para Verificación
+    const [verVerificacion, setVerVerificacion] = useState(false);
+
+    // Estados para Convenio
+    const [verConvenio, setVerConvenio] = useState(false);
 
     useEffect(() => {
         const fetchClientes = async () => {
@@ -132,6 +146,22 @@ Fecha: ${new Date().toLocaleDateString()}.
         } catch (error) {
             console.error("Error al imprimir aviso:", error);
             toast.error("Error al imprimir aviso de cobro");
+        }
+    };
+
+    const handleVerPagos = async (cliente: any) => {
+        setVerHistorico(true);
+        setCargandoHistorico(true);
+        try {
+            const res = await fetch(`/api/mobile/pagos?clienteId=${cliente.id}`);
+            if (res.ok) {
+                const data = await res.json();
+                setHistoricoPagos(data);
+            }
+        } catch (e) {
+            toast.error("Error al cargar historial");
+        } finally {
+            setCargandoHistorico(false);
         }
     };
 
@@ -361,9 +391,26 @@ Fecha: ${new Date().toLocaleDateString()}.
                                     <DollarSign className="w-5 h-5" />
                                     COBRAR AHORA
                                 </button>
-                                <button className="bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-[10px] font-bold uppercase tracking-tight active:scale-95 transition-all">PAGOS</button>
-                                <button className="bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-[10px] font-bold uppercase tracking-tight active:scale-95 transition-all">VERIFICAR VD</button>
-                                <button className="bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-xl text-[10px] font-bold uppercase tracking-tight active:scale-95 transition-all">CONVENIO</button>
+                                <button 
+                                    onClick={() => handleVerPagos(detailCliente)}
+                                    className="bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl text-[10px] font-bold uppercase tracking-tight active:scale-95 transition-all flex items-center justify-center gap-1"
+                                >
+                                    <History className="w-3.5 h-3.5" />
+                                    PAGOS
+                                </button>
+                                <button 
+                                    onClick={() => setVerVerificacion(true)}
+                                    className="bg-orange-600 hover:bg-orange-500 text-white py-3 rounded-xl text-[10px] font-bold uppercase tracking-tight active:scale-95 transition-all"
+                                >
+                                    VERIFICAR VD
+                                </button>
+                                <button 
+                                    onClick={() => setVerConvenio(true)}
+                                    className="bg-purple-600 hover:bg-purple-500 text-white py-3 rounded-xl text-[10px] font-bold uppercase tracking-tight active:scale-95 transition-all flex items-center justify-center gap-1"
+                                >
+                                    <Handshake className="w-3.5 h-3.5" />
+                                    CONVENIO
+                                </button>
                                 <button 
                                     onClick={() => handleAvisoCobro(detailCliente)}
                                     className="col-span-3 bg-amber-600/10 text-amber-500 py-3 rounded-xl text-[10px] font-bold uppercase mt-1 border border-amber-500/20 active:bg-amber-600/20 transition-all flex items-center justify-center gap-2"
@@ -520,6 +567,97 @@ Fecha: ${new Date().toLocaleDateString()}.
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* MODAL HISTORIAL DE PAGOS */}
+            {verHistorico && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
+                    <div className="bg-slate-900 w-full max-w-sm rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                        <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-800/30">
+                            <div className="flex items-center gap-2">
+                                <History className="w-5 h-5 text-blue-400" />
+                                <h3 className="font-bold text-white text-base">Historial de Pagos</h3>
+                            </div>
+                            <button onClick={() => setVerHistorico(false)} className="p-2 rounded-full hover:bg-slate-800 text-slate-400">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                            {cargandoHistorico ? (
+                                <div className="flex flex-col items-center justify-center py-20 space-y-3">
+                                    <div className="w-8 h-8 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Consultando Servidor...</p>
+                                </div>
+                            ) : historicoPagos.length === 0 ? (
+                                <div className="text-center py-20 opacity-40">
+                                    <DollarSign className="w-12 h-12 mx-auto mb-3 text-slate-600" />
+                                    <p className="text-sm font-bold">Sin pagos registrados</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {historicoPagos.map((pago) => (
+                                        <div key={pago.id} className="bg-slate-950/50 border border-slate-800/50 p-4 rounded-2xl flex justify-between items-center">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-black text-white">${Number(pago.monto)}</span>
+                                                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase border ${
+                                                        pago.metodoPago === 'bancario' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                    }`}>
+                                                        {pago.metodoPago}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 text-slate-500">
+                                                    <Calendar className="w-3 h-3" />
+                                                    <span className="text-[10px] font-bold">{new Date(pago.fechaPago).toLocaleDateString()}</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[9px] text-slate-500 uppercase font-black">Concepto</p>
+                                                <p className="text-[10px] text-slate-300 font-bold">{pago.concepto || 'Pago Regular'}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="p-4 bg-slate-950/50 border-t border-slate-800">
+                            <Button 
+                                onClick={() => setVerHistorico(false)}
+                                className="w-full bg-slate-800 text-white rounded-xl py-3 font-bold text-xs"
+                            >
+                                ENTENDIDO
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL VERIFICACIÓN VD */}
+            {detailCliente && (
+                <VerificacionModal 
+                    cliente={detailCliente}
+                    isOpen={verVerificacion}
+                    onClose={() => setVerVerificacion(false)}
+                    onSuccess={() => {
+                        setVerVerificacion(false);
+                    }}
+                    isOnline={true}
+                />
+            )}
+
+            {/* MODAL CONVENIO DE PAGO */}
+            {detailCliente && (
+                <ConvenioModal 
+                    cliente={detailCliente}
+                    isOpen={verConvenio}
+                    onClose={() => setVerConvenio(false)}
+                    onSuccess={() => {
+                        setVerConvenio(false);
+                    }}
+                    isOnline={true}
+                />
             )}
         </div>
     );

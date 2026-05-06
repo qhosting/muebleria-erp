@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
     Handshake,
@@ -17,16 +16,15 @@ import {
     Wifi,
     WifiOff,
     DollarSign,
-    User,
     MapPin,
-    ClipboardList
+    AlertCircle,
+    Info
 } from "lucide-react";
-import { OfflineCliente } from "@/lib/offline-db";
-import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatCurrency } from "@/lib/utils";
 
 interface ConvenioModalProps {
-    cliente: OfflineCliente;
+    cliente: any;
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
@@ -34,11 +32,11 @@ interface ConvenioModalProps {
 }
 
 const tiposConvenio = [
-    { value: "reestructura", label: "Reestructura de Deuda" },
-    { value: "pago_parcial", label: "Pago Parcial Acordado" },
-    { value: "liquidacion", label: "Liquidación con Descuento" },
-    { value: "promesa_pago", label: "Promesa de Pago Único" },
-    { value: "otro", label: "Otro Acuerdo" }
+    { value: "reestructura", label: "Reestructura" },
+    { value: "pago_parcial", label: "Pago Parcial" },
+    { value: "liquidacion", label: "Liquidación" },
+    { value: "promesa_pago", label: "Promesa Única" },
+    { value: "otro", label: "Otro" }
 ];
 
 export function ConvenioModal({ cliente, isOpen, onClose, onSuccess, isOnline }: ConvenioModalProps) {
@@ -48,26 +46,25 @@ export function ConvenioModal({ cliente, isOpen, onClose, onSuccess, isOnline }:
     const [fecha, setFecha] = useState("");
     const [comentario, setComentario] = useState("");
     const [loading, setLoading] = useState(false);
-    const [coords, setCoords] = useState<{ lat: string, lng: string } | null>(null);
+    const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
 
     useEffect(() => {
         if (isOpen) {
             setTipoConvenio("promesa_pago");
-            setMonto(cliente.montoAcordado.toString());
+            setMonto(cliente.pagoSemanal?.toString() || "");
             setFecha("");
             setComentario("");
 
-            // Intentar obtener ubicación
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((pos) => {
                     setCoords({
-                        lat: pos.coords.latitude.toString(),
-                        lng: pos.coords.longitude.toString()
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude
                     });
-                }, (err) => console.warn("Error de geolocalización:", err));
+                });
             }
         }
-    }, [isOpen, cliente.montoAcordado]);
+    }, [isOpen, cliente]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -91,27 +88,19 @@ export function ConvenioModal({ cliente, isOpen, onClose, onSuccess, isOnline }:
                 monto: parseFloat(monto),
                 fecha: new Date(fecha).toISOString(),
                 comentario: comentario.trim(),
-                latitud: coords?.lat,
-                longitud: coords?.lng,
+                latitud: coords?.lat?.toString(),
+                longitud: coords?.lng?.toString(),
             };
 
-            if (isOnline) {
-                const response = await fetch("/api/clientes/convenios", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(convenioData)
-                });
+            const response = await fetch("/api/clientes/convenios", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(convenioData)
+            });
 
-                if (!response.ok) throw new Error("Error al registrar convenio");
-                toast.success("Convenio registrado exitosamente");
-            } else {
-                // En un escenario real, añadiríamos esto a la cola de sincronización de IndexedDB
-                // Por ahora, como es una nueva funcionalidad, notificamos
-                toast.error("La carga de convenios requiere conexión actualmente");
-                setLoading(false);
-                return;
-            }
-
+            if (!response.ok) throw new Error("Error al registrar convenio");
+            
+            toast.success("Convenio registrado exitosamente");
             onSuccess();
             onClose();
         } catch (error) {
@@ -126,110 +115,111 @@ export function ConvenioModal({ cliente, isOpen, onClose, onSuccess, isOnline }:
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto p-0 border-none rounded-2xl overflow-hidden shadow-2xl">
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white">
+            <DialogContent className="max-w-md max-h-[95vh] overflow-y-auto p-0 border-none rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl bg-slate-950">
+                <div className="bg-purple-600 p-6 text-white sticky top-0 z-10 shadow-lg">
                     <div className="flex items-center justify-between mb-2">
                         <Badge variant="outline" className="border-white/30 text-white bg-white/10 backdrop-blur-sm">
-                            {isOnline ? <><Wifi className="w-3 h-3 mr-1" /> ONLINE</> : <><WifiOff className="w-3 h-3 mr-1" /> OFFLINE</>}
+                            CONVENIO
                         </Badge>
-                        <Handshake className="h-6 w-6 opacity-50" />
+                        <Handshake className="h-6 w-6" />
                     </div>
-                    <DialogTitle className="text-2xl font-bold">Convenio de Pago</DialogTitle>
-                    <DialogDescription className="text-blue-100 font-light">
-                        Registra un nuevo acuerdo de pago con el cliente.
+                    <DialogTitle className="text-2xl font-black">Convenio de Pago</DialogTitle>
+                    <DialogDescription className="text-purple-100 font-medium">
+                        Formaliza un compromiso de pago con el cliente.
                     </DialogDescription>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-5 bg-white">
-                    <Card className="border-dashed bg-gray-50/50">
-                        <CardContent className="p-4 space-y-3">
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
-                                    {cliente.nombreCompleto.substring(0, 1)}
-                                </div>
-                                <div>
-                                    <h4 className="font-bold text-gray-900 leading-none">{cliente.nombreCompleto}</h4>
-                                    <span className="text-xs text-gray-500 font-mono">{cliente.id.slice(-8)}</span>
-                                </div>
-                            </div>
-                            <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-                                <span className="text-xs text-gray-400 uppercase font-bold tracking-tighter">Saldo Pendiente</span>
-                                <span className="font-black text-red-600">{formatCurrency(cliente.saldoPendiente)}</span>
-                            </div>
-                        </CardContent>
-                    </Card>
+                <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                    {/* INFO CLIENTE */}
+                    <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center gap-4">
+                        <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-500 font-bold">
+                            {cliente.nombre.charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Saldo Pendiente</p>
+                            <p className="text-xl font-black text-white">{formatCurrency(cliente.saldo)}</p>
+                        </div>
+                    </div>
 
                     <div className="space-y-4">
-                        <div className="space-y-1.5">
-                            <Label className="text-[11px] font-bold uppercase text-gray-400 ml-1">Modalidad del Acuerdo</Label>
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase text-slate-500 ml-1">Tipo de Acuerdo</Label>
                             <Select value={tipoConvenio} onValueChange={setTipoConvenio}>
-                                <SelectTrigger className="h-12 border-gray-100 bg-gray-50 rounded-xl focus:bg-white transition-all">
+                                <SelectTrigger className="h-12 bg-slate-900 border-slate-800 text-white rounded-xl focus:ring-purple-500">
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="bg-slate-900 border-slate-800 text-white">
                                     {tiposConvenio.map((t) => (
-                                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                                        <SelectItem key={t.value} value={t.value} className="focus:bg-purple-600 focus:text-white">{t.label}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <Label className="text-[11px] font-bold uppercase text-gray-400 ml-1">Monto Acordado</Label>
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase text-slate-500 ml-1">Monto del Pago</Label>
                                 <div className="relative">
-                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-purple-500" />
                                     <Input
                                         type="number"
                                         value={monto}
                                         onChange={(e) => setMonto(e.target.value)}
-                                        className="h-12 pl-9 border-gray-100 bg-gray-50 rounded-xl focus:bg-white text-lg font-bold"
-                                        placeholder="0.00"
+                                        className="h-12 pl-9 bg-slate-900 border-slate-800 text-white rounded-xl focus:ring-purple-500 font-bold"
+                                        placeholder="0"
                                     />
                                 </div>
                             </div>
-                            <div className="space-y-1.5">
-                                <Label className="text-[11px] font-bold uppercase text-gray-400 ml-1">Fecha Compromiso</Label>
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase text-slate-500 ml-1">Fecha Límite</Label>
                                 <div className="relative">
-                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-purple-500" />
                                     <Input
                                         type="date"
                                         value={fecha}
                                         onChange={(e) => setFecha(e.target.value)}
-                                        className="h-12 pl-9 border-gray-100 bg-gray-50 rounded-xl focus:bg-white"
+                                        className="h-12 pl-9 bg-slate-900 border-slate-800 text-white rounded-xl focus:ring-purple-500"
                                     />
                                 </div>
                             </div>
                         </div>
 
-                        <div className="space-y-1.5">
-                            <Label className="text-[11px] font-bold uppercase text-gray-400 ml-1">Observaciones / Comprobación</Label>
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase text-slate-500 ml-1">Detalles del Compromiso</Label>
                             <Textarea
                                 value={comentario}
                                 onChange={(e) => setComentario(e.target.value)}
-                                placeholder="Detalles del acuerdo, testigos o justificación..."
-                                className="resize-none border-gray-100 bg-gray-50 rounded-xl min-h-[100px] focus:bg-white transition-all text-sm"
+                                placeholder="¿Con quién se hizo el trato? ¿Hay alguna condición especial?"
+                                className="bg-slate-900 border-slate-800 text-white rounded-xl min-h-[100px] text-sm focus:ring-purple-500"
                             />
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-3 pt-4">
+                    {/* STATUS GPS */}
+                    <div className={`p-3 rounded-xl border flex items-center gap-3 ${
+                        coords ? 'bg-purple-600/10 border-purple-600/20 text-purple-400' : 'bg-amber-600/10 border-amber-600/20 text-amber-500'
+                    }`}>
+                        <MapPin className="w-4 h-4" />
+                        <p className="text-[10px] font-bold uppercase tracking-tight">
+                            {coords ? "Ubicación Georeferenciada" : "Fijando ubicación del acuerdo..."}
+                        </p>
+                    </div>
+
+                    <div className="flex flex-col gap-3 pt-2">
                         <Button
                             type="submit"
                             disabled={loading}
-                            className="h-14 bg-indigo-600 hover:bg-indigo-700 rounded-2xl shadow-lg shadow-indigo-100 font-bold text-lg"
+                            className="h-14 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl shadow-lg shadow-purple-900/20 font-black text-base"
                         >
-                            {loading ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                            Confirmar Convenio
+                            {loading ? "GUARDANDO..." : "REGISTRAR CONVENIO"}
                         </Button>
                         <Button
                             type="button"
                             variant="ghost"
                             onClick={onClose}
-                            disabled={loading}
-                            className="h-12 text-gray-400 font-medium hover:text-red-500 hover:bg-red-50 rounded-xl"
+                            className="text-slate-500 font-bold"
                         >
-                            Cancelar
+                            CANCELAR
                         </Button>
                     </div>
                 </form>
