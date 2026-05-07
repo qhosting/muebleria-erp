@@ -338,9 +338,9 @@ async function handleOficina(from: string, payload: any, session: string, agentN
     
     // Si la sesión del webhook es diferente a la de leads configurada, 
     // intentamos usar la sesión que recibió el mensaje para responder
-    if (session && session !== wahaConfig.wahaSessionName) {
-        console.log(`🔄 [Oficina] Usando sesión de origen (${session}) en lugar de la configurada (${wahaConfig.wahaSessionName})`);
-        wahaConfig.wahaSessionName = session;
+    if (session && session !== wahaConfig.session) {
+        console.log(`🔄 [Oficina] Usando sesión de origen (${session}) en lugar de la configurada (${wahaConfig.session})`);
+        wahaConfig.session = session;
     }
 
     if (wahaConfig.apiUrl) {
