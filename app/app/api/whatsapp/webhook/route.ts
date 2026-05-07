@@ -17,15 +17,31 @@ export async function POST(request: NextRequest) {
         const { event, payload, session } = body;
 
         // Solo procesamos mensajes entrantes de otros
-        if (event !== 'message' || !payload || payload.fromMe) {
+        if (event !== 'message' || !payload) {
+            return NextResponse.json({ status: 'ignored' });
+        }
+
+        // ANTI-BUCLE: Ignorar si el mensaje lo envié yo
+        if (payload.fromMe === true) {
+            console.log(`ℹ️ [${session}] Ignorando mensaje enviado por mí (fromMe: true)`);
             return NextResponse.json({ status: 'ignored' });
         }
 
         const from = payload.from.split('@')[0]; // Número de teléfono sin @c.us
-        const messageBody = payload.body || '';
+        const messageBody = (payload.body || '').trim();
         const messageType = payload.type; // 'chat', 'image', etc.
 
+        // Blacklist de seguridad (No contestar a números de sistema o a uno mismo si fromMe falló)
+        const botNumbers = ['5214272061791', '5214429800772']; // Agregamos los números conocidos de los bots
+        if (botNumbers.includes(from)) {
+            console.log(`ℹ️ [${session}] Anti-bucle: El bot ${from} intentó hablarse a sí mismo. Ignorado.`);
+            return NextResponse.json({ status: 'ignored_self' });
+        }
+
         console.log(`📩 [${session}] Mensaje de ${from}: ${messageType === 'image' ? '[IMAGEN]' : messageBody}`);
+        if (from.length > 15) {
+            console.log(`🔍 [DEBUG] ID de remitente inusual detectado: ${payload.from}. Analizar formato en WAHA.`);
+        }
 
         // Obtener configuración global para ver qué canal es este
         const configRecord = await prisma.configuracionSistema.findUnique({
@@ -315,6 +331,14 @@ async function handleOficina(from: string, payload: any, session: string, agentN
 
     // 6. Enviar respuesta por WhatsApp
     const wahaConfig = await getWahaConfig(prisma, 'leads');
+    
+    // Si la sesión del webhook es diferente a la de leads configurada, 
+    // intentamos usar la sesión que recibió el mensaje para responder
+    if (session && session !== wahaConfig.wahaSessionName) {
+        console.log(`🔄 [Oficina] Usando sesión de origen (${session}) en lugar de la configurada (${wahaConfig.wahaSessionName})`);
+        wahaConfig.wahaSessionName = session;
+    }
+
     if (wahaConfig.apiUrl) {
         try {
             await sendWahaMessage(wahaConfig, from, aiResponse.respuesta);
