@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         const botNumbers = [
             '524272061791', 
             '524429800772', 
-            '183785962352805', // WABA ID detectado en logs
+            // '183785962352805', // Comentado temporalmente para dejar pasar mensajes de usuario
             '5214429800772'
         ];
         
@@ -61,15 +61,7 @@ export async function POST(request: NextRequest) {
         // DEBUG: Ver todos los mensajes para diagnosticar el ID inusual
         console.log(`📩 [${session}] Mensaje de ${from} (${payload.from}). Body: ${messageBody.slice(0, 50)}`);
         if (from === '183785962352805' || from.length > 15) {
-            console.log(`🔍 [DEBUG] Detalle ID inusual:`, JSON.stringify({
-                from: payload.from,
-                fromMe: payload.fromMe,
-                type: payload.type,
-                chatId: payload.chatId,
-                author: payload.author,
-                participant: payload.participant,
-                to: payload.to
-            }));
+            console.log(`🔍 [DEBUG] PAYLOAD COMPLETO (ID INUSUAL):`, JSON.stringify(payload, null, 2));
         }
 
         // Obtener configuración global para ver qué canal es este
