@@ -415,6 +415,7 @@ export default function ConfiguracionPage() {
                         onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, leadsAgentName: e.target.value } })}
                       />
                     </div>
+                    <div>
                       <Label htmlFor="leadsSession">Sesión WAHA (Ventas)</Label>
                       <Input
                         id="leadsSession"
@@ -460,6 +461,7 @@ export default function ConfiguracionPage() {
                         onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, tesoreriaAgentName: e.target.value } })}
                       />
                     </div>
+                    <div>
                       <Label htmlFor="tesoreriaSession">Sesión WAHA (Tesorería)</Label>
                       <Input
                         id="tesoreriaSession"
