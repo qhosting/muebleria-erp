@@ -44,15 +44,15 @@ interface ConfiguracionSistema {
     wahaApiUrl: string;
     wahaSessionName: string;
     wahaApiKey?: string;
-    // Leads / Ventas
+    tesoreriaWahaSession?: string;
+    tesoreriaWahaApiUrl?: string;
+    tesoreriaWahaApiKey?: string;
+    tesoreriaAgentName?: string;
+    
+    leadsWahaApiKey?: string;
     leadsWahaSession?: string;
     leadsWahaApiUrl?: string;
     leadsAgentName?: string;
-    openaiApiKey?: string;
-    // Tesorería / Pagos
-    tesoreriaWahaSession?: string;
-    tesoreriaWahaApiUrl?: string;
-    tesoreriaAgentName?: string;
     
     globalAgentName?: string;
     
@@ -95,10 +95,12 @@ export default function ConfiguracionPage() {
       wahaApiKey: '',
       leadsWahaSession: '',
       leadsWahaApiUrl: '',
+      leadsWahaApiKey: '',
       leadsAgentName: 'Sofía (Ventas)',
       openaiApiKey: '',
       tesoreriaWahaSession: '',
       tesoreriaWahaApiUrl: '',
+      tesoreriaWahaApiKey: '',
       tesoreriaAgentName: 'Asistente de Tesorería',
       globalAgentName: 'Asistente Global',
       emailEnabled: true,
@@ -413,13 +415,22 @@ export default function ConfiguracionPage() {
                         onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, leadsAgentName: e.target.value } })}
                       />
                     </div>
-                    <div>
                       <Label htmlFor="leadsSession">Sesión WAHA (Ventas)</Label>
                       <Input
                         id="leadsSession"
                         placeholder="Ej. ventas_session"
                         value={config.notificaciones.leadsWahaSession || ''}
                         onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, leadsWahaSession: e.target.value } })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="leadsApiKey">API Key (Ventas)</Label>
+                      <Input
+                        id="leadsApiKey"
+                        type="password"
+                        placeholder="Key específica para ventas"
+                        value={config.notificaciones.leadsWahaApiKey || ''}
+                        onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, leadsWahaApiKey: e.target.value } })}
                       />
                     </div>
                     <div className="md:col-span-2">
@@ -449,13 +460,22 @@ export default function ConfiguracionPage() {
                         onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, tesoreriaAgentName: e.target.value } })}
                       />
                     </div>
-                    <div>
                       <Label htmlFor="tesoreriaSession">Sesión WAHA (Tesorería)</Label>
                       <Input
                         id="tesoreriaSession"
                         placeholder="Ej. tesoreria_session"
                         value={config.notificaciones.tesoreriaWahaSession || ''}
                         onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, tesoreriaWahaSession: e.target.value } })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="tesoreriaApiKey">API Key (Tesorería)</Label>
+                      <Input
+                        id="tesoreriaApiKey"
+                        type="password"
+                        placeholder="Key específica para pagos"
+                        value={config.notificaciones.tesoreriaWahaApiKey || ''}
+                        onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, tesoreriaWahaApiKey: e.target.value } })}
                       />
                     </div>
                   </div>

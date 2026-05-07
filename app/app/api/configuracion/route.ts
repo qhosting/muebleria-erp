@@ -88,11 +88,13 @@ export async function GET(request: NextRequest) {
       // Ventas / Leads
       leadsWahaSession: notif.leadsWahaSession || process.env.WAHA_SESSION_LEADS || '',
       leadsWahaApiUrl: notif.leadsWahaApiUrl || process.env.WAHA_API_URL_LEADS || '',
+      leadsWahaApiKey: notif.leadsWahaApiKey || process.env.WAHA_API_KEY_LEADS || '',
       leadsAgentName: notif.leadsAgentName || 'Sofía (Ventas)',
       
       // Tesorería
       tesoreriaWahaSession: notif.tesoreriaWahaSession || process.env.WAHA_SESSION_TESORERIA || '',
       tesoreriaWahaApiUrl: notif.tesoreriaWahaApiUrl || process.env.WAHA_API_URL_TESORERIA || '',
+      tesoreriaWahaApiKey: notif.tesoreriaWahaApiKey || process.env.WAHA_API_KEY_TESORERIA || '',
       tesoreriaAgentName: notif.tesoreriaAgentName || 'Asistente de Tesorería'
     };
 

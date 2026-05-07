@@ -51,24 +51,26 @@ export async function getWahaConfig(prisma?: any, botType?: 'tesoreria' | 'leads
             if (config?.notificaciones) {
                 const notif = config.notificaciones as any;
                 
-                // Buscar sesión específica por botType en el JSON de configuración
-                let botSession = notif.wahaSessionName || notif.wahaSession || envConfig.session;
+                // 1. Determinar URL (Prioridad: Específica > Global)
                 let botApiUrl = notif.wahaApiUrl || envConfig.apiUrl;
+                if (botType === 'tesoreria' && notif.tesoreriaWahaApiUrl) botApiUrl = notif.tesoreriaWahaApiUrl;
+                if (botType === 'leads' && notif.leadsWahaApiUrl) botApiUrl = notif.leadsWahaApiUrl;
 
-                if (botType === 'tesoreria') {
-                    if (notif.tesoreriaWahaSession) botSession = notif.tesoreriaWahaSession;
-                    if (notif.tesoreriaWahaApiUrl) botApiUrl = notif.tesoreriaWahaApiUrl;
-                }
-                
-                if (botType === 'leads') {
-                    if (notif.leadsWahaSession) botSession = notif.leadsWahaSession;
-                    if (notif.leadsWahaApiUrl) botApiUrl = notif.leadsWahaApiUrl;
-                }
+                // 2. Determinar Sesión (Prioridad: Específica > Global)
+                let botSession = notif.wahaSessionName || notif.wahaSession || envConfig.session;
+                if (botType === 'tesoreria' && notif.tesoreriaWahaSession) botSession = notif.tesoreriaWahaSession;
+                if (botType === 'leads' && notif.leadsWahaSession) botSession = notif.leadsWahaSession;
+
+                // 3. Determinar API Key (Prioridad: Específica > Global)
+                // Cada sesión puede tener su propio API Key
+                let botApiKey = notif.wahaApiKey || envConfig.apiKey;
+                if (botType === 'tesoreria' && notif.tesoreriaWahaApiKey) botApiKey = notif.tesoreriaWahaApiKey;
+                if (botType === 'leads' && notif.leadsWahaApiKey) botApiKey = notif.leadsWahaApiKey;
 
                 return {
                     apiUrl: botApiUrl,
                     session: botSession,
-                    apiKey: notif.wahaApiKey || envConfig.apiKey
+                    apiKey: botApiKey
                 };
             }
         } catch (error) {
