@@ -23,6 +23,9 @@ export async function POST(request: NextRequest) {
             case 'empresas':
                 data = await service.getEmpresas();
                 break;
+            case 'discovery':
+                data = await service.getMetadata();
+                break;
             case 'conceptos':
                 data = await service.getConceptos(empresa);
                 break;

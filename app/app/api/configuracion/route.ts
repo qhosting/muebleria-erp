@@ -103,8 +103,8 @@ export async function GET(request: NextRequest) {
         {
           id: 'default',
           nombre: 'Empresa Principal',
-          apiUrl: process.env.CONTPAQI_API_URL || 'http://vortex520.qhosting.net:5000',
-          apiKey: process.env.CONTPAQI_API_KEY || 'VERTEX123_CONTPAQI_ERP_2024',
+          apiUrl: process.env.CONTPAQI_API_URL || 'http://localhost:5000',
+          apiKey: process.env.CONTPAQI_API_KEY || 'VortexContpaqiAPI2024',
           conceptoAbono: process.env.CONTPAQI_CONCEPTO_ABONO || 'ABONO CLIENTE',
           clasificacion: 'COBRANZA NORMAL',
           ruta: '',

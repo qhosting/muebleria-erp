@@ -108,8 +108,8 @@ export default function ContpaqiMultiPage() {
     const newEmpresa: EmpresaContpaqi = {
       id: Math.random().toString(36).substr(2, 9),
       nombre: 'Nueva Empresa',
-      apiUrl: 'http://vortex520.qhosting.net:5000',
-      apiKey: 'VERTEX123_CONTPAQI_ERP_2024',
+      apiUrl: 'http://localhost:5000',
+      apiKey: 'VortexContpaqiAPI2024',
       conceptoAbono: 'ABONO CLIENTE',
       clasificacion: 'COBRANZA NORMAL',
       ruta: '',

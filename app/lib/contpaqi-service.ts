@@ -132,6 +132,7 @@ export class ContpaqiService {
     async getClasificaciones(empresa?: string) {
         const query = empresa ? `?empresa=${encodeURIComponent(empresa)}` : '';
         const endpoints = [
+            `/api/contpaqi/clasificaciones${query}`,
             `/api/clasificaciones${query}`,
             `/api/Comercial/Clasificaciones${query}`,
             `/api/v1/Comercial/Clasificaciones${query}`,
@@ -200,6 +201,11 @@ export class ContpaqiService {
         return await this.request('/api/webhooks');
     }
 
+    // --- METADATOS / DISCOVERY ---
+    async getMetadata() {
+        return await this.request('/api/contpaqi/metadata');
+    }
+
     // --- SALUD ---
     async verificarConexion() {
         // El endpoint /health/verificar a veces falla en el servidor, 
@@ -212,8 +218,8 @@ export class ContpaqiService {
  * Obtiene la instancia del servicio usando variables de entorno o configuración de DB
  */
 export async function getContpaqiService(prisma?: any): Promise<ContpaqiService> {
-    let apiUrl = process.env.CONTPAQI_API_URL || 'http://vortex520.qhosting.net:5000';
-    let apiKey = process.env.CONTPAQI_API_KEY || 'VERTEX123_CONTPAQI_ERP_2024';
+    let apiUrl = process.env.CONTPAQI_API_URL || 'http://localhost:5000';
+    let apiKey = process.env.CONTPAQI_API_KEY || 'VortexContpaqiAPI2024';
 
     if (prisma) {
         const config = await prisma.configuracionSistema.findUnique({
