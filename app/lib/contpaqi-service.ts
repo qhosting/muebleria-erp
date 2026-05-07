@@ -125,6 +125,30 @@ export class ContpaqiService {
         }
     }
 
+    async getCampos(tabla: 'clientes' | 'productos', empresa?: string) {
+        const query = empresa ? `?empresa=${encodeURIComponent(empresa)}` : '';
+        try {
+            // Intentamos obtener el primer registro para extraer los campos
+            const endpoint = tabla === 'clientes' ? '/api/clientes' : '/api/productos';
+            const data = await this.request(`${endpoint}${query}${query.includes('?') ? '&' : '?'}limit=1`);
+            
+            if (Array.isArray(data) && data.length > 0) {
+                return Object.keys(data[0]);
+            }
+            
+            // Si falla el limit, intentamos normal
+            const dataFull = await this.request(`${endpoint}${query}`);
+            if (Array.isArray(dataFull) && dataFull.length > 0) {
+                return Object.keys(dataFull[0]);
+            }
+
+            return [];
+        } catch (e) {
+            console.warn(`⚠️ No se pudieron obtener campos para ${tabla}:`, (e as Error).message);
+            return [];
+        }
+    }
+
     // --- DOCUMENTOS ---
 
     async createDocumento(data: any) {

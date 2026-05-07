@@ -65,7 +65,6 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
         const heartbeatInterval = setInterval(sendHeartbeat, 300000); // Cada 5 minutos
 
         return () => {
-            clearInterval(interval);
             clearInterval(heartbeatInterval);
         };
     }, []);

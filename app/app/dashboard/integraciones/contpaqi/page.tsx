@@ -51,6 +51,30 @@ interface EmpresaContpaqi {
   };
 }
 
+const CLIENTE_FIELDS = [
+  { key: 'codigoCliente', label: 'Código Cliente' },
+  { key: 'nombreCompleto', label: 'Nombre Completo' },
+  { key: 'telefono', label: 'Teléfono' },
+  { key: 'direccionCompleta', label: 'Dirección' },
+  { key: 'saldoActual', label: 'Saldo Actual' },
+  { key: 'montoPago', label: 'Monto Pago' },
+  { key: 'periodicidad', label: 'Periodicidad' },
+  { key: 'vendedor', label: 'Vendedor' },
+  { key: 'codigoGestor', label: 'Código Gestor' },
+  { key: 'fechaVenta', label: 'Fecha Venta' },
+  { key: 'importe1', label: 'Precio Contado' },
+  { key: 'importe2', label: 'Vendido En' },
+  { key: 'importe3', label: 'Precio 6 Meses' },
+  { key: 'importe4', label: 'Precio 12 Meses' },
+];
+
+const PRODUCTO_FIELDS = [
+  { key: 'codigo', label: 'Código' },
+  { key: 'nombre', label: 'Nombre Producto' },
+  { key: 'precioVenta', label: 'Precio Venta' },
+  { key: 'existencias', label: 'Existencias' },
+];
+
 export default function ContpaqiMultiPage() {
   const [empresas, setEmpresas] = useState<EmpresaContpaqi[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,7 +119,17 @@ export default function ContpaqiMultiPage() {
           nombreCompleto: 'Nombre',
           codigoCliente: 'Codigo',
           saldoActual: 'Saldo',
-          direccionCompleta: 'Direccion'
+          direccionCompleta: 'Direccion',
+          telefono: 'Telefono',
+          vendedor: 'Vendedor',
+          codigoGestor: 'Gestor',
+          montoPago: 'Pago',
+          periodicidad: 'Periodo',
+          fechaVenta: 'Fecha',
+          importe1: 'Importe1',
+          importe2: 'Importe2',
+          importe3: 'Importe3',
+          importe4: 'Importe4'
         },
         productos: {
           nombre: 'Nombre',
@@ -145,7 +179,7 @@ export default function ContpaqiMultiPage() {
     }
   };
 
-  const handleFetchMetadata = async (empresa: EmpresaContpaqi, type: 'empresas' | 'conceptos' | 'clasificaciones') => {
+  const handleFetchMetadata = async (empresa: EmpresaContpaqi, type: 'empresas' | 'conceptos' | 'clasificaciones' | 'campos_clientes' | 'campos_productos') => {
     const key = `${empresa.id}-${type}`;
     setFetchingMetadata(prev => ({ ...prev, [key]: true }));
     try {
@@ -471,97 +505,102 @@ export default function ContpaqiMultiPage() {
                         <LucideIcons.Link2 className="h-4 w-4 text-emerald-500" />
                         Mapeo de Datos (VertexERP ← Contpaqi)
                       </div>
-                      
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         {/* Clientes Mapping */}
                         <div className="space-y-3">
-                          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <LucideIcons.Users className="h-3 w-3" />
-                            Catálogo Clientes
-                          </h4>
-                          <div className="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                            <div className="grid grid-cols-2 gap-3 items-center">
-                              <Label className="text-[10px] text-slate-500">Nombre Completo</Label>
-                              <Input 
-                                value={empresa.mapping?.clientes?.nombreCompleto || 'Nombre'} 
-                                onChange={(e) => handleUpdateMapping(empresa.id, 'clientes', 'nombreCompleto', e.target.value)}
-                                className="h-8 text-xs bg-white"
-                                placeholder="Campo en Contpaqi"
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3 items-center">
-                              <Label className="text-[10px] text-slate-500">Código Cliente</Label>
-                              <Input 
-                                value={empresa.mapping?.clientes?.codigoCliente || 'Codigo'} 
-                                onChange={(e) => handleUpdateMapping(empresa.id, 'clientes', 'codigoCliente', e.target.value)}
-                                className="h-8 text-xs bg-white"
-                                placeholder="Campo en Contpaqi"
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3 items-center">
-                              <Label className="text-[10px] text-slate-500">Saldo Actual</Label>
-                              <Input 
-                                value={empresa.mapping?.clientes?.saldoActual || 'Saldo'} 
-                                onChange={(e) => handleUpdateMapping(empresa.id, 'clientes', 'saldoActual', e.target.value)}
-                                className="h-8 text-xs bg-white"
-                                placeholder="Campo en Contpaqi"
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3 items-center">
-                              <Label className="text-[10px] text-slate-500">Dirección</Label>
-                              <Input 
-                                value={empresa.mapping?.clientes?.direccionCompleta || 'Direccion'} 
-                                onChange={(e) => handleUpdateMapping(empresa.id, 'clientes', 'direccionCompleta', e.target.value)}
-                                className="h-8 text-xs bg-white"
-                                placeholder="Campo en Contpaqi"
-                              />
-                            </div>
+                          <div className="flex justify-between items-center">
+                            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                              <LucideIcons.Users className="h-3 w-3" />
+                              Catálogo Clientes
+                            </h4>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-6 text-[10px] text-blue-600 hover:text-blue-700 p-0"
+                              onClick={() => handleFetchMetadata(empresa, 'campos_clientes')}
+                              disabled={fetchingMetadata[`${empresa.id}-campos_clientes`]}
+                            >
+                              <LucideIcons.RefreshCcw className={`h-3 w-3 mr-1 ${fetchingMetadata[`${empresa.id}-campos_clientes`] ? 'animate-spin' : ''}`} />
+                              Campos
+                            </Button>
+                          </div>
+                          <div className="space-y-2 bg-slate-50/50 p-4 rounded-2xl border border-slate-100 max-h-[400px] overflow-y-auto">
+                            {CLIENTE_FIELDS.map((field) => (
+                              <div key={field.key} className="grid grid-cols-2 gap-3 items-center border-b border-slate-100/50 pb-2 last:border-0 last:pb-0">
+                                <Label className="text-[10px] text-slate-500">{field.label}</Label>
+                                {metadata[empresa.id]?.campos_clientes ? (
+                                  <Select 
+                                    value={empresa.mapping?.clientes?.[field.key] || ''} 
+                                    onValueChange={(val) => handleUpdateMapping(empresa.id, 'clientes', field.key, val)}
+                                  >
+                                    <SelectTrigger className="h-8 text-[10px] bg-white border-slate-200">
+                                      <SelectValue placeholder="Elegir campo" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {metadata[empresa.id].campos_clientes.map((c: string) => (
+                                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Input 
+                                    value={empresa.mapping?.clientes?.[field.key] || ''} 
+                                    onChange={(e) => handleUpdateMapping(empresa.id, 'clientes', field.key, e.target.value)}
+                                    className="h-8 text-[10px] bg-white"
+                                    placeholder="Campo en Contpaqi"
+                                  />
+                                )}
+                              </div>
+                            ))}
                           </div>
                         </div>
 
                         {/* Productos Mapping */}
                         <div className="space-y-3">
-                          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <LucideIcons.Package className="h-3 w-3" />
-                            Catálogo Productos
-                          </h4>
-                          <div className="space-y-3 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                            <div className="grid grid-cols-2 gap-3 items-center">
-                              <Label className="text-[10px] text-slate-500">Nombre Producto</Label>
-                              <Input 
-                                value={empresa.mapping?.productos?.nombre || 'Nombre'} 
-                                onChange={(e) => handleUpdateMapping(empresa.id, 'productos', 'nombre', e.target.value)}
-                                className="h-8 text-xs bg-white"
-                                placeholder="Campo en Contpaqi"
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3 items-center">
-                              <Label className="text-[10px] text-slate-500">Código</Label>
-                              <Input 
-                                value={empresa.mapping?.productos?.codigo || 'Codigo'} 
-                                onChange={(e) => handleUpdateMapping(empresa.id, 'productos', 'codigo', e.target.value)}
-                                className="h-8 text-xs bg-white"
-                                placeholder="Campo en Contpaqi"
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3 items-center">
-                              <Label className="text-[10px] text-slate-500">Precio Venta</Label>
-                              <Input 
-                                value={empresa.mapping?.productos?.precioVenta || 'Precio'} 
-                                onChange={(e) => handleUpdateMapping(empresa.id, 'productos', 'precioVenta', e.target.value)}
-                                className="h-8 text-xs bg-white"
-                                placeholder="Campo en Contpaqi"
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3 items-center">
-                              <Label className="text-[10px] text-slate-500">Existencias</Label>
-                              <Input 
-                                value={empresa.mapping?.productos?.existencias || 'Existencias'} 
-                                onChange={(e) => handleUpdateMapping(empresa.id, 'productos', 'existencias', e.target.value)}
-                                className="h-8 text-xs bg-white"
-                                placeholder="Campo en Contpaqi"
-                              />
-                            </div>
+                          <div className="flex justify-between items-center">
+                            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                              <LucideIcons.Package className="h-3 w-3" />
+                              Catálogo Productos
+                            </h4>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-6 text-[10px] text-blue-600 hover:text-blue-700 p-0"
+                              onClick={() => handleFetchMetadata(empresa, 'campos_productos')}
+                              disabled={fetchingMetadata[`${empresa.id}-campos_productos`]}
+                            >
+                              <LucideIcons.RefreshCcw className={`h-3 w-3 mr-1 ${fetchingMetadata[`${empresa.id}-campos_productos`] ? 'animate-spin' : ''}`} />
+                              Campos
+                            </Button>
+                          </div>
+                          <div className="space-y-2 bg-slate-50/50 p-4 rounded-2xl border border-slate-100 max-h-[400px] overflow-y-auto">
+                            {PRODUCTO_FIELDS.map((field) => (
+                              <div key={field.key} className="grid grid-cols-2 gap-3 items-center border-b border-slate-100/50 pb-2 last:border-0 last:pb-0">
+                                <Label className="text-[10px] text-slate-500">{field.label}</Label>
+                                {metadata[empresa.id]?.campos_productos ? (
+                                  <Select 
+                                    value={empresa.mapping?.productos?.[field.key] || ''} 
+                                    onValueChange={(val) => handleUpdateMapping(empresa.id, 'productos', field.key, val)}
+                                  >
+                                    <SelectTrigger className="h-8 text-[10px] bg-white border-slate-200">
+                                      <SelectValue placeholder="Elegir campo" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {metadata[empresa.id].campos_productos.map((c: string) => (
+                                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Input 
+                                    value={empresa.mapping?.productos?.[field.key] || ''} 
+                                    onChange={(e) => handleUpdateMapping(empresa.id, 'productos', field.key, e.target.value)}
+                                    className="h-8 text-[10px] bg-white"
+                                    placeholder="Campo en Contpaqi"
+                                  />
+                                )}
+                              </div>
+                            ))}
                           </div>
                         </div>
                       </div>

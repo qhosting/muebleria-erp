@@ -29,6 +29,12 @@ export async function POST(request: NextRequest) {
             case 'clasificaciones':
                 data = await service.getClasificaciones(empresa);
                 break;
+            case 'campos_clientes':
+                data = await service.getCampos('clientes', empresa);
+                break;
+            case 'campos_productos':
+                data = await service.getCampos('productos', empresa);
+                break;
             default:
                 return NextResponse.json({ error: 'Tipo de metadato no válido' }, { status: 400 });
         }
