@@ -167,14 +167,17 @@ export default function ContpaqiMultiPage() {
   };
 
   const handleUpdateEmpresa = (id: string, field: keyof EmpresaContpaqi, value: any) => {
-    setEmpresas(empresas.map(e => e.id === id ? { ...e, [field]: value } : e));
+    // Primero actualizamos el estado
+    setEmpresas(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
     
     // Si se cambia el nombre de la empresa, intentar cargar conceptos y clasificaciones
+    // Usamos el objeto de empresa actual pero sobreescribimos el campo modificado
     if (field === 'nombre') {
-      const empresa = empresas.find(e => e.id === id);
-      if (empresa) {
-        handleFetchMetadata({ ...empresa, nombre: value }, 'conceptos');
-        handleFetchMetadata({ ...empresa, nombre: value }, 'clasificaciones');
+      const currentEmpresa = empresas.find(e => e.id === id);
+      if (currentEmpresa) {
+        const updatedEmpresa = { ...currentEmpresa, [field]: value };
+        handleFetchMetadata(updatedEmpresa, 'conceptos');
+        handleFetchMetadata(updatedEmpresa, 'clasificaciones');
       }
     }
   };

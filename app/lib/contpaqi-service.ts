@@ -109,44 +109,75 @@ export class ContpaqiService {
 
     async getConceptos(empresa?: string) {
         const query = empresa ? `?empresa=${encodeURIComponent(empresa)}` : '';
-        try {
-            return await this.request(`/api/conceptos${query}`);
-        } catch (e) {
-            return await this.request(`/api/Comercial/Conceptos${query}`);
+        const endpoints = [
+            `/api/conceptos${query}`,
+            `/api/Comercial/Conceptos${query}`,
+            `/api/v1/Comercial/Conceptos${query}`,
+            `/api/Catalogos/Conceptos${query}`,
+            `/api/v1/conceptos${query}`,
+            `/api/Comercial/Generales/Conceptos${query}`
+        ];
+
+        for (const endpoint of endpoints) {
+            try {
+                return await this.request(endpoint);
+            } catch (e) {
+                if (!(e as Error).message.includes('404')) throw e;
+                continue;
+            }
         }
+        throw new Error('No se pudo encontrar el endpoint de conceptos en el servidor Contpaqi.');
     }
 
     async getClasificaciones(empresa?: string) {
         const query = empresa ? `?empresa=${encodeURIComponent(empresa)}` : '';
-        try {
-            return await this.request(`/api/clasificaciones${query}`);
-        } catch (e) {
-            return await this.request(`/api/Comercial/Clasificaciones${query}`);
+        const endpoints = [
+            `/api/clasificaciones${query}`,
+            `/api/Comercial/Clasificaciones${query}`,
+            `/api/v1/Comercial/Clasificaciones${query}`,
+            `/api/Catalogos/Clasificaciones${query}`,
+            `/api/v1/clasificaciones${query}`,
+            `/api/Comercial/Generales/Clasificaciones${query}`
+        ];
+
+        for (const endpoint of endpoints) {
+            try {
+                return await this.request(endpoint);
+            } catch (e) {
+                if (!(e as Error).message.includes('404')) throw e;
+                continue;
+            }
         }
+        throw new Error('No se pudo encontrar el endpoint de clasificaciones en el servidor Contpaqi.');
     }
 
     async getCampos(tabla: 'clientes' | 'productos', empresa?: string) {
         const query = empresa ? `?empresa=${encodeURIComponent(empresa)}` : '';
-        try {
-            // Intentamos obtener el primer registro para extraer los campos
-            const endpoint = tabla === 'clientes' ? '/api/clientes' : '/api/productos';
-            const data = await this.request(`${endpoint}${query}${query.includes('?') ? '&' : '?'}limit=1`);
-            
-            if (Array.isArray(data) && data.length > 0) {
-                return Object.keys(data[0]);
+        const baseEndpoints = tabla === 'clientes' ? 
+            ['/api/clientes', '/api/Comercial/Clientes', '/api/v1/Comercial/Clientes', '/api/v1/clientes'] : 
+            ['/api/productos', '/api/Comercial/Productos', '/api/v1/Comercial/Productos', '/api/v1/productos'];
+        
+        for (const base of baseEndpoints) {
+            try {
+                const url = `${base}${query}${query.includes('?') ? '&' : '?'}limit=1`;
+                const data = await this.request(url);
+                
+                if (Array.isArray(data) && data.length > 0) {
+                    return Object.keys(data[0]);
+                }
+                
+                // Si no hay datos, intentamos el full por si el limit rompe
+                const dataFull = await this.request(`${base}${query}`);
+                if (Array.isArray(dataFull) && dataFull.length > 0) {
+                    return Object.keys(dataFull[0]);
+                }
+            } catch (e) {
+                if (!(e as Error).message.includes('404')) continue;
+                console.warn(`⚠️ Error en endpoint ${base} para ${tabla}:`, (e as Error).message);
             }
-            
-            // Si falla el limit, intentamos normal
-            const dataFull = await this.request(`${endpoint}${query}`);
-            if (Array.isArray(dataFull) && dataFull.length > 0) {
-                return Object.keys(dataFull[0]);
-            }
-
-            return [];
-        } catch (e) {
-            console.warn(`⚠️ No se pudieron obtener campos para ${tabla}:`, (e as Error).message);
-            return [];
         }
+
+        return [];
     }
 
     // --- DOCUMENTOS ---
