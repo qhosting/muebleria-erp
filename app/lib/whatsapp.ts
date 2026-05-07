@@ -123,23 +123,37 @@ export async function sendWahaMessage(
 
     const url = `${config.apiUrl}/api/sendText`;
 
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...(config.apiKey ? { 'X-Api-Key': config.apiKey } : {})
-        },
-        body: JSON.stringify({
-            chatId: `${cleanNumber}@c.us`,
-            text: text,
-            session: session
-        })
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 segundos de timeout
 
-    if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Error de WAHA (${response.status}): ${error}`);
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(config.apiKey ? { 'X-Api-Key': config.apiKey } : {})
+            },
+            body: JSON.stringify({
+                chatId: `${cleanNumber}@c.us`,
+                text: text,
+                session: session
+            }),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`Error de WAHA (${response.status}): ${error}`);
+        }
+
+        return await response.json();
+    } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            throw new Error("Tiempo de espera agotado al conectar con WAHA (20s)");
+        }
+        throw error;
     }
-
-    return await response.json();
 }

@@ -38,11 +38,17 @@ export class ContpaqiService {
             'X-API-Key': this.config.apiKey
         };
 
-        const response = await fetch(url, {
-            method,
-            headers,
-            body: body ? JSON.stringify(body) : undefined
-        });
+        let response;
+        try {
+            response = await fetch(url, {
+                method,
+                headers,
+                body: body ? JSON.stringify(body) : undefined
+            });
+        } catch (e: any) {
+            console.error(`❌ Fetch failed to ${url}:`, e.message);
+            throw new Error(`No se pudo conectar con el servidor Contpaqi en ${url}. Verifique que la URL sea correcta y el servidor esté encendido. (${e.message})`);
+        }
 
         if (!response.ok) {
             const error = await response.text();
@@ -93,7 +99,8 @@ export class ContpaqiService {
 
         for (const endpoint of endpoints) {
             try {
-                console.log(`🔍 Intentando cargar empresas desde: ${endpoint}`);
+                const fullUrl = `${this.config.apiUrl}${endpoint}`;
+                console.log(`🔍 Intentando cargar empresas desde: ${fullUrl}`);
                 return await this.request(endpoint);
             } catch (e) {
                 // Si el error es 404, seguimos probando. Si es otro error (ej: 401), paramos.

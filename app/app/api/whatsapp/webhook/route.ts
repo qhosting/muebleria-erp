@@ -72,7 +72,12 @@ async function handleTesoreria(from: string, payload: any, session: string, agen
         const imageBase64 = payload.media?.data || payload.body;
 
         // Intentamos procesar con IA para ver si el contrato está DENTRO de la imagen
-        await sendWahaMessage(config, from, "⏳ Analizando comprobante... un momento por favor.");
+        try {
+            await sendWahaMessage(config, from, "⏳ Analizando comprobante... un momento por favor.");
+        } catch (msgError: any) {
+            console.warn('⚠️ No se pudo enviar mensaje de espera a WAHA:', msgError.message);
+        }
+        
         const extracted = await extractTicketFromImage(imageBase64);
 
         // Si la IA encontró un contrato y no teníamos uno, lo usamos
@@ -222,12 +227,20 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
             mensajeFinal += `\n\n⚡ *PENDIENTE DE CONCILIACIÓN BANCARIA* ⚡`;
         }
 
-        await sendWahaMessage(config, from, mensajeFinal);
+        try {
+            await sendWahaMessage(config, from, mensajeFinal);
+        } catch (msgError: any) {
+            console.error('❌ No se pudo enviar mensaje final a WAHA:', msgError.message);
+        }
         return NextResponse.json({ status: 'success', ticketId: ticket.id });
 
     } catch (error: any) {
         console.error("Error finalizando ticket:", error);
-        await sendWahaMessage(config, from, "❌ Lo siento, hubo un error al procesar la información. Por favor intenta de nuevo o contacta a soporte.");
+        try {
+            await sendWahaMessage(config, from, "❌ Lo siento, hubo un error al procesar la información. Por favor intenta de nuevo o contacta a soporte.");
+        } catch (msgError: any) {
+            console.error('❌ No se pudo enviar mensaje de error a WAHA:', msgError.message);
+        }
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
@@ -303,7 +316,11 @@ async function handleOficina(from: string, payload: any, session: string, agentN
     // 6. Enviar respuesta por WhatsApp
     const wahaConfig = await getWahaConfig(prisma, 'leads');
     if (wahaConfig.apiUrl) {
-        await sendWahaMessage(wahaConfig, from, aiResponse.respuesta);
+        try {
+            await sendWahaMessage(wahaConfig, from, aiResponse.respuesta);
+        } catch (msgError: any) {
+            console.error('❌ No se pudo enviar respuesta de Sofia a WAHA:', msgError.message);
+        }
     }
 
     return NextResponse.json({ status: 'success', intent: aiResponse.intencion });

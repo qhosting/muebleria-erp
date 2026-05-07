@@ -45,7 +45,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(data);
 
     } catch (error: any) {
-        console.error(`❌ Contpaqi Metadata Error (${request.url}):`, error.message);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        // Log detallado para diagnóstico
+        console.error(`❌ [Contpaqi Metadata Error]`, {
+            url: request.url,
+            message: error.message,
+            stack: error.stack
+        });
+        return NextResponse.json({ 
+            error: error.message,
+            details: 'Asegúrese de que el servidor Contpaqi REST API esté en ejecución y sea accesible desde este servidor.'
+        }, { status: 500 });
     }
 }
