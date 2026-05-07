@@ -30,9 +30,13 @@ export async function POST(request: NextRequest) {
         let from = payload.from.split('@')[0]; // Número de teléfono sin @c.us
         
         // Si el remitente aparece como el ID de la cuenta Business (WABA), 
-        // intentamos obtener el número real del autor del mensaje.
-        if (from === '183785962352805' && payload.author) {
-            from = payload.author.split('@')[0];
+        // intentamos obtener el número real del autor del mensaje buscando en otros campos.
+        if (from === '183785962352805') {
+            const alternate = (payload.author || payload.participant || payload.chatId || '').split('@')[0];
+            if (alternate && alternate !== '183785962352805' && alternate.length > 5) {
+                console.log(`🔄 [Webhook] Corrigiendo remitente de WABA ID a número real: ${alternate}`);
+                from = alternate;
+            }
         }
         const messageBody = (payload.body || '').trim();
         const messageType = payload.type; // 'chat', 'image', etc.
@@ -62,7 +66,9 @@ export async function POST(request: NextRequest) {
                 fromMe: payload.fromMe,
                 type: payload.type,
                 chatId: payload.chatId,
-                author: payload.author
+                author: payload.author,
+                participant: payload.participant,
+                to: payload.to
             }));
         }
 
