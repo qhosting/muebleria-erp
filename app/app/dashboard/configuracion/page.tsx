@@ -60,6 +60,7 @@ interface ConfiguracionSistema {
     emailEnabled: boolean;
     smsEnabled: boolean;
     recordatoriosDias: number;
+    whatsappBlacklist?: string;
   };
   sincronizacion: {
     intervaloMinutos: number;
@@ -106,7 +107,8 @@ export default function ConfiguracionPage() {
       globalAgentName: 'Asistente Global',
       emailEnabled: true,
       smsEnabled: false,
-      recordatoriosDias: 2
+      recordatoriosDias: 2,
+      whatsappBlacklist: ''
     },
     sincronizacion: {
       intervaloMinutos: 15,
@@ -488,6 +490,18 @@ export default function ConfiguracionPage() {
                 </div>
 
                 <div className="md:col-span-2 pt-2">
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <Label className="text-slate-900 font-semibold mb-2 block">Lista Negra (Ignorar)</Label>
+                    <Input
+                      placeholder="Números o IDs de grupos a ignorar, separados por coma (ej: 521..., 12345@g.us)"
+                      value={config.notificaciones.whatsappBlacklist || ''}
+                      onChange={(e) => setConfig({ ...config, notificaciones: { ...config.notificaciones, whatsappBlacklist: e.target.value } })}
+                    />
+                    <p className="text-[10px] text-slate-500 mt-2">
+                      Los mensajes provenientes de estos IDs serán ignorados por la IA. Útil para grupos o contactos administrativos.
+                    </p>
+                  </div>
+
                   <Separator className="my-4" />
                   <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                     <Label className="text-slate-900 font-semibold mb-2 block">Probar Conexión</Label>

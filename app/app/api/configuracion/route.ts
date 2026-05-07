@@ -93,9 +93,9 @@ export async function GET(request: NextRequest) {
       
       // Tesorería
       tesoreriaWahaSession: notif.tesoreriaWahaSession || process.env.WAHA_SESSION_TESORERIA || '',
-      tesoreriaWahaApiUrl: notif.tesoreriaWahaApiUrl || process.env.WAHA_API_URL_TESORERIA || '',
       tesoreriaWahaApiKey: notif.tesoreriaWahaApiKey || process.env.WAHA_API_KEY_TESORERIA || '',
-      tesoreriaAgentName: notif.tesoreriaAgentName || 'Asistente de Tesorería'
+      tesoreriaAgentName: notif.tesoreriaAgentName || 'Asistente de Tesorería',
+      whatsappBlacklist: notif.whatsappBlacklist || ''
     };
 
     // Configuración de Contpaqi (Multi-empresa)

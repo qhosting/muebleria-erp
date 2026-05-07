@@ -46,6 +46,27 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // Obtener configuración global de notificaciones
+        const configRecord = await prisma.configuracionSistema.findUnique({
+            where: { clave: 'sistema' }
+        });
+        const notif = (configRecord?.notificaciones as any) || {};
+
+        // 1. Verificar Blacklist dinámica (configurada en dashboard)
+        const blacklistRaw = notif.whatsappBlacklist || '';
+        const blacklist = blacklistRaw.split(',').map((s: string) => s.trim()).filter(Boolean);
+        
+        if (blacklist.some((id: string) => from === id || payload.from.includes(id))) {
+            console.log(`🚫 [${session}] Mensaje ignorado por Lista Negra: ${from} / ${payload.from}`);
+            return NextResponse.json({ status: 'ignored_blacklist' });
+        }
+
+        // 2. Ignorar Grupos (Opcional: puedes añadir una condición para permitir ciertos grupos)
+        if (payload.from.endsWith('@g.us')) {
+            console.log(`👥 [${session}] Ignorando mensaje de grupo: ${payload.from}`);
+            return NextResponse.json({ status: 'ignored_group' });
+        }
+
         const messageBody = (payload.body || '').trim();
         const messageType = payload.type; // 'chat', 'image', etc.
 
@@ -53,7 +74,7 @@ export async function POST(request: NextRequest) {
         const normalize = (num: string) => num.replace(/^521/, '52').replace(/\D/g, '');
         const fromNorm = normalize(from);
 
-        // Blacklist de seguridad mejorada (incluyendo WABA IDs y versiones normalizadas)
+        // Blacklist de seguridad interna (Anti-bucle)
         const botNumbers = [
             '524272061791', 
             '524429800772', 
@@ -71,12 +92,6 @@ export async function POST(request: NextRequest) {
         if (from === '183785962352805' || from.length > 15) {
             console.log(`🔍 [DEBUG] PAYLOAD COMPLETO (ID INUSUAL):`, JSON.stringify(payload, null, 2));
         }
-
-        // Obtener configuración global para ver qué canal es este
-        const configRecord = await prisma.configuracionSistema.findUnique({
-            where: { clave: 'sistema' }
-        });
-        const notif = (configRecord?.notificaciones as any) || {};
 
         // RUTA 1: TESORERÍA (PROCESAMIENTO DE PAGOS)
         // Solo si la sesión es específicamente de tesorería
