@@ -35,16 +35,22 @@ export async function POST(request: NextRequest) {
         const normalize = (num: string) => num.replace(/^521/, '52').replace(/\D/g, '');
         const fromNorm = normalize(from);
 
-        // Blacklist de seguridad mejorada
-        const botNumbers = ['524272061791', '524429800772', '524272061791']; // Versiones normalizadas
-        if (botNumbers.some(bn => normalize(bn) === fromNorm)) {
+        // Blacklist de seguridad mejorada (incluyendo WABA IDs y versiones normalizadas)
+        const botNumbers = [
+            '524272061791', 
+            '524429800772', 
+            '183785962352805', // WABA ID detectado en logs
+            '5214429800772'
+        ];
+        
+        if (botNumbers.some(bn => normalize(bn) === fromNorm || bn === from)) {
             console.log(`ℹ️ [${session}] Anti-bucle: El bot ${from} intentó hablarse a sí mismo. Ignorado.`);
             return NextResponse.json({ status: 'ignored_self' });
         }
 
         console.log(`📩 [${session}] Mensaje de ${from}: ${messageType === 'image' ? '[IMAGEN]' : messageBody}`);
-        if (from.length > 15) {
-            console.log(`🔍 [DEBUG] ID de remitente inusual detectado: ${payload.from}. Analizar formato en WAHA.`);
+        if (from.length > 15 || from === '183785962352805') {
+            console.log(`🔍 [DEBUG] ID de remitente inusual detectado: ${payload.from}. Session: ${session}. Payload body: ${JSON.stringify(payload).slice(0, 500)}...`);
         }
 
         // Obtener configuración global para ver qué canal es este
@@ -54,10 +60,10 @@ export async function POST(request: NextRequest) {
         const notif = (configRecord?.notificaciones as any) || {};
 
         // RUTA 1: TESORERÍA (PROCESAMIENTO DE PAGOS)
+        // Solo si la sesión es específicamente de tesorería
         const isTesoreria = session === 'tesoreria' || 
-                           session === notif.tesoreriaWahaSession ||
-                           session === notif.wahaSessionName ||
-                           session === process.env.WAHA_SESSION_TESORERIA;
+                           (notif.tesoreriaWahaSession && session === notif.tesoreriaWahaSession) ||
+                           (process.env.WAHA_SESSION_TESORERIA && session === process.env.WAHA_SESSION_TESORERIA);
 
         if (isTesoreria) {
             return await handleTesoreria(from, payload, session, notif.tesoreriaAgentName || 'Asistente de Tesorería');
