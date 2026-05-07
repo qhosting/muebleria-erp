@@ -22,28 +22,43 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ status: 'ignored' });
         }
 
-        // ANTI-BUCLE: Ignorar si el mensaje lo envié yo
+        // 1. DETECCIÓN DE HUMANO: Si el mensaje lo envió el dueño de la cuenta (móvil/web)
+        // Pausamos el bot para este cliente específico por 30 minutos
         if (payload.fromMe === true) {
-            console.log(`ℹ️ [${session}] Ignorando mensaje enviado por mí (fromMe: true)`);
-            return NextResponse.json({ status: 'ignored' });
+            const to = (payload.to || payload.chatId || '').split('@')[0];
+            if (to && to.length > 5 && !to.includes('status')) {
+                const pausedUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutos
+                await db.botPause.upsert({
+                    where: { telefono: to },
+                    update: { pausedUntil },
+                    create: { telefono: to, pausedUntil }
+                });
+                console.log(`✋ [${session}] Humano detectado respondiendo a ${to}. Bot pausado por 30 min.`);
+            }
+            return NextResponse.json({ status: 'human_detected_pause' });
         }
 
         let from = payload.from.split('@')[0]; // Número de teléfono sin @c.us
         
-        // 1. Fallback para motores NOWEB (como el que estamos usando) 
-        // El número real viene en payload._data.key.remoteJidAlt
+        // 2. Fallbacks de identificación (NOWEB / LID)
         const remoteJidAlt = payload._data?.key?.remoteJidAlt;
         if (remoteJidAlt) {
             from = remoteJidAlt.split('@')[0];
-            console.log(`🔄 [Webhook] Identificado número real desde remoteJidAlt: ${from}`);
-        }
-        // 2. Fallback clásico para otros motores o grupos
-        else if (from === '183785962352805' || from.includes('lid')) {
+        } else if (from === '183785962352805' || from.includes('lid')) {
             const alternate = (payload.author || payload.participant || payload.chatId || '').split('@')[0];
             if (alternate && !alternate.includes('183785962352805') && !alternate.includes('lid') && alternate.length > 5) {
-                console.log(`🔄 [Webhook] Corrigiendo remitente a número real desde campos alternos: ${alternate}`);
                 from = alternate;
             }
+        }
+
+        // 3. VERIFICAR SI EL BOT ESTÁ PAUSADO PARA ESTE NÚMERO (Detección de Humano)
+        const pause = await db.botPause.findUnique({
+            where: { telefono: from }
+        });
+        
+        if (pause && pause.pausedUntil > new Date()) {
+            console.log(`⏳ [${session}] Bot pausado para ${from} hasta ${pause.pausedUntil.toLocaleTimeString()}`);
+            return NextResponse.json({ status: 'bot_paused' });
         }
 
         // Obtener configuración global de notificaciones
@@ -52,7 +67,7 @@ export async function POST(request: NextRequest) {
         });
         const notif = (configRecord?.notificaciones as any) || {};
 
-        // 1. Verificar Blacklist dinámica (configurada en dashboard)
+        // 4. Verificar Blacklist dinámica (configurada en dashboard)
         const blacklistRaw = notif.whatsappBlacklist || '';
         const blacklist = blacklistRaw.split(',').map((s: string) => s.trim()).filter(Boolean);
         
