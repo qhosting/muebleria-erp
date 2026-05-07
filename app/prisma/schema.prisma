@@ -642,6 +642,26 @@ model TicketPendiente {
   @@map("tickets_pendientes")
 }
 
+model BuzonTesoreria {
+  id               String   @id @default(cuid())
+  telefono         String
+  monto            Float?
+  referencia       String?
+  fecha            DateTime?
+  urlImagen        String?
+  base64Data       String?
+  contractId       String?
+  estado           String   @default("PENDIENTE") // PENDIENTE, PROCESADO, RECHAZADO, DUPLICADO
+  hash             String?  @unique // Para evitar duplicados (puedes hashear el base64 o OCR)
+  metadata         Json?    // Datos extraídos por OCR
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([telefono])
+  @@index([contractId])
+  @@map("buzon_tesoreria")
+}
+
 model PlantillaTicket {
   id        String        @id @default(cuid())
   nombre    String        @unique

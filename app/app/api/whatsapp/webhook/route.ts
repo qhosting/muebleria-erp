@@ -1,5 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { prisma } from '@/lib/db';
 import { detectIntent, extractTicketFromImage } from '@/lib/ai-service';
 import { sendWahaMessage, getWahaConfig } from '@/lib/whatsapp';
@@ -115,6 +116,19 @@ async function handleTesoreria(from: string, payload: any, session: string, agen
         let contractId = isContractId ? caption : (cliente?.codigoCliente || null);
         const imageBase64 = payload.media?.data || payload.body;
 
+        // Generar hash para evitar duplicados (Cola de Tickets)
+        const imageHash = crypto.createHash('md5').update(imageBase64).digest('hex');
+
+        // 1. Verificar duplicados en el Buzón (Evita re-procesar el mismo comprobante)
+        const existeBuzon = await db.buzonTesoreria.findUnique({
+            where: { hash: imageHash }
+        });
+
+        if (existeBuzon) {
+            await sendWahaMessage(config, from, "⚠️ Este comprobante ya ha sido recibido y está en proceso de validación. No es necesario enviarlo de nuevo.");
+            return NextResponse.json({ status: 'duplicate_in_queue' });
+        }
+
         // Intentamos procesar con IA para ver si el contrato está DENTRO de la imagen
         try {
             await sendWahaMessage(config, from, "⏳ Analizando comprobante... un momento por favor.");
@@ -129,6 +143,21 @@ async function handleTesoreria(from: string, payload: any, session: string, agen
             contractId = extracted.contrato.trim().toUpperCase();
             console.log(`🔍 Contrato detectado por IA dentro de la imagen: ${contractId}`);
         }
+
+        // 2. Registrar en la Cola (Buzón de Tesorería) para historial de 30 días
+        const buzonEntry = await db.buzonTesoreria.create({
+            data: {
+                telefono: from,
+                hash: imageHash,
+                base64Data: imageBase64,
+                contractId: contractId,
+                monto: parseFloat(extracted.monto) || 0,
+                referencia: extracted.referencia,
+                fecha: extracted.fecha ? new Date(extracted.fecha) : new Date(),
+                metadata: extracted,
+                estado: 'PENDIENTE'
+            }
+        });
 
         // Si aún no hay contrato identificado, guardamos como pendiente
         if (!contractId || !/^(DQ|DP)\d{7}$/.test(contractId)) {
@@ -151,7 +180,17 @@ async function handleTesoreria(from: string, payload: any, session: string, agen
         }
 
         // Si tenemos contrato (por caption, por teléfono o por IA), finalizamos el proceso
-        return await finalizeTicketCreation(from, extracted, contractId, config);
+        const response = await finalizeTicketCreation(from, extracted, contractId, config);
+
+        // Si el ticket se creó con éxito, marcamos la entrada del buzón como procesada
+        if (response && (response.ok || response.status === 200)) {
+            await db.buzonTesoreria.update({
+                where: { id: buzonEntry.id },
+                data: { estado: 'PROCESADO' }
+            });
+        }
+
+        return response;
     }
 
     // 3. Manejo de TEXTO (Posible número de contrato para un pendiente)

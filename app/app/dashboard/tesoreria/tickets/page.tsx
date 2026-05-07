@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Ticket as TicketIcon, Search, CheckCircle2, AlertCircle, Eye, Download } from "lucide-react";
+import { Ticket as TicketIcon, Search, CheckCircle2, AlertCircle, Eye, Download, Clock } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default function TicketsPage() {
@@ -81,9 +81,14 @@ export default function TicketsPage() {
                             Bandeja general de pagos, interacciones e ingresos reportados.
                         </p>
                     </div>
-                    <Button variant="outline" onClick={exportarExcel} disabled={loading || tickets.length === 0}>
-                        <Download className="mr-2 h-4 w-4" /> Exportar CSV
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => window.location.href='/dashboard/tesoreria/tickets/cola'} className="border-amber-200 text-amber-700 hover:bg-amber-50">
+                            <Clock className="mr-2 h-4 w-4" /> Ver Cola de Tickets
+                        </Button>
+                        <Button variant="outline" onClick={exportarExcel} disabled={loading || tickets.length === 0}>
+                            <Download className="mr-2 h-4 w-4" /> Exportar CSV
+                        </Button>
+                    </div>
                 </div>
 
                 <Card>
