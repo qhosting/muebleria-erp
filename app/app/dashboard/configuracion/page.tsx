@@ -55,6 +55,7 @@ interface ConfiguracionSistema {
     leadsAgentName?: string;
     
     globalAgentName?: string;
+    openaiApiKey?: string;
     
     emailEnabled: boolean;
     smsEnabled: boolean;
