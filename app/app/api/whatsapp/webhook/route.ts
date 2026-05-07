@@ -27,7 +27,13 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ status: 'ignored' });
         }
 
-        const from = payload.from.split('@')[0]; // Número de teléfono sin @c.us
+        let from = payload.from.split('@')[0]; // Número de teléfono sin @c.us
+        
+        // Si el remitente aparece como el ID de la cuenta Business (WABA), 
+        // intentamos obtener el número real del autor del mensaje.
+        if (from === '183785962352805' && payload.author) {
+            from = payload.author.split('@')[0];
+        }
         const messageBody = (payload.body || '').trim();
         const messageType = payload.type; // 'chat', 'image', etc.
 
