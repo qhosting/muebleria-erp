@@ -29,15 +29,22 @@ export async function POST(request: NextRequest) {
 
         let from = payload.from.split('@')[0]; // Número de teléfono sin @c.us
         
-        // Si el remitente aparece como el ID de la cuenta Business (WABA), 
-        // intentamos obtener el número real del autor del mensaje buscando en otros campos.
-        if (from === '183785962352805') {
+        // 1. Fallback para motores NOWEB (como el que estamos usando) 
+        // El número real viene en payload._data.key.remoteJidAlt
+        const remoteJidAlt = payload._data?.key?.remoteJidAlt;
+        if (remoteJidAlt) {
+            from = remoteJidAlt.split('@')[0];
+            console.log(`🔄 [Webhook] Identificado número real desde remoteJidAlt: ${from}`);
+        }
+        // 2. Fallback clásico para otros motores o grupos
+        else if (from === '183785962352805' || from.includes('lid')) {
             const alternate = (payload.author || payload.participant || payload.chatId || '').split('@')[0];
-            if (alternate && alternate !== '183785962352805' && alternate.length > 5) {
-                console.log(`🔄 [Webhook] Corrigiendo remitente de WABA ID a número real: ${alternate}`);
+            if (alternate && !alternate.includes('183785962352805') && !alternate.includes('lid') && alternate.length > 5) {
+                console.log(`🔄 [Webhook] Corrigiendo remitente a número real desde campos alternos: ${alternate}`);
                 from = alternate;
             }
         }
+
         const messageBody = (payload.body || '').trim();
         const messageType = payload.type; // 'chat', 'image', etc.
 
@@ -49,7 +56,7 @@ export async function POST(request: NextRequest) {
         const botNumbers = [
             '524272061791', 
             '524429800772', 
-            // '183785962352805', // Comentado temporalmente para dejar pasar mensajes de usuario
+            '183785962352805', // WABA ID detectado en logs
             '5214429800772'
         ];
         
