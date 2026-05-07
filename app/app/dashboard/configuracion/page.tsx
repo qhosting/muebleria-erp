@@ -140,7 +140,10 @@ export default function ConfiguracionPage() {
 
       const data = await response.json();
       if (response.ok) {
-        toast.success('Mensaje de prueba enviado con éxito');
+        toast.success(data.message || 'Prueba completada');
+        if (data.failed && data.failed.length > 0) {
+          toast.error(`Error en: ${data.failed.join(', ')}`, { duration: 5000 });
+        }
       } else {
         throw new Error(data.error || 'Error al enviar prueba');
       }
