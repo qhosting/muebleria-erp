@@ -48,9 +48,16 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ status: 'ignored_self' });
         }
 
-        console.log(`📩 [${session}] Mensaje de ${from}: ${messageType === 'image' ? '[IMAGEN]' : messageBody}`);
-        if (from.length > 15 || from === '183785962352805') {
-            console.log(`🔍 [DEBUG] ID de remitente inusual detectado: ${payload.from}. Session: ${session}. Payload body: ${JSON.stringify(payload).slice(0, 500)}...`);
+        // DEBUG: Ver todos los mensajes para diagnosticar el ID inusual
+        console.log(`📩 [${session}] Mensaje de ${from} (${payload.from}). Body: ${messageBody.slice(0, 50)}`);
+        if (from === '183785962352805' || from.length > 15) {
+            console.log(`🔍 [DEBUG] Detalle ID inusual:`, JSON.stringify({
+                from: payload.from,
+                fromMe: payload.fromMe,
+                type: payload.type,
+                chatId: payload.chatId,
+                author: payload.author
+            }));
         }
 
         // Obtener configuración global para ver qué canal es este
