@@ -31,9 +31,13 @@ export async function POST(request: NextRequest) {
         const messageBody = (payload.body || '').trim();
         const messageType = payload.type; // 'chat', 'image', etc.
 
-        // Blacklist de seguridad (No contestar a números de sistema o a uno mismo si fromMe falló)
-        const botNumbers = ['5214272061791', '5214429800772']; // Agregamos los números conocidos de los bots
-        if (botNumbers.includes(from)) {
+        // Función para normalizar números (quitar prefijos de México 52/521)
+        const normalize = (num: string) => num.replace(/^521/, '52').replace(/\D/g, '');
+        const fromNorm = normalize(from);
+
+        // Blacklist de seguridad mejorada
+        const botNumbers = ['524272061791', '524429800772', '524272061791']; // Versiones normalizadas
+        if (botNumbers.some(bn => normalize(bn) === fromNorm)) {
             console.log(`ℹ️ [${session}] Anti-bucle: El bot ${from} intentó hablarse a sí mismo. Ignorado.`);
             return NextResponse.json({ status: 'ignored_self' });
         }
