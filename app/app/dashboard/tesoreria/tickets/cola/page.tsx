@@ -176,13 +176,13 @@ export default function TicketQueuePage() {
                                                                     <div className="mt-4 flex flex-col items-center">
                                                                         {entry.base64Data ? (
                                                                             <div 
-                                                                                className={`relative overflow-auto transition-all duration-300 ${isZoomed ? 'w-full h-[70vh] cursor-zoom-out bg-black/5' : 'max-h-[60vh] cursor-zoom-in'}`}
+                                                                                className={`relative overflow-auto border rounded-lg transition-all duration-300 bg-slate-50 ${isZoomed ? 'h-[75vh] w-full cursor-zoom-out' : 'max-h-[60vh] cursor-zoom-in'}`}
                                                                                 onClick={() => setIsZoomed(!isZoomed)}
                                                                             >
                                                                                 <img 
                                                                                     src={entry.base64Data.startsWith('data:') ? entry.base64Data : `data:image/jpeg;base64,${entry.base64Data}`} 
                                                                                     alt="Comprobante" 
-                                                                                    className={`rounded-lg shadow-lg transition-transform duration-300 ${isZoomed ? 'scale-150 origin-top' : 'max-h-[60vh] object-contain'}`}
+                                                                                    className={`transition-all duration-300 shadow-sm ${isZoomed ? 'w-[150%] max-w-none' : 'w-full h-full object-contain'}`}
                                                                                 />
                                                                             </div>
                                                                         ) : (
