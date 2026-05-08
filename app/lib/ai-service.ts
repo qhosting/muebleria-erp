@@ -132,7 +132,7 @@ export async function detectIntent(history: string, message: string, agentName: 
 }
 
 async function callGemini(key: string, prompt: string): Promise<AIResponse> {
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${key}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
     
     const response = await fetch(url, {
         method: "POST",
@@ -237,7 +237,7 @@ export async function extractProductsFromImage(base64Image: string): Promise<any
     - Asegúrate de capturar todas las medidas si es un cuadro de precios.
     `;
 
-    const url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + geminiKey;
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + geminiKey;
     
     const response = await fetch(url, {
         method: "POST",
@@ -303,7 +303,7 @@ export async function extractTicketFromImage(base64Image: string): Promise<any> 
     {"contrato":"DQ2411240","monto":460.00,"referencia":"9135156","folio":null,"fecha":"2025-09-06","hr":"18:30:00","claverastreo":"SPIN20250906183029308UEQ0SSPJC"}
     `;
 
-    const url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + geminiKey;
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + geminiKey;
     
     const response = await fetch(url, {
         method: "POST",
