@@ -73,17 +73,25 @@ export async function POST(req: Request) {
         }
 
         // --- ACCIÓN: CREAR TICKET (DIRECTO O FINAL) ---
-        if (!contrato || !monto) {
-            return NextResponse.json({ error: "Contrato y monto son requeridos" }, { status: 400 });
+        // --- AUTO-DETECCIÓN DE CONTRATO ---
+        let codigoFinal = contrato && contrato !== 'null' ? contrato.toUpperCase() : null;
+        
+        if (!codigoFinal && referencia && referencia !== 'null') {
+            const match = referencia.match(/[D][QP]\d+/i);
+            if (match) codigoFinal = match[0].toUpperCase();
+        }
+
+        if (!codigoFinal) {
+            return NextResponse.json({ error: "Contrato no detectado en cuerpo ni referencia" }, { status: 400 });
         }
 
         // 2. Buscar Cliente
         const cliente = await prisma.cliente.findUnique({
-            where: { codigoCliente: contrato.toUpperCase() }
+            where: { codigoCliente: codigoFinal }
         });
 
         if (!cliente) {
-            return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+            return NextResponse.json({ error: `Cliente con contrato ${codigoFinal} no encontrado` }, { status: 404 });
         }
 
         // 3. Verificar Duplicado
