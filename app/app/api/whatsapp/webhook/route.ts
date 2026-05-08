@@ -104,10 +104,29 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ status: 'ignored_self' });
         }
 
-        // DEBUG: Ver todos los mensajes para diagnosticar el ID inusual
-        console.log(`📩 [${session}] Mensaje de ${from} (${payload.from}). Body: ${messageBody.slice(0, 50)}`);
-        if (from === '183785962352805' || from.length > 15) {
-            console.log(`🔍 [DEBUG] PAYLOAD COMPLETO (ID INUSUAL):`, JSON.stringify(payload, null, 2));
+        // 5. PROTECCIÓN DE CICLOS (Anti-Spam)
+        // Si el mismo mensaje se envía 3 veces seguidas, ignorar para evitar bucles de IA o Spam
+        try {
+            const lastMsgKey = `last_msg:${from}`;
+            const lastMsgData = await redis.get(lastMsgKey);
+            let count = 1;
+            
+            if (lastMsgData) {
+                const { body: lastBody, count: lastCount } = JSON.parse(lastMsgData);
+                if (lastBody === messageBody && messageBody.length > 0) {
+                    count = lastCount + 1;
+                }
+            }
+            
+            // Actualizar el historial del último mensaje (vence en 1 hora)
+            await redis.set(lastMsgKey, JSON.stringify({ body: messageBody, count }), 'EX', 3600);
+            
+            if (count >= 3) {
+                console.warn(`⚠️ [${session}] Ciclo detectado para ${from}: "${messageBody.slice(0, 30)}..." (Repetido ${count} veces). Ignorando.`);
+                return NextResponse.json({ status: 'ignored_loop_detected' });
+            }
+        } catch (redisError) {
+            console.error('❌ Error en protección de ciclos (Redis):', redisError);
         }
 
         // RUTA 1: TESORERÍA (PROCESAMIENTO DE PAGOS)
