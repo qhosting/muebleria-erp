@@ -34,6 +34,7 @@ export default function TicketQueuePage() {
     const [loading, setLoading] = useState(true);
     const [currentTab, setCurrentTab] = useState("PENDIENTE");
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [isZoomed, setIsZoomed] = useState(false);
 
     useEffect(() => {
         fetchQueue();
@@ -159,7 +160,7 @@ export default function TicketQueuePage() {
                                                             {entry.referencia || "N/A"}
                                                         </td>
                                                         <td className="px-4 py-3 text-center">
-                                                            <Dialog>
+                                                            <Dialog onOpenChange={(open) => !open && setIsZoomed(false)}>
                                                                 <DialogTrigger asChild>
                                                                     <Button variant="ghost" size="sm" className="h-8 w-8">
                                                                         <ImageIcon className="h-4 w-4 text-blue-500" />
@@ -174,11 +175,16 @@ export default function TicketQueuePage() {
                                                                     </DialogHeader>
                                                                     <div className="mt-4 flex flex-col items-center">
                                                                         {entry.base64Data ? (
-                                                                            <img 
-                                                                                src={entry.base64Data.startsWith('data:') ? entry.base64Data : `data:image/jpeg;base64,${entry.base64Data}`} 
-                                                                                alt="Comprobante" 
-                                                                                className="max-h-[60vh] object-contain rounded-lg shadow-lg"
-                                                                            />
+                                                                            <div 
+                                                                                className={`relative overflow-auto transition-all duration-300 ${isZoomed ? 'w-full h-[70vh] cursor-zoom-out bg-black/5' : 'max-h-[60vh] cursor-zoom-in'}`}
+                                                                                onClick={() => setIsZoomed(!isZoomed)}
+                                                                            >
+                                                                                <img 
+                                                                                    src={entry.base64Data.startsWith('data:') ? entry.base64Data : `data:image/jpeg;base64,${entry.base64Data}`} 
+                                                                                    alt="Comprobante" 
+                                                                                    className={`rounded-lg shadow-lg transition-transform duration-300 ${isZoomed ? 'scale-150 origin-top' : 'max-h-[60vh] object-contain'}`}
+                                                                                />
+                                                                            </div>
                                                                         ) : (
                                                                             <p className="text-gray-500">Imagen no disponible</p>
                                                                         )}
