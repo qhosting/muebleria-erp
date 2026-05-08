@@ -685,16 +685,6 @@ model OtpVerification {
   @@map("otp_verifications")
 }
 
-model BotPause {
-  id          String   @id @default(cuid())
-  telefono    String   @unique
-  pausedUntil DateTime
-  createdAt   DateTime @default(now())
-
-  @@index([telefono])
-  @@map("bot_pauses")
-}
-
 model SmsBalance {
   id        String   @id @default(cuid())
   cuenta    String   @unique // Ej: "DASO"

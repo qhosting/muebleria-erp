@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/db';
+import { redis } from '@/lib/redis';
 import { detectIntent, extractTicketFromImage } from '@/lib/ai-service';
 import { sendWahaMessage, getWahaConfig } from '@/lib/whatsapp';
 
@@ -23,17 +24,17 @@ export async function POST(request: NextRequest) {
         }
 
         // 1. DETECCIÓN DE HUMANO: Si el mensaje lo envió el dueño de la cuenta (móvil/web)
-        // Pausamos el bot para este cliente específico por 30 minutos
+        // Pausamos el bot para este cliente específico por 30 minutos usando REDIS
         if (payload.fromMe === true) {
             const to = (payload.to || payload.chatId || '').split('@')[0];
             if (to && to.length > 5 && !to.includes('status')) {
-                const pausedUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutos
-                await db.botPause.upsert({
-                    where: { telefono: to },
-                    update: { pausedUntil },
-                    create: { telefono: to, pausedUntil }
-                });
-                console.log(`✋ [${session}] Humano detectado respondiendo a ${to}. Bot pausado por 30 min.`);
+                try {
+                    // Guardar en Redis con expiración de 30 minutos (1800 segundos)
+                    await redis.set(`bot_pause:${to}`, 'true', 'EX', 1800);
+                    console.log(`✋ [${session}] Humano detectado respondiendo a ${to}. Bot pausado por 30 min (Redis).`);
+                } catch (redisError) {
+                    console.error('❌ Error guardando pausa en Redis:', redisError);
+                }
             }
             return NextResponse.json({ status: 'human_detected_pause' });
         }
@@ -51,14 +52,15 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 3. VERIFICAR SI EL BOT ESTÁ PAUSADO PARA ESTE NÚMERO (Detección de Humano)
-        const pause = await db.botPause.findUnique({
-            where: { telefono: from }
-        });
-        
-        if (pause && pause.pausedUntil > new Date()) {
-            console.log(`⏳ [${session}] Bot pausado para ${from} hasta ${pause.pausedUntil.toLocaleTimeString()}`);
-            return NextResponse.json({ status: 'bot_paused' });
+        // 3. VERIFICAR SI EL BOT ESTÁ PAUSADO PARA ESTE NÚMERO (Usando Redis)
+        try {
+            const isPaused = await redis.get(`bot_pause:${from}`);
+            if (isPaused) {
+                console.log(`⏳ [${session}] Bot pausado para ${from} vía Redis (Humano atendiendo).`);
+                return NextResponse.json({ status: 'bot_paused' });
+            }
+        } catch (redisError) {
+            console.error('❌ Error consultando pausa en Redis:', redisError);
         }
 
         // Obtener configuración global de notificaciones
