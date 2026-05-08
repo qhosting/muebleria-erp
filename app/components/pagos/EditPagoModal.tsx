@@ -33,7 +33,8 @@ export function EditPagoModal({
     metodoPago: '',
     tipoPago: '',
     cobradorId: '',
-    fechaPago: ''
+    fechaPago: '',
+    monto: 0
   });
 
   useEffect(() => {
@@ -43,7 +44,8 @@ export function EditPagoModal({
         metodoPago: pago.metodoPago || 'gestor',
         tipoPago: pago.tipoPago || 'regular',
         cobradorId: pago.cobradorId || '',
-        fechaPago: pago.fechaPago ? new Date(pago.fechaPago).toISOString().split('T')[0] : ''
+        fechaPago: pago.fechaPago ? new Date(pago.fechaPago).toISOString().split('T')[0] : '',
+        monto: pago.monto || 0
       });
     }
   }, [pago, open]);
@@ -87,6 +89,26 @@ export function EditPagoModal({
               value={formData.concepto}
               onChange={(e) => setFormData({ ...formData, concepto: e.target.value })}
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Monto</Label>
+              <Input 
+                type="number"
+                step="0.01"
+                value={formData.monto}
+                onChange={(e) => setFormData({ ...formData, monto: parseFloat(e.target.value) })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Saldo Anterior (Ref)</Label>
+              <Input 
+                disabled
+                value={pago?.saldoAnterior || 0}
+                className="bg-gray-50"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
