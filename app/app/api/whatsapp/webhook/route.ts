@@ -142,11 +142,24 @@ async function handleTesoreria(from: string, payload: any, session: string, agen
     });
 
     // 2. Manejo de IMÁGENES (Comprobantes de pago)
-    if (payload.type === 'image') {
-        const caption = (payload.caption || '').trim().toUpperCase();
+    if (payload.type === 'image' || payload.hasMedia) {
+        // En WAHA, el caption puede venir en 'caption' o en 'body'
+        let caption = (payload.caption || '').trim().toUpperCase();
+        if (!caption && payload.body && payload.body.length < 100) {
+            caption = payload.body.trim().toUpperCase();
+        }
+
         const isContractId = /^(DQ|DP)\d{7}$/.test(caption);
         let contractId = isContractId ? caption : (cliente?.codigoCliente || null);
-        const imageBase64 = payload.media?.data || payload.body;
+        
+        // El contenido de la imagen (Base64)
+        const imageBase64 = payload.media?.data || (payload.body?.length > 500 ? payload.body : null);
+
+        if (!imageBase64) {
+            console.warn(`⚠️ [${session}] Imagen recibida sin datos Base64. (Body length: ${payload.body?.length || 0})`);
+            await sendWahaMessage(config, from, "⚠️ No pude procesar la imagen. Por favor, asegúrate de enviarla como *Foto* y no como archivo, o intenta enviarla de nuevo.");
+            return NextResponse.json({ status: 'missing_media_data' });
+        }
 
         // Generar hash para evitar duplicados (Cola de Tickets)
         const imageHash = crypto.createHash('md5').update(imageBase64).digest('hex');
