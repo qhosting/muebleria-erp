@@ -101,12 +101,24 @@ export default function ConciliadorPage() {
 
                                         {/* Tarjeta Simulación de Ticket */}
                                         <div className="flex-1 w-full bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <Badge variant="outline" className="text-gray-500 border-gray-300">Ticket</Badge>
-                                                <span className="font-mono text-xs text-gray-500">{sug.ticket.folio || `#${sug.ticket.legacyId}`}</span>
+                                            <div className="flex justify-between items-start mb-1">
+                                                <Badge variant="outline" className="text-[10px] text-gray-500 border-gray-200 h-4 px-1">Ticket</Badge>
+                                                <span className="font-mono text-[10px] text-gray-400">{sug.ticket.folio || `#${sug.ticket.legacyId || sug.ticket.id.substring(0, 5)}`}</span>
                                             </div>
-                                            <p className="font-semibold text-gray-900">{formatCurrency(sug.ticket.monto)}</p>
-                                            <p className="text-xs text-blue-600 truncate">{sug.ticket.cliente?.nombreCompleto}</p>
+                                            <div className="flex justify-between items-baseline">
+                                                <p className="font-bold text-gray-900 text-base">{formatCurrency(sug.ticket.monto)}</p>
+                                                <p className="text-[10px] text-gray-400">{formatDate(sug.ticket.fecha || sug.ticket.creadoEn)}</p>
+                                            </div>
+                                            <p className="text-xs font-medium text-blue-700 truncate">{sug.ticket.cliente?.nombreCompleto}</p>
+                                            <p className="text-[10px] text-gray-500 font-mono">Contrato: {sug.ticket.cliente?.codigoCliente}</p>
+                                            <p className="text-[10px] text-gray-600 mt-1 italic truncate border-t border-gray-50 pt-1">
+                                                {sug.ticket.concepto || sug.ticket.referencia || "Sin concepto"}
+                                            </p>
+                                            {sug.ticket.cuentaOrigen && (
+                                                <p className="text-[9px] text-indigo-500 font-mono mt-0.5">
+                                                    CLABE: {sug.ticket.cuentaOrigen}
+                                                </p>
+                                            )}
                                         </div>
 
                                         <div className="flex-shrink-0 flex items-center justify-center text-indigo-300">
@@ -163,10 +175,15 @@ export default function ConciliadorPage() {
                                     >
                                         <div className="flex justify-between">
                                             <span className="font-medium text-gray-900">{formatCurrency(t.monto)}</span>
-                                            <span className="text-xs text-gray-500">{formatDate(t.creadoEn).split(' ')[0]}</span>
+                                            <span className="text-[10px] text-gray-400">{formatDate(t.fecha || t.creadoEn)}</span>
                                         </div>
-                                        <div className="text-sm text-gray-600 truncate mt-1">{t.cliente?.nombreCompleto || 'Desconocido'}</div>
-                                        <div className="text-xs text-gray-400 font-mono mt-1">{t.folio || t.referencia} • {t.gestor?.name}</div>
+                                        <div className="text-sm text-blue-700 font-medium truncate mt-1">{t.cliente?.nombreCompleto || 'Desconocido'}</div>
+                                        <div className="flex justify-between items-center mt-1">
+                                            <div className="text-[10px] text-gray-500 font-mono">Contrato: {t.cliente?.codigoCliente}</div>
+                                            <div className="text-[10px] text-gray-400 font-mono">{t.folio || t.referencia}</div>
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 mt-1 italic truncate">{t.concepto || "Sin concepto"}</div>
+                                        {t.cuentaOrigen && <div className="text-[9px] text-indigo-400 font-mono mt-0.5">CLABE: {t.cuentaOrigen}</div>}
                                     </li>
                                 ))}
                                 {tickets.length === 0 && !loading && (

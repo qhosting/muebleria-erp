@@ -28,7 +28,7 @@ export default function MobileClientes() {
     const [interesMoratorio, setInteresMoratorio] = useState("0");
     const [gastosCobranza, setGastosCobranza] = useState("0");
     const [tipoPago, setTipoPago] = useState("regular");
-    const [metodoPago, setMetodoPago] = useState("gestor");
+    const [metodoPago, setMetodoPago] = useState("GESTOR");
     const [concepto, setConcepto] = useState("");
     
     // Estados para historial de pagos
@@ -72,7 +72,7 @@ export default function MobileClientes() {
         setInteresMoratorio("0");
         setGastosCobranza("0");
         setTipoPago("regular");
-        setMetodoPago("gestor");
+        setMetodoPago("GESTOR");
         setConcepto("");
         setPagoExitoso(false);
     };
@@ -525,8 +525,9 @@ Fecha: ${new Date().toLocaleDateString()}.
                                                     onChange={(e) => setMetodoPago(e.target.value)}
                                                     className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-white text-xs focus:outline-none focus:border-sky-500 appearance-none"
                                                 >
-                                                    <option value="gestor">Efectivo</option>
-                                                    <option value="bancario">Bancario</option>
+                                                    <option value="GESTOR">GESTOR</option>
+                                                    <option value="GESTOR BANCOS">GESTOR BANCOS</option>
+                                                    <option value="BANCOS BOT">BANCOS BOT</option>
                                                 </select>
                                             </div>
                                         </div>

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
                 gestor: { select: { name: true } },
             },
             orderBy: { creadoEn: 'desc' },
-            take: 100 // Límite por rendimiento
+            take: 100
         });
 
         // 2. Obtener Movimientos Bancarios no conciliados

@@ -39,6 +39,12 @@ export async function GET(request: NextRequest) {
                         select: {
                             codigoCliente: true,
                             nombreCompleto: true,
+                            cobradorAsignado: {
+                                select: {
+                                    name: true,
+                                    codigoGestor: true
+                                }
+                            }
                         }
                     },
                     gestor: {

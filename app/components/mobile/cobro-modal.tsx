@@ -50,7 +50,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
   const [interesMoratorio, setInteresMoratorio] = useState('');
   const [gastosCobranza, setGastosCobranza] = useState('');
   const [tipoPago, setTipoPago] = useState<'regular' | 'abono' | 'liquidacion' | 'moratorio'>('regular');
-  const [metodoPago, setMetodoPago] = useState<'gestor' | 'bancario'>('gestor');
+  const [metodoPago, setMetodoPago] = useState<string>('GESTOR');
   const [concepto, setConcepto] = useState('');
   const [numeroRecibo, setNumeroRecibo] = useState('');
   const [loading, setLoading] = useState(false);
@@ -75,7 +75,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
       setInteresMoratorio('');
       setGastosCobranza('');
       setTipoPago('regular');
-      setMetodoPago('gestor');
+      setMetodoPago('GESTOR');
       setConcepto('');
       setNumeroRecibo('');
       setCalculatedValues({
@@ -416,8 +416,9 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="gestor">Efectivo (Gestor)</SelectItem>
-                  <SelectItem value="bancario">Bancario (Manual)</SelectItem>
+                  <SelectItem value="GESTOR">GESTOR</SelectItem>
+                  <SelectItem value="GESTOR BANCOS">GESTOR BANCOS</SelectItem>
+                  <SelectItem value="BANCOS BOT">BANCOS BOT</SelectItem>
                 </SelectContent>
               </Select>
             </div>

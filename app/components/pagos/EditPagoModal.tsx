@@ -120,8 +120,9 @@ export function EditPagoModal({
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="gestor">Efectivo (Gestor)</SelectItem>
-                  <SelectItem value="bancario">Bancario</SelectItem>
+                  <SelectItem value="GESTOR">GESTOR</SelectItem>
+                  <SelectItem value="GESTOR BANCOS">GESTOR BANCOS</SelectItem>
+                  <SelectItem value="BANCOS BOT">BANCOS BOT</SelectItem>
                 </SelectContent>
               </Select>
             </div>

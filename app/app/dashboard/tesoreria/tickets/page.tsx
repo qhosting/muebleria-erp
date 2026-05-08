@@ -57,7 +57,7 @@ export default function TicketsPage() {
                 `"${t.folio || t.referencia || t.legacyId || "-"}"`,
                 `"${t.cliente?.codigoCliente || "-"}"`,
                 `"${t.cliente?.nombreCompleto || "-"}"`,
-                `"${t.gestor?.name || "-"}"`,
+                `"${t.gestor?.codigoGestor || t.cliente?.cobradorAsignado?.codigoGestor || "-"}"`,
                 t.monto,
                 t.conciliado ? "CONCILIADO" : "PENDIENTE"
             ])
@@ -154,7 +154,7 @@ export default function TicketsPage() {
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                                        {ticket.gestor?.name || ticket.gestor?.codigoGestor || "Sin Gestor"}
+                                                        {ticket.gestor?.codigoGestor || ticket.cliente?.cobradorAsignado?.codigoGestor || "Sin Gestor"}
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-right font-medium text-gray-900">
