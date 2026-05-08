@@ -136,9 +136,19 @@ async function handleTesoreria(from: string, payload: any, session: string, agen
     const config = await getWahaConfig(prisma, 'tesoreria');
     const welcomeMsg = `Hola! 👋 Soy ${agentName}. Para registrar un pago, por favor envía la *foto de tu comprobante*.`;
 
-    // 1. Identificación Automática del Cliente por Número de Teléfono
+    // 1. Identificación Automática del Cliente por Número de Teléfono (Busqueda robusta)
+    const normalize = (num: string) => num.replace(/^521/, '52').replace(/\D/g, '');
+    const fromNorm = normalize(from);
+    const last10 = fromNorm.slice(-10);
+
     const cliente = await prisma.cliente.findFirst({
-        where: { telefono: from }
+        where: {
+            OR: [
+                { telefono: from },
+                { telefono: fromNorm },
+                { telefono: { contains: last10 } }
+            ]
+        }
     });
 
     // 2. Manejo de IMÁGENES (Comprobantes de pago)
