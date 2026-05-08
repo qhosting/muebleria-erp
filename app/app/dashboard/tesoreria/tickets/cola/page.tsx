@@ -189,18 +189,46 @@ export default function TicketQueuePage() {
                                                                             <p className="text-gray-500">Imagen no disponible</p>
                                                                         )}
                                                                         
-                                                                        <div className="mt-6 w-full grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border">
+                                                                        <div className="mt-6 w-full grid grid-cols-2 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border">
                                                                             <div>
                                                                                 <p className="text-[10px] uppercase text-gray-500 font-bold">Monto Extraído</p>
                                                                                 <p className="text-lg font-bold">{formatCurrency(entry.monto || 0)}</p>
                                                                             </div>
                                                                             <div>
-                                                                                <p className="text-[10px] uppercase text-gray-500 font-bold">Referencia/Folio</p>
-                                                                                <p className="text-lg font-bold">{entry.referencia || 'N/A'}</p>
+                                                                                <p className="text-[10px] uppercase text-gray-500 font-bold">Folio / Referencia</p>
+                                                                                <p className="text-lg font-bold">{entry.referencia || (entry.metadata as any)?.folio || 'N/A'}</p>
                                                                             </div>
-                                                                            <div className="col-span-2">
-                                                                                <p className="text-[10px] uppercase text-gray-500 font-bold">Hash Único (Anti-Duplicados)</p>
-                                                                                <p className="text-[10px] font-mono break-all text-slate-400">{entry.hash}</p>
+                                                                            <div>
+                                                                                <p className="text-[10px] uppercase text-gray-500 font-bold">Fecha / Hora</p>
+                                                                                <p className="text-sm font-bold">{(entry.metadata as any)?.fecha} {(entry.metadata as any)?.hora}</p>
+                                                                            </div>
+                                                                            {entry.metadata && (
+                                                                                <>
+                                                                                    <div className="col-span-2 md:col-span-1">
+                                                                                        <p className="text-[10px] uppercase text-gray-500 font-bold">Tipo Operación</p>
+                                                                                        <p className="text-xs font-medium">{(entry.metadata as any).tipoOperacion || 'N/A'}</p>
+                                                                                    </div>
+                                                                                    <div className="col-span-2">
+                                                                                        <p className="text-[10px] uppercase text-gray-500 font-bold">Clave de Rastreo</p>
+                                                                                        <p className="text-xs font-mono">{(entry.metadata as any).claveRastreo || 'N/A'}</p>
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <p className="text-[10px] uppercase text-gray-500 font-bold">Cuenta Origen</p>
+                                                                                        <p className="text-sm font-mono">{(entry.metadata as any).cuentaOrigen || 'N/A'}</p>
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <p className="text-[10px] uppercase text-gray-500 font-bold">Banco / Destino</p>
+                                                                                        <p className="text-sm">{(entry.metadata as any).bancoBeneficiario || (entry.metadata as any).cuentaDestino || 'N/A'}</p>
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <p className="text-[10px] uppercase text-gray-500 font-bold">Concepto Detectado</p>
+                                                                                        <p className="text-sm italic">{(entry.metadata as any).concepto || 'N/A'}</p>
+                                                                                    </div>
+                                                                                </>
+                                                                            )}
+                                                                            <div className="col-span-2 md:col-span-3 border-t pt-2 mt-2">
+                                                                                <p className="text-[10px] uppercase text-gray-500 font-bold">Hash de Seguridad</p>
+                                                                                <p className="text-[9px] font-mono break-all text-slate-400">{entry.hash}</p>
                                                                             </div>
                                                                         </div>
                                                                     </div>
