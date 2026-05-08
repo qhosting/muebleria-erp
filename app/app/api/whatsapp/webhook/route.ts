@@ -266,7 +266,14 @@ async function handleTesoreria(from: string, payload: any, session: string, agen
         }
     }
 
-    // Respuesta por defecto para Tesorería
+    // 4. Respuesta por defecto o seguimiento
+    if (isContractId) {
+        // Si envió un contrato pero no hay imagen pendiente
+        await sendWahaMessage(config, from, `✅ He recibido el contrato *${text}*. Ahora, por favor envía la *foto de tu comprobante* para completar el registro.`);
+        return NextResponse.json({ status: 'waiting_receipt_after_contract' });
+    }
+
+    // Respuesta de bienvenida general (solo si no es imagen ni contrato)
     await sendWahaMessage(config, from, welcomeMsg);
     return NextResponse.json({ status: 'waiting_receipt' });
 }
