@@ -159,3 +159,38 @@ export async function sendWahaMessage(
         throw error;
     }
 }
+
+/**
+ * Obtiene el contenido de un archivo de WAHA en formato Base64
+ * Útil cuando el webhook no envía el 'data' (Base64) sino solo un 'url'
+ */
+export async function getWahaMedia(config: WahaConfig, mediaUrl: string): Promise<string | null> {
+    try {
+        // Si el URL es de localhost, intentamos usar la URL de la API configurada
+        let fetchUrl = mediaUrl;
+        if (mediaUrl.includes('localhost') && config.apiUrl) {
+            try {
+                const apiBase = new URL(config.apiUrl).origin;
+                fetchUrl = mediaUrl.replace(/https?:\/\/localhost(:\d+)?/, apiBase);
+                console.log(`🔗 [Media] Reemplazando localhost por API URL: ${fetchUrl}`);
+            } catch (urlError) {
+                console.error("Error parseando API URL para media:", urlError);
+            }
+        }
+
+        const response = await fetch(fetchUrl, {
+            headers: config.apiKey ? { 'X-Api-Key': config.apiKey } : {}
+        });
+
+        if (!response.ok) {
+            console.warn(`⚠️ [Media] Error al descargar archivo (${response.status}): ${fetchUrl}`);
+            return null;
+        }
+
+        const buffer = await response.arrayBuffer();
+        return Buffer.from(buffer).toString('base64');
+    } catch (error) {
+        console.error("❌ [Media] Error fatal al obtener media de WAHA:", error);
+        return null;
+    }
+}

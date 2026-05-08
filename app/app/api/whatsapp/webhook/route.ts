@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { prisma } from '@/lib/db';
 import { redis } from '@/lib/redis';
 import { detectIntent, extractTicketFromImage } from '@/lib/ai-service';
-import { sendWahaMessage, getWahaConfig } from '@/lib/whatsapp';
+import { sendWahaMessage, getWahaConfig, getWahaMedia } from '@/lib/whatsapp';
 
 // Cast prisma to any for flexibility with dynamically loaded models/fields
 const db = prisma as any;
@@ -163,7 +163,13 @@ async function handleTesoreria(from: string, payload: any, session: string, agen
         let contractId = isContractId ? caption : (cliente?.codigoCliente || null);
         
         // El contenido de la imagen (Base64)
-        const imageBase64 = payload.media?.data || (payload.body?.length > 500 ? payload.body : null);
+        let imageBase64 = payload.media?.data || (payload.body?.length > 500 ? payload.body : null);
+
+        // Si no hay data pero hay URL, intentamos descargarla
+        if (!imageBase64 && payload.media?.url) {
+            console.log(`📥 [Media] Intentando descargar imagen desde URL: ${payload.media.url}`);
+            imageBase64 = await getWahaMedia(config, payload.media.url);
+        }
 
         if (!imageBase64) {
             console.warn(`⚠️ [${session}] Imagen recibida sin datos Base64. (Body length: ${payload.body?.length || 0})`);
