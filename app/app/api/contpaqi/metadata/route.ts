@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Faltan credenciales (URL o API Key)' }, { status: 400 });
         }
 
+        console.log(`🔍 [Contpaqi Metadata] Solicitando ${type} para empresa: "${empresa}" en ${apiUrl}`);
         const service = new ContpaqiService({ apiUrl, apiKey });
 
         let data: any = null;
@@ -41,6 +42,8 @@ export async function POST(request: NextRequest) {
             default:
                 return NextResponse.json({ error: 'Tipo de metadato no válido' }, { status: 400 });
         }
+
+        console.log(`✅ [Contpaqi Metadata] Respuesta para ${type}:`, Array.isArray(data) ? `${data.length} elementos` : 'Objeto');
 
         return NextResponse.json(data);
 
