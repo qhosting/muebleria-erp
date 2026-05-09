@@ -17,6 +17,9 @@ export class ContpaqiService {
 
     private cleanEmpresaName(name: string): string {
         if (!name) return '';
+        if (name.includes(' - ')) {
+            return name.split(' - ')[1].trim();
+        }
         return name.trim();
     }
 
