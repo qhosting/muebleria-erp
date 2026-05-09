@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import CobranzaMobile from '@/components/mobile/cobranza-mobile';
-import { OfflineCliente } from '@/lib/offline-db';
+import { OfflineCliente, db } from '@/lib/offline-db';
 import { getFullPath } from '@/lib/api-config';
 
 export default function CobranzaMobilePage() {
@@ -60,7 +60,7 @@ export default function CobranzaMobilePage() {
         const offlineClientes = await db.clientes
           .where('cobradorAsignadoId')
           .equals(currentUserId)
-          .and(cliente => cliente.statusCuenta === 'activo')
+          .and((cliente: OfflineCliente) => cliente.statusCuenta === 'activo')
           .toArray();
         
         if (offlineClientes.length > 0) {
