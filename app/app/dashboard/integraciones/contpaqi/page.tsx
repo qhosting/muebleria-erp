@@ -408,12 +408,20 @@ export default function ContpaqiMultiPage() {
                             <SelectTrigger className="bg-white/80 border-slate-200">
                               <SelectValue placeholder="Seleccionar concepto" />
                             </SelectTrigger>
-                            <SelectContent>
+                             <SelectContent>
                               {metadata[empresa.id].conceptos.map((c: any, idx: number) => {
-                                const name = typeof c === 'string' ? c : (c.nombre || c.Nombre || c.name || `Concepto ${idx}`);
-                                const value = typeof c === 'string' ? c : (c.nombre || c.Nombre || c.codigo || c.id || name);
+                                // Debug para ver la estructura en la consola del navegador
+                                if (idx === 0) console.log('DEBUG Concepto Structure:', c);
+                                
+                                const name = typeof c === 'string' ? c : (
+                                  c.nombre || c.Nombre || c.cNombre || c.cNombreConcepto || 
+                                  c.CNOMBRECONCEPTO || c.nombreConcepto || c.name || c.description ||
+                                  Object.values(c).find(v => typeof v === 'string' && v.length > 3) ||
+                                  `Concepto ${idx + 1}`
+                                );
+                                
                                 return (
-                                  <SelectItem key={idx} value={name}>{name}</SelectItem>
+                                  <SelectItem key={idx} value={String(name)}>{String(name)}</SelectItem>
                                 );
                               })}
                             </SelectContent>
@@ -482,9 +490,13 @@ export default function ContpaqiMultiPage() {
                               </SelectTrigger>
                               <SelectContent>
                                 {metadata[empresa.id].clasificaciones.map((c: any, idx: number) => {
-                                  const name = typeof c === 'string' ? c : (c.nombre || c.Nombre || c.name || `Clasif ${idx}`);
+                                  const name = typeof c === 'string' ? c : (
+                                    c.nombre || c.Nombre || c.cNombre || c.name || 
+                                    Object.values(c).find(v => typeof v === 'string' && v.length > 3) ||
+                                    `Clasif ${idx + 1}`
+                                  );
                                   return (
-                                    <SelectItem key={idx} value={name}>{name}</SelectItem>
+                                    <SelectItem key={idx} value={String(name)}>{String(name)}</SelectItem>
                                   );
                                 })}
                               </SelectContent>
