@@ -22,9 +22,10 @@ export async function GET(request: NextRequest) {
                         id: true,
                         nombreCompleto: true, 
                         codigoCliente: true,
+                        // @ts-ignore
                         cuentasBancarias: true 
                     } 
-                },
+                } as any,
                 gestor: { select: { name: true } },
             },
             orderBy: { creadoEn: 'desc' },
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
         });
 
         // 3. Obtener Catálogo de Cuentas para búsqueda inversa
-        const cuentasConocidas = await prisma.cuentaBancariaCliente.findMany({
+        const cuentasConocidas = await (prisma as any).cuentaBancariaCliente.findMany({
             include: { cliente: { select: { id: true, nombreCompleto: true, codigoCliente: true } } }
         });
 
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
                 let currentRazon = "Monto exacto (Prioridad 8)";
 
                 // A. Búsqueda por Cuenta Bancaria Histórica (Inteligencia)
-                const matchCuenta = cuentasConocidas.find(c => 
+                const matchCuenta = cuentasConocidas.find((c: any) => 
                     (c.clabe && dataPool.includes(c.clabe)) || 
                     (c.cuenta && dataPool.includes(c.cuenta))
                 );
@@ -141,11 +142,11 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const { ticketId, movimientoId } = body;
 
-        const ticket = await prisma.ticket.findUnique({ 
+        const ticket: any = await prisma.ticket.findUnique({ 
             where: { id: ticketId },
             include: { cliente: true }
         });
-        const movimiento = await prisma.movimientoBancario.findUnique({ where: { id: movimientoId } });
+        const movimiento: any = await prisma.movimientoBancario.findUnique({ where: { id: movimientoId } });
 
         if (!ticket || !movimiento) return NextResponse.json({ error: 'Datos no encontrados' }, { status: 404 });
 
@@ -167,7 +168,7 @@ export async function POST(request: NextRequest) {
                     fechaIdentificado: new Date(),
                     clabeEmisor: clabeMatch ? clabeMatch[0] : (movimiento.clabeEmisor || null),
                     cuentaEmisor: cuentaMatch ? cuentaMatch[0] : (movimiento.cuentaEmisor || null)
-                }
+                } as any
             })
         ];
 
@@ -175,7 +176,7 @@ export async function POST(request: NextRequest) {
         if (ticket.clienteId && (clabeMatch || cuentaMatch)) {
             const clabe = clabeMatch ? clabeMatch[0] : null;
             if (clabe) {
-                operations.push(prisma.cuentaBancariaCliente.upsert({
+                operations.push((prisma as any).cuentaBancariaCliente.upsert({
                     where: { clabe: clabe },
                     update: { 
                         clienteId: ticket.clienteId, 
