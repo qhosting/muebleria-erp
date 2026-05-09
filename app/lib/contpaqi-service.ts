@@ -244,26 +244,41 @@ export class ContpaqiService {
             ['/api/clientes', '/api/Comercial/Clientes', '/api/v1/Comercial/Clientes', '/api/v1/clientes'] : 
             ['/api/productos', '/api/Comercial/Productos', '/api/v1/Comercial/Productos', '/api/v1/productos'];
         
+        // Campos estándar para asegurar que siempre haya opciones
+        const standardFields = tabla === 'clientes' ? [
+            'cCodigoCliente', 'cNombreCliente', 'cRFC', 'cCURP', 'cTelefono1', 'cTelefono2', 
+            'cEmail1', 'cEmail2', 'cFechaAlta', 'cLimiteCreditoCliente', 'cSaldoActual',
+            'cTextoExtra1', 'cTextoExtra2', 'cTextoExtra3', 'cImporteExtra1', 'cImporteExtra2'
+        ] : [
+            'cCodigoProducto', 'cNombreProducto', 'cPrecio1', 'cPrecio2', 'cPrecio3',
+            'cControlExistencia', 'cTextoExtra1', 'cTextoExtra2', 'cImporteExtra1'
+        ];
+
+        let discoveredFields: string[] = [];
+
         for (const base of baseEndpoints) {
             try {
                 const url = `${base}${query}${query.includes('?') ? '&' : '?'}limit=1`;
-                const data = await this.request(url);
+                const response = await this.request(url);
                 
-                if (Array.isArray(data) && data.length > 0) {
-                    return Object.keys(data[0]);
-                }
-                
-                const dataFull = await this.request(`${base}${query}`);
-                if (Array.isArray(dataFull) && dataFull.length > 0) {
-                    return Object.keys(dataFull[0]);
+                // Extraer el array de datos sin importar la estructura (data: [], items: [], o directo [])
+                const data = Array.isArray(response) ? response : 
+                             (response?.data && Array.isArray(response.data)) ? response.data :
+                             (response?.items && Array.isArray(response.items)) ? response.items :
+                             (response?.list && Array.isArray(response.list)) ? response.list : null;
+
+                if (data && data.length > 0) {
+                    discoveredFields = Object.keys(data[0]);
+                    break;
                 }
             } catch (e) {
                 if (!(e as Error).message.includes('404')) continue;
-                console.warn(`⚠️ Error en endpoint ${base} para ${tabla}:`, (e as Error).message);
             }
         }
 
-        return [];
+        // Combinar campos descubiertos con estándares, evitando duplicados
+        const allFields = Array.from(new Set([...standardFields, ...discoveredFields])).sort();
+        return allFields;
     }
 
     async getClienteEstadoCuenta(codigo: string, empresa?: string) {

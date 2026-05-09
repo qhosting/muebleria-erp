@@ -677,7 +677,7 @@ export default function ContpaqiMultiPage() {
                             {CLIENTE_FIELDS.map((field) => (
                               <div key={field.key} className="grid grid-cols-2 gap-3 items-center border-b border-slate-100/50 pb-2 last:border-0 last:pb-0">
                                 <Label className="text-[10px] text-slate-500">{field.label}</Label>
-                                {metadata[empresa.id]?.campos_clientes ? (
+                                {metadata[empresa.id]?.campos_clientes && metadata[empresa.id].campos_clientes.length > 0 ? (
                                   <Select 
                                     value={empresa.mapping?.clientes?.[field.key] || ''} 
                                     onValueChange={(val) => handleUpdateMapping(empresa.id, 'clientes', field.key, val)}
@@ -726,7 +726,7 @@ export default function ContpaqiMultiPage() {
                             {PRODUCTO_FIELDS.map((field) => (
                               <div key={field.key} className="grid grid-cols-2 gap-3 items-center border-b border-slate-100/50 pb-2 last:border-0 last:pb-0">
                                 <Label className="text-[10px] text-slate-500">{field.label}</Label>
-                                {metadata[empresa.id]?.campos_productos ? (
+                                {metadata[empresa.id]?.campos_productos && metadata[empresa.id].campos_productos.length > 0 ? (
                                   <Select 
                                     value={empresa.mapping?.productos?.[field.key] || ''} 
                                     onValueChange={(val) => handleUpdateMapping(empresa.id, 'productos', field.key, val)}
