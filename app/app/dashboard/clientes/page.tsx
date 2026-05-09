@@ -521,7 +521,7 @@ export default function ClientesPage() {
                   {cliente.isGrouped && (
                     <div className="space-y-2 mt-4 bg-slate-50 p-2 rounded-xl border border-slate-100">
                       <p className="text-[10px] font-bold text-slate-400 uppercase">Detalle de Cuentas</p>
-                      {cliente.cuentas.map((cta: any) => (
+                      {cliente.cuentas?.map((cta: any) => (
                         <div key={cta.id} className="flex items-center justify-between text-xs bg-white p-2 rounded-lg border hover:border-blue-200 cursor-pointer group" onClick={() => handleViewClienteDetails(cta)}>
                           <div className="flex flex-col">
                             <span className="font-mono text-blue-600 font-bold">{cta.codigoCliente}</span>
