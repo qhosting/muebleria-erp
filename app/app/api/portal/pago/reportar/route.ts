@@ -10,21 +10,23 @@ export async function POST(req: Request) {
     }
 
     // Crear el registro en el Buzón de Tesorería
-    const buzonEntry = await prisma.buzonTesoreria.create({
-      data: {
-        telefono: phone || 'PORTAL_CLIENTE',
-        remitente: 'PORTAL_CLIENTE',
+    const buzonData: any = {
+      telefono: phone || 'PORTAL_CLIENTE',
+      monto: amount ? Number(amount) : null,
+      base64Data: base64Image,
+      contractId: contractCode, // Usamos el código del contrato (ej. DQ...)
+      estado: 'PENDIENTE',
+      metadata: {
+        origen: 'PORTAL_CLIENTE',
         tipo: 'PAGO_REPORTADO',
-        monto: amount ? Number(amount) : null,
-        base64Data: base64Image,
-        contractId: contractCode, // Usamos el código del contrato (ej. DQ...)
-        estado: 'PENDIENTE',
-        metadata: {
-          origen: 'PORTAL_CLIENTE',
-          clientId: clientId,
-          fechaReporte: new Date().toISOString()
-        }
+        remitente: 'PORTAL_CLIENTE',
+        clientId: clientId,
+        fechaReporte: new Date().toISOString()
       }
+    };
+
+    const buzonEntry = await prisma.buzonTesoreria.create({
+      data: buzonData
     });
 
     return NextResponse.json({
