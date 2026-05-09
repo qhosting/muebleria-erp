@@ -44,6 +44,9 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`✅ [Contpaqi Metadata] Respuesta para ${type}:`, Array.isArray(data) ? `${data.length} elementos` : 'Objeto');
+        if (Array.isArray(data) && data.length > 0) {
+            console.log(`📌 [Contpaqi Metadata] Ejemplo de ${type}[0]:`, JSON.stringify(data[0]));
+        }
 
         return NextResponse.json(data);
 
