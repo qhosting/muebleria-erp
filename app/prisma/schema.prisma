@@ -161,6 +161,7 @@ model Cliente {
   codigoCliente       String       @unique
   fechaVenta          DateTime
   nombreCompleto      String
+  numContrato         String?
   telefono            String?
   vendedor            String?
   cobradorAsignadoId  String?

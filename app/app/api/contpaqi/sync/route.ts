@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
                     where: { codigoCliente: codigo },
                     update: {
                         nombreCompleto: c[m.nombreCompleto] || c.nombre || c.razonSocial,
+                        numContrato: c[m.numContrato] ? String(c[m.numContrato]) : null,
                         saldoActual: saldoReal,
                         calle: c[m.calle],
                         numeroExterior: c[m.numeroExterior],
@@ -102,6 +103,7 @@ export async function GET(request: NextRequest) {
                     },
                     create: {
                         codigoCliente: codigo,
+                        numContrato: c[m.numContrato] ? String(c[m.numContrato]) : null,
                         nombreCompleto: c[m.nombreCompleto] || c.nombre || c.razonSocial,
                         fechaVenta: new Date(),
                         calle: c[m.calle],

@@ -64,6 +64,7 @@ interface EmpresaContpaqi {
 
 const CLIENTE_FIELDS = [
   { key: 'codigoCliente', label: 'Código Cliente' },
+  { key: 'numContrato', label: 'Número de Contrato' },
   { key: 'nombreCompleto', label: 'Nombre Completo' },
   { key: 'telefono', label: 'Teléfono' },
   { key: 'calle', label: 'Calle' },
