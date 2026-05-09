@@ -9,7 +9,7 @@ import { ContpaqiService } from '@/lib/contpaqi-service';
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { apiUrl, apiKey, type, empresa } = body;
+        const { apiUrl, apiKey, type, empresa, id } = body;
 
         if (!apiUrl || !apiKey) {
             return NextResponse.json({ error: 'Faltan credenciales (URL o API Key)' }, { status: 400 });
@@ -32,6 +32,9 @@ export async function POST(request: NextRequest) {
                 break;
             case 'clasificaciones':
                 data = await service.getClasificaciones(empresa);
+                break;
+            case 'valores_clasificacion':
+                data = await service.getValoresClasificacion(id, empresa);
                 break;
             case 'campos_clientes':
                 data = await service.getCampos('clientes', empresa);

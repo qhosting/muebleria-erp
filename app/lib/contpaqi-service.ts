@@ -159,6 +159,27 @@ export class ContpaqiService {
         throw new Error('No se pudo encontrar el endpoint de clasificaciones en el servidor Contpaqi.');
     }
 
+    async getValoresClasificacion(id: string | number, empresa?: string) {
+        const query = empresa ? `&empresa=${encodeURIComponent(empresa)}` : '';
+        const endpoints = [
+            `/api/clasificaciones/${id}/valores?${query}`,
+            `/api/contpaqi/clasificaciones/${id}/valores?${query}`,
+            `/api/Comercial/Clasificaciones/${id}/Valores?${query}`,
+            `/api/Catalogos/ValoresClasificacion?id=${id}${query}`,
+            `/api/v1/clasificaciones/${id}/valores?${query}`
+        ];
+
+        for (const endpoint of endpoints) {
+            try {
+                return await this.request(endpoint);
+            } catch (e) {
+                if (!(e as Error).message.includes('404')) throw e;
+                continue;
+            }
+        }
+        return []; // Fallback a lista vacía si no hay endpoint de valores
+    }
+
     async getCampos(tabla: 'clientes' | 'productos', empresa?: string) {
         const query = empresa ? `?empresa=${encodeURIComponent(empresa)}` : '';
         const baseEndpoints = tabla === 'clientes' ? 

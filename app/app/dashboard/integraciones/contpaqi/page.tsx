@@ -42,8 +42,11 @@ interface EmpresaContpaqi {
   apiUrl: string;
   apiKey: string;
   conceptoAbono: string;
-  clasificacion: string;
-  ruta: string;
+  syncConcepto: string;
+  syncClasifTipo: string;
+  syncClasifValor: string;
+  clasificacion: string; // Deprecated, but keeping for compatibility if needed
+  ruta: string; // Deprecated
   isActive: boolean;
   mapping?: {
     clientes?: Record<string, string>;
@@ -111,6 +114,9 @@ export default function ContpaqiMultiPage() {
       apiUrl: 'http://localhost:5000',
       apiKey: 'VortexContpaqiAPI2024',
       conceptoAbono: 'ABONO CLIENTE',
+      syncConcepto: 'Pagaré',
+      syncClasifTipo: 'STATUS',
+      syncClasifValor: 'COBRANZA NORMAL',
       clasificacion: 'COBRANZA NORMAL',
       ruta: '',
       isActive: true,
@@ -171,7 +177,6 @@ export default function ContpaqiMultiPage() {
     setEmpresas(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
     
     // Si se cambia el nombre de la empresa, intentar cargar conceptos y clasificaciones
-    // Usamos el objeto de empresa actual pero sobreescribimos el campo modificado
     if (field === 'nombre') {
       const currentEmpresa = empresas.find(e => e.id === id);
       if (currentEmpresa) {
@@ -180,9 +185,28 @@ export default function ContpaqiMultiPage() {
         handleFetchMetadata(updatedEmpresa, 'clasificaciones');
       }
     }
+
+    // Si se cambia el tipo de clasificación, intentar cargar sus valores
+    if (field === 'syncClasifTipo') {
+      const currentEmpresa = empresas.find(e => e.id === id);
+      if (currentEmpresa) {
+        // Buscamos el ID de la clasificación seleccionada
+        const clasifs = metadata[id]?.clasificaciones || [];
+        const selectedClasif = clasifs.find((c: any) => 
+          (c.nombre || c.Nombre || c.cNombre || c) === value
+        );
+        
+        if (selectedClasif && typeof selectedClasif === 'object') {
+          const clasifId = selectedClasif.id || selectedClasif.codigo || selectedClasif.cIdClasificacion;
+          if (clasifId) {
+            handleFetchMetadata({ ...currentEmpresa, [field]: value }, 'valores_clasificacion', clasifId);
+          }
+        }
+      }
+    }
   };
 
-  const handleFetchMetadata = async (empresa: EmpresaContpaqi, type: 'empresas' | 'conceptos' | 'clasificaciones' | 'campos_clientes' | 'campos_productos') => {
+  const handleFetchMetadata = async (empresa: EmpresaContpaqi, type: string, extraId?: any) => {
     const key = `${empresa.id}-${type}`;
     setFetchingMetadata(prev => ({ ...prev, [key]: true }));
     try {
@@ -193,7 +217,8 @@ export default function ContpaqiMultiPage() {
           apiUrl: empresa.apiUrl,
           apiKey: empresa.apiKey,
           type,
-          empresa: empresa.nombre
+          empresa: empresa.nombre,
+          id: extraId
         })
       });
 
@@ -458,66 +483,100 @@ export default function ContpaqiMultiPage() {
                         <LucideIcons.Activity className="h-4 w-4 text-indigo-500" />
                         Filtros de Sincronización
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Concepto Sincronización */}
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Concepto</Label>
+                          <Input 
+                            placeholder="Ej: Pagaré"
+                            value={empresa.syncConcepto || ''} 
+                            onChange={(e) => handleUpdateEmpresa(empresa.id, 'syncConcepto', e.target.value)}
+                            className="bg-white/80 h-9 text-sm"
+                          />
+                        </div>
+
+                        {/* Clasificación (Tipo) */}
                         <div className="space-y-2">
                           <div className="flex justify-between items-center">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Clasificación Principal</Label>
+                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Clasificación</Label>
                             {empresa.nombre && (
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                className="h-6 text-[10px] text-blue-600 hover:text-blue-700 p-0"
+                                className="h-4 text-[9px] text-blue-600 p-0"
                                 onClick={() => handleFetchMetadata(empresa, 'clasificaciones')}
-                                disabled={fetchingMetadata[`${empresa.id}-clasificaciones`]}
                               >
-                                <LucideIcons.RefreshCcw className={`h-3 w-3 mr-1 ${fetchingMetadata[`${empresa.id}-clasificaciones`] ? 'animate-spin' : ''}`} />
-                                Clasificaciones
+                                <LucideIcons.RefreshCcw className="h-2 w-2 mr-1" />
+                                Cargar
                               </Button>
                             )}
                           </div>
-                          {fetchingMetadata[`${empresa.id}-clasificaciones`] ? (
-                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
-                              <LucideIcons.RefreshCcw className="h-4 w-4 animate-spin text-indigo-500" />
-                              <span className="text-xs text-slate-500">Cargando clasificaciones...</span>
-                            </div>
-                          ) : metadata[empresa.id]?.clasificaciones ? (
+                          {metadata[empresa.id]?.clasificaciones ? (
                             <Select 
-                              value={empresa.clasificacion} 
-                              onValueChange={(val) => handleUpdateEmpresa(empresa.id, 'clasificacion', val)}
+                              value={empresa.syncClasifTipo || ''} 
+                              onValueChange={(val) => handleUpdateEmpresa(empresa.id, 'syncClasifTipo', val)}
                             >
-                              <SelectTrigger className="bg-white/80 border-slate-200">
-                                <SelectValue placeholder="Seleccionar clasificación" />
+                              <SelectTrigger className="bg-white/80 h-9 text-sm border-slate-200">
+                                <SelectValue placeholder="Tipo Clasif." />
                               </SelectTrigger>
                               <SelectContent>
                                 {metadata[empresa.id].clasificaciones.map((c: any, idx: number) => {
-                                  const name = typeof c === 'string' ? c : (
-                                    c.nombre || c.Nombre || c.cNombre || c.name || 
-                                    Object.values(c).find(v => typeof v === 'string' && v.length > 3) ||
-                                    `Clasif ${idx + 1}`
-                                  );
-                                  return (
-                                    <SelectItem key={idx} value={String(name)}>{String(name)}</SelectItem>
-                                  );
+                                  const name = typeof c === 'string' ? c : (c.nombre || c.Nombre || c.cNombre || `Clasif ${idx+1}`);
+                                  return <SelectItem key={idx} value={String(name)}>{String(name)}</SelectItem>;
+                                })}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input 
+                              placeholder="Ej: STATUS"
+                              value={empresa.syncClasifTipo || ''} 
+                              onChange={(e) => handleUpdateEmpresa(empresa.id, 'syncClasifTipo', e.target.value)}
+                              className="bg-white/80 h-9 text-sm"
+                            />
+                          )}
+                        </div>
+
+                        {/* Valor de Clasificación */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Valor / Ruta</Label>
+                            {empresa.syncClasifTipo && (
+                              <div className="flex items-center gap-1">
+                                {fetchingMetadata[`${empresa.id}-valores_clasificacion`] && (
+                                  <LucideIcons.RefreshCcw className="h-2 w-2 animate-spin text-blue-500" />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {metadata[empresa.id]?.valores_clasificacion ? (
+                            <Select 
+                              value={empresa.syncClasifValor || ''} 
+                              onValueChange={(val) => {
+                                handleUpdateEmpresa(empresa.id, 'syncClasifValor', val);
+                                handleUpdateEmpresa(empresa.id, 'clasificacion', val);
+                              }}
+                            >
+                              <SelectTrigger className="bg-white/80 h-9 text-sm border-slate-200">
+                                <SelectValue placeholder="Valor Clasif." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {metadata[empresa.id].valores_clasificacion.map((v: any, idx: number) => {
+                                  const name = typeof v === 'string' ? v : (v.nombre || v.Nombre || v.cValorClasificacion || v.cNombreValor || `Valor ${idx+1}`);
+                                  return <SelectItem key={idx} value={String(name)}>{String(name)}</SelectItem>;
                                 })}
                               </SelectContent>
                             </Select>
                           ) : (
                             <Input 
                               placeholder="Ej: COBRANZA NORMAL"
-                              value={empresa.clasificacion} 
-                              onChange={(e) => handleUpdateEmpresa(empresa.id, 'clasificacion', e.target.value)}
-                              className="bg-white/80"
+                              value={empresa.syncClasifValor || empresa.clasificacion || ''} 
+                              onChange={(e) => {
+                                handleUpdateEmpresa(empresa.id, 'syncClasifValor', e.target.value);
+                                handleUpdateEmpresa(empresa.id, 'clasificacion', e.target.value); // Sync with legacy field
+                              }}
+                              className="bg-white/80 h-9 text-sm"
                             />
                           )}
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ruta / Clasif 2</Label>
-                          <Input 
-                            placeholder="Ej: RUTA 01"
-                            value={empresa.ruta} 
-                            onChange={(e) => handleUpdateEmpresa(empresa.id, 'ruta', e.target.value)}
-                            className="bg-white/80"
-                          />
                         </div>
                       </div>
                     </div>
