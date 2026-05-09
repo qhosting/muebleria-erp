@@ -83,6 +83,10 @@ const CLIENTE_FIELDS = [
   { key: 'importe2', label: 'Vendido En' },
   { key: 'importe3', label: 'Precio 6 Meses' },
   { key: 'importe4', label: 'Precio 12 Meses' },
+  { key: 'diaPago', label: 'Día de Cobro' },
+  { key: 'referencia1', label: 'Referencia 1' },
+  { key: 'referencia2', label: 'Referencia 2' },
+  { key: 'aval', label: 'Aval' },
 ];
 
 const PRODUCTO_FIELDS = [

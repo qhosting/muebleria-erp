@@ -251,6 +251,9 @@ export class ContpaqiService {
             'cNombreCalle', 'cNumeroExterior', 'cNumeroInterior', 'cColonia', 'cCiudad', 
             'cEstado', 'cCodigoPostal',
             'cNombreAgente', 'cCodigoAgente',
+            'cCuentaMensajeria',
+            'cNombreClasificacion1', 'cNombreClasificacion2', 'cNombreClasificacion3', 
+            'cNombreClasificacion4', 'cNombreClasificacion5', 'cNombreClasificacion6',
             'cTextoExtra1', 'cTextoExtra2', 'cTextoExtra3', 'cTextoExtra4', 'cTextoExtra5',
             'cImporteExtra1', 'cImporteExtra2'
         ] : [

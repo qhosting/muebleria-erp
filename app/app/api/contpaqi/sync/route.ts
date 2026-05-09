@@ -27,7 +27,27 @@ export async function GET(request: NextRequest) {
         const empresaConfig = contpaqiConfig.empresas?.find((e: any) => e.id === searchParams.get('empresaId')) || contpaqiConfig.empresas?.[0];
         
         const mapping = empresaConfig?.mapping || {
-            clientes: { nombreCompleto: 'Nombre', codigoCliente: 'Codigo', saldoActual: 'Saldo', direccionCompleta: 'Direccion' },
+            clientes: { 
+                nombreCompleto: 'Nombre', 
+                codigoCliente: 'Codigo', 
+                saldoActual: 'Saldo', 
+                direccionCompleta: 'Direccion',
+                importe1: 'importe1',
+                importe2: 'importe2',
+                importe3: 'importe3',
+                importe4: 'importe4',
+                diaPago: 'diaPago',
+                referencia1: 'referencia1',
+                referencia2: 'referencia2',
+                aval: 'aval',
+                cCuentaMensajeria: 'cCuentaMensajeria',
+                clasificacion1: 'cNombreClasificacion1',
+                clasificacion2: 'cNombreClasificacion2',
+                clasificacion3: 'cNombreClasificacion3',
+                clasificacion4: 'cNombreClasificacion4',
+                clasificacion5: 'cNombreClasificacion5',
+                clasificacion6: 'cNombreClasificacion6'
+            },
             productos: { nombre: 'Nombre', codigo: 'Codigo', precioVenta: 'Precio', existencias: 'Existencias' }
         };
 
@@ -41,7 +61,6 @@ export async function GET(request: NextRequest) {
                 const codigo = String(c[m.codigoCliente] || c.codigo || c.id);
                 
                 // 🚀 OBTENER SALDO REAL (Estado de Cuenta)
-                // Se consulta de forma individual para asegurar que el saldo sea el actual calculado
                 let saldoReal = parseFloat(c[m.saldoActual]) || 0;
                 try {
                     const empresaAlias = empresaConfig?.baseDatos || searchParams.get('empresa');
@@ -66,7 +85,20 @@ export async function GET(request: NextRequest) {
                         estado: c[m.estado],
                         codigoPostal: c[m.codigoPostal],
                         vendedor: c[m.vendedor],
+                        diaPago: String(c[m.diaPago] || '1'),
                         direccionCompleta: [c[m.calle], c[m.numeroExterior], c[m.colonia], c[m.ciudad], c[m.estado]].filter(Boolean).join(', ') || 'Sin dirección',
+                        periodicidad: (function() {
+                            const p = String(c[m.periodicidad] || '').toLowerCase();
+                            if (p.includes('quin')) return 'quincenal';
+                            if (p.includes('sem')) return 'semanal';
+                            return 'mensual';
+                        })() as any,
+                        observaciones: `Ref 1: ${c[m.referencia1] || ''}\nRef 2: ${c[m.referencia2] || ''}\nAval: ${c[m.aval] || ''}\nCuenta Mensajería: ${c[m.cCuentaMensajeria] || ''}`,
+                        referencias: {
+                            ref1: c[m.referencia1],
+                            ref2: c[m.referencia2],
+                            aval: c[m.aval]
+                        }
                     },
                     create: {
                         codigoCliente: codigo,
@@ -80,13 +112,23 @@ export async function GET(request: NextRequest) {
                         estado: c[m.estado],
                         codigoPostal: c[m.codigoPostal],
                         vendedor: c[m.vendedor],
+                        diaPago: String(c[m.diaPago] || '1'),
                         direccionCompleta: [c[m.calle], c[m.numeroExterior], c[m.colonia], c[m.ciudad], c[m.estado]].filter(Boolean).join(', ') || 'Sin dirección',
-                        descripcionProducto: 'Importado de Contpaqi',
-                        diaPago: '1',
-                        periodicidad: 'mensual',
-                        montoPago: 0,
+                        periodicidad: (function() {
+                            const p = String(c[m.periodicidad] || '').toLowerCase();
+                            if (p.includes('quin')) return 'quincenal';
+                            if (p.includes('sem')) return 'semanal';
+                            return 'mensual';
+                        })() as any,
+                        montoPago: parseFloat(c[m.montoPago]) || 0,
                         saldoActual: saldoReal,
-                        statusCuenta: 'activo'
+                        statusCuenta: 'activo',
+                        observaciones: `Ref 1: ${c[m.referencia1] || ''}\nRef 2: ${c[m.referencia2] || ''}\nAval: ${c[m.aval] || ''}\nCuenta Mensajería: ${c[m.cCuentaMensajeria] || ''}`,
+                        referencias: {
+                            ref1: c[m.referencia1],
+                            ref2: c[m.referencia2],
+                            aval: c[m.aval]
+                        }
                     }
                 });
             }
