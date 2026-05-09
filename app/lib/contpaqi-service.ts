@@ -253,7 +253,6 @@ export class ContpaqiService {
                     return Object.keys(data[0]);
                 }
                 
-                // Si no hay datos, intentamos el full por si el limit rompe
                 const dataFull = await this.request(`${base}${query}`);
                 if (Array.isArray(dataFull) && dataFull.length > 0) {
                     return Object.keys(dataFull[0]);
@@ -265,6 +264,18 @@ export class ContpaqiService {
         }
 
         return [];
+    }
+
+    async getClienteEstadoCuenta(codigo: string, empresa?: string) {
+        const query = empresa ? `?empresa=${encodeURIComponent(empresa)}` : '';
+        // Intentamos el endpoint estándar de estado de cuenta
+        const endpoint = `/api/clientes/${encodeURIComponent(codigo)}/estado-cuenta${query}`;
+        try {
+            return await this.request(endpoint);
+        } catch (e) {
+            console.warn(`⚠️ No se pudo obtener estado de cuenta para cliente ${codigo}:`, (e as Error).message);
+            return null;
+        }
     }
 
     // --- DOCUMENTOS ---

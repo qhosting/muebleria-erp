@@ -38,23 +38,38 @@ export async function GET(request: NextRequest) {
             // Actualizar clientes en VertexERP usando el mapeo
             for (const c of clientes) {
                 const m = mapping.clientes;
+                const codigo = String(c[m.codigoCliente] || c.codigo || c.id);
+                
+                // 🚀 OBTENER SALDO REAL (Estado de Cuenta)
+                // Se consulta de forma individual para asegurar que el saldo sea el actual calculado
+                let saldoReal = parseFloat(c[m.saldoActual]) || 0;
+                try {
+                    const empresaAlias = empresaConfig?.baseDatos || searchParams.get('empresa');
+                    const estadoCuenta = await service.getClienteEstadoCuenta(codigo, empresaAlias);
+                    if (estadoCuenta && (estadoCuenta.saldoActual !== undefined || estadoCuenta.SaldoActual !== undefined)) {
+                        saldoReal = parseFloat(estadoCuenta.saldoActual || estadoCuenta.SaldoActual);
+                    }
+                } catch (e) {
+                    console.warn(`No se pudo actualizar saldo real para ${codigo}:`, (e as Error).message);
+                }
+
                 await prisma.cliente.upsert({
-                    where: { codigoCliente: c[m.codigoCliente] || c.codigo },
+                    where: { codigoCliente: codigo },
                     update: {
-                        nombreCompleto: c[m.nombreCompleto] || c.nombre,
-                        saldoActual: parseFloat(c[m.saldoActual]) || 0,
+                        nombreCompleto: c[m.nombreCompleto] || c.nombre || c.razonSocial,
+                        saldoActual: saldoReal,
                         direccionCompleta: c[m.direccionCompleta] || c.direccion || 'Sin dirección',
                     },
                     create: {
-                        codigoCliente: c[m.codigoCliente] || c.codigo,
-                        nombreCompleto: c[m.nombreCompleto] || c.nombre,
+                        codigoCliente: codigo,
+                        nombreCompleto: c[m.nombreCompleto] || c.nombre || c.razonSocial,
                         fechaVenta: new Date(),
                         direccionCompleta: c[m.direccionCompleta] || c.direccion || 'Sin dirección',
                         descripcionProducto: 'Importado de Contpaqi',
                         diaPago: '1',
                         periodicidad: 'mensual',
                         montoPago: 0,
-                        saldoActual: parseFloat(c[m.saldoActual]) || 0,
+                        saldoActual: saldoReal,
                         statusCuenta: 'activo'
                     }
                 });
