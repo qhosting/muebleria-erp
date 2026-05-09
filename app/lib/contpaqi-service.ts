@@ -248,6 +248,8 @@ export class ContpaqiService {
         const standardFields = tabla === 'clientes' ? [
             'cCodigoCliente', 'cNombreCliente', 'cRFC', 'cCURP', 'cTelefono1', 'cTelefono2', 
             'cEmail1', 'cEmail2', 'cFechaAlta', 'cLimiteCreditoCliente', 'cSaldoActual',
+            'cNombreCalle', 'cNumeroExterior', 'cNumeroInterior', 'cColonia', 'cCiudad', 
+            'cEstado', 'cCodigoPostal',
             'cTextoExtra1', 'cTextoExtra2', 'cTextoExtra3', 'cImporteExtra1', 'cImporteExtra2'
         ] : [
             'cCodigoProducto', 'cNombreProducto', 'cPrecio1', 'cPrecio2', 'cPrecio3',
