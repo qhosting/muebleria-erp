@@ -17,7 +17,14 @@ export async function GET(request: NextRequest) {
         const ticketsPendientes = await prisma.ticket.findMany({
             where: { conciliado: false },
             include: {
-                cliente: { select: { nombreCompleto: true, codigoCliente: true } },
+                cliente: { 
+                    select: { 
+                        id: true,
+                        nombreCompleto: true, 
+                        codigoCliente: true,
+                        cuentasBancarias: true 
+                    } 
+                },
                 gestor: { select: { name: true } },
             },
             orderBy: { creadoEn: 'desc' },
@@ -31,19 +38,24 @@ export async function GET(request: NextRequest) {
             take: 100
         });
 
-        // 3. Algoritmo de Sugerencia Inteligente (Scoring)
+        // 3. Obtener Catálogo de Cuentas para búsqueda inversa
+        const cuentasConocidas = await prisma.cuentaBancariaCliente.findMany({
+            include: { cliente: { select: { id: true, nombreCompleto: true, codigoCliente: true } } }
+        });
+
+        // 4. Algoritmo de Sugerencia Inteligente (Scoring)
         const sugerencias = [];
         const movimientosDisponibles = [...movimientosPendientes];
 
         for (const ticket of ticketsPendientes) {
-let bestMatch: any = null;
-            let bestPriority = 6;
+            let bestMatch: any = null;
+            let bestPriority = 10;
             let razon = "";
 
             const monto = Number(ticket.monto);
             const contrato = (ticket.cliente?.codigoCliente || "").toUpperCase();
-            const folio = (ticket.folio || "").toUpperCase();
             const nombre = (ticket.cliente?.nombreCompleto || "").toUpperCase().substring(0, 15);
+            const cuentaTicket = ticket.cuentaOrigen;
 
             for (const mov of movimientosDisponibles) {
                 // Solo sugerimos si el monto coincide exactamente
@@ -54,18 +66,36 @@ let bestMatch: any = null;
                 const general = (mov.descripcionGeneral || "").toUpperCase();
                 const dataPool = `${concepto} ${descripcion} ${general}`;
 
-                let currentPriority = 5; // Coincidencia de monto
-                let currentRazon = "Monto exacto (Prioridad 5)";
+                let currentPriority = 8; // Coincidencia de monto (base)
+                let currentRazon = "Monto exacto (Prioridad 8)";
 
-                if (contrato && dataPool.includes(contrato)) {
+                // A. Búsqueda por Cuenta Bancaria Histórica (Inteligencia)
+                const matchCuenta = cuentasConocidas.find(c => 
+                    (c.clabe && dataPool.includes(c.clabe)) || 
+                    (c.cuenta && dataPool.includes(c.cuenta))
+                );
+
+                if (matchCuenta && matchCuenta.clienteId === ticket.clienteId) {
                     currentPriority = 1;
-                    currentRazon = "Econtrado por Contrato (Prioridad 1)";
-                } else if (folio && dataPool.includes(folio)) {
-                    currentPriority = 2;
-                    currentRazon = "Encontrado por Folio (Prioridad 2)";
-                } else if (nombre && dataPool.includes(nombre)) {
-                    currentPriority = 3;
-                    currentRazon = "Encontrado por Nombre (Prioridad 3)";
+                    currentRazon = "Cuenta Bancaria Conocida del Cliente (Prioridad 1)";
+                } 
+                // B. Búsqueda por Código de Contrato (Regex)
+                else {
+                    const contractMatch = dataPool.match(/[A-Z]{2}\d{4,}/);
+                    if (contractMatch && contractMatch[0] === contrato) {
+                        currentPriority = 2;
+                        currentRazon = "Código de Contrato en Concepto (Prioridad 2)";
+                    } 
+                    // C. Búsqueda por Nombre (Mínimo 15 caracteres o exacto)
+                    else if (nombre && dataPool.includes(nombre)) {
+                        currentPriority = 3;
+                        currentRazon = "Nombre del Cliente detectado (Prioridad 3)";
+                    }
+                    // D. Búsqueda por CLABE en Ticket vs Concepto
+                    else if (cuentaTicket && dataPool.includes(cuentaTicket)) {
+                        currentPriority = 4;
+                        currentRazon = "CLABE del Ticket coincide con Banco (Prioridad 4)";
+                    }
                 }
 
                 if (currentPriority < bestPriority) {
@@ -75,7 +105,7 @@ let bestMatch: any = null;
                 }
             }
 
-            if (bestMatch && bestPriority <= 5) {
+            if (bestMatch && bestPriority <= 8) {
                 sugerencias.push({
                     ticket,
                     movimiento: bestMatch,
@@ -91,20 +121,18 @@ let bestMatch: any = null;
 
         return NextResponse.json({
             tickets: ticketsPendientes,
-            movimientos: movimientosDisponibles, // Ahora usamos los movimientos restantes
-            sugerencias
+            movimientos: movimientosDisponibles,
+            sugerencias,
+            totalCuentasConocidas: cuentasConocidas.length
         });
 
     } catch (error) {
         console.error('Error al cargar datos del conciliador:', error);
-        return NextResponse.json(
-            { error: 'Error interno del servidor' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
     }
 }
 
-// Para ejecutar un Emparejamiento Manual
+// Para ejecutar un Emparejamiento Manual y APRENDIZAJE
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
@@ -113,19 +141,59 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const { ticketId, movimientoId } = body;
 
-        // Actualizamos ambos en una sola transacción
-        await prisma.$transaction([
+        const ticket = await prisma.ticket.findUnique({ 
+            where: { id: ticketId },
+            include: { cliente: true }
+        });
+        const movimiento = await prisma.movimientoBancario.findUnique({ where: { id: movimientoId } });
+
+        if (!ticket || !movimiento) return NextResponse.json({ error: 'Datos no encontrados' }, { status: 404 });
+
+        // Intentar extraer CLABE/Cuenta del movimiento para el "Catálogo Inteligente"
+        const dataPool = `${movimiento.concepto} ${movimiento.descripcionDetallada} ${movimiento.descripcionGeneral}`.toUpperCase();
+        const clabeMatch = dataPool.match(/\d{18}/); // CLABE standard
+        const cuentaMatch = dataPool.match(/\d{10,11}/); // Cuenta standard
+
+        const operations: any[] = [
             prisma.ticket.update({
                 where: { id: ticketId },
                 data: { conciliado: true }
             }),
             prisma.movimientoBancario.update({
                 where: { id: movimientoId },
-                data: { ticketId: ticketId, fechaIdentificado: new Date() }
+                data: { 
+                    ticketId: ticketId, 
+                    clienteId: ticket.clienteId,
+                    fechaIdentificado: new Date(),
+                    clabeEmisor: clabeMatch ? clabeMatch[0] : (movimiento.clabeEmisor || null),
+                    cuentaEmisor: cuentaMatch ? cuentaMatch[0] : (movimiento.cuentaEmisor || null)
+                }
             })
-        ]);
+        ];
 
-        return NextResponse.json({ success: true, message: 'Conciliación exitosa' });
+        // Si detectamos una nueva CLABE para este cliente, la guardamos/actualizamos
+        if (ticket.clienteId && (clabeMatch || cuentaMatch)) {
+            const clabe = clabeMatch ? clabeMatch[0] : null;
+            if (clabe) {
+                operations.push(prisma.cuentaBancariaCliente.upsert({
+                    where: { clabe: clabe },
+                    update: { 
+                        clienteId: ticket.clienteId, 
+                        nombreTitular: ticket.cliente?.nombreCompleto 
+                    },
+                    create: {
+                        clabe: clabe,
+                        clienteId: ticket.clienteId,
+                        nombreTitular: ticket.cliente?.nombreCompleto,
+                        banco: movimiento.bancoOrigen
+                    }
+                }));
+            }
+        }
+
+        await prisma.$transaction(operations);
+
+        return NextResponse.json({ success: true, message: 'Conciliación y aprendizaje exitosos' });
     } catch (error) {
         console.error('Error al conciliar:', error);
         return NextResponse.json({ error: 'Error al forzar conciliación' }, { status: 500 });

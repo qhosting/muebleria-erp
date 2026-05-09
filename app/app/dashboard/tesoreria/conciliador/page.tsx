@@ -6,14 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { RefreshCcw, Link2, Sparkles, CheckCircle2, ChevronRight } from "lucide-react";
+import { RefreshCcw, Link2, Sparkles, CheckCircle2, ChevronRight, Book, History, Search } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function ConciliadorPage() {
     const [tickets, setTickets] = useState<any[]>([]);
     const [movimientos, setMovimientos] = useState<any[]>([]);
     const [sugerencias, setSugerencias] = useState<any[]>([]);
+    const [cuentasConocidas, setCuentasConocidas] = useState<number>(0);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState("conciliador");
 
     // Selecciones manuales
     const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
@@ -32,6 +35,7 @@ export default function ConciliadorPage() {
                 setTickets(data.tickets || []);
                 setMovimientos(data.movimientos || []);
                 setSugerencias(data.sugerencias || []);
+                setCuentasConocidas(data.totalCuentasConocidas || 0);
             }
         } catch (error) {
             console.error("Error al cargar datos", error);
@@ -69,18 +73,40 @@ export default function ConciliadorPage() {
 
     return (
         <DashboardLayout>
-            <div className="space-y-6">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center">
-                        <RefreshCcw className="mr-3 h-8 w-8 text-blue-600" />
-                        Conciliador Inteligente
-                    </h1>
-                    <p className="text-muted-foreground mt-1">
-                        Empareja los pagos de tus sistemas con los registros oficiales de tu banco.
-                    </p>
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center">
+                            <RefreshCcw className="mr-3 h-8 w-8 text-blue-600" />
+                            Gestión de Tesorería
+                        </h1>
+                        <p className="text-muted-foreground mt-1">
+                            Empareja los pagos de tus sistemas con los registros oficiales de tu banco y gestiona el aprendizaje automático.
+                        </p>
+                    </div>
+                    
+                    <div className="bg-white border border-blue-100 rounded-2xl p-4 flex items-center gap-4 shadow-sm">
+                        <div className="bg-blue-50 p-2 rounded-xl">
+                            <History className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Cuentas Conocidas</p>
+                            <p className="text-xl font-black text-slate-900">{cuentasConocidas}</p>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Panel Superior: Sugerencias Inteligentes */}
+                <Tabs defaultValue="conciliador" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 max-w-md bg-slate-100 p-1 rounded-xl">
+                        <TabsTrigger value="conciliador" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                            <Sparkles className="h-4 w-4 mr-2" /> Conciliador Inteligente
+                        </TabsTrigger>
+                        <TabsTrigger value="catalogo" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                            <Book className="h-4 w-4 mr-2" /> Catálogo de Cuentas
+                        </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="conciliador" className="space-y-6 mt-6">
+                        {/* Panel Superior: Sugerencias Inteligentes */}
                 <Card className="border-blue-100 shadow-sm overflow-hidden">
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-4 flex items-center justify-between">
                         <div className="flex items-center space-x-2">
@@ -220,19 +246,46 @@ export default function ConciliadorPage() {
                             </ul>
                         </CardContent>
                     </Card>
-                </div>
+                            </div>
+                        )}
 
-                {/* Botón de Match Manual Flotante (Si ambos están seleccionados) */}
-                {selectedTicket && selectedMovimiento && (
-                    <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5">
-                        <Button size="lg" className="shadow-xl bg-gray-900 hover:bg-gray-800 rounded-full pl-6 pr-8 h-14" onClick={handeMatchManual}>
-                            <Link2 className="w-5 h-5 mr-3" />
-                            Forzar Emparejamiento
-                        </Button>
-                    </div>
-                )}
+                        {/* Botón de Match Manual Flotante (Si ambos están seleccionados) */}
+                        {selectedTicket && selectedMovimiento && (
+                            <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5">
+                                <Button size="lg" className="shadow-2xl bg-slate-900 hover:bg-black text-white rounded-full pl-6 pr-8 h-16 ring-4 ring-white" onClick={handeMatchManual}>
+                                    <Link2 className="w-5 h-5 mr-3" />
+                                    Vincular Seleccionados
+                                </Button>
+                            </div>
+                        )}
+                    </TabsContent>
 
-            </div>
+                    <TabsContent value="catalogo" className="mt-6">
+                        <Card className="border-none shadow-sm">
+                            <CardHeader className="bg-white border-b border-slate-100">
+                                <CardTitle className="text-xl font-black">Inteligencia de Cuentas Bancarias</CardTitle>
+                                <CardDescription>
+                                    Este catálogo se alimenta automáticamente cada vez que concilias un pago. 
+                                    Ayuda al sistema a reconocer transferencias futuras del mismo cliente.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="p-0 min-h-[400px] flex items-center justify-center text-slate-400">
+                                <div className="text-center space-y-4 p-12">
+                                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-300">
+                                        <Search className="h-8 w-8" />
+                                    </div>
+                                    <p className="font-medium max-w-xs mx-auto">
+                                        El sistema ha aprendido <span className="text-blue-600 font-bold">{cuentasConocidas} cuentas</span> bancarias de clientes.
+                                        Se utilizarán automáticamente en el siguiente escaneo.
+                                    </p>
+                                    <Button variant="outline" onClick={fetchData} className="rounded-xl border-slate-200">
+                                        Refrescar Datos
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
         </DashboardLayout>
     );
 }

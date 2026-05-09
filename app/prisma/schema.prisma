@@ -248,6 +248,7 @@ model Cliente {
   convenios           ConvenioPago[]
   smsLogs             SmsLog[]
   avisosCobro         AvisoCobro[] @relation("ClienteAviso")
+  cuentasBancarias    CuentaBancariaCliente[]
 
   @@map("clientes")
 }
@@ -344,6 +345,8 @@ model MovimientoBancario {
   fechaIngreso         DateTime   @default(now())
   ticketId             String?
   clienteId            String?
+  cuentaEmisor         String?
+  clabeEmisor          String?
   fechaIdentificado    DateTime?
 
   ticket                Ticket?   @relation(fields: [ticketId], references: [id])
@@ -786,4 +789,21 @@ model AvisoCobro {
   @@index([clienteId])
   @@index([userId])
   @@map("avisos_cobro")
+}
+
+model CuentaBancariaCliente {
+  id        String   @id @default(cuid())
+  clienteId String
+  banco     String?
+  cuenta    String?
+  clabe     String?  @unique
+  nombreTitular String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cliente   Cliente  @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId])
+  @@index([clabe])
+  @@map("cuentas_bancarias_clientes")
 }
