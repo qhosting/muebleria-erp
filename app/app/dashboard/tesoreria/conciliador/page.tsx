@@ -246,8 +246,7 @@ export default function ConciliadorPage() {
                             </ul>
                         </CardContent>
                     </Card>
-                            </div>
-                        )}
+                </div>
 
                         {/* Botón de Match Manual Flotante (Si ambos están seleccionados) */}
                         {selectedTicket && selectedMovimiento && (
