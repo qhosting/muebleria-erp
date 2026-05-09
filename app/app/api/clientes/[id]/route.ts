@@ -193,7 +193,7 @@ export async function PUT(
         statusAprobacion,
         justificacionExcepcion,
         autorizadoPorId,
-        curp,
+        curp: curp as any,
       },
       include: {
         cobradorAsignado: {
