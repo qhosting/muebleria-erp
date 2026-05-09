@@ -419,38 +419,89 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
  * Lógica para BotOficina: Sofia AI y Leads
  */
 async function handleOficina(from: string, payload: any, session: string, agentName: string, openaiKey?: string) {
-    const messageBody = payload.body || '';
-    if (!messageBody) return NextResponse.json({ status: 'no_body' });
+    const incomingMessage = (payload.body || '').trim();
+    if (!incomingMessage) return NextResponse.json({ status: 'no_body' });
 
-    // 1. Guardar mensaje del usuario en el historial
+    // 1. Agrupamiento de mensajes (Anti-Rapid-Fire)
+    // Guardamos en un buffer de Redis y esperamos unos segundos para ver si llegan más
+    const bufferKey = `sofia_buffer:${from}`;
+    const lockKey = `sofia_lock:${from}`;
+    
+    await redis.rpush(bufferKey, incomingMessage);
+    await redis.expire(bufferKey, 60); // Seguridad para que no se quede basura
+
+    // Intentamos obtener el bloqueo para ser el "procesador" de esta ráfaga
+    const isFirstMessage = await redis.set(lockKey, 'true', 'EX', 10, 'NX');
+    
+    if (!isFirstMessage) {
+        // Ya hay un proceso esperando mensajes, este solo se añade al buffer y salimos
+        return NextResponse.json({ status: 'buffered' });
+    }
+
+    // Somos el primer mensaje, esperamos 6 segundos para capturar el resto
+    await new Promise(resolve => setTimeout(resolve, 6000));
+
+    // Recuperar todos los mensajes acumulados
+    const messages = await redis.lrange(bufferKey, 0, -1);
+    await redis.del(bufferKey);
+    await redis.del(lockKey);
+
+    const messageBody = messages.join(' ');
+    console.log(`🤖 [Sofia] Procesando mensajes agrupados de ${from}: "${messageBody}"`);
+
+    // 2. Verificar si ya se detectó una intención final en las últimas 24h
+    const lastIntentKey = `sofia_last_intent:${from}`;
+    const lastIntent = await redis.get(lastIntentKey);
+    const lead = await db.lead.findFirst({ where: { telefono: from } });
+
+    if (lastIntent && lead) {
+        // Ya se detectó una intención (Venta, Cobranza, etc.) hoy
+        const wahaConfig = await getWahaConfig(prisma, 'leads');
+        if (session) wahaConfig.session = session;
+        
+        const patienceMsg = `¡Hola! 👋 He recibido tus mensajes. Como te mencioné anteriormente, ya he pasado tu reporte a un asesor y pronto se pondrán en contacto contigo. ¡Gracias por tu paciencia! 😊`;
+        
+        await sendWahaMessage(wahaConfig, from, patienceMsg);
+        
+        // Guardar en el chat para que el humano lo vea
+        await db.leadChat.create({
+            data: { telefono: from, rol: 'user', mensaje: messageBody, leadId: lead.id }
+        });
+        await db.leadChat.create({
+            data: { telefono: from, rol: 'assistant', mensaje: patienceMsg, leadId: lead.id }
+        });
+
+        return NextResponse.json({ status: 'already_notified_patience' });
+    }
+
+    // 3. Guardar mensaje(s) del usuario en el historial
     await db.leadChat.create({
-        data: { telefono: from, rol: 'user', mensaje: messageBody }
+        data: { telefono: from, rol: 'user', mensaje: messageBody, leadId: lead?.id }
     });
 
-    // 2. Obtener historial reciente
+    // 4. Obtener historial reciente para contexto de la IA
     const history = await db.leadChat.findMany({
         where: { telefono: from },
         orderBy: { createdAt: 'asc' },
-        take: 10
+        take: 12
     });
 
     const historyText = history
         .map((h: any) => `${h.rol === 'user' ? 'Cliente' : agentName}: ${h.mensaje}`)
         .join('\n');
 
-    // 3. Detectar intención con IA
+    // 5. Detectar intención con IA
     const aiResponse = await detectIntent(historyText, messageBody, agentName, openaiKey);
 
-    // 4. Guardar respuesta de la IA
-    const chat = await db.leadChat.create({
-        data: { telefono: from, rol: 'assistant', mensaje: aiResponse.respuesta }
+    // 6. Guardar respuesta de la IA
+    await db.leadChat.create({
+        data: { telefono: from, rol: 'assistant', mensaje: aiResponse.respuesta, leadId: lead?.id }
     });
 
-    // 5. Gestionar el Lead
-    let lead = await db.lead.findFirst({ where: { telefono: from } });
-    
-    if (!lead) {
-        lead = await db.lead.create({
+    // 7. Gestionar el Lead
+    let currentLead = lead;
+    if (!currentLead) {
+        currentLead = await db.lead.create({
             data: {
                 nombre: `Prospecto ${from}`,
                 telefono: from,
@@ -458,6 +509,12 @@ async function handleOficina(from: string, payload: any, session: string, agentN
                 notas: `Captado por IA (${agentName}). Interés: ${aiResponse.datos_extraidos.producto || 'Ventas General'}`,
                 vendedorId: null
             }
+        });
+
+        // Vincular mensajes huérfanos al nuevo lead
+        await db.leadChat.updateMany({ 
+            where: { telefono: from, leadId: null }, 
+            data: { leadId: currentLead.id } 
         });
 
         // NOTIFICAR A ADMINISTRADORES POR PUSH
@@ -470,28 +527,21 @@ async function handleOficina(from: string, payload: any, session: string, agentN
     } else {
         // Actualizar notas con el nuevo interés si aplica
         await db.lead.update({
-            where: { id: lead.id },
+            where: { id: currentLead.id },
             data: {
-                notas: `${lead.notas}\n[${new Date().toLocaleDateString()}] Nuevo contacto: ${aiResponse.datos_extraidos.producto || 'Conversación'}`
+                notas: `${currentLead.notas}\n[${new Date().toLocaleDateString()}] Nuevo contacto: ${aiResponse.datos_extraidos.producto || 'Conversación'}`
             }
         });
     }
 
-    // Vincular chat al lead
-    await db.leadChat.updateMany({ 
-        where: { telefono: from, leadId: null }, 
-        data: { leadId: lead.id } 
-    });
-
-    // 6. Enviar respuesta por WhatsApp
-    const wahaConfig = await getWahaConfig(prisma, 'leads');
-    
-    // Si la sesión del webhook es diferente a la de leads configurada, 
-    // intentamos usar la sesión que recibió el mensaje para responder
-    if (session && session !== wahaConfig.session) {
-        console.log(`🔄 [Oficina] Usando sesión de origen (${session}) en lugar de la configurada (${wahaConfig.session})`);
-        wahaConfig.session = session;
+    // 8. Si la intención es final, marcar en Redis para no molestar por 24h
+    if (aiResponse.intencion !== 'GENERAL') {
+        await redis.set(lastIntentKey, aiResponse.intencion, 'EX', 86400);
     }
+
+    // 9. Enviar respuesta por WhatsApp
+    const wahaConfig = await getWahaConfig(prisma, 'leads');
+    if (session) wahaConfig.session = session;
 
     if (wahaConfig.apiUrl) {
         try {
