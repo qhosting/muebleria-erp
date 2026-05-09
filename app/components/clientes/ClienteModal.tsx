@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Cliente, User } from '@/lib/types';
-import { Loader2, Save, X } from 'lucide-react';
+import { Loader2, Save, X, Upload } from 'lucide-react';
 
 
 interface ClienteModalProps {
