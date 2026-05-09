@@ -16,7 +16,8 @@ import {
   AlertCircle,
   Upload,
   Camera,
-  X as CloseIcon
+  X as CloseIcon,
+  Loader2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
