@@ -25,6 +25,7 @@ export default function CuadrePage() {
 
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [finalizing, setFinalizing] = useState(false);
 
     useEffect(() => {
         fetchCobradores();
@@ -62,6 +63,26 @@ export default function CuadrePage() {
             toast.error("Error al cargar datos de cuadre");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleFinalizarCuadre = async () => {
+        if (!confirm("¿Estás seguro de finalizar el cuadre? Esto reactivará a todos los clientes con saldo pendiente para la siguiente ruta.")) return;
+        
+        setFinalizing(true);
+        try {
+            const res = await fetch('/api/tesoreria/cuadre', { method: 'POST' });
+            if (res.ok) {
+                const result = await res.json();
+                toast.success(`Cuadre finalizado. ${result.reactivados} clientes reactivados.`);
+                fetchCuadre();
+            } else {
+                throw new Error("Error en el servidor");
+            }
+        } catch (error) {
+            toast.error("No se pudo finalizar el cuadre");
+        } finally {
+            setFinalizing(false);
         }
     };
 
@@ -182,9 +203,21 @@ export default function CuadrePage() {
                                 <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="pl-10" />
                             </div>
                         </div>
-                        <Button onClick={fetchCuadre} className="lg:w-32 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200">
+                        <Button onClick={fetchCuadre} variant="outline" className="lg:w-32">
                             <Search className="w-4 h-4 mr-2" />
                             Filtrar
+                        </Button>
+                        <Button 
+                            onClick={handleFinalizarCuadre} 
+                            disabled={finalizing}
+                            className="lg:w-48 bg-green-600 hover:bg-green-700 shadow-lg shadow-green-200"
+                        >
+                            {finalizing ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                            )}
+                            Finalizar Cuadre
                         </Button>
                     </div>
                 </div>

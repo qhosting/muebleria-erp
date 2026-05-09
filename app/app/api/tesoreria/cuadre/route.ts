@@ -192,3 +192,38 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
     }
 }
+
+export async function POST(request: NextRequest) {
+    try {
+        const session = await getServerSession(authOptions);
+
+        if (!session?.user) {
+            return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+        }
+
+        const userRole = (session.user as any).role;
+        if (userRole !== 'admin' && userRole !== 'gestor_cobranza') {
+            return NextResponse.json({ error: 'Solo administradores y gestores pueden finalizar el cuadre' }, { status: 403 });
+        }
+
+        // Reactivar todos los clientes con saldo pendiente
+        const result = await prisma.cliente.updateMany({
+            where: {
+                saldoActual: { gt: 0 },
+                statusCuenta: 'inactivo'
+            },
+            data: {
+                statusCuenta: 'activo'
+            }
+        });
+
+        return NextResponse.json({ 
+            message: 'Cuadre finalizado y clientes reactivados',
+            reactivados: result.count
+        });
+
+    } catch (error) {
+        console.error('Error al finalizar cuadre:', error);
+        return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+    }
+}
