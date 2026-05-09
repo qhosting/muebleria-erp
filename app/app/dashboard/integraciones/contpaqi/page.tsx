@@ -409,9 +409,13 @@ export default function ContpaqiMultiPage() {
                               <SelectValue placeholder="Seleccionar concepto" />
                             </SelectTrigger>
                             <SelectContent>
-                              {metadata[empresa.id].conceptos.map((c: any) => (
-                                <SelectItem key={c.id || c.codigo || c.nombre} value={c.nombre}>{c.nombre}</SelectItem>
-                              ))}
+                              {metadata[empresa.id].conceptos.map((c: any, idx: number) => {
+                                const name = typeof c === 'string' ? c : (c.nombre || c.Nombre || c.name || `Concepto ${idx}`);
+                                const value = typeof c === 'string' ? c : (c.nombre || c.Nombre || c.codigo || c.id || name);
+                                return (
+                                  <SelectItem key={idx} value={name}>{name}</SelectItem>
+                                );
+                              })}
                             </SelectContent>
                           </Select>
                         ) : (
@@ -477,9 +481,12 @@ export default function ContpaqiMultiPage() {
                                 <SelectValue placeholder="Seleccionar clasificación" />
                               </SelectTrigger>
                               <SelectContent>
-                                {metadata[empresa.id].clasificaciones.map((c: any) => (
-                                  <SelectItem key={c.id || c.codigo || c.nombre} value={c.nombre}>{c.nombre}</SelectItem>
-                                ))}
+                                {metadata[empresa.id].clasificaciones.map((c: any, idx: number) => {
+                                  const name = typeof c === 'string' ? c : (c.nombre || c.Nombre || c.name || `Clasif ${idx}`);
+                                  return (
+                                    <SelectItem key={idx} value={name}>{name}</SelectItem>
+                                  );
+                                })}
                               </SelectContent>
                             </Select>
                           ) : (
