@@ -51,6 +51,8 @@ interface EmpresaContpaqi {
   syncConcepto: string;
   syncClasifTipo: string;
   syncClasifValor: string;
+  syncClasifTipo2: string;
+  syncClasifValor2: string;
   clasificacion: string; // Deprecated
   ruta: string; // Deprecated
   isActive: boolean;
@@ -127,6 +129,8 @@ export default function ContpaqiMultiPage() {
       syncConcepto: 'Pagaré',
       syncClasifTipo: 'STATUS',
       syncClasifValor: 'COBRANZA NORMAL',
+      syncClasifTipo2: 'RUTA',
+      syncClasifValor2: '32',
       clasificacion: 'COBRANZA NORMAL',
       ruta: '',
       isActive: true,
@@ -183,10 +187,8 @@ export default function ContpaqiMultiPage() {
   };
 
   const handleUpdateEmpresa = (id: string, field: keyof EmpresaContpaqi, value: any) => {
-    // Primero actualizamos el estado
     setEmpresas(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
     
-    // Si se cambia el nombre de la empresa, intentar cargar conceptos y clasificaciones
     if (field === 'nombre') {
       const currentEmpresa = empresas.find(e => e.id === id);
       if (currentEmpresa) {
@@ -196,11 +198,9 @@ export default function ContpaqiMultiPage() {
       }
     }
 
-    // Si se cambia el tipo de clasificación, intentar cargar sus valores
-    if (field === 'syncClasifTipo') {
+    if (field === 'syncClasifTipo' || field === 'syncClasifTipo2') {
       const currentEmpresa = empresas.find(e => e.id === id);
       if (currentEmpresa) {
-        // Buscamos el ID de la clasificación seleccionada
         const clasifs = metadata[id]?.clasificaciones || [];
         const selectedClasif = clasifs.find((c: any) => 
           (c.nombre || c.Nombre || c.cNombre || c) === value
@@ -209,7 +209,8 @@ export default function ContpaqiMultiPage() {
         if (selectedClasif && typeof selectedClasif === 'object') {
           const clasifId = selectedClasif.id || selectedClasif.codigo || selectedClasif.cIdClasificacion;
           if (clasifId) {
-            handleFetchMetadata({ ...currentEmpresa, [field]: value }, 'valores_clasificacion', clasifId);
+            const metaType = field === 'syncClasifTipo' ? 'valores_clasificacion' : 'valores_clasificacion2';
+            handleFetchMetadata({ ...currentEmpresa, [field]: value }, metaType, clasifId);
           }
         }
       }
@@ -507,10 +508,10 @@ export default function ContpaqiMultiPage() {
                           />
                         </div>
 
-                        {/* Clasificación (Tipo) */}
+                        {/* Clasificación 1 (Tipo) */}
                         <div className="space-y-2">
                           <div className="flex justify-between items-center">
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Clasificación</Label>
+                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Clasificación 1</Label>
                             {empresa.nombre && (
                               <Button 
                                 variant="ghost" 
@@ -529,11 +530,11 @@ export default function ContpaqiMultiPage() {
                               onValueChange={(val) => handleUpdateEmpresa(empresa.id, 'syncClasifTipo', val)}
                             >
                               <SelectTrigger className="bg-white/80 h-9 text-sm border-slate-200">
-                                <SelectValue placeholder="Tipo Clasif." />
+                                <SelectValue placeholder="Tipo Clasif 1" />
                               </SelectTrigger>
                               <SelectContent>
                                 {metadata[empresa.id].clasificaciones.map((c: any, idx: number) => {
-                                  const name = typeof c === 'string' ? c : (c.nombre || c.Nombre || c.cNombre || `Clasif ${idx+1}`);
+                                  const name = c.nombre || c.Nombre || c.cNombre || `Clasif ${idx+1}`;
                                   return <SelectItem key={idx} value={String(name)}>{String(name)}</SelectItem>;
                                 })}
                               </SelectContent>
@@ -548,10 +549,10 @@ export default function ContpaqiMultiPage() {
                           )}
                         </div>
 
-                        {/* Valor de Clasificación */}
+                        {/* Valor de Clasificación 1 */}
                         <div className="space-y-2">
                           <div className="flex justify-between items-center">
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Valor / Ruta</Label>
+                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Valor 1</Label>
                             {empresa.syncClasifTipo && (
                               <div className="flex items-center gap-1">
                                 {fetchingMetadata[`${empresa.id}-valores_clasificacion`] && (
@@ -569,11 +570,11 @@ export default function ContpaqiMultiPage() {
                               }}
                             >
                               <SelectTrigger className="bg-white/80 h-9 text-sm border-slate-200">
-                                <SelectValue placeholder="Valor Clasif." />
+                                <SelectValue placeholder="Valor Clasif 1" />
                               </SelectTrigger>
                               <SelectContent>
                                 {metadata[empresa.id].valores_clasificacion.map((v: any, idx: number) => {
-                                  const name = typeof v === 'string' ? v : (v.nombre || v.Nombre || v.cValorClasificacion || v.cNombreValor || `Valor ${idx+1}`);
+                                  const name = v.nombre || v.Nombre || v.cValorClasificacion || v.cNombreValor || `Valor ${idx+1}`;
                                   return <SelectItem key={idx} value={String(name)}>{String(name)}</SelectItem>;
                                 })}
                               </SelectContent>
@@ -584,8 +585,74 @@ export default function ContpaqiMultiPage() {
                               value={empresa.syncClasifValor || empresa.clasificacion || ''} 
                               onChange={(e) => {
                                 handleUpdateEmpresa(empresa.id, 'syncClasifValor', e.target.value);
-                                handleUpdateEmpresa(empresa.id, 'clasificacion', e.target.value); // Sync with legacy field
+                                handleUpdateEmpresa(empresa.id, 'clasificacion', e.target.value);
                               }}
+                              className="bg-white/80 h-9 text-sm"
+                            />
+                          )}
+                        </div>
+
+                        {/* Clasificación 2 (Tipo) */}
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Clasificación 2 (Opcional)</Label>
+                          {metadata[empresa.id]?.clasificaciones ? (
+                            <Select 
+                              value={empresa.syncClasifTipo2 || ''} 
+                              onValueChange={(val) => handleUpdateEmpresa(empresa.id, 'syncClasifTipo2', val)}
+                            >
+                              <SelectTrigger className="bg-white/80 h-9 text-sm border-slate-200">
+                                <SelectValue placeholder="Tipo Clasif 2" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Ninguna</SelectItem>
+                                {metadata[empresa.id].clasificaciones.map((c: any, idx: number) => {
+                                  const name = c.nombre || c.Nombre || c.cNombre || `Clasif ${idx+1}`;
+                                  return <SelectItem key={idx} value={String(name)}>{String(name)}</SelectItem>;
+                                })}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input 
+                              placeholder="Ej: RUTA"
+                              value={empresa.syncClasifTipo2 || ''} 
+                              onChange={(e) => handleUpdateEmpresa(empresa.id, 'syncClasifTipo2', e.target.value)}
+                              className="bg-white/80 h-9 text-sm"
+                            />
+                          )}
+                        </div>
+
+                        {/* Valor de Clasificación 2 */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Valor 2 (Opcional)</Label>
+                            {empresa.syncClasifTipo2 && (
+                              <div className="flex items-center gap-1">
+                                {fetchingMetadata[`${empresa.id}-valores_clasificacion2`] && (
+                                  <LucideIcons.RefreshCcw className="h-2 w-2 animate-spin text-blue-500" />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {metadata[empresa.id]?.valores_clasificacion2 ? (
+                            <Select 
+                              value={empresa.syncClasifValor2 || ''} 
+                              onValueChange={(val) => handleUpdateEmpresa(empresa.id, 'syncClasifValor2', val)}
+                            >
+                              <SelectTrigger className="bg-white/80 h-9 text-sm border-slate-200">
+                                <SelectValue placeholder="Valor Clasif 2" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {metadata[empresa.id].valores_clasificacion2.map((v: any, idx: number) => {
+                                  const name = v.nombre || v.Nombre || v.cValorClasificacion || v.cNombreValor || `Valor ${idx+1}`;
+                                  return <SelectItem key={idx} value={String(name)}>{String(name)}</SelectItem>;
+                                })}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input 
+                              placeholder="Ej: 32"
+                              value={empresa.syncClasifValor2 || ''} 
+                              onChange={(e) => handleUpdateEmpresa(empresa.id, 'syncClasifValor2', e.target.value)}
                               className="bg-white/80 h-9 text-sm"
                             />
                           )}
