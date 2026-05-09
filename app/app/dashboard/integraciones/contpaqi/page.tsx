@@ -496,18 +496,7 @@ export default function ContpaqiMultiPage() {
                         <LucideIcons.Activity className="h-4 w-4 text-indigo-500" />
                         Filtros de Sincronización
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Concepto Sincronización */}
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Concepto</Label>
-                          <Input 
-                            placeholder="Ej: Pagaré"
-                            value={empresa.syncConcepto || ''} 
-                            onChange={(e) => handleUpdateEmpresa(empresa.id, 'syncConcepto', e.target.value)}
-                            className="bg-white/80 h-9 text-sm"
-                          />
-                        </div>
-
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Clasificación 1 (Tipo) */}
                         <div className="space-y-2">
                           <div className="flex justify-between items-center">
@@ -530,7 +519,7 @@ export default function ContpaqiMultiPage() {
                               onValueChange={(val) => handleUpdateEmpresa(empresa.id, 'syncClasifTipo', val)}
                             >
                               <SelectTrigger className="bg-white/80 h-9 text-sm border-slate-200">
-                                <SelectValue placeholder="Tipo Clasif 1" />
+                                <SelectValue placeholder="Tipo Clasif 1 (Ej: STATUS)" />
                               </SelectTrigger>
                               <SelectContent>
                                 {metadata[empresa.id].clasificaciones.map((c: any, idx: number) => {
@@ -570,7 +559,7 @@ export default function ContpaqiMultiPage() {
                               }}
                             >
                               <SelectTrigger className="bg-white/80 h-9 text-sm border-slate-200">
-                                <SelectValue placeholder="Valor Clasif 1" />
+                                <SelectValue placeholder="Seleccionar Valor (Ej: COBRANZA NORMAL)" />
                               </SelectTrigger>
                               <SelectContent>
                                 {metadata[empresa.id].valores_clasificacion.map((v: any, idx: number) => {
