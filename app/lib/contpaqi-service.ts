@@ -91,19 +91,44 @@ export class ContpaqiService {
                 if (typeof item === 'string') return item;
                 if (typeof item === 'object') {
                     // Mapeo de campos comunes de Contpaqi a "nombre"
-                    const name = item.nombre || item.Nombre || item.cNombre || 
+                    let name = item.nombre || item.Nombre || item.cNombre || 
                                item.cNombreConcepto || item.CNOMBRECONCEPTO || 
                                item.cNombreEmpresa || item.cValorClasificacion ||
                                item.cNombreValor || item.name || item.description || 
-                               item.cNombreClasificacion;
+                               item.cNombreClasificacion || item.cnombreconcepto ||
+                               item.cnombreempresa || item.cnombrevalor || item.cnombreclasificacion;
                     
+                    // Búsqueda agresiva de nombre
+                    if (!name) {
+                        const keys = Object.keys(item);
+                        const nameKey = keys.find(k => 
+                            k.toLowerCase().includes('nombre') || 
+                            k.toLowerCase().includes('name') ||
+                            k.toLowerCase().includes('description')
+                        );
+                        if (nameKey) name = item[nameKey];
+                    }
+
                     // Mapeo de campos comunes de Contpaqi a "id" o "codigo"
-                    const id = item.id || item.codigo || item.cIdConcepto || 
-                             item.cCodigoConcepto || item.cIdEmpresa || item.cIdClasificacion;
+                    let id = item.id || item.codigo || item.cIdConcepto || 
+                             item.cCodigoConcepto || item.cIdEmpresa || item.cIdClasificacion ||
+                             item.cidconceptodocumento || item.ccodigoconcepto || item.cidempresa;
+
+                    // Búsqueda agresiva de ID/Código
+                    if (!id) {
+                        const keys = Object.keys(item);
+                        const idKey = keys.find(k => 
+                            k.toLowerCase().startsWith('id') || 
+                            k.toLowerCase().includes('id_') ||
+                            k.toLowerCase().includes('codigo') ||
+                            k.toLowerCase().includes('code')
+                        );
+                        if (idKey) id = item[idKey];
+                    }
 
                     return { 
                         ...item, 
-                        nombre: name || item.nombre || (item.id ? `ID: ${item.id}` : 'Sin nombre'),
+                        nombre: name || item.nombre || (id ? `ID: ${id}` : 'Sin nombre'),
                         id: id || item.id
                     };
                 }
