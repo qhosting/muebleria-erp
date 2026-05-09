@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
                         vendedor: c[m.vendedor],
                         diaPago: String(c[m.diaPago] || '1'),
                         direccionCompleta: [c[m.calle], c[m.numeroExterior], c[m.colonia], c[m.ciudad], c[m.estado]].filter(Boolean).join(', ') || 'Sin dirección',
+                        descripcionProducto: 'Importado de Contpaqi',
                         periodicidad: (function() {
                             const p = String(c[m.periodicidad] || '').toLowerCase();
                             if (p.includes('quin')) return 'quincenal';
