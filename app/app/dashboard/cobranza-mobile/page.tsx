@@ -49,9 +49,30 @@ export default function CobranzaMobilePage() {
 
   const loadInitialData = async () => {
     try {
-      // Intentar cargar clientes solo si hay conexión
-      if (typeof window !== 'undefined' && navigator.onLine && userId) {
-        const response = await fetch(getFullPath(`/api/sync/clientes/${userId}?full=true`), {
+      const currentUserId = userId || localStorage.getItem('last_cobrador_id');
+      if (!currentUserId) {
+        setLoading(false);
+        return;
+      }
+
+      // 1. Intentar cargar desde IndexedDB primero (siempre, para velocidad)
+      try {
+        const offlineClientes = await db.clientes
+          .where('cobradorAsignadoId')
+          .equals(currentUserId)
+          .and(cliente => cliente.statusCuenta === 'activo')
+          .toArray();
+        
+        if (offlineClientes.length > 0) {
+          setInitialClientes(offlineClientes);
+        }
+      } catch (dbError) {
+        console.error('Error loading from IndexedDB:', dbError);
+      }
+
+      // 2. Si hay conexión, intentar sincronizar con el servidor
+      if (typeof window !== 'undefined' && navigator.onLine) {
+        const response = await fetch(getFullPath(`/api/sync/clientes/${currentUserId}?full=true`), {
           headers: {
             'Cache-Control': 'no-cache'
           }
@@ -61,12 +82,12 @@ export default function CobranzaMobilePage() {
           const clientes = await response.json();
           if (Array.isArray(clientes)) {
             setInitialClientes(clientes);
+            // El componente CobranzaMobile se encargará de guardarlos en DB
           }
         }
       }
     } catch (error) {
       console.error('Error loading initial data:', error);
-      // En caso de error, continuar con array vacío
     } finally {
       setLoading(false);
     }

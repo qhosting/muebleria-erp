@@ -240,6 +240,23 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
     }
   };
 
+  const handlePrintManual = async () => {
+    if (!isPrinterConnected) {
+      toast.error('Conecta una impresora primero');
+      setShowPrinterConfig(true);
+      return;
+    }
+
+    try {
+      const ticketData = createTicketData(new Date().toISOString(), numeroRecibo || 'PRE-VIEW');
+      await printTicket(ticketData);
+      toast.success('Ticket impreso correctamente');
+    } catch (error) {
+      console.error('Error manual printing:', error);
+      toast.error('Error al imprimir ticket');
+    }
+  };
+
   const handleQuickAmount = (amount: number) => {
     setMontoAbono(amount.toString());
   };
@@ -552,30 +569,43 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
           </Card>
 
           {/* Botones de acción */}
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              className="flex-1"
-              disabled={loading}
-            >
-              Cancelar
-            </Button>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="flex-1"
+                disabled={loading}
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="submit"
+                disabled={loading || calculatedValues.montoTotal <= 0}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+              >
+                {loading ? (
+                  'Procesando...'
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Registrar {formatCurrency(calculatedValues.montoTotal)}
+                  </>
+                )}
+              </Button>
+            </div>
 
             <Button
-              type="submit"
-              disabled={loading || calculatedValues.montoTotal <= 0}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+              type="button"
+              variant="secondary"
+              onClick={handlePrintManual}
+              disabled={loading || calculatedValues.montoTotal <= 0 || !isPrinterConnected}
+              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800"
             >
-              {loading ? (
-                'Procesando...'
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  Registrar {formatCurrency(calculatedValues.montoTotal)}
-                </>
-              )}
+              <Printer className="w-4 h-4 mr-2" />
+              {isPrinterConnected ? 'Imprimir Ticket' : 'Impresora no conectada'}
             </Button>
           </div>
 
