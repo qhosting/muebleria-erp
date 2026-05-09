@@ -198,6 +198,7 @@ export async function POST(request: NextRequest) {
       statusAprobacion,
       justificacionExcepcion,
       autorizadoPorId,
+      curp,
     } = body;
 
     if (!nombreCompleto || !direccionCompleta || !descripcionProducto || !diaPago || !montoPago || !periodicidad) {
@@ -331,6 +332,7 @@ vendedorId: vendedor?.id || null,
 
           // Identificación
           dni: body.dni,
+          curp: body.curp || curp,
           email: body.email,
 
           // Datos Personales y Laborales

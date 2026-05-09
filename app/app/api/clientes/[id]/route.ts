@@ -131,6 +131,7 @@ export async function PUT(
       statusAprobacion,
       justificacionExcepcion,
       autorizadoPorId,
+      curp,
     } = body;
 
     // Si se cambió el código de cliente, validar que no exista
@@ -192,6 +193,7 @@ export async function PUT(
         statusAprobacion,
         justificacionExcepcion,
         autorizadoPorId,
+        curp,
       },
       include: {
         cobradorAsignado: {

@@ -43,10 +43,13 @@ export function ClienteModal({
 
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
+  const [vinculados, setVinculados] = useState<any[]>([]);
+  const [loadingVinculados, setLoadingVinculados] = useState(false);
   const [formData, setFormData] = useState<any>({
     codigoCliente: '',
 
     nombreCompleto: '',
+    curp: '',
     telefono: '',
     vendedor: '',
     cobradorAsignadoId: 'sin-asignar',
@@ -127,6 +130,7 @@ export function ClienteModal({
 
         // Mapeo de nuevos campos
         dni: cliente.dni || '',
+        curp: (cliente as any).curp || '',
         email: cliente.email || '',
         calle: cliente.calle || '',
         numeroExterior: cliente.numeroExterior || '',
@@ -217,6 +221,31 @@ export function ClienteModal({
       });
     }
   }, [cliente, open]);
+
+  useEffect(() => {
+    if (activeTab === 'vinculados' && cliente) {
+      const fetchVinculados = async () => {
+        setLoadingVinculados(true);
+        try {
+          const params = new URLSearchParams();
+          if (formData.nombreCompleto) params.append('nombre', formData.nombreCompleto);
+          if (formData.curp) params.append('curp', formData.curp);
+          params.append('exclude', cliente.id);
+
+          const response = await fetch(`/api/clientes/vinculados?${params.toString()}`);
+          if (response.ok) {
+            const data = await response.json();
+            setVinculados(data);
+          }
+        } catch (error) {
+          console.error('Error fetching vinculados:', error);
+        } finally {
+          setLoadingVinculados(false);
+        }
+      };
+      fetchVinculados();
+    }
+  }, [activeTab, cliente, formData.nombreCompleto, formData.curp]);
 
   const handleProductChange = (prodId: string) => {
     const producto = productos.find(p => p.id === prodId);
@@ -313,7 +342,7 @@ export function ClienteModal({
 
           {/* TABS DE NAVEGACIÓN */}
           <div className="flex border-b mb-4 overflow-x-auto">
-            {['general', 'direccion', 'personal', 'facturacion', 'politica', 'observaciones'].map(tab => (
+            {['general', 'direccion', 'personal', 'facturacion', 'politica', 'vinculados', 'observaciones'].map(tab => (
               <button
                 key={tab}
                 type="button"
@@ -323,7 +352,7 @@ export function ClienteModal({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}
               >
-                {tab === 'politica' ? 'Política Crédito' : (tab.charAt(0).toUpperCase() + tab.slice(1))}
+                {tab === 'politica' ? 'Política Crédito' : (tab === 'vinculados' ? 'Cuentas Vinculadas' : tab.charAt(0).toUpperCase() + tab.slice(1))}
               </button>
             ))}
           </div>
@@ -347,7 +376,8 @@ export function ClienteModal({
                 </div>
 
                 {renderInput('nombreCompleto', 'Nombre Completo', 'text', true)}
-                {renderInput('dni', 'DNI / INE / CURP')}
+                {renderInput('dni', 'DNI / INE')}
+                {renderInput('curp', 'CURP')}
                 {renderInput('telefono', 'Teléfono Celular')}
                 {renderInput('email', 'Email', 'email')}
 
@@ -580,6 +610,76 @@ export function ClienteModal({
                       <div className={`h-3 w-3 rounded-full ${formData.statusAprobacion === 'AUTORIZADO' ? 'bg-green-500' : (formData.statusAprobacion === 'EXCEPCION' ? 'bg-yellow-500' : 'bg-gray-300')}`} />
                       <span className="text-sm font-medium">Estatus: {formData.statusAprobacion}</span>
                    </div>
+                </div>
+              </div>
+            )}
+
+            {/* --- PESTAÑA VINCULADOS --- */}
+            {activeTab === 'vinculados' && (
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-blue-900">Documentación Digital</h3>
+                    <p className="text-xs text-blue-700">Acceso a expedientes digitalizados en Google Drive</p>
+                  </div>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="bg-white border-blue-200 text-blue-600 hover:bg-blue-50"
+                    onClick={() => window.open(`https://drive.google.com/drive/u/0/search?q=${formData.codigoCliente}`, '_blank')}
+                  >
+                    <Upload className="h-4 w-4 mr-2" /> Ver Expediente
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <h3 className="font-bold text-gray-900">Otras Cuentas del Cliente</h3>
+                  <p className="text-xs text-gray-500">Cuentas detectadas por nombre o CURP similar</p>
+                  
+                  {loadingVinculados ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                    </div>
+                  ) : vinculados.length > 0 ? (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Código</th>
+                            <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Sucursal</th>
+                            <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Status</th>
+                            <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">Saldo</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {vinculados.map((v) => (
+                            <tr key={v.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 font-mono text-blue-600">{v.codigoCliente}</td>
+                              <td className="px-4 py-2">{v.sucursal?.nombre || 'N/A'}</td>
+                              <td className="px-4 py-2 uppercase text-[10px] font-bold">
+                                <span className={v.statusCuenta === 'activo' ? 'text-green-600' : 'text-red-600'}>
+                                  {v.statusCuenta}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-right font-bold">${v.saldoActual}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-blue-50 font-bold">
+                          <tr>
+                            <td colSpan={3} className="px-4 py-2 text-right">Saldo Total Consolidado:</td>
+                            <td className="px-4 py-2 text-right text-blue-700">
+                              ${(vinculados.reduce((acc, v) => acc + Number(v.saldoActual), 0) + Number(formData.saldoActual)).toFixed(2)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center border-2 border-dashed rounded-lg text-gray-500">
+                      No se encontraron otras cuentas vinculadas para este cliente.
+                    </div>
+                  )}
                 </div>
               </div>
             )}

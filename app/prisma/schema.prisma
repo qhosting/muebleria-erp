@@ -195,6 +195,7 @@ model Cliente {
   
   // Identificacion
   dni                 String?
+  curp                String?
   email               String?
 
   // Datos Personales y Laborales
