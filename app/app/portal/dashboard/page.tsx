@@ -13,12 +13,21 @@ import {
   FileText,
   Clock,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Upload,
+  Camera,
+  X as CloseIcon
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { toast } from 'sonner';
 
 export default function PortalDashboard() {
   const [session, setSession] = useState<any>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [selectedContract, setSelectedContract] = useState<any>(null);
+  const [amount, setAmount] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -37,6 +46,62 @@ export default function PortalDashboard() {
   const handleLogout = () => {
     sessionStorage.removeItem('portal_session');
     router.push('/portal/login');
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('La imagen es demasiado grande. Máximo 10MB.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!imagePreview) {
+      toast.error('Por favor seleccione una foto del comprobante');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const res = await fetch('/api/portal/pago/reportar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          base64Image: imagePreview,
+          clientId: selectedContract.id,
+          contractCode: selectedContract.codigoCliente,
+          phone: session.phone,
+          amount: amount
+        }),
+      });
+
+      if (res.ok) {
+        toast.success('¡Comprobante enviado! Tesorería lo validará pronto.');
+        setShowUpload(false);
+        setImagePreview(null);
+        setAmount('');
+      } else {
+        toast.error('Error al enviar el comprobante');
+      }
+    } catch (error) {
+      toast.error('Error de conexión');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const openUpload = (contract: any) => {
+    setSelectedContract(contract);
+    setShowUpload(true);
   };
 
   const getStatusColor = (status: string) => {
@@ -165,9 +230,16 @@ export default function PortalDashboard() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-end">
-                        <Button variant="ghost" className="text-blue-600 font-bold text-xs hover:bg-blue-50 group-hover:translate-x-1 transition-transform">
-                          Ver historial de pagos <ChevronRight className="h-4 w-4 ml-1" />
+                      <div className="flex items-center justify-end gap-3">
+                        <Button 
+                          onClick={() => openUpload(client)}
+                          variant="outline" 
+                          className="border-blue-200 text-blue-600 hover:bg-blue-50 font-bold text-xs rounded-xl"
+                        >
+                          <Camera className="h-4 w-4 mr-2" /> Reportar Pago
+                        </Button>
+                        <Button variant="ghost" className="text-slate-400 font-bold text-xs hover:bg-blue-50 group-hover:translate-x-1 transition-transform">
+                          Ver historial <ChevronRight className="h-4 w-4 ml-1" />
                         </Button>
                       </div>
                     </div>
@@ -177,6 +249,75 @@ export default function PortalDashboard() {
             ))}
           </div>
         </section>
+
+        {/* Upload Modal */}
+        {showUpload && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <Card className="w-full max-w-lg border-none shadow-2xl animate-in zoom-in-95 duration-200">
+              <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 pb-4">
+                <div>
+                  <CardTitle className="text-xl font-black">Enviar Comprobante</CardTitle>
+                  <CardDescription className="font-bold text-blue-600">Contrato: {selectedContract?.codigoCliente}</CardDescription>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setShowUpload(false)} className="rounded-full">
+                  <CloseIcon className="h-5 w-5" />
+                </Button>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                <div className="space-y-4">
+                  <div className="relative aspect-[4/3] bg-slate-100 rounded-2xl border-2 border-dashed border-slate-200 overflow-hidden flex items-center justify-center">
+                    {imagePreview ? (
+                      <img src={imagePreview} alt="Vista previa" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center space-y-2">
+                        <Camera className="h-12 w-12 text-slate-300 mx-auto" />
+                        <p className="text-xs font-bold text-slate-400">Toma una foto o selecciona tu ticket</p>
+                      </div>
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      capture="environment"
+                      className="absolute inset-0 opacity-0 cursor-pointer" 
+                      onChange={handleFileChange}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-black uppercase text-slate-500">Monto del Pago (Opcional)</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">$</span>
+                      <input 
+                        type="number" 
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full h-12 pl-8 pr-4 bg-slate-50 border-none rounded-xl font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 h-12 rounded-xl font-bold" 
+                    onClick={() => setShowUpload(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-100"
+                    disabled={uploading || !imagePreview}
+                    onClick={handleUpload}
+                  >
+                    {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Upload className="h-4 w-4 mr-2" /> Enviar a Tesorería</>}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Support Section */}
         <section className="bg-green-50 border border-green-100 p-8 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6">
