@@ -84,6 +84,35 @@ export class ContpaqiService {
         return await this.request('/api/agentes');
     }
 
+    private normalizeMetadata(data: any): any {
+        if (!data) return data;
+        if (Array.isArray(data)) {
+            return data.map(item => {
+                if (typeof item === 'string') return item;
+                if (typeof item === 'object') {
+                    // Mapeo de campos comunes de Contpaqi a "nombre"
+                    const name = item.nombre || item.Nombre || item.cNombre || 
+                               item.cNombreConcepto || item.CNOMBRECONCEPTO || 
+                               item.cNombreEmpresa || item.cValorClasificacion ||
+                               item.cNombreValor || item.name || item.description || 
+                               item.cNombreClasificacion;
+                    
+                    // Mapeo de campos comunes de Contpaqi a "id" o "codigo"
+                    const id = item.id || item.codigo || item.cIdConcepto || 
+                             item.cCodigoConcepto || item.cIdEmpresa || item.cIdClasificacion;
+
+                    return { 
+                        ...item, 
+                        nombre: name || item.nombre || (item.id ? `ID: ${item.id}` : 'Sin nombre'),
+                        id: id || item.id
+                    };
+                }
+                return item;
+            });
+        }
+        return data;
+    }
+
     async getEmpresas() {
         const endpoints = [
             '/api/empresas',
@@ -101,7 +130,8 @@ export class ContpaqiService {
             try {
                 const fullUrl = `${this.config.apiUrl}${endpoint}`;
                 console.log(`🔍 Intentando cargar empresas desde: ${fullUrl}`);
-                return await this.request(endpoint);
+                const data = await this.request(endpoint);
+                return this.normalizeMetadata(data);
             } catch (e) {
                 // Si el error es 404, seguimos probando. Si es otro error (ej: 401), paramos.
                 if (!(e as Error).message.includes('404')) {
@@ -127,7 +157,8 @@ export class ContpaqiService {
 
         for (const endpoint of endpoints) {
             try {
-                return await this.request(endpoint);
+                const data = await this.request(endpoint);
+                return this.normalizeMetadata(data);
             } catch (e) {
                 if (!(e as Error).message.includes('404')) throw e;
                 continue;
@@ -150,7 +181,8 @@ export class ContpaqiService {
 
         for (const endpoint of endpoints) {
             try {
-                return await this.request(endpoint);
+                const data = await this.request(endpoint);
+                return this.normalizeMetadata(data);
             } catch (e) {
                 if (!(e as Error).message.includes('404')) throw e;
                 continue;
@@ -171,7 +203,8 @@ export class ContpaqiService {
 
         for (const endpoint of endpoints) {
             try {
-                return await this.request(endpoint);
+                const data = await this.request(endpoint);
+                return this.normalizeMetadata(data);
             } catch (e) {
                 if (!(e as Error).message.includes('404')) throw e;
                 continue;
