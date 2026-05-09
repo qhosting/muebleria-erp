@@ -41,11 +41,17 @@ interface EmpresaContpaqi {
   nombre: string;
   apiUrl: string;
   apiKey: string;
+  // Conceptos de Operación
   conceptoAbono: string;
+  conceptoMoratorios: string;
+  conceptoAbonoMoratorio: string;
+  conceptoFacturacion: string;
+  conceptoDevolucion: string;
+  // Filtros de Sincronización
   syncConcepto: string;
   syncClasifTipo: string;
   syncClasifValor: string;
-  clasificacion: string; // Deprecated, but keeping for compatibility if needed
+  clasificacion: string; // Deprecated
   ruta: string; // Deprecated
   isActive: boolean;
   mapping?: {
@@ -114,6 +120,10 @@ export default function ContpaqiMultiPage() {
       apiUrl: 'http://localhost:5000',
       apiKey: 'VortexContpaqiAPI2024',
       conceptoAbono: 'ABONO CLIENTE',
+      conceptoMoratorios: 'INTERES MORATORIO',
+      conceptoAbonoMoratorio: 'ABONO INTERES MORATORIO',
+      conceptoFacturacion: 'FACTURA CONTADO',
+      conceptoDevolucion: 'DEVOLUCION SOBRE VENTA',
       syncConcepto: 'Pagaré',
       syncClasifTipo: 'STATUS',
       syncClasifValor: 'COBRANZA NORMAL',
@@ -369,17 +379,33 @@ export default function ContpaqiMultiPage() {
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
+                        <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">URL Servidor</Label>
+                        <Input 
+                          value={empresa.apiUrl} 
+                          onChange={(e) => handleUpdateEmpresa(empresa.id, 'apiUrl', e.target.value)}
+                          className="bg-white/80 border-slate-200"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">API Key</Label>
+                        <Input 
+                          type="password"
+                          value={empresa.apiKey} 
+                          onChange={(e) => handleUpdateEmpresa(empresa.id, 'apiKey', e.target.value)}
+                          className="bg-white/80 border-slate-200"
+                        />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
                         <div className="flex justify-between items-center">
-                          <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Nombre de Empresa (DB)</Label>
+                          <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Empresa en Contpaqi</Label>
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="h-6 text-[10px] text-blue-600 hover:text-blue-700 p-0"
+                            className="h-4 text-[9px] text-blue-600 p-0"
                             onClick={() => handleFetchMetadata(empresa, 'empresas')}
-                            disabled={fetchingMetadata[`${empresa.id}-empresas`]}
                           >
-                            <LucideIcons.RefreshCcw className={`h-3 w-3 mr-1 ${fetchingMetadata[`${empresa.id}-empresas`] ? 'animate-spin' : ''}`} />
-                            Cargar Empresas
+                            <LucideIcons.RefreshCcw className="h-2 w-2 mr-1" />
+                            Cargar Lista
                           </Button>
                         </div>
                         {metadata[empresa.id]?.empresas ? (
@@ -404,77 +430,63 @@ export default function ContpaqiMultiPage() {
                           />
                         )}
                       </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Concepto de Abono</Label>
-                          {empresa.nombre && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-6 text-[10px] text-blue-600 hover:text-blue-700 p-0"
-                              onClick={() => handleFetchMetadata(empresa, 'conceptos')}
-                              disabled={fetchingMetadata[`${empresa.id}-conceptos`]}
-                            >
-                              <LucideIcons.RefreshCcw className={`h-3 w-3 mr-1 ${fetchingMetadata[`${empresa.id}-conceptos`] ? 'animate-spin' : ''}`} />
-                              Conceptos
-                            </Button>
-                          )}
-                        </div>
-                        {fetchingMetadata[`${empresa.id}-conceptos`] ? (
-                          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
-                            <LucideIcons.RefreshCcw className="h-4 w-4 animate-spin text-blue-500" />
-                            <span className="text-xs text-slate-500">Cargando conceptos...</span>
+                    </div>
+
+                    <div className="space-y-4 pt-4">
+                      <div className="flex items-center gap-2 text-slate-900 font-bold border-b border-slate-100 pb-2">
+                        <LucideIcons.ArrowRight className="h-4 w-4 text-emerald-500" />
+                        Conceptos de Operación
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[
+                          { id: 'conceptoAbono', label: 'Concepto de Abono' },
+                          { id: 'conceptoMoratorios', label: 'Concepto de Moratorios' },
+                          { id: 'conceptoAbonoMoratorio', label: 'Concepto Abono Moratorio' },
+                          { id: 'conceptoFacturacion', label: 'Concepto de Facturación' },
+                          { id: 'conceptoDevolucion', label: 'Concepto Devolución Venta' },
+                        ].map((item) => (
+                          <div key={item.id} className="space-y-1.5">
+                            <Label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{item.label}</Label>
+                            {metadata[empresa.id]?.conceptos ? (
+                              <Select 
+                                value={(empresa as any)[item.id] || ''} 
+                                onValueChange={(val) => handleUpdateEmpresa(empresa.id, item.id as any, val)}
+                              >
+                                <SelectTrigger className="bg-white/80 h-9 text-xs border-slate-200">
+                                  <SelectValue placeholder="Seleccionar..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {metadata[empresa.id].conceptos.map((c: any, idx: number) => {
+                                    const name = typeof c === 'string' ? c : (
+                                      c.nombre || c.Nombre || c.cNombre || c.cNombreConcepto || 
+                                      c.CNOMBRECONCEPTO || c.nombreConcepto || c.name || `Concepto ${idx + 1}`
+                                    );
+                                    return <SelectItem key={idx} value={String(name)}>{String(name)}</SelectItem>;
+                                  })}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input 
+                                value={(empresa as any)[item.id] || ''} 
+                                onChange={(e) => handleUpdateEmpresa(empresa.id, item.id as any, e.target.value)}
+                                className="bg-white/80 h-9 text-xs border-slate-200"
+                                placeholder="Nombre del concepto"
+                              />
+                            )}
                           </div>
-                        ) : metadata[empresa.id]?.conceptos ? (
-                          <Select 
-                            value={empresa.conceptoAbono} 
-                            onValueChange={(val) => handleUpdateEmpresa(empresa.id, 'conceptoAbono', val)}
+                        ))}
+                        <div className="flex items-end">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full h-9 border-dashed text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => handleFetchMetadata(empresa, 'conceptos')}
+                            disabled={fetchingMetadata[`${empresa.id}-conceptos`]}
                           >
-                            <SelectTrigger className="bg-white/80 border-slate-200">
-                              <SelectValue placeholder="Seleccionar concepto" />
-                            </SelectTrigger>
-                             <SelectContent>
-                              {metadata[empresa.id].conceptos.map((c: any, idx: number) => {
-                                // Debug para ver la estructura en la consola del navegador
-                                if (idx === 0) console.log('DEBUG Concepto Structure:', c);
-                                
-                                const name = typeof c === 'string' ? c : (
-                                  c.nombre || c.Nombre || c.cNombre || c.cNombreConcepto || 
-                                  c.CNOMBRECONCEPTO || c.nombreConcepto || c.name || c.description ||
-                                  Object.values(c).find(v => typeof v === 'string' && v.length > 3) ||
-                                  `Concepto ${idx + 1}`
-                                );
-                                
-                                return (
-                                  <SelectItem key={idx} value={String(name)}>{String(name)}</SelectItem>
-                                );
-                              })}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input 
-                            value={empresa.conceptoAbono} 
-                            onChange={(e) => handleUpdateEmpresa(empresa.id, 'conceptoAbono', e.target.value)}
-                            className="bg-white/80 border-slate-200"
-                          />
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">URL Servidor</Label>
-                        <Input 
-                          value={empresa.apiUrl} 
-                          onChange={(e) => handleUpdateEmpresa(empresa.id, 'apiUrl', e.target.value)}
-                          className="bg-white/80 border-slate-200"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">API Key</Label>
-                        <Input 
-                          type="password"
-                          value={empresa.apiKey} 
-                          onChange={(e) => handleUpdateEmpresa(empresa.id, 'apiKey', e.target.value)}
-                          className="bg-white/80 border-slate-200"
-                        />
+                            <LucideIcons.RefreshCcw className={`h-3 w-3 mr-2 ${fetchingMetadata[`${empresa.id}-conceptos`] ? 'animate-spin' : ''}`} />
+                            Cargar Conceptos desde API
+                          </Button>
+                        </div>
                       </div>
                     </div>
 
