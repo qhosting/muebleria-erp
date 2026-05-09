@@ -255,7 +255,8 @@ export class ContpaqiService {
             'cNombreClasificacion1', 'cNombreClasificacion2', 'cNombreClasificacion3', 
             'cNombreClasificacion4', 'cNombreClasificacion5', 'cNombreClasificacion6',
             'cTextoExtra1', 'cTextoExtra2', 'cTextoExtra3', 'cTextoExtra4', 'cTextoExtra5',
-            'cImporteExtra1', 'cImporteExtra2'
+            'cTextoExtra6', 'cTextoExtra7', 'cTextoExtra8', 'cTextoExtra9', 'cTextoExtra10',
+            'cImporteExtra1', 'cImporteExtra2', 'cImporteExtra3', 'cImporteExtra4'
         ] : [
             'cCodigoProducto', 'cNombreProducto', 'cPrecio1', 'cPrecio2', 'cPrecio3',
             'cControlExistencia', 'cTextoExtra1', 'cTextoExtra2', 'cImporteExtra1'
