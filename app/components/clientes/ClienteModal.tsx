@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import dynamic from 'next/dynamic';
@@ -40,6 +41,9 @@ export function ClienteModal({
   onSuccess,
   readOnly = false
 }: ClienteModalProps) {
+
+  const { data: session } = useSession();
+  const userRole = (session?.user as any)?.role;
 
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
@@ -617,20 +621,22 @@ export function ClienteModal({
             {/* --- PESTAÑA VINCULADOS --- */}
             {activeTab === 'vinculados' && (
               <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-blue-900">Documentación Digital</h3>
-                    <p className="text-xs text-blue-700">Acceso a expedientes digitalizados en Google Drive</p>
+                {userRole === 'admin' && (
+                  <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-blue-900">Documentación Digital</h3>
+                      <p className="text-xs text-blue-700">Acceso a expedientes digitalizados en Google Drive</p>
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      className="bg-white border-blue-200 text-blue-600 hover:bg-blue-50"
+                      onClick={() => window.open(`https://drive.google.com/drive/u/0/search?q=${formData.codigoCliente}`, '_blank')}
+                    >
+                      <Upload className="h-4 w-4 mr-2" /> Ver Expediente
+                    </Button>
                   </div>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="bg-white border-blue-200 text-blue-600 hover:bg-blue-50"
-                    onClick={() => window.open(`https://drive.google.com/drive/u/0/search?q=${formData.codigoCliente}`, '_blank')}
-                  >
-                    <Upload className="h-4 w-4 mr-2" /> Ver Expediente
-                  </Button>
-                </div>
+                )}
 
                 <div className="space-y-2">
                   <h3 className="font-bold text-gray-900">Otras Cuentas del Cliente</h3>
