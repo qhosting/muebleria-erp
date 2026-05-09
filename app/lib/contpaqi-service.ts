@@ -250,7 +250,9 @@ export class ContpaqiService {
             'cEmail1', 'cEmail2', 'cFechaAlta', 'cLimiteCreditoCliente', 'cSaldoActual',
             'cNombreCalle', 'cNumeroExterior', 'cNumeroInterior', 'cColonia', 'cCiudad', 
             'cEstado', 'cCodigoPostal',
-            'cTextoExtra1', 'cTextoExtra2', 'cTextoExtra3', 'cImporteExtra1', 'cImporteExtra2'
+            'cNombreAgente', 'cCodigoAgente',
+            'cTextoExtra1', 'cTextoExtra2', 'cTextoExtra3', 'cTextoExtra4', 'cTextoExtra5',
+            'cImporteExtra1', 'cImporteExtra2'
         ] : [
             'cCodigoProducto', 'cNombreProducto', 'cPrecio1', 'cPrecio2', 'cPrecio3',
             'cControlExistencia', 'cTextoExtra1', 'cTextoExtra2', 'cImporteExtra1'

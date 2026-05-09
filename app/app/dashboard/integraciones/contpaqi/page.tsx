@@ -73,7 +73,6 @@ const CLIENTE_FIELDS = [
   { key: 'ciudad', label: 'Ciudad' },
   { key: 'estado', label: 'Estado' },
   { key: 'codigoPostal', label: 'C.P.' },
-  { key: 'direccionCompleta', label: 'Dirección Completa' },
   { key: 'saldoActual', label: 'Saldo Actual' },
   { key: 'montoPago', label: 'Monto Pago' },
   { key: 'periodicidad', label: 'Periodicidad' },
