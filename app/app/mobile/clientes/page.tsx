@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { usePlatform } from "@/hooks/usePlatform";
 import { formatWhatsAppNumber } from "@/lib/utils";
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
@@ -11,8 +12,9 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 export default function MobileClientes() {
+    const { data: session } = useSession();
     const { isNative } = usePlatform();
-    const { isConnected, printCollectionNotice, connectToPrinter } = useBluetoothPrinter();
+    const { isConnected, printCollectionNotice, connectToPrinter, printTicket } = useBluetoothPrinter();
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedCliente, setSelectedCliente] = useState<any>(null);
     const [detailCliente, setDetailCliente] = useState<any>(null);
@@ -128,6 +130,57 @@ export default function MobileClientes() {
             ));
         } catch (error) {
             console.error("Error al registrar pago:", error);
+        }
+    };
+
+    const handleImprimirRecibo = async () => {
+        if (!selectedCliente || !isConnected) {
+            if (!isConnected) {
+                toast.error("Impresora no conectada", {
+                    action: {
+                        label: "Conectar",
+                        onClick: () => connectToPrinter()
+                    }
+                });
+            }
+            return;
+        }
+
+        try {
+            const ticketData = {
+                cliente: {
+                    nombreCompleto: selectedCliente.nombre,
+                    direccion: selectedCliente.direccion,
+                    diaPago: selectedCliente.diaPago,
+                    telefono: selectedCliente.telefono
+                },
+                cobrador: {
+                    nombre: session?.user?.name || "COBRADOR",
+                    id: (session?.user as any)?.id || "N/A"
+                },
+                pago: {
+                    monto: parseFloat(montoCobrar),
+                    interesMoratorio: parseFloat(interesMoratorio),
+                    gastosCobranza: parseFloat(gastosCobranza),
+                    tipoPago,
+                    metodoPago,
+                    concepto: concepto || "Pago de cuota",
+                    fechaPago: new Date().toISOString()
+                },
+                saldos: {
+                    anterior: selectedCliente.saldo,
+                    nuevo: selectedCliente.saldo - parseFloat(montoCobrar)
+                },
+                empresa: {
+                    nombre: "VERTEX ERP - MUEBLERIA",
+                    direccion: "CENTRO DE OPERACIONES"
+                }
+            };
+
+            await (printTicket as any)(ticketData);
+        } catch (error) {
+            console.error("Error al imprimir recibo:", error);
+            toast.error("Error al imprimir el recibo");
         }
     };
 
@@ -571,7 +624,10 @@ Fecha: ${new Date().toLocaleDateString()}.
                                             <span>WhatsApp</span>
                                         </button>
 
-                                        <button className="bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 active:scale-95 transition-transform">
+                                        <button 
+                                            onClick={handleImprimirRecibo}
+                                            className="bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 active:scale-95 transition-transform"
+                                        >
                                             <Printer className="w-4 h-4" />
                                             <span>Imprimir</span>
                                         </button>
