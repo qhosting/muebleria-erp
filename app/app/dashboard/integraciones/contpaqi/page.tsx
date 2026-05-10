@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
+  ArrowRight,
+  ChevronDown,
   RefreshCcw, 
   Settings, 
   CheckCircle2, 
@@ -20,9 +22,8 @@ import {
   Save,
   Link2,
   Users,
-  Package,
-  ArrowRight
-} from 'lucide-react'; // Nota: corrigiendo a lucide-react si es necesario, pero asumo lucide-react
+  Package
+} from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Select,
@@ -128,7 +129,7 @@ export default function ContpaqiMultiPage() {
 
   const handleAddEmpresa = () => {
     const newEmpresa: EmpresaContpaqi = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
       nombre: 'Nueva Empresa',
       apiUrl: 'http://localhost:5000',
       apiKey: 'VortexContpaqiAPI2024',
@@ -141,32 +142,36 @@ export default function ContpaqiMultiPage() {
       syncClasifTipo: 'STATUS',
       syncClasifValor: 'COBRANZA NORMAL',
       syncClasifTipo2: 'RUTA',
-      syncClasifValor2: '32',
+      syncClasifValor2: '1',
       clasificacion: 'COBRANZA NORMAL',
       ruta: '',
       isActive: true,
       mapping: {
         clientes: {
-          nombreCompleto: 'Nombre',
-          codigoCliente: 'Codigo',
-          saldoActual: 'Saldo',
-          direccionCompleta: 'Direccion',
-          telefono: 'Telefono',
-          vendedor: 'Vendedor',
-          codigoGestor: 'Gestor',
-          montoPago: 'Pago',
-          periodicidad: 'Periodo',
-          fechaVenta: 'Fecha',
-          importe1: 'Importe1',
-          importe2: 'Importe2',
-          importe3: 'Importe3',
-          importe4: 'Importe4'
+          nombreCompleto: 'cNombreCliente',
+          codigoCliente: 'cCodigoCliente',
+          numContrato: 'cImporteExtra2',
+          saldoActual: 'cSaldoActual',
+          calle: 'cNombreCalle',
+          numeroExterior: 'cNumeroExterior',
+          colonia: 'cColonia',
+          ciudad: 'cCiudad',
+          estado: 'cEstado',
+          codigoPostal: 'cCodigoPostal',
+          telefono: 'cTelefono1',
+          vendedor: 'cNombreAgente',
+          montoPago: 'cImporteExtra1',
+          periodicidad: 'cNombreClasificacion6',
+          diaPago: 'cCuentaMensajeria',
+          referencia1: 'cTextoExtra1',
+          referencia2: 'cTextoExtra3',
+          aval: 'cTextoExtra2'
         },
         productos: {
-          nombre: 'Nombre',
-          codigo: 'Codigo',
-          precioVenta: 'Precio',
-          existencias: 'Existencias'
+          nombre: 'cNombreProducto',
+          codigo: 'cCodigoProducto',
+          precioVenta: 'cPrecio1',
+          existencias: 'cControlExistencia'
         }
       }
     };
@@ -326,7 +331,7 @@ export default function ContpaqiMultiPage() {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-[60vh]">
-          <LucideIcons.RefreshCcw className="h-8 w-8 animate-spin text-blue-500" />
+          <RefreshCcw className="h-8 w-8 animate-spin text-blue-500" />
         </div>
       </DashboardLayout>
     );
@@ -339,7 +344,7 @@ export default function ContpaqiMultiPage() {
           <div className="space-y-1">
             <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-4">
               <div className="p-3 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-xl shadow-blue-200">
-                <LucideIcons.Link2 className="h-8 w-8 text-white" />
+                <Link2 className="h-8 w-8 text-white" />
               </div>
               Contpaqi Multi-Empresa
             </h1>
@@ -348,11 +353,11 @@ export default function ContpaqiMultiPage() {
           
           <div className="flex items-center gap-3">
             <Button variant="outline" size="lg" onClick={handleAddEmpresa} className="border-slate-200 hover:bg-slate-50">
-              <LucideIcons.Plus className="h-5 w-5 mr-2 text-blue-600" />
+              <Plus className="h-5 w-5 mr-2 text-blue-600" />
               Añadir Empresa
             </Button>
             <Button size="lg" onClick={handleSaveAll} className="bg-slate-900 hover:bg-slate-800 shadow-xl shadow-slate-200">
-              <LucideIcons.Save className="h-5 w-5 mr-2" />
+              <Save className="h-5 w-5 mr-2" />
               Guardar Todo
             </Button>
           </div>
@@ -830,7 +835,7 @@ export default function ContpaqiMultiPage() {
               <LucideIcons.Building2 className="h-12 w-12 text-slate-300 mx-auto mb-4" />
               <h3 className="text-lg font-bold text-slate-600">No hay empresas configuradas</h3>
               <Button onClick={handleAddEmpresa} className="mt-6 bg-blue-600">
-                <LucideIcons.Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-4 w-4 mr-2" />
                 Configurar Ahora
               </Button>
             </div>
