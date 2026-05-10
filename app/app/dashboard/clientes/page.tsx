@@ -262,17 +262,6 @@ export default function ClientesPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              {userRole === 'cobrador' ? 'Mis Clientes Asignados' : 'Gestión de Clientes'}
-            </h1>
-            <p className="text-gray-600 mt-1">
-              {userRole === 'admin' ?
-                'Administra la información y asignaciones de clientes' :
-                userRole === 'gestor_cobranza' ?
-                  'Administra clientes y asignaciones de cobradores' :
-                  'Visualiza tus clientes asignados (solo lectura)'
-              }
-            </p>
           </div>
           {(userRole === 'admin' || userRole === 'gestor_cobranza') && (
             <div className="flex space-x-2 mt-4 sm:mt-0">
