@@ -257,6 +257,16 @@ export async function POST(request: NextRequest) {
         console.error('Error enviando notificación de pago:', nError);
     }
 
+    // CHECK FOR ACCOUNT LIQUIDATION (RECOMPRA OPPORTUNITY)
+    if (saldoNuevo === 0 && tipoPago === 'regular') {
+      try {
+        const { RecomprasService } = await import('@/lib/recompras-service');
+        await RecomprasService.crearLeadPorLiquidacion(clienteId, 'El cliente liquidó su cuenta mediante un pago regular.');
+      } catch (rError) {
+        console.error('Error al crear lead de recompra:', rError);
+      }
+    }
+
     return NextResponse.json(resultado, { status: 201 });
   } catch (error) {
     console.error('Error al registrar pago:', error);

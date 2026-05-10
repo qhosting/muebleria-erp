@@ -39,7 +39,9 @@ import {
   Bot,
   Loader2,
   Smartphone,
-  Activity
+  Activity,
+  ShoppingBag,
+  Gift
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -149,6 +151,7 @@ const navigation: NavItem[] = [
     roles: ['admin', 'jefe_ventas', 'vendedor'],
     subItems: [
       { name: 'Leads (AI Sofia)', href: '/dashboard/ventas/leads', icon: MessageSquare },
+      { name: 'Programa de Recompras', href: '/dashboard/ventas/recompras', icon: Gift },
       { name: 'Dashboard Ventas', href: '/mobile/ventas', icon: BarChart3 },
       { name: 'Metas y Presupuestos', href: '/dashboard/ventas/config', icon: Target, roles: ['admin', 'jefe_ventas'] },
     ]

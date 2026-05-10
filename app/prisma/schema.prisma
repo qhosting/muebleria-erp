@@ -69,6 +69,7 @@ enum OrigenLead {
   referido
   oficina
   web
+  recompra
   otro
 }
 
@@ -396,6 +397,7 @@ model Lead {
   updatedAt      DateTime   @updatedAt
 
   vendedor       User?      @relation("VendedorLead", fields: [vendedorId], references: [id])
+  clienteId      String?
   chats          LeadChat[]
 
   @@map("leads")

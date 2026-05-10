@@ -55,10 +55,13 @@ export async function GET(request: NextRequest) {
             const clientes = await service.getClientes(1, { clasificacion, ruta });
             results.clientesCount = clientes.length;
             
+            const apiClientCodes: string[] = [];
+            
             // Actualizar clientes en VertexERP usando el mapeo
             for (const c of clientes) {
                 const m = mapping.clientes;
                 const codigo = String(c[m.codigoCliente] || c.codigo || c.id);
+                apiClientCodes.push(codigo);
                 
                 // 🚀 OBTENER SALDO REAL (Estado de Cuenta)
                 let saldoReal = parseFloat(c[m.saldoActual]) || 0;
@@ -134,6 +137,14 @@ export async function GET(request: NextRequest) {
                         }
                     }
                 });
+            }
+
+            // 🔍 DETECTAR CLIENTES QUE YA NO APARECEN EN LA API (LIQUIDADOS)
+            try {
+                const { RecomprasService } = await import('@/lib/recompras-service');
+                results.liquidadosDetectados = await RecomprasService.detectarLiquidadosEnSync(apiClientCodes);
+            } catch (rError) {
+                console.error('Error al detectar liquidados en sync:', rError);
             }
         }
 
