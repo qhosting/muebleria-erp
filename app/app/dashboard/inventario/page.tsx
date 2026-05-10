@@ -33,6 +33,12 @@ import { NuevaSucursalModal } from '@/components/inventario/NuevaSucursalModal';
 import { ImportarDesdeImagenModal } from '@/components/inventario/ImportarDesdeImagenModal';
 import { Image as ImageIcon } from 'lucide-react';
 
+const StockBadge = ({ cantidad, minimo }: { cantidad: number, minimo: number }) => {
+    if (cantidad <= 0) return <Badge variant="destructive">Agotado</Badge>;
+    if (cantidad <= minimo) return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Bajo Stock</Badge>;
+    return <Badge variant="default" className="bg-green-100 text-green-800">En Stock</Badge>;
+};
+
 export default function InventarioPage() {
     const { data: session } = useSession();
     const [productos, setProductos] = useState<any[]>([]);
@@ -132,11 +138,6 @@ export default function InventarioPage() {
         p.codigo.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const StockBadge = ({ cantidad, minimo }: { cantidad: number, minimo: number }) => {
-        if (cantidad <= 0) return <Badge variant="destructive">Segotado</Badge>;
-        if (cantidad <= minimo) return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Bajo Stock</Badge>;
-        return <Badge variant="default" className="bg-green-100 text-green-800">En Stock</Badge>;
-    };
 
     return (
         <DashboardLayout>
@@ -162,6 +163,7 @@ export default function InventarioPage() {
                             <Store className="h-4 w-4" />
                             Nueva Sucursal
                         </Button>
+                    </div>
                     <div className="flex flex-wrap items-center gap-3">
                         {contpaqiEmpresas.length > 1 && (
                             <div className="flex items-center gap-2">
