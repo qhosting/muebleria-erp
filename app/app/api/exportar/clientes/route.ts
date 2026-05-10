@@ -6,6 +6,8 @@ import { prisma } from '@/lib/db';
 import * as XLSX from 'xlsx';
 import { getDayName } from '@/lib/utils';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

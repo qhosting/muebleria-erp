@@ -12,7 +12,17 @@ import {
   ArrowRight,
   ChevronDown,
   Eye,
-  EyeOff
+  EyeOff,
+  RefreshCcw,
+  Link2,
+  Plus,
+  Save,
+  Building2,
+  Trash2,
+  Settings,
+  Activity,
+  Users,
+  Package
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -24,8 +34,8 @@ import {
 } from "@/components/ui/select";
 
 
-// Re-importing icons correctly
-import * as LucideIcons from 'lucide-react';
+// Removed redundant star import to prevent confusion and extra bundle size
+// import * as LucideIcons from 'lucide-react';
 
 interface EmpresaContpaqi {
   id: string;
@@ -530,7 +540,7 @@ export default function ContpaqiMultiPage() {
                                 className="h-4 text-[9px] text-blue-600 p-0"
                                 onClick={() => handleFetchMetadata(empresa, 'clasificaciones')}
                               >
-                                <LucideIcons.RefreshCcw className="h-2 w-2 mr-1" />
+                                <RefreshCcw className="h-2 w-2 mr-1" />
                                 Cargar
                               </Button>
                             )}
