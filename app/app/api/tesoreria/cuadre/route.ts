@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
             where: whereTickets,
             include: {
                 cliente: { select: { codigoCliente: true } },
-                movimientos: true
+                movimientosBancarios: true
             }
         });
 
@@ -123,20 +123,21 @@ export async function GET(request: NextRequest) {
         ticketsAll.forEach((ticket: any) => {
             const pref = ticket.cliente.codigoCliente?.substring(0, 2).toUpperCase();
             if (resumenPrefijos[pref]) {
-                if (ticket.movimientos.length > 0) {
-                    ticket.movimientos.forEach((mov: any) => {
+                if (ticket.movimientosBancarios && ticket.movimientosBancarios.length > 0) {
+                    ticket.movimientosBancarios.forEach((mov: any) => {
                         const isActual = mov.fechaOperacion >= startDate;
                         const cat = isActual ? 'actual' : 'anterior';
                         const banco = mov.bancoOrigen?.toUpperCase() || 'DESCONOCIDO';
+                        const abonoValue = mov.abono || 0;
 
                         resumenPrefijos[pref][cat].ctas++;
-                        resumenPrefijos[pref][cat].monto += (mov.abono || 0);
+                        resumenPrefijos[pref][cat].monto += abonoValue;
 
                         if (!resumenPrefijos[pref][cat].bancos[banco]) {
                             resumenPrefijos[pref][cat].bancos[banco] = { ctas: 0, monto: 0 };
                         }
                         resumenPrefijos[pref][cat].bancos[banco].ctas++;
-                        resumenPrefijos[pref][cat].bancos[banco].monto += (mov.abono || 0);
+                        resumenPrefijos[pref][cat].bancos[banco].monto += abonoValue;
                     });
                 } else {
                     // Tickets sin conciliar
@@ -159,14 +160,19 @@ export async function GET(request: NextRequest) {
 
             // Discrepancia: En legacy es (Pagos Bancarios Detalle - Pagos Bancarios Resumen)
             // Aquí simplificamos o usamos la misma lógica si tenemos los pagos bancarios "pendientes"
+            const isBankMethod = (method: string) => {
+                const m = (method || '').toLowerCase();
+                return m.includes('banc') || m.includes('transf') || m.includes('depo');
+            };
+
             const pagosBancariosDetalle = pagosAll.filter(pg =>
                 pg.cliente.codigoCliente?.startsWith(pref) &&
-                pg.metodoPago.toLowerCase() === 'bancario'
+                isBankMethod(pg.metodoPago)
             ).reduce((acc, curr) => acc + Number(curr.monto), 0);
 
             const pagosBancariosDetalleCtas = pagosAll.filter(pg =>
                 pg.cliente.codigoCliente?.startsWith(pref) &&
-                pg.metodoPago.toLowerCase() === 'bancario'
+                isBankMethod(pg.metodoPago)
             ).length;
 
             return {
