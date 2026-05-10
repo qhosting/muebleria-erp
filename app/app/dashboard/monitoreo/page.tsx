@@ -142,7 +142,9 @@ export default function MonitoreoPage() {
                                             <div className="flex justify-between items-start mb-1">
                                                 <p className="text-xs font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">{pago.cliente?.nombreCompleto}</p>
                                                 <span className="text-[10px] font-mono text-slate-400">
-                                                    {pago.fechaPago ? new Date(pago.fechaPago).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'}) : '--:--'}
+                                                    {pago.fechaPago && !isNaN(new Date(pago.fechaPago).getTime()) 
+                                                        ? new Date(pago.fechaPago).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'}) 
+                                                        : '--:--'}
                                                 </span>
                                             </div>
                                             <div className="flex justify-between items-center">

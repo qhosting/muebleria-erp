@@ -18,11 +18,15 @@ import {
     AlertTriangle,
     ShoppingBag,
     Store,
-    Globe
+    Globe,
+    RefreshCw
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { MovimientoModal } from '@/components/inventario/MovimientoModal';
 import { NuevoProductoModal } from '@/components/inventario/NuevoProductoModal';
 import { NuevaSucursalModal } from '@/components/inventario/NuevaSucursalModal';
@@ -40,10 +44,32 @@ export default function InventarioPage() {
     const [isSucursalOpen, setIsSucursalOpen] = useState(false);
     const [isImportImagenOpen, setIsImportImagenOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<any>(null);
+    const [syncing, setSyncing] = useState(false);
+    const [contpaqiEmpresas, setContpaqiEmpresas] = useState<any[]>([]);
+    const [selectedEmpresaId, setSelectedEmpresaId] = useState<string>('default');
+    const [soloConExistencia, setSoloConExistencia] = useState(true);
 
     useEffect(() => {
         fetchData();
+        fetchContpaqiConfig();
     }, []);
+
+    const fetchContpaqiConfig = async () => {
+        try {
+            const response = await fetch('/api/configuracion');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.contpaqi?.empresas) {
+                    setContpaqiEmpresas(data.contpaqi.empresas);
+                    if (data.contpaqi.empresas.length > 0) {
+                        setSelectedEmpresaId(data.contpaqi.empresas[0].id);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error cargando config Contpaqi:', error);
+        }
+    };
 
     const fetchData = async () => {
         try {
@@ -81,6 +107,26 @@ export default function InventarioPage() {
         }
     };
 
+    const handleSyncContpaqi = async () => {
+        try {
+            setSyncing(true);
+            const response = await fetch(`/api/contpaqi/sync?target=productos&empresaId=${selectedEmpresaId}&soloConExistencia=${soloConExistencia}`);
+            const data = await response.json();
+
+            if (response.ok) {
+                toast.success(`Sincronización exitosa: ${data.results?.productosCount || 0} productos procesados`);
+                fetchData(); // Recargar la lista
+            } else {
+                throw new Error(data.error || 'Error al sincronizar');
+            }
+        } catch (error: any) {
+            console.error('Error en sync Contpaqi:', error);
+            toast.error(`Error de sincronización: ${error.message}`);
+        } finally {
+            setSyncing(false);
+        }
+    };
+
     const filteredProductos = productos.filter(p =>
         p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.codigo.toLowerCase().includes(searchTerm.toLowerCase())
@@ -115,6 +161,43 @@ export default function InventarioPage() {
                         <Button onClick={() => setIsSucursalOpen(true)} variant="secondary" className="gap-2">
                             <Store className="h-4 w-4" />
                             Nueva Sucursal
+                        </Button>
+                    <div className="flex flex-wrap items-center gap-3">
+                        {contpaqiEmpresas.length > 1 && (
+                            <div className="flex items-center gap-2">
+                                <Label htmlFor="empresa-sync" className="text-xs font-bold text-slate-500 uppercase">Empresa:</Label>
+                                <Select value={selectedEmpresaId} onValueChange={setSelectedEmpresaId}>
+                                    <SelectTrigger id="empresa-sync" className="w-[200px] h-9">
+                                        <SelectValue placeholder="Seleccionar empresa" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {contpaqiEmpresas.map((emp) => (
+                                            <SelectItem key={emp.id} value={emp.id}>
+                                                {emp.nombre}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+                        
+                        <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-200">
+                            <Switch 
+                                id="solo-existencia" 
+                                checked={soloConExistencia} 
+                                onCheckedChange={setSoloConExistencia}
+                            />
+                            <Label htmlFor="solo-existencia" className="text-xs font-medium cursor-pointer">Solo con existencias</Label>
+                        </div>
+
+                        <Button 
+                            onClick={handleSyncContpaqi} 
+                            variant="outline" 
+                            disabled={syncing || loading}
+                            className="gap-2 border-blue-500 text-blue-700 hover:bg-blue-50"
+                        >
+                            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+                            {syncing ? 'Sincronizando...' : 'Sincronizar Contpaqi'}
                         </Button>
                         <Button onClick={() => setIsImportImagenOpen(true)} variant="outline" className="gap-2 border-yellow-500 text-yellow-700 hover:bg-yellow-50">
                             <ImageIcon className="h-4 w-4" />

@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     const target = searchParams.get('target') || 'all'; // all, clientes, productos
     const clasificacion = searchParams.get('clasificacion') || undefined;
     const ruta = searchParams.get('ruta') || undefined;
+    const soloConExistencia = searchParams.get('soloConExistencia') === 'true';
 
     const empresaId = searchParams.get('empresaId') || undefined;
     try {
@@ -49,7 +50,13 @@ export async function GET(request: NextRequest) {
                 clasificacion5: 'cNombreClasificacion5',
                 clasificacion6: 'cNombreClasificacion6'
             },
-            productos: { nombre: 'Nombre', codigo: 'Codigo', precioVenta: 'Precio', existencias: 'Existencias' }
+            productos: { 
+                nombre: 'Nombre', 
+                codigo: 'Codigo', 
+                precioVenta: 'Precio', 
+                existencias: 'Existencias',
+                costoEstandar: 'Costo' 
+            }
         };
 
         if (target === 'all' || target === 'clientes') {
@@ -155,19 +162,25 @@ export async function GET(request: NextRequest) {
 
             for (const p of productos) {
                 const m = mapping.productos;
+                const existencia = Math.round(parseFloat(p[m.existencias]) || 0);
+                
+                // Si solo queremos con existencia y no tiene, saltar
+                if (soloConExistencia && existencia <= 0) continue;
+
                 await prisma.producto.upsert({
                     where: { codigo: p[m.codigo] || p.codigo },
                     update: {
                         nombre: p[m.nombre] || p.nombre,
+                        precioCompra: parseFloat(p[m.costoEstandar] || p.costo || p.ultimoCosto) || 0,
                         precioVenta: parseFloat(p[m.precioVenta]) || 0,
-                        existencias: parseFloat(p[m.existencias]) || 0
+                        existencias: existencia
                     },
                     create: {
                         codigo: p[m.codigo] || p.codigo,
                         nombre: p[m.nombre] || p.nombre,
-                        precioCompra: 0,
+                        precioCompra: parseFloat(p[m.costoEstandar] || p.costo || p.ultimoCosto) || 0,
                         precioVenta: parseFloat(p[m.precioVenta]) || 0,
-                        existencias: parseFloat(p[m.existencias]) || 0
+                        existencias: existencia
                     }
                 });
             }
