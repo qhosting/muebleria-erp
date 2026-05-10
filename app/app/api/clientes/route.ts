@@ -67,22 +67,28 @@ export async function GET(request: NextRequest) {
     }
     // Admins y gestores pueden ver todos los clientes
 
-    const [clientes, total] = await Promise.all([
-      prisma.cliente.findMany({
-        where,
-        include: {
-          cobradorAsignado: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
+    const queryOptions: Prisma.ClienteFindManyArgs = {
+      where,
+      include: {
+        cobradorAsignado: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
           },
         },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
+      },
+      orderBy: { createdAt: 'desc' },
+    };
+
+    // Si NO es consolidado, aplicamos paginación en base de datos
+    if (!consolidated) {
+      queryOptions.skip = skip;
+      queryOptions.take = limit;
+    }
+
+    const [clientes, total] = await Promise.all([
+      prisma.cliente.findMany(queryOptions),
       prisma.cliente.count({ where }),
     ]);
 
@@ -101,30 +107,39 @@ export async function GET(request: NextRequest) {
 
     if (consolidated) {
       // Agrupar por teléfono (si existe) o nombre
-      const grouped: Record<string, any> = {};
+      const groupedMap: Map<string, any> = new Map();
       
       clientesSerializados.forEach(cliente => {
         const key = (cliente.telefono?.trim() || cliente.nombreCompleto.trim()).toLowerCase();
-        if (!grouped[key]) {
-          grouped[key] = {
+        if (!groupedMap.has(key)) {
+          groupedMap.set(key, {
             id: `group-${key}`,
             nombreCompleto: cliente.nombreCompleto,
             telefono: cliente.telefono,
             direccionCompleta: cliente.direccionCompleta,
             saldoTotal: 0,
             cuentas: [],
-            isGrouped: true
-          };
+            isGrouped: true,
+            createdAt: cliente.createdAt // Para mantener orden
+          });
         }
-        grouped[key].saldoTotal += cliente.saldoActual;
-        grouped[key].cuentas.push(cliente);
+        const group = groupedMap.get(key);
+        group.saldoTotal += cliente.saldoActual;
+        group.cuentas.push(cliente);
       });
 
+      const allGroups = Array.from(groupedMap.values());
+      const totalGroups = allGroups.length;
+      
+      // Aplicar paginación manual sobre los grupos
+      const startIndex = (page - 1) * limit;
+      const paginatedGroups = allGroups.slice(startIndex, startIndex + limit);
+
       return NextResponse.json({
-        clientes: Object.values(grouped),
+        clientes: paginatedGroups,
         pagination: {
-          total: Object.keys(grouped).length,
-          pages: Math.ceil(Object.keys(grouped).length / limit),
+          total: totalGroups,
+          pages: Math.ceil(totalGroups / limit),
           currentPage: page,
           perPage: limit,
         },
