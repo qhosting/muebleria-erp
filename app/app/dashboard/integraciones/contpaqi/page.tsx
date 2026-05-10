@@ -11,18 +11,8 @@ import { Progress } from '@/components/ui/progress';
 import { 
   ArrowRight,
   ChevronDown,
-  RefreshCcw, 
-  Settings, 
-  CheckCircle2, 
-  AlertCircle, 
-  Plus,
-  Trash2,
-  Building2,
-  Activity,
-  Save,
-  Link2,
-  Users,
-  Package
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -105,6 +95,11 @@ export default function ContpaqiMultiPage() {
   const [syncProgress, setSyncProgress] = useState(0);
   const [metadata, setMetadata] = useState<Record<string, any>>({});
   const [fetchingMetadata, setFetchingMetadata] = useState<Record<string, boolean>>({});
+  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
+
+  const toggleKeyVisibility = (id: string) => {
+    setShowKeys(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
 
   useEffect(() => {
@@ -369,7 +364,7 @@ export default function ContpaqiMultiPage() {
               <CardHeader className="bg-slate-50/80 border-b border-slate-100 py-4 flex flex-row justify-between items-center">
                 <div className="flex items-center gap-4">
                   <div className="p-2 bg-white rounded-lg shadow-sm border border-slate-200">
-                    <LucideIcons.Building2 className="h-5 w-5 text-blue-600" />
+                    <Building2 className="h-5 w-5 text-blue-600" />
                   </div>
                   <div>
                     <CardTitle className="text-xl font-bold text-slate-800">{empresa.nombre}</CardTitle>
@@ -382,7 +377,7 @@ export default function ContpaqiMultiPage() {
                   </div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => handleRemoveEmpresa(empresa.id)} className="text-slate-400 hover:text-red-600 hover:bg-red-50">
-                  <LucideIcons.Trash2 className="h-5 w-5" />
+                  <Trash2 className="h-5 w-5" />
                 </Button>
               </CardHeader>
               
@@ -390,7 +385,7 @@ export default function ContpaqiMultiPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                   <div className="lg:col-span-7 space-y-6">
                     <div className="flex items-center gap-2 text-slate-900 font-bold border-b border-slate-100 pb-2">
-                      <LucideIcons.Settings className="h-4 w-4 text-blue-500" />
+                      <Settings className="h-4 w-4 text-blue-500" />
                       Parámetros de Conexión
                     </div>
                     
@@ -405,12 +400,23 @@ export default function ContpaqiMultiPage() {
                       </div>
                       <div className="space-y-2">
                         <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">API Key</Label>
-                        <Input 
-                          type="password"
-                          value={empresa.apiKey} 
-                          onChange={(e) => handleUpdateEmpresa(empresa.id, 'apiKey', e.target.value)}
-                          className="bg-white/80 border-slate-200"
-                        />
+                        <div className="relative">
+                          <Input 
+                            type={showKeys[empresa.id] ? "text" : "password"}
+                            value={empresa.apiKey} 
+                            onChange={(e) => handleUpdateEmpresa(empresa.id, 'apiKey', e.target.value)}
+                            className="bg-white/80 border-slate-200 pr-10"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-0 top-0 h-full w-10 text-slate-400 hover:text-slate-600"
+                            onClick={() => toggleKeyVisibility(empresa.id)}
+                          >
+                            {showKeys[empresa.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
                       </div>
                       <div className="space-y-2 md:col-span-2">
                         <div className="flex justify-between items-center">
@@ -421,7 +427,7 @@ export default function ContpaqiMultiPage() {
                             className="h-4 text-[9px] text-blue-600 p-0"
                             onClick={() => handleFetchMetadata(empresa, 'empresas')}
                           >
-                            <LucideIcons.RefreshCcw className="h-2 w-2 mr-1" />
+                            <RefreshCcw className="h-2 w-2 mr-1" />
                             Cargar Lista
                           </Button>
                         </div>
@@ -451,7 +457,7 @@ export default function ContpaqiMultiPage() {
 
                     <div className="space-y-4 pt-4">
                       <div className="flex items-center gap-2 text-slate-900 font-bold border-b border-slate-100 pb-2">
-                        <LucideIcons.ArrowRight className="h-4 w-4 text-emerald-500" />
+                        <ArrowRight className="h-4 w-4 text-emerald-500" />
                         Conceptos de Operación
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -500,7 +506,7 @@ export default function ContpaqiMultiPage() {
                             onClick={() => handleFetchMetadata(empresa, 'conceptos')}
                             disabled={fetchingMetadata[`${empresa.id}-conceptos`]}
                           >
-                            <LucideIcons.RefreshCcw className={`h-3 w-3 mr-2 ${fetchingMetadata[`${empresa.id}-conceptos`] ? 'animate-spin' : ''}`} />
+                            <RefreshCcw className={`h-3 w-3 mr-2 ${fetchingMetadata[`${empresa.id}-conceptos`] ? 'animate-spin' : ''}`} />
                             Cargar Conceptos desde API
                           </Button>
                         </div>
@@ -509,7 +515,7 @@ export default function ContpaqiMultiPage() {
 
                     <div className="space-y-4 pt-4">
                       <div className="flex items-center gap-2 text-slate-900 font-bold border-b border-slate-100 pb-2">
-                        <LucideIcons.Activity className="h-4 w-4 text-indigo-500" />
+                        <Activity className="h-4 w-4 text-indigo-500" />
                         Filtros de Sincronización
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -561,7 +567,7 @@ export default function ContpaqiMultiPage() {
                             {empresa.syncClasifTipo && (
                               <div className="flex items-center gap-1">
                                 {fetchingMetadata[`${empresa.id}-valores_clasificacion`] && (
-                                  <LucideIcons.RefreshCcw className="h-2 w-2 animate-spin text-blue-500" />
+                                  <RefreshCcw className="h-2 w-2 animate-spin text-blue-500" />
                                 )}
                               </div>
                             )}
@@ -633,7 +639,7 @@ export default function ContpaqiMultiPage() {
                             {empresa.syncClasifTipo2 && (
                               <div className="flex items-center gap-1">
                                 {fetchingMetadata[`${empresa.id}-valores_clasificacion2`] && (
-                                  <LucideIcons.RefreshCcw className="h-2 w-2 animate-spin text-blue-500" />
+                                  <RefreshCcw className="h-2 w-2 animate-spin text-blue-500" />
                                 )}
                               </div>
                             )}
@@ -667,7 +673,7 @@ export default function ContpaqiMultiPage() {
 
                     <div className="space-y-4 pt-4">
                       <div className="flex items-center gap-2 text-slate-900 font-bold border-b border-slate-100 pb-2">
-                        <LucideIcons.Link2 className="h-4 w-4 text-emerald-500" />
+                        <Link2 className="h-4 w-4 text-emerald-500" />
                         Mapeo de Datos (VertexERP ← Contpaqi)
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -675,7 +681,7 @@ export default function ContpaqiMultiPage() {
                         <div className="space-y-3">
                           <div className="flex justify-between items-center">
                             <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                              <LucideIcons.Users className="h-3 w-3" />
+                              <Users className="h-3 w-3" />
                               Catálogo Clientes
                             </h4>
                             <Button 
@@ -685,7 +691,7 @@ export default function ContpaqiMultiPage() {
                               onClick={() => handleFetchMetadata(empresa, 'campos_clientes')}
                               disabled={fetchingMetadata[`${empresa.id}-campos_clientes`]}
                             >
-                              <LucideIcons.RefreshCcw className={`h-3 w-3 mr-1 ${fetchingMetadata[`${empresa.id}-campos_clientes`] ? 'animate-spin' : ''}`} />
+                              <RefreshCcw className={`h-3 w-3 mr-1 ${fetchingMetadata[`${empresa.id}-campos_clientes`] ? 'animate-spin' : ''}`} />
                               Campos
                             </Button>
                           </div>
@@ -724,7 +730,7 @@ export default function ContpaqiMultiPage() {
                         <div className="space-y-3">
                           <div className="flex justify-between items-center">
                             <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                              <LucideIcons.Package className="h-3 w-3" />
+                              <Package className="h-3 w-3" />
                               Catálogo Productos
                             </h4>
                             <Button 
@@ -734,7 +740,7 @@ export default function ContpaqiMultiPage() {
                               onClick={() => handleFetchMetadata(empresa, 'campos_productos')}
                               disabled={fetchingMetadata[`${empresa.id}-campos_productos`]}
                             >
-                              <LucideIcons.RefreshCcw className={`h-3 w-3 mr-1 ${fetchingMetadata[`${empresa.id}-campos_productos`] ? 'animate-spin' : ''}`} />
+                              <RefreshCcw className={`h-3 w-3 mr-1 ${fetchingMetadata[`${empresa.id}-campos_productos`] ? 'animate-spin' : ''}`} />
                               Campos
                             </Button>
                           </div>
@@ -774,13 +780,13 @@ export default function ContpaqiMultiPage() {
 
                   <div className="lg:col-span-5 flex flex-col justify-between p-6 bg-slate-900 rounded-3xl text-white shadow-2xl relative overflow-hidden group">
                     <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                      <LucideIcons.RefreshCcw className="h-40 w-40" />
+                      <RefreshCcw className="h-40 w-40" />
                     </div>
                     
                     <div className="space-y-4 relative z-10">
                       <h3 className="text-xl font-bold flex items-center gap-2">
                         Acciones Rápidas
-                        <LucideIcons.ArrowRight className="h-5 w-5 text-blue-400" />
+                        <ArrowRight className="h-5 w-5 text-blue-400" />
                       </h3>
                       <p className="text-slate-400 text-sm">Dispara la sincronización manual para esta empresa.</p>
                       
@@ -790,7 +796,7 @@ export default function ContpaqiMultiPage() {
                           disabled={!!syncingId}
                           className="bg-white/10 hover:bg-white/20 border-white/10 text-white h-auto py-4 flex-col gap-2"
                         >
-                          <LucideIcons.Users className="h-5 w-5" />
+                          <Users className="h-5 w-5" />
                           <span className="text-[10px] font-bold uppercase">Clientes</span>
                         </Button>
                         <Button 
@@ -798,7 +804,7 @@ export default function ContpaqiMultiPage() {
                           disabled={!!syncingId}
                           className="bg-white/10 hover:bg-white/20 border-white/10 text-white h-auto py-4 flex-col gap-2"
                         >
-                          <LucideIcons.Package className="h-5 w-5" />
+                          <Package className="h-5 w-5" />
                           <span className="text-[10px] font-bold uppercase">Productos</span>
                         </Button>
                       </div>
@@ -820,7 +826,7 @@ export default function ContpaqiMultiPage() {
                         disabled={!!syncingId}
                         className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-6 rounded-2xl"
                       >
-                        <LucideIcons.RefreshCcw className={`h-5 w-5 mr-3 ${syncingId?.startsWith(empresa.id) ? 'animate-spin' : ''}`} />
+                        <RefreshCcw className={`h-5 w-5 mr-3 ${syncingId?.startsWith(empresa.id) ? 'animate-spin' : ''}`} />
                         Sincronización Total
                       </Button>
                     </div>
@@ -832,7 +838,7 @@ export default function ContpaqiMultiPage() {
 
           {empresas.length === 0 && (
             <div className="text-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-              <LucideIcons.Building2 className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+              <Building2 className="h-12 w-12 text-slate-300 mx-auto mb-4" />
               <h3 className="text-lg font-bold text-slate-600">No hay empresas configuradas</h3>
               <Button onClick={handleAddEmpresa} className="mt-6 bg-blue-600">
                 <Plus className="h-4 w-4 mr-2" />
