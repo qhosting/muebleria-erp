@@ -44,6 +44,8 @@ export default function RecomprasPage() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState('liquidados');
+    const [validaciones, setValidaciones] = useState<Record<string, any>>({});
+    const [validatingId, setValidatingId] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -83,6 +85,30 @@ export default function RecomprasPage() {
 
         const url = `https://wa.me/${telefono.replace(/\D/g, '')}?text=${encodeURIComponent(mensaje)}`;
         window.open(url, '_blank');
+    };
+
+    const validarCliente = async (leadId: string) => {
+        setValidatingId(leadId);
+        try {
+            const res = await fetch('/api/ventas/recompras/validar-contpaqi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ leadId })
+            });
+            
+            if (res.ok) {
+                const data = await res.json();
+                setValidaciones(prev => ({ ...prev, [leadId]: data }));
+                toast.success('Clasificaciones obtenidas de Contpaqi');
+            } else {
+                const error = await res.json();
+                toast.error(error.error || 'Error al validar con Contpaqi');
+            }
+        } catch (error) {
+            toast.error('Error de conexión con el servidor');
+        } finally {
+            setValidatingId(null);
+        }
     };
 
     const filteredLeads = leads.filter(l => 
@@ -186,12 +212,78 @@ export default function RecomprasPage() {
                                                 </div>
                                             </div>
                                             
+                                            {validaciones[lead.id] && (
+                                                <div className="space-y-3 mb-4">
+                                                    {/* Alerta de Recompra Ya Realizada */}
+                                                    {validaciones[lead.id].recompraActiva && (
+                                                        <div className="bg-green-50 p-3 rounded-2xl border border-green-100 flex items-start gap-3">
+                                                            <div className="bg-green-500 p-1.5 rounded-lg">
+                                                                <ShoppingBag className="h-3 w-3 text-white" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[10px] font-black text-green-600 uppercase tracking-wider">Ya tiene nueva cuenta</p>
+                                                                <p className="text-xs font-bold text-green-900 leading-tight">
+                                                                    {validaciones[lead.id].recompraActiva.descripcionProducto}
+                                                                </p>
+                                                                <p className="text-[9px] text-green-500 font-medium mt-0.5">
+                                                                    Sincronizado: {validaciones[lead.id].recompraActiva.codigoCliente}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="bg-indigo-50/30 p-3 rounded-2xl border border-dashed border-indigo-200">
+                                                        <div className="flex items-center gap-1.5 mb-2">
+                                                            <Sparkles className="h-3 w-3 text-indigo-500" />
+                                                            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-tight">Status Contpaqi</span>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {Object.values(validaciones[lead.id].clasificaciones)
+                                                                .filter(v => v !== 'N/A' && v !== '')
+                                                                .map((val: any, i) => {
+                                                                    const isRating = ['BUENO', 'REGULAR', 'EXCELENTE'].some(r => val.toString().toUpperCase().includes(r));
+                                                                    const isPayment = ['PAGADO', 'PAGAGO'].some(p => val.toString().toUpperCase().includes(p));
+                                                                    
+                                                                    return (
+                                                                        <div 
+                                                                            key={i} 
+                                                                            className={`px-2 py-1 rounded-lg text-[10px] font-bold shadow-sm ${
+                                                                                isRating ? 'bg-purple-100 text-purple-700' : 
+                                                                                isPayment ? 'bg-blue-100 text-blue-700' : 
+                                                                                'bg-white text-gray-500'
+                                                                            }`}
+                                                                        >
+                                                                            {val}
+                                                                        </div>
+                                                                    );
+                                                                })
+                                                            }
+                                                            {Object.values(validaciones[lead.id].clasificaciones).every(v => v === 'N/A' || v === '') && (
+                                                                <span className="text-[10px] text-gray-400 italic">Sin clasificaciones asignadas</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
                                             <div className="flex gap-2">
                                                 <Button 
                                                     className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md gap-2"
                                                     onClick={() => sendWhatsApp(lead.telefono, lead.nombre, 'felicitacion')}
                                                 >
                                                     <MessageSquare className="h-4 w-4" /> Felicitar
+                                                </Button>
+                                                <Button 
+                                                    variant="outline" 
+                                                    className="rounded-xl border-indigo-100 hover:bg-indigo-50 px-3 h-10"
+                                                    onClick={() => validarCliente(lead.id)}
+                                                    disabled={validatingId === lead.id}
+                                                >
+                                                    {validatingId === lead.id ? (
+                                                        <RefreshCw className="h-4 w-4 animate-spin text-indigo-600" />
+                                                    ) : (
+                                                        <span className="text-indigo-600 font-bold text-xs uppercase">Validar</span>
+                                                    )}
                                                 </Button>
                                                 <Button variant="outline" className="rounded-xl border-indigo-100 hover:bg-indigo-50" size="icon">
                                                     <ChevronRight className="h-4 w-4 text-indigo-600" />
