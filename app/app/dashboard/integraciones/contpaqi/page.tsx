@@ -208,34 +208,44 @@ export default function ContpaqiMultiPage() {
   };
 
   const handleUpdateEmpresa = (id: string, field: keyof EmpresaContpaqi, value: any) => {
-    setEmpresas(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
-    
-    if (field === 'nombre') {
-      const currentEmpresa = empresas.find(e => e.id === id);
-      if (currentEmpresa) {
-        const updatedEmpresa = { ...currentEmpresa, [field]: value };
-        handleFetchMetadata(updatedEmpresa, 'conceptos');
-        handleFetchMetadata(updatedEmpresa, 'clasificaciones');
-      }
+    // Trim URL and Key to prevent hidden whitespace errors
+    let finalValue = value;
+    if ((field === 'apiUrl' || field === 'apiKey') && typeof value === 'string') {
+      finalValue = value.trim();
     }
 
-    if (field === 'syncClasifTipo' || field === 'syncClasifTipo2') {
-      const currentEmpresa = empresas.find(e => e.id === id);
-      if (currentEmpresa) {
-        const clasifs = metadata[id]?.clasificaciones || [];
-        const selectedClasif = clasifs.find((c: any) => 
-          (c.nombre || c.Nombre || c.cNombre || c) === value
-        );
-        
-        if (selectedClasif && typeof selectedClasif === 'object') {
-          const clasifId = selectedClasif.id || selectedClasif.codigo || selectedClasif.cIdClasificacion;
-          if (clasifId) {
-            const metaType = field === 'syncClasifTipo' ? 'valores_clasificacion' : 'valores_clasificacion2';
-            handleFetchMetadata({ ...currentEmpresa, [field]: value }, metaType, clasifId);
+    setEmpresas(prev => {
+      const newEmpresas = prev.map(e => e.id === id ? { ...e, [field]: finalValue } : e);
+      
+      // Lógica de efectos colaterales después de la actualización de estado
+      if (field === 'nombre') {
+        const updatedEmpresa = newEmpresas.find(e => e.id === id);
+        if (updatedEmpresa) {
+          handleFetchMetadata(updatedEmpresa, 'conceptos');
+          handleFetchMetadata(updatedEmpresa, 'clasificaciones');
+        }
+      }
+
+      if (field === 'syncClasifTipo' || field === 'syncClasifTipo2') {
+        const currentEmpresa = newEmpresas.find(e => e.id === id);
+        if (currentEmpresa) {
+          const clasifs = metadata[id]?.clasificaciones || [];
+          const selectedClasif = clasifs.find((c: any) => 
+            (c.nombre || c.Nombre || c.cNombre || c) === finalValue
+          );
+          
+          if (selectedClasif && typeof selectedClasif === 'object') {
+            const clasifId = selectedClasif.id || selectedClasif.codigo || selectedClasif.cIdClasificacion;
+            if (clasifId) {
+              const metaType = field === 'syncClasifTipo' ? 'valores_clasificacion' : 'valores_clasificacion2';
+              handleFetchMetadata({ ...currentEmpresa, [field]: finalValue }, metaType, clasifId);
+            }
           }
         }
       }
-    }
+
+      return newEmpresas;
+    });
   };
 
   const handleFetchMetadata = async (empresa: EmpresaContpaqi, type: string, extraId?: any) => {
@@ -269,7 +279,12 @@ export default function ContpaqiMultiPage() {
       }));
       toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} cargados correctamente`);
     } catch (error: any) {
-      toast.error(`Error: ${error.message}`);
+      // Manejo especial para error 403 de API Key
+      if (error.message.includes('403')) {
+        toast.error('Error 403: API Key inválida para este servidor. Verifique que sea correcta y no tenga espacios.');
+      } else {
+        toast.error(`Error: ${error.message}`);
+      }
     } finally {
       setFetchingMetadata(prev => ({ ...prev, [key]: false }));
     }

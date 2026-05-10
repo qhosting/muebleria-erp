@@ -12,8 +12,9 @@ export async function GET(request: NextRequest) {
     const clasificacion = searchParams.get('clasificacion') || undefined;
     const ruta = searchParams.get('ruta') || undefined;
 
+    const empresaId = searchParams.get('empresaId') || undefined;
     try {
-        const service = await getContpaqiService(prisma);
+        const service = await getContpaqiService(prisma, empresaId);
         const results: any = {};
 
         if (target === 'health') {

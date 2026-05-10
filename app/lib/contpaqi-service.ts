@@ -33,10 +33,17 @@ export class ContpaqiService {
         }
 
         const url = `${this.config.apiUrl}${finalEndpoint}`;
-        const headers = {
+        const headers: any = {
             'Content-Type': 'application/json',
-            'X-API-Key': this.config.apiKey
+            'X-API-Key': this.config.apiKey.trim()
         };
+
+        // Log masking API Key for security but allowing debugging of its presence
+        const maskedKey = this.config.apiKey ? 
+            `${this.config.apiKey.substring(0, 4)}...${this.config.apiKey.substring(this.config.apiKey.length - 2)}` : 
+            'MISSING';
+        
+        console.log(`🌐 [Contpaqi Request] ${method} ${url} | Key: ${maskedKey}`);
 
         let response;
         try {
@@ -338,7 +345,7 @@ export class ContpaqiService {
 /**
  * Obtiene la instancia del servicio usando variables de entorno o configuración de DB
  */
-export async function getContpaqiService(prisma?: any): Promise<ContpaqiService> {
+export async function getContpaqiService(prisma?: any, empresaId?: string): Promise<ContpaqiService> {
     let apiUrl = process.env.CONTPAQI_API_URL || 'http://localhost:5000';
     let apiKey = process.env.CONTPAQI_API_KEY || 'VortexContpaqiAPI2024';
 
@@ -346,10 +353,23 @@ export async function getContpaqiService(prisma?: any): Promise<ContpaqiService>
         const config = await prisma.configuracionSistema.findUnique({
             where: { clave: 'sistema' }
         });
+        
         if (config?.contpaqi) {
             const c = config.contpaqi as any;
-            if (c.apiUrl) apiUrl = c.apiUrl;
-            if (c.apiKey) apiKey = c.apiKey;
+            
+            // Si se proporciona un empresaId, buscamos sus credenciales específicas
+            if (empresaId && c.empresas) {
+                const empresa = c.empresas.find((e: any) => e.id === empresaId);
+                if (empresa) {
+                    apiUrl = empresa.apiUrl || apiUrl;
+                    apiKey = empresa.apiKey || apiKey;
+                    console.log(`🏢 Usando credenciales específicas para empresa: ${empresa.nombre}`);
+                }
+            } else {
+                // Fallback a globales o primera empresa
+                if (c.apiUrl) apiUrl = c.apiUrl;
+                if (c.apiKey) apiKey = c.apiKey;
+            }
         }
     }
 
