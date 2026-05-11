@@ -551,6 +551,56 @@ class BluetoothPrinterService {
     }
   }
 
+  async printConvenio(convenio: any): Promise<boolean> {
+    try {
+      let ticket = '';
+      ticket += this.COMMANDS.INIT;
+      ticket += this.COMMANDS.CENTER;
+      ticket += this.COMMANDS.BOLD_ON;
+      ticket += 'CONVENIO DE PAGO' + this.LF;
+      ticket += this.COMMANDS.BOLD_OFF;
+      ticket += this.formatDate(convenio.fechaRegistro || new Date().toISOString()) + this.LF;
+      ticket += this.createDivider() + this.LF;
+
+      ticket += this.COMMANDS.LEFT;
+      ticket += 'CLIENTE: ' + (convenio.cliente?.nombreCompleto || convenio.clienteNombre || 'N/A').toUpperCase() + this.LF;
+      ticket += 'CODIGO:  ' + (convenio.cliente?.codigoCliente || convenio.clienteId?.substring(0, 8) || 'N/A') + this.LF;
+      ticket += this.createDivider() + this.LF;
+
+      ticket += this.COMMANDS.BOLD_ON;
+      ticket += 'DETALLES DEL ACUERDO:' + this.LF;
+      ticket += this.COMMANDS.BOLD_OFF;
+      ticket += 'TIPO:    ' + convenio.tipoConvenio.toUpperCase() + this.LF;
+      ticket += 'MONTO:   ' + this.rightAlignText(this.formatCurrency(convenio.monto)) + this.LF;
+      ticket += 'FECHA:   ' + this.formatDate(convenio.fecha).split(' ')[0] + this.LF;
+      ticket += this.createDivider() + this.LF;
+
+      if (convenio.comentario) {
+        ticket += 'COMENTARIO:' + this.LF;
+        ticket += convenio.comentario + this.LF;
+        ticket += this.createDivider() + this.LF;
+      }
+
+      ticket += this.COMMANDS.CENTER;
+      ticket += 'Este documento es un compromiso' + this.LF;
+      ticket += 'de pago formalizado con su' + this.LF;
+      ticket += 'gestor de cobranza.' + this.LF;
+      
+      ticket += this.LF + this.createDivider() + this.LF;
+      ticket += 'FIRMA CLIENTE' + this.LF + this.LF + this.LF;
+      ticket += this.createDivider() + this.LF;
+      ticket += 'GESTION: ' + (convenio.gestor?.name || 'COBRADOR') + this.LF;
+      ticket += this.LF + this.LF + this.LF;
+      ticket += this.COMMANDS.CUT;
+
+      await this.sendData(ticket);
+      return true;
+    } catch (error) {
+      console.error('Error al imprimir convenio:', error);
+      throw error;
+    }
+  }
+
   async printTicket(ticketData: TicketData): Promise<void> {
     if (!this.connection.isConnected) {
       throw new Error('Impresora no conectada');

@@ -47,13 +47,16 @@ export function ConvenioModal({ cliente, isOpen, onClose, onSuccess, isOnline }:
     const [comentario, setComentario] = useState("");
     const [loading, setLoading] = useState(false);
     const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
+    const { isConnected: isPrinterConnected, printConvenio } = useBluetoothPrinter();
+    const [savedConvenio, setSavedConvenio] = useState<any>(null);
 
     useEffect(() => {
         if (isOpen) {
             setTipoConvenio("promesa_pago");
-            setMonto(cliente.pagoSemanal?.toString() || "");
+            setMonto(cliente.montoAcordado?.toString() || "");
             setFecha("");
             setComentario("");
+            setSavedConvenio(null);
 
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((pos) => {
@@ -65,6 +68,28 @@ export function ConvenioModal({ cliente, isOpen, onClose, onSuccess, isOnline }:
             }
         }
     }, [isOpen, cliente]);
+
+    const handlePrint = async (convenio: any) => {
+        if (!isPrinterConnected) {
+            toast.error("Impresora no conectada");
+            return;
+        }
+
+        try {
+            await printConvenio({
+                ...convenio,
+                cliente: {
+                    nombreCompleto: cliente.nombreCompleto,
+                    codigoCliente: cliente.codigoCliente
+                },
+                gestor: {
+                    name: session?.user?.name
+                }
+            });
+        } catch (error) {
+            console.error("Error imprimiendo:", error);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -100,9 +125,20 @@ export function ConvenioModal({ cliente, isOpen, onClose, onSuccess, isOnline }:
 
             if (!response.ok) throw new Error("Error al registrar convenio");
             
+            const nuevoConvenio = await response.json();
+            setSavedConvenio(nuevoConvenio);
+            
             toast.success("Convenio registrado exitosamente");
-            onSuccess();
-            onClose();
+            
+            // Si la impresora está conectada, imprimir automáticamente o dar la opción
+            if (isPrinterConnected) {
+                await handlePrint(nuevoConvenio);
+            }
+            
+            setTimeout(() => {
+                onSuccess();
+                onClose();
+            }, 1500);
         } catch (error) {
             console.error("Error:", error);
             toast.error("Error al registrar el convenio");

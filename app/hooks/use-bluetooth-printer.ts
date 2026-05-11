@@ -219,6 +219,23 @@ export function useBluetoothPrinter() {
     }
   };
 
+  const printConvenio = async (convenio: any): Promise<boolean> => {
+    if (!isConnected) {
+      toast.error('Impresora no conectada');
+      return false;
+    }
+
+    try {
+      await bluetoothPrinter.printConvenio(convenio);
+      toast.success('Convenio impreso exitosamente');
+      return true;
+    } catch (error: any) {
+      const message = error.message || 'Error imprimiendo convenio';
+      toast.error(message);
+      return false;
+    }
+  };
+
   return {
     isConnected,
     isConnecting,
@@ -234,6 +251,7 @@ export function useBluetoothPrinter() {
     printCollectionReport,
     printCollectionNotice,
     printArqueo,
+    printConvenio,
     printTestPage,
     updateConnectionStatus
   };

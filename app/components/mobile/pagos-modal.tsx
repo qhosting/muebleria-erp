@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Receipt, 
   Calendar,
@@ -66,11 +67,16 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
   
   const userId = (session?.user as any)?.id;
   const userRole = (session?.user as any)?.role;
-  const { isConnected: isPrinterConnected, printTicket } = useBluetoothPrinter();
+  const { isConnected: isPrinterConnected, printTicket, printConvenio } = useBluetoothPrinter();
+  
+  const [convenios, setConvenios] = useState<any[]>([]);
+  const [loadingConvenios, setLoadingConvenios] = useState(false);
+  const [printingConvenioId, setPrintingConvenioId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && cliente.id) {
       loadPagosCliente();
+      loadConveniosCliente();
     }
   }, [isOpen, cliente.id, isOnline]);
 
@@ -109,6 +115,53 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
       toast.error('Error al cargar historial de pagos');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadConveniosCliente = async () => {
+    if (!cliente.id || !isOnline) return;
+
+    setLoadingConvenios(true);
+    try {
+      const response = await fetch(`/api/clientes/convenios?clienteId=${cliente.id}`);
+      if (!response.ok) throw new Error('Error al obtener convenios');
+      const data = await response.json();
+      setConvenios(data);
+    } catch (error) {
+      console.error('Error loading convenios:', error);
+      toast.error('Error al cargar convenios');
+    } finally {
+      setLoadingConvenios(false);
+    }
+  };
+
+  const handleReimprimirConvenio = async (convenio: any) => {
+    if (!isPrinterConnected) {
+      toast.error('Impresora no conectada');
+      setShowPrinterConfig(true);
+      return;
+    }
+
+    setPrintingConvenioId(convenio.id);
+    try {
+      const success = await printConvenio({
+        ...convenio,
+        cliente: {
+          nombreCompleto: cliente.nombreCompleto,
+          codigoCliente: cliente.codigoCliente
+        },
+        gestor: {
+          name: convenio.gestor?.name || session?.user?.name || 'Gestor'
+        }
+      });
+      if (success) {
+        toast.success('Convenio reimpreso exitosamente');
+      }
+    } catch (error) {
+      console.error('Error reimprimiendo convenio:', error);
+      toast.error('Error al reimprimir convenio');
+    } finally {
+      setPrintingConvenioId(null);
     }
   };
 
@@ -284,275 +337,388 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
             </div>
           </DialogHeader>
 
-          <div className="flex-1 overflow-hidden">
-            <div className="p-6 pb-0 space-y-4">
-              {/* Información del cliente */}
-              <Card className="border-l-4 border-l-blue-500">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <User className="w-4 h-4" />
-                    {cliente.nombreCompleto}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="text-sm text-muted-foreground flex items-center gap-1">
-                    <MapPin className="w-3 h-3" />
-                    {cliente.direccion}
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Saldo Actual: </span>
-                      <span className="font-semibold text-red-600">
-                        {formatCurrency(cliente.saldoPendiente)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Total Pagos: </span>
-                      <span className="font-semibold text-green-600">
-                        {formatCurrency(totalPagos)}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Estadísticas rápidas */}
-              <div className="grid grid-cols-2 gap-2">
-                <Card className="text-center">
-                  <CardContent className="p-3">
-                    <div className="text-sm font-semibold text-green-600">
-                      {formatCurrency(totalPagosMes)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Este mes ({pagosMes.length})</div>
-                  </CardContent>
-                </Card>
-                
-                <Card className="text-center">
-                  <CardContent className="p-3">
-                    <div className="text-sm font-semibold text-blue-600">
-                      {filteredPagos.length}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Total pagos</div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Filtros */}
-              <div className="space-y-3">
-                {/* Búsqueda */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por concepto, recibo..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 h-9"
-                  />
-                </div>
-
-                {/* Toggle filtros avanzados */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="w-full h-8 text-xs"
-                >
-                  <Filter className="w-3 h-3 mr-2" />
-                  Filtros por fecha
-                  {showFilters ? <ChevronUp className="w-3 h-3 ml-2" /> : <ChevronDown className="w-3 h-3 ml-2" />}
-                </Button>
-
-                {/* Filtros de fecha */}
-                {showFilters && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label htmlFor="fechaDesde" className="text-xs">Desde</Label>
-                      <Input
-                        id="fechaDesde"
-                        type="date"
-                        value={fechaDesde}
-                        onChange={(e) => setFechaDesde(e.target.value)}
-                        min={dateLimits.min}
-                        max={dateLimits.max}
-                        className="h-8"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="fechaHasta" className="text-xs">Hasta</Label>
-                      <Input
-                        id="fechaHasta"
-                        type="date"
-                        value={fechaHasta}
-                        onChange={(e) => setFechaHasta(e.target.value)}
-                        min={dateLimits.min}
-                        max={dateLimits.max}
-                        className="h-8"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
+          <Tabs defaultValue="pagos" className="flex-1 flex flex-col overflow-hidden">
+            <div className="px-6 py-2 border-b bg-slate-50">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="pagos" className="flex items-center gap-2">
+                  <Receipt className="w-4 h-4" />
+                  Pagos
+                </TabsTrigger>
+                <TabsTrigger value="convenios" className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Convenios
+                </TabsTrigger>
+              </TabsList>
             </div>
 
-            {/* Lista de pagos con scroll */}
-            <div className="px-6 pt-4 flex-1 min-h-0">
-              <div className="h-full overflow-y-auto">
-                {loading ? (
-                  <div className="flex items-center justify-center h-32">
-                    <RefreshCw className="w-6 h-6 animate-spin mr-2" />
-                    <span className="text-muted-foreground">Cargando pagos...</span>
-                  </div>
-                ) : !isOnline ? (
-                  <div className="flex items-center justify-center h-32 text-center">
-                    <div>
-                      <WifiOff className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-muted-foreground text-sm">
-                        Se requiere conexión para ver el historial
-                      </p>
-                    </div>
-                  </div>
-                ) : filteredPagos.length === 0 ? (
-                  <div className="flex items-center justify-center h-32 text-center">
-                    <div>
-                      <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-muted-foreground text-sm">
-                        {pagos.length === 0 ? 'No hay pagos registrados' : 'No se encontraron pagos con los filtros aplicados'}
-                      </p>
-                      {searchTerm || fechaDesde || fechaHasta ? (
-                        <Button
-                          variant="link"
-                          size="sm"
-                          onClick={() => {
-                            setSearchTerm('');
-                            setFechaDesde('');
-                            setFechaHasta('');
-                          }}
-                          className="text-xs mt-2"
-                        >
-                          Limpiar filtros
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3 pb-6">
-                    {filteredPagos.map((pago, index) => (
-                      <Card key={pago.id} className="border-l-2 border-l-green-400">
+            <div className="flex-1 overflow-hidden">
+              <TabsContent value="pagos" className="h-full m-0 focus-visible:ring-0">
+                <div className="flex flex-col h-full overflow-hidden">
+                  <div className="p-6 pb-0 space-y-4">
+                    {/* Información del cliente */}
+                    <Card className="border-l-4 border-l-blue-500">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <User className="w-4 h-4" />
+                          {cliente.nombreCompleto}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <div className="text-sm text-muted-foreground flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          {cliente.direccion}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Saldo Actual: </span>
+                            <span className="font-semibold text-red-600">
+                              {formatCurrency(cliente.saldoPendiente)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Total Pagos: </span>
+                            <span className="font-semibold text-green-600">
+                              {formatCurrency(totalPagos)}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Estadísticas rápidas */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <Card className="text-center">
                         <CardContent className="p-3">
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-semibold text-green-600">
-                                  {formatCurrency(pago.monto)}
-                                </span>
-                                {getTipoPagoBadge(pago.tipoPago)}
-                                {pago.ticketImpreso && (
-                                  <CheckCircle className="w-3 h-3 text-green-500" />
-                                )}
-                              </div>
-                              
-                              <p className="text-xs text-muted-foreground line-clamp-2">
-                                {pago.concepto || 'Pago de cuota'}
-                              </p>
-                              
-                              <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="w-3 h-3" />
-                                  {format(new Date(pago.fechaPago), 'dd/MM/yyyy', { locale: es })}
-                                </span>
-                                
-                                <span className="flex items-center gap-1">
-                                  <User className="w-3 h-3" />
-                                  {pago.cobrador?.name || 'N/A'}
-                                </span>
-                              </div>
-
-                              {pago.numeroRecibo && (
-                                <div className="text-xs text-muted-foreground mt-1">
-                                  Recibo: #{pago.numeroRecibo}
-                                </div>
-                              )}
-
-                              <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
-                                <div>
-                                  <span className="text-muted-foreground">Saldo anterior: </span>
-                                  <span className="font-medium">{formatCurrency(pago.saldoAnterior)}</span>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Saldo nuevo: </span>
-                                  <span className="font-medium">{formatCurrency(pago.saldoNuevo)}</span>
-                                </div>
-                              </div>
-                            </div>
+                          <div className="text-sm font-semibold text-green-600">
+                            {formatCurrency(totalPagosMes)}
                           </div>
-
-                          {/* Botón de reimpresión */}
-                          <div className="flex gap-2 mt-3">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleReimprimirRecibo(pago)}
-                              disabled={printingRecibo === pago.id || !isPrinterConnected}
-                              className="flex-1 h-7 text-xs"
-                            >
-                              {printingRecibo === pago.id ? (
-                                <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-                              ) : (
-                                <Printer className="w-3 h-3 mr-1" />
-                              )}
-                              {printingRecibo === pago.id ? 'Imprimiendo...' : 'Reimprimir'}
-                            </Button>
-
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setSelectedPago(selectedPago === pago ? null : pago)}
-                              className="h-7 w-7 p-0"
-                            >
-                              {selectedPago === pago ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                            </Button>
-                          </div>
-
-                          {/* Detalles expandidos */}
-                          {selectedPago === pago && (
-                            <div className="mt-3 pt-3 border-t space-y-2 text-xs">
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <span className="text-muted-foreground block">Método de pago:</span>
-                                  <span className="font-medium">{pago.metodoPago || 'Efectivo'}</span>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground block">Hora:</span>
-                                  <span className="font-medium">
-                                    {format(new Date(pago.fechaPago), 'HH:mm', { locale: es })}
-                                  </span>
-                                </div>
-                              </div>
-                              
-                              <div>
-                                <span className="text-muted-foreground block">ID de transacción:</span>
-                                <span className="font-mono text-xs">{pago.id}</span>
-                              </div>
-
-                              <div className="flex items-center gap-1">
-                                <span className="text-muted-foreground">Estado de sincronización:</span>
-                                {pago.sincronizado ? (
-                                  <><CheckCircle className="w-3 h-3 text-green-500" /><span className="text-green-600">Sincronizado</span></>
-                                ) : (
-                                  <><Clock className="w-3 h-3 text-orange-500" /><span className="text-orange-600">Pendiente</span></>
-                                )}
-                              </div>
-                            </div>
-                          )}
+                          <div className="text-xs text-muted-foreground">Este mes ({pagosMes.length})</div>
                         </CardContent>
                       </Card>
-                    ))}
+                      
+                      <Card className="text-center">
+                        <CardContent className="p-3">
+                          <div className="text-sm font-semibold text-blue-600">
+                            {filteredPagos.length}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Total pagos</div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Filtros */}
+                    <div className="space-y-3">
+                      {/* Búsqueda */}
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar por concepto, recibo..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-9 h-9"
+                        />
+                      </div>
+
+                      {/* Toggle filtros avanzados */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowFilters(!showFilters)}
+                        className="w-full h-8 text-xs"
+                      >
+                        <Filter className="w-3 h-3 mr-2" />
+                        Filtros por fecha
+                        {showFilters ? <ChevronUp className="w-3 h-3 ml-2" /> : <ChevronDown className="w-3 h-3 ml-2" />}
+                      </Button>
+
+                      {/* Filtros de fecha */}
+                      {showFilters && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label htmlFor="fechaDesde" className="text-xs">Desde</Label>
+                            <Input
+                              id="fechaDesde"
+                              type="date"
+                              value={fechaDesde}
+                              onChange={(e) => setFechaDesde(e.target.value)}
+                              min={dateLimits.min}
+                              max={dateLimits.max}
+                              className="h-8"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="fechaHasta" className="text-xs">Hasta</Label>
+                            <Input
+                              id="fechaHasta"
+                              type="date"
+                              value={fechaHasta}
+                              onChange={(e) => setFechaHasta(e.target.value)}
+                              min={dateLimits.min}
+                              max={dateLimits.max}
+                              className="h-8"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  {/* Lista de pagos con scroll */}
+                  <div className="px-6 pt-4 flex-1 min-h-0">
+                    <div className="h-full overflow-y-auto pb-6">
+                      {loading ? (
+                        <div className="flex items-center justify-center h-32">
+                          <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+                          <span className="text-muted-foreground">Cargando pagos...</span>
+                        </div>
+                      ) : !isOnline ? (
+                        <div className="flex items-center justify-center h-32 text-center">
+                          <div>
+                            <WifiOff className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                            <p className="text-muted-foreground text-sm">
+                              Se requiere conexión para ver el historial
+                            </p>
+                          </div>
+                        </div>
+                      ) : filteredPagos.length === 0 ? (
+                        <div className="flex items-center justify-center h-32 text-center">
+                          <div>
+                            <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                            <p className="text-muted-foreground text-sm">
+                              {pagos.length === 0 ? 'No hay pagos registrados' : 'No se encontraron pagos con los filtros aplicados'}
+                            </p>
+                            {searchTerm || fechaDesde || fechaHasta ? (
+                              <Button
+                                variant="link"
+                                size="sm"
+                                onClick={() => {
+                                  setSearchTerm('');
+                                  setFechaDesde('');
+                                  setFechaHasta('');
+                                }}
+                                className="text-xs mt-2"
+                              >
+                                Limpiar filtros
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {filteredPagos.map((pago) => (
+                            <Card key={pago.id} className="border-l-2 border-l-green-400">
+                              <CardContent className="p-3">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-semibold text-green-600">
+                                        {formatCurrency(pago.monto)}
+                                      </span>
+                                      {getTipoPagoBadge(pago.tipoPago)}
+                                      {pago.ticketImpreso && (
+                                        <CheckCircle className="w-3 h-3 text-green-500" />
+                                      )}
+                                    </div>
+                                    
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                      {pago.concepto || 'Pago de cuota'}
+                                    </p>
+                                    
+                                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                                      <span className="flex items-center gap-1">
+                                        <Calendar className="w-3 h-3" />
+                                        {format(new Date(pago.fechaPago), 'dd/MM/yyyy', { locale: es })}
+                                      </span>
+                                      
+                                      <span className="flex items-center gap-1">
+                                        <User className="w-3 h-3" />
+                                        {pago.cobrador?.name || 'N/A'}
+                                      </span>
+                                    </div>
+
+                                    {pago.numeroRecibo && (
+                                      <div className="text-xs text-muted-foreground mt-1">
+                                        Recibo: #{pago.numeroRecibo}
+                                      </div>
+                                    )}
+
+                                    <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+                                      <div>
+                                        <span className="text-muted-foreground">Saldo anterior: </span>
+                                        <span className="font-medium">{formatCurrency(pago.saldoAnterior)}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-muted-foreground">Saldo nuevo: </span>
+                                        <span className="font-medium">{formatCurrency(pago.saldoNuevo)}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Botón de reimpresión */}
+                                <div className="flex gap-2 mt-3">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleReimprimirRecibo(pago)}
+                                    disabled={printingRecibo === pago.id || !isPrinterConnected}
+                                    className="flex-1 h-7 text-xs"
+                                  >
+                                    {printingRecibo === pago.id ? (
+                                      <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                                    ) : (
+                                      <Printer className="w-3 h-3 mr-1" />
+                                    )}
+                                    {printingRecibo === pago.id ? 'Imprimiendo...' : 'Reimprimir'}
+                                  </Button>
+
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setSelectedPago(selectedPago === pago ? null : pago)}
+                                    className="h-7 w-7 p-0"
+                                  >
+                                    {selectedPago === pago ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                  </Button>
+                                </div>
+
+                                {/* Detalles expandidos */}
+                                {selectedPago === pago && (
+                                  <div className="mt-3 pt-3 border-t space-y-2 text-xs">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <span className="text-muted-foreground block">Método de pago:</span>
+                                        <span className="font-medium">{pago.metodoPago || 'Efectivo'}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-muted-foreground block">Hora:</span>
+                                        <span className="font-medium">
+                                          {format(new Date(pago.fechaPago), 'HH:mm', { locale: es })}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    
+                                    <div>
+                                      <span className="text-muted-foreground block">ID de transacción:</span>
+                                      <span className="font-mono text-xs">{pago.id}</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-muted-foreground">Estado de sincronización:</span>
+                                      {pago.sincronizado ? (
+                                        <><CheckCircle className="w-3 h-3 text-green-500" /><span className="text-green-600">Sincronizado</span></>
+                                      ) : (
+                                        <><Clock className="w-3 h-3 text-orange-500" /><span className="text-orange-600">Pendiente</span></>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="convenios" className="h-full m-0 focus-visible:ring-0">
+                <div className="flex flex-col h-full overflow-hidden">
+                  <div className="p-6 pb-0 space-y-4">
+                    <Card className="border-l-4 border-l-orange-500">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <FileText className="w-4 h-4" />
+                          Convenios y Promesas
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-sm text-muted-foreground">
+                          Historial de acuerdos y compromisos de pago registrados.
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="px-6 pt-4 flex-1 min-h-0">
+                    <div className="h-full overflow-y-auto pb-6">
+                      {loadingConvenios ? (
+                        <div className="flex items-center justify-center h-32">
+                          <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+                          <span className="text-muted-foreground">Cargando convenios...</span>
+                        </div>
+                      ) : convenios.length === 0 ? (
+                        <div className="flex items-center justify-center h-32 text-center">
+                          <div>
+                            <FileText className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                            <p className="text-muted-foreground text-sm">
+                              No hay convenios registrados
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {convenios.map((convenio) => (
+                            <Card key={convenio.id} className="border-l-2 border-l-orange-400">
+                              <CardContent className="p-3">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-semibold text-orange-600">
+                                        {formatCurrency(convenio.monto)}
+                                      </span>
+                                      <Badge variant="outline" className="text-[10px] uppercase">
+                                        {convenio.tipoConvenio.replace('_', ' ')}
+                                      </Badge>
+                                      <Badge variant="secondary" className="text-[10px] uppercase">
+                                        {convenio.status}
+                                      </Badge>
+                                    </div>
+                                    
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                      {convenio.comentario || 'Sin comentario'}
+                                    </p>
+                                    
+                                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                                      <span className="flex items-center gap-1">
+                                        <Calendar className="w-3 h-3" />
+                                        Compromiso: {formatDate(convenio.fecha)}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                                      <User className="w-3 h-3" />
+                                      Registrado por: {convenio.gestor?.name || 'N/A'}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleReimprimirConvenio(convenio)}
+                                  disabled={printingConvenioId === convenio.id || !isPrinterConnected}
+                                  className="w-full h-8 text-xs mt-2"
+                                >
+                                  {printingConvenioId === convenio.id ? (
+                                    <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                                  ) : (
+                                    <Printer className="w-3 h-3 mr-1" />
+                                  )}
+                                  {printingConvenioId === convenio.id ? 'Imprimiendo...' : 'Reimprimir Convenio'}
+                                </Button>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
             </div>
-          </div>
+          </Tabs>
 
           {/* Footer con acciones - Sticky bottom */}
           <div className="px-6 py-4 border-t bg-white sticky bottom-0">
