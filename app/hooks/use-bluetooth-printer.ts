@@ -169,14 +169,14 @@ export function useBluetoothPrinter() {
     cuentasEfectivo: number,
     cuentasBancarioManual: number,
     cuentasBancarioBot: number
-  }, pagos: any[]): Promise<boolean> => {
+  }, pagos: any[], range?: { from: string, to: string }): Promise<boolean> => {
     if (!isConnected) {
       toast.error('Impresora no conectada');
       return false;
     }
 
     try {
-      await bluetoothPrinter.printCollectionReport(stats, pagos);
+      await bluetoothPrinter.printCollectionReport(stats, pagos, range);
       toast.success('Reporte impreso exitosamente');
       return true;
     } catch (error: any) {

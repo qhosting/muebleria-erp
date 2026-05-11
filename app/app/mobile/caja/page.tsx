@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { usePlatform } from "@/hooks/usePlatform";
-import { Loader2, DollarSign, Printer, Download, CreditCard, ChevronUp, ChevronDown, CheckCircle2 } from "lucide-react";
+import { Loader2, DollarSign, Printer, Download, CreditCard, ChevronUp, ChevronDown, CheckCircle2, Calendar, Filter, RefreshCw } from "lucide-react";
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
 import { ArqueoModal } from "@/components/mobile/arqueo-modal";
+import dayjs from "dayjs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function MobileCaja() {
     const [loading, setLoading] = useState(true);
@@ -27,23 +30,32 @@ export default function MobileCaja() {
     const [printing, setPrinting] = useState<string | null>(null);
     const [selectedPago, setSelectedPago] = useState<any | null>(null);
     const [showArqueoModal, setShowArqueoModal] = useState(false);
+    const [dateFrom, setDateFrom] = useState(dayjs().startOf('day').format('YYYY-MM-DDTHH:mm'));
+    const [dateTo, setDateTo] = useState(dayjs().format('YYYY-MM-DDTHH:mm'));
+    const [showFilters, setShowFilters] = useState(false);
+
+    const fetchCajaData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const url = new URL('/api/mobile/caja', window.location.origin);
+            url.searchParams.append('from', new Date(dateFrom).toISOString());
+            url.searchParams.append('to', new Date(dateTo).toISOString());
+            
+            const response = await fetch(url.toString());
+            if (response.ok) {
+                const data = await response.json();
+                setStats(data.stats);
+                setPagos(data.pagos);
+            }
+        } catch (error) {
+            console.error("Error fetching caja data:", error);
+            toast.error("Error al cargar datos de caja");
+        } finally {
+            setLoading(false);
+        }
+    }, [dateFrom, dateTo]);
 
     useEffect(() => {
-        const fetchCajaData = async () => {
-            try {
-                const response = await fetch('/api/mobile/caja');
-                if (response.ok) {
-                    const data = await response.json();
-                    setStats(data.stats);
-                    setPagos(data.pagos);
-                }
-            } catch (error) {
-                console.error("Error fetching caja data:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchCajaData();
     }, []);
 
@@ -71,7 +83,7 @@ export default function MobileCaja() {
 
         setPrinting("report");
         try {
-            await printCollectionReport(stats, pagos);
+            await printCollectionReport(stats, pagos, { from: dateFrom, to: dateTo });
         } catch (error) {
             console.error("Error al imprimir reporte:", error);
         } finally {
@@ -171,6 +183,60 @@ export default function MobileCaja() {
 
     return (
         <div className="space-y-6 pt-2">
+            {/* FILTROS DE RANGO */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                <button 
+                    onClick={() => setShowFilters(!showFilters)}
+                    className="w-full flex items-center justify-between p-4 active:bg-slate-800 transition-colors"
+                >
+                    <div className="flex items-center space-x-2">
+                        <Calendar className="w-4 h-4 text-emerald-500" />
+                        <span className="text-xs font-bold text-slate-300">Rango de Cobranza</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <span className="text-[10px] text-slate-500 font-medium">
+                            {dayjs(dateFrom).format('DD/MM HH:mm')} - {dayjs(dateTo).format('DD/MM HH:mm')}
+                        </span>
+                        {showFilters ? <ChevronUp className="w-4 h-4 text-slate-600" /> : <ChevronDown className="w-4 h-4 text-slate-600" />}
+                    </div>
+                </button>
+
+                {showFilters && (
+                    <div className="p-4 pt-0 space-y-4 animate-in slide-in-from-top duration-200">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-slate-500 font-bold uppercase ml-1">Desde</label>
+                                <Input 
+                                    type="datetime-local" 
+                                    value={dateFrom}
+                                    onChange={(e) => setDateFrom(e.target.value)}
+                                    className="bg-slate-950 border-slate-800 text-xs text-white h-10 rounded-xl"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-slate-500 font-bold uppercase ml-1">Hasta</label>
+                                <Input 
+                                    type="datetime-local" 
+                                    value={dateTo}
+                                    onChange={(e) => setDateTo(e.target.value)}
+                                    className="bg-slate-950 border-slate-800 text-xs text-white h-10 rounded-xl"
+                                />
+                            </div>
+                        </div>
+                        <Button 
+                            onClick={() => {
+                                fetchCajaData();
+                                setShowFilters(false);
+                            }}
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 rounded-xl"
+                        >
+                            <Filter className="w-4 h-4 mr-2" />
+                            Actualizar Corte
+                        </Button>
+                    </div>
+                )}
+            </div>
+
             {/* RESUMEN PRINCIPAL */}
             <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700 shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none"></div>
@@ -180,22 +246,22 @@ export default function MobileCaja() {
                         <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Total Cobrado Hoy</p>
                         <p className="text-emerald-500/80 text-[10px] font-black uppercase tracking-widest">{stats.cuentasTotales} CUENTAS</p>
                     </div>
-                    <p className="text-5xl font-black text-white tracking-tighter">${stats.cobradoHoy.toLocaleString()}</p>
+                    <p className="text-5xl font-black text-white tracking-tighter">{formatCurrency(stats.cobradoHoy, 0)}</p>
 
                     <div className="mt-6 grid grid-cols-3 gap-2 border-t border-slate-700/50 pt-4">
                         <div>
                             <p className="text-[10px] text-slate-500 font-bold uppercase">Efectivo</p>
-                            <p className="text-lg font-black text-slate-200">${stats.efectivo.toLocaleString()}</p>
+                            <p className="text-lg font-black text-slate-200">{formatCurrency(stats.efectivo, 0)}</p>
                             <p className="text-[9px] text-slate-500 font-bold uppercase">{stats.cuentasEfectivo} CTAS</p>
                         </div>
                         <div className="text-center">
                             <p className="text-[10px] text-slate-500 font-bold uppercase">Bancario M.</p>
-                            <p className="text-lg font-black text-slate-200">${stats.bancarioManual.toLocaleString()}</p>
+                            <p className="text-lg font-black text-slate-200">{formatCurrency(stats.bancarioManual, 0)}</p>
                             <p className="text-[9px] text-slate-500 font-bold uppercase">{stats.cuentasBancarioManual} CTAS</p>
                         </div>
                         <div className="text-right">
                             <p className="text-[10px] text-slate-500 font-bold uppercase">Bancario Bot</p>
-                            <p className="text-lg font-black text-emerald-400">${stats.bancarioBot.toLocaleString()}</p>
+                            <p className="text-lg font-black text-emerald-400">{formatCurrency(stats.bancarioBot, 0)}</p>
                             <p className="text-[9px] text-emerald-500/50 font-bold uppercase">{stats.cuentasBancarioBot} CTAS</p>
                         </div>
                     </div>

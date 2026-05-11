@@ -6,9 +6,12 @@ import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
+    const { searchParams } = new URL(request.url);
+    const fromParam = searchParams.get('from');
+    const toParam = searchParams.get('to');
     
     if (!session?.user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -21,14 +24,28 @@ export async function GET() {
       return NextResponse.json({ error: 'Solo para cobradores' }, { status: 403 });
     }
 
-    const hoy = new Date();
-    const inicioDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    let inicioRango: Date;
+    let finRango: Date;
 
-    // Obtener todos los pagos del día para este cobrador
+    if (fromParam && toParam) {
+      inicioRango = new Date(fromParam);
+      finRango = new Date(toParam);
+    } else {
+      const hoy = new Date();
+      // Inicio del día en UTC-6 (México)
+      inicioRango = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0);
+      inicioRango.setHours(inicioRango.getHours() - 6);
+      finRango = new Date(); // Hasta ahora
+    }
+
+    // Obtener todos los pagos del rango para este cobrador
     const pagos = await prisma.pago.findMany({
       where: {
         cobradorId: userId,
-        fechaPago: { gte: inicioDia }
+        fechaPago: { 
+          gte: inicioRango,
+          lte: finRango
+        }
       },
       include: {
         cliente: {
@@ -40,15 +57,26 @@ export async function GET() {
       }
     });
 
-    const pagosEfectivo = pagos.filter(p => p.metodoPago === 'gestor' || p.metodoPago === 'efectivo');
+    const normalize = (s: string) => (s || '').toLowerCase().trim();
+
+    const pagosEfectivo = pagos.filter(p => {
+      const m = normalize(p.metodoPago);
+      return m === 'gestor' || m === 'efectivo' || m === 'contado';
+    });
     const efectivo = pagosEfectivo.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
     const cuentasEfectivo = new Set(pagosEfectivo.map(p => p.clienteId)).size;
 
-    const pagosBancarioManual = pagos.filter(p => p.metodoPago === 'bancario' || p.metodoPago === 'transferencia');
+    const pagosBancarioManual = pagos.filter(p => {
+      const m = normalize(p.metodoPago);
+      return m === 'bancario' || m === 'transferencia' || m === 'deposito';
+    });
     const bancarioManual = pagosBancarioManual.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
     const cuentasBancarioManual = new Set(pagosBancarioManual.map(p => p.clienteId)).size;
 
-    const pagosBancarioBot = pagos.filter(p => p.metodoPago === 'bancario_bot' || p.metodoPago === 'bot');
+    const pagosBancarioBot = pagos.filter(p => {
+      const m = normalize(p.metodoPago);
+      return m === 'bancario_bot' || m === 'bot' || m === 'whatsapp';
+    });
     const bancarioBot = pagosBancarioBot.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
     const cuentasBancarioBot = new Set(pagosBancarioBot.map(p => p.clienteId)).size;
 

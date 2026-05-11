@@ -419,13 +419,20 @@ class BluetoothPrinterService {
     cuentasEfectivo: number,
     cuentasBancarioManual: number,
     cuentasBancarioBot: number
-  }, pagos: any[]): Promise<boolean> {
+  }, pagos: any[], range?: { from: string, to: string }): Promise<boolean> {
     try {
       let ticket = '';
       ticket += this.COMMANDS.CENTER;
       ticket += this.COMMANDS.BOLD_ON;
-      ticket += 'REPORTE DIARIO DE COBRANZA' + this.LF;
-      ticket += new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString() + this.LF;
+      ticket += (range ? 'CORTE DE COBRANZA' : 'REPORTE DIARIO DE COBRANZA') + this.LF;
+      
+      if (range) {
+        ticket += 'DE: ' + this.formatDate(range.from) + ' ' + new Date(range.from).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + this.LF;
+        ticket += 'A:  ' + this.formatDate(range.to) + ' ' + new Date(range.to).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + this.LF;
+      } else {
+        ticket += new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString() + this.LF;
+      }
+      
       ticket += this.COMMANDS.BOLD_OFF;
       ticket += this.createDivider() + this.LF;
 
