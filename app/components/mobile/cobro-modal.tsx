@@ -435,7 +435,6 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
                 <SelectContent>
                   <SelectItem value="GESTOR">GESTOR</SelectItem>
                   <SelectItem value="GESTOR BANCOS">GESTOR BANCOS</SelectItem>
-                  <SelectItem value="BANCOS BOT">BANCOS BOT</SelectItem>
                 </SelectContent>
               </Select>
             </div>
