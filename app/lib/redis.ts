@@ -25,6 +25,8 @@ redis.on('error', (err) => {
   if (err.code === 'ECONNREFUSED') {
     // No loguear excesivamente en producción si no es necesario
     console.warn(`[Redis] Error de conexión: ${err.message}. Verifique la variable REDIS.`);
+  } else if (err.message.includes('NOAUTH') || err.message.includes('WRONGPASS')) {
+    console.error(`[Redis] Error de Autenticación: La contraseña es incorrecta o no se proporcionó. Verifique la variable REDIS. Error: ${err.message}`);
   } else {
     console.error('[Redis] Error:', err);
   }
