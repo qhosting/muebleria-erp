@@ -95,7 +95,8 @@ const PRODUCTO_FIELDS = [
   { key: 'codigo', label: 'Código' },
   { key: 'nombre', label: 'Nombre Producto' },
   { key: 'precioVenta', label: 'Precio Venta' },
-  { key: 'existencias', label: 'Existencias' },
+  { key: 'existencias', label: 'Existencias (Total)' },
+  { key: 'existenciaHoy', label: 'Existencia Hoy' },
 ];
 
 export default function ContpaqiMultiPage() {
@@ -176,7 +177,8 @@ export default function ContpaqiMultiPage() {
           nombre: 'cNombreProducto',
           codigo: 'cCodigoProducto',
           precioVenta: 'cPrecio1',
-          existencias: 'cControlExistencia'
+          existencias: 'cControlExistencia',
+          existenciaHoy: 'cImporteExtra1'
         }
       }
     };

@@ -284,6 +284,7 @@ export default function InventarioPage() {
                                                     <th className="p-3 font-medium text-gray-600">Categoría</th>
                                                     <th className="p-3 font-medium text-gray-600 text-right">Precio Venta</th>
                                                     <th className="p-3 font-medium text-gray-600 text-center">Existencias</th>
+                                                    <th className="p-3 font-medium text-gray-600 text-center">Existencia Hoy</th>
                                                     <th className="p-3 font-medium text-gray-600 text-center">Tienda</th>
                                                     <th className="p-3 font-medium text-gray-600">Estado</th>
                                                     <th className="p-3 font-medium text-gray-600 text-right">Acciones</th>
@@ -311,7 +312,13 @@ export default function InventarioPage() {
                                                         <td className="p-3 text-center">
                                                             <div className="flex flex-col items-center">
                                                                 <span className="font-bold text-lg">{producto.existencias || 0}</span>
-                                                                <span className="text-[10px] text-gray-400 uppercase">Piezas</span>
+                                                                <span className="text-[10px] text-gray-400 uppercase">Total</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-3 text-center">
+                                                            <div className="flex flex-col items-center bg-blue-50/50 rounded-lg py-1">
+                                                                <span className="font-bold text-lg text-blue-700">{producto.existenciaHoy || 0}</span>
+                                                                <span className="text-[10px] text-blue-400 uppercase">Hoy</span>
                                                             </div>
                                                         </td>
                                                         <td className="p-3 text-center">

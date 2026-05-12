@@ -158,6 +158,7 @@ export async function POST(request: NextRequest) {
                 precioVenta: parseFloat(precioVenta),
                 unidadMedida: unidadMedida || 'pieza',
                 existencias: parseInt(body.existencias) || 0,
+                existenciaHoy: parseInt(body.existenciaHoy) || parseInt(body.existencias) || 0,
                 stockMinimo: parseInt(stockMinimo) || 0,
                 imagenUrl: imagenUrl || null,
                 imagenes: body.imagenes || [],

@@ -34,6 +34,7 @@ export async function PUT(
             abonoSemanal: updateData.abonoSemanal ? parseFloat(updateData.abonoSemanal) : null,
             stockMinimo: updateData.stockMinimo ? parseInt(updateData.stockMinimo) : 0,
             existencias: updateData.existencias ? parseInt(updateData.existencias) : 0,
+            existenciaHoy: updateData.existenciaHoy ? parseInt(updateData.existenciaHoy) : (updateData.existencias ? parseInt(updateData.existencias) : 0),
             enEcommerce: updateData.enEcommerce === true || updateData.enEcommerce === 'true',
         };
 

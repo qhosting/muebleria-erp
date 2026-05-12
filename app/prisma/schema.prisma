@@ -477,6 +477,7 @@ model Producto {
   precioVenta   Decimal  @db.Decimal(10, 2)
   unidadMedida  String   @default("pieza")
   existencias   Int      @default(0)
+  existenciaHoy Int      @default(0)
   stockMinimo   Int      @default(0)
   imagenUrl     String?
   imagenes      String[] @default([])

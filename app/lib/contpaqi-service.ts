@@ -267,7 +267,7 @@ export class ContpaqiService {
             'cImporteExtra6', 'cImporteExtra7', 'cImporteExtra8', 'cImporteExtra9', 'cImporteExtra10'
         ] : [
             'cCodigoProducto', 'cNombreProducto', 'cPrecio1', 'cPrecio2', 'cPrecio3',
-            'cControlExistencia', 'cTextoExtra1', 'cTextoExtra2', 'cImporteExtra1'
+            'cControlExistencia', 'cExistenciaActual', 'Existencia', 'cTextoExtra1', 'cTextoExtra2', 'cImporteExtra1'
         ];
 
         let discoveredFields: string[] = [];

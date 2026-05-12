@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
                 codigo: 'Codigo', 
                 precioVenta: 'Precio', 
                 existencias: 'Existencias',
+                existenciaHoy: 'ExistenciaHoy',
                 costoEstandar: 'Costo' 
             }
         };
@@ -173,14 +174,16 @@ export async function GET(request: NextRequest) {
                         nombre: p[m.nombre] || p.nombre,
                         precioCompra: parseFloat(p[m.costoEstandar] || p.costo || p.ultimoCosto) || 0,
                         precioVenta: parseFloat(p[m.precioVenta]) || 0,
-                        existencias: existencia
+                        existencias: existencia,
+                        existenciaHoy: Math.round(parseFloat(p[m.existenciaHoy]) || existencia)
                     },
                     create: {
                         codigo: p[m.codigo] || p.codigo,
                         nombre: p[m.nombre] || p.nombre,
                         precioCompra: parseFloat(p[m.costoEstandar] || p.costo || p.ultimoCosto) || 0,
                         precioVenta: parseFloat(p[m.precioVenta]) || 0,
-                        existencias: existencia
+                        existencias: existencia,
+                        existenciaHoy: Math.round(parseFloat(p[m.existenciaHoy]) || existencia)
                     }
                 });
             }

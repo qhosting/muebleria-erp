@@ -25,6 +25,7 @@ export function NuevoProductoModal({ isOpen, onClose, onSuccess, producto }: any
         categoria: '',
         unidadMedida: 'pieza',
         existencias: '0',
+        existenciaHoy: '0',
         stockMinimo: '5',
         marca: '',
         medida: '',
@@ -51,6 +52,7 @@ export function NuevoProductoModal({ isOpen, onClose, onSuccess, producto }: any
                 categoria: producto.categoria || '',
                 unidadMedida: producto.unidadMedida || 'pieza',
                 existencias: producto.existencias?.toString() || '0',
+                existenciaHoy: producto.existenciaHoy?.toString() || producto.existencias?.toString() || '0',
                 precioCompra: producto.precioCompra?.toString() || '',
                 precioVenta: producto.precioVenta?.toString() || '',
                 stockMinimo: producto.stockMinimo?.toString() || '5',
@@ -75,6 +77,7 @@ export function NuevoProductoModal({ isOpen, onClose, onSuccess, producto }: any
                 categoria: '',
                 unidadMedida: 'pieza',
                 existencias: '0',
+                existenciaHoy: '0',
                 precioCompra: '',
                 precioVenta: '',
                 stockMinimo: '5',
@@ -243,6 +246,21 @@ export function NuevoProductoModal({ isOpen, onClose, onSuccess, producto }: any
                                 value={formData.existencias}
                                 onChange={handleChange}
                                 className="border-blue-200 focus:border-blue-500"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="existenciaHoy" className="flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-indigo-500" />
+                                Existencia Hoy
+                            </Label>
+                            <Input
+                                id="existenciaHoy"
+                                name="existenciaHoy"
+                                type="number"
+                                placeholder="0"
+                                value={formData.existenciaHoy}
+                                onChange={handleChange}
+                                className="border-indigo-200 focus:border-indigo-500 bg-indigo-50/30"
                             />
                         </div>
                     </div>
