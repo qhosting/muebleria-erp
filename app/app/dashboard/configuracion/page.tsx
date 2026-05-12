@@ -27,7 +27,8 @@ import {
   AlertTriangle,
   Layout,
   Image as ImageIcon,
-  Type
+  Type,
+  Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -177,6 +178,36 @@ export default function ConfiguracionPage() {
   const [testPhone, setTestPhone] = useState('');
   const [loadingTest, setLoadingTest] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingLogo(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', 'branding');
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setConfig({ ...config, empresa: { ...config.empresa, logoUrl: data.url } });
+        toast.success('Logo subido correctamente');
+      } else {
+        throw new Error(data.error || 'Error al subir logo');
+      }
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
 
   const handleTestWhatsapp = async () => {
     if (!testPhone) return;
@@ -378,14 +409,52 @@ export default function ConfiguracionPage() {
                     onChange={(e) => setConfig({ ...config, empresa: { ...config.empresa, direccion: e.target.value } })}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="logoUrl">URL del Logo (Opcional - Para Landing Page)</Label>
-                  <Input
-                    id="logoUrl"
-                    placeholder="https://ejemplo.com/logo.png"
-                    value={config.empresa.logoUrl || ''}
-                    onChange={(e) => setConfig({ ...config, empresa: { ...config.empresa, logoUrl: e.target.value } })}
-                  />
+                <div className="space-y-3">
+                  <Label htmlFor="logoUrl">Logo de la Empresa (Landing Page)</Label>
+                  <div className="flex flex-col md:flex-row gap-4 items-start">
+                    <div className="w-full md:flex-1">
+                      <div className="flex gap-2">
+                        <Input
+                          id="logoUrl"
+                          placeholder="https://ejemplo.com/logo.png"
+                          value={config.empresa.logoUrl || ''}
+                          onChange={(e) => setConfig({ ...config, empresa: { ...config.empresa, logoUrl: e.target.value } })}
+                          className="flex-1"
+                        />
+                        <div className="relative">
+                          <Input
+                            type="file"
+                            id="logoUpload"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={handleLogoUpload}
+                            disabled={uploadingLogo}
+                          />
+                          <Button 
+                            type="button" 
+                            variant="secondary" 
+                            onClick={() => document.getElementById('logoUpload')?.click()}
+                            disabled={uploadingLogo}
+                            className="gap-2"
+                          >
+                            <Upload className="h-4 w-4" />
+                            {uploadingLogo ? 'Subiendo...' : 'Subir'}
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-1">Sube una imagen o pega una URL directa. Se recomienda formato PNG transparente.</p>
+                    </div>
+                    {config.empresa.logoUrl && (
+                      <div className="h-16 w-32 border rounded-lg overflow-hidden bg-slate-50 flex items-center justify-center p-2">
+                        <img 
+                          src={config.empresa.logoUrl} 
+                          alt="Logo Preview" 
+                          className="max-h-full max-w-full object-contain"
+                          onError={(e) => (e.currentTarget.style.display = 'none')}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <Separator className="my-4" />
                 <div className="flex items-center justify-between bg-blue-50/50 p-4 rounded-xl border border-blue-100">

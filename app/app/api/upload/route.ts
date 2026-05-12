@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
+    const folder = (formData.get('folder') as string) || 'productos';
 
     if (!file) {
       return NextResponse.json({ error: 'No se subió ningún archivo' }, { status: 400 });
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     // Definir ruta de guardado (dentro de public para que sea accesible)
-    const uploadDir = join(process.cwd(), 'public', 'uploads', 'productos');
+    const uploadDir = join(process.cwd(), 'public', 'uploads', folder);
     
     // Asegurar que el directorio existe
     try {
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     await writeFile(filePath, buffer);
 
-    const publicUrl = `/uploads/productos/${fileName}`;
+    const publicUrl = `/uploads/${folder}/${fileName}`;
 
     return NextResponse.json({
       success: true,
