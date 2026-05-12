@@ -199,12 +199,25 @@ async function handleTesoreria(from: string, payload: any, session: string, agen
         // Generar hash para evitar duplicados (Cola de Tickets)
         const imageHash = crypto.createHash('md5').update(imageBase64).digest('hex');
 
-        // 1. Verificar duplicados en el Buzón (Evita re-procesar el mismo comprobante)
+        // 1. Bloqueo de Concurrencia (Redis): Evita que reintentos de WAHA disparen múltiples procesos de IA
+        const processingKey = `processing_image:${imageHash}`;
+        try {
+            const isProcessing = await redis.set(processingKey, 'true', 'EX', 60, 'NX');
+            if (!isProcessing) {
+                console.log(`⏳ [${session}] Imagen ${imageHash.slice(0,8)} ya está siendo procesada. Ignorando reintento.`);
+                return NextResponse.json({ status: 'already_processing' });
+            }
+        } catch (redisError) {
+            console.error('❌ Error en bloqueo de concurrencia:', redisError);
+        }
+
+        // 2. Verificar duplicados en el Buzón (Evita re-procesar el mismo comprobante ya finalizado)
         const existeBuzon = await db.buzonTesoreria.findUnique({
             where: { hash: imageHash }
         });
 
         if (existeBuzon) {
+            await redis.del(processingKey); // Liberar bloqueo
             await sendWahaMessage(config, from, "⚠️ Este comprobante ya ha sido recibido y está en proceso de validación. No es necesario enviarlo de nuevo.");
             return NextResponse.json({ status: 'duplicate_in_queue' });
         }
