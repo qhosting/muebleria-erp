@@ -145,10 +145,10 @@ export default function ConveniosReportPage() {
                             <table className="w-full text-sm text-left align-middle">
                                 <thead className="bg-gray-50/50 border-b border-gray-100">
                                     <tr>
-                                        <th scope="col" className="px-6 py-5 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Fecha Acuerdo</th>
+                                        <th scope="col" className="px-6 py-5 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Registro / Compromiso</th>
                                         <th scope="col" className="px-6 py-5 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Cliente / Cuenta</th>
                                         <th scope="col" className="px-6 py-5 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Tipo / Modalidad</th>
-                                        <th scope="col" className="px-6 py-5 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Monto Comprometido</th>
+                                        <th scope="col" className="px-6 py-5 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Monto</th>
                                         <th scope="col" className="px-6 py-5 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Responsable</th>
                                         <th scope="col" className="px-6 py-5 font-bold text-gray-400 uppercase tracking-widest text-[10px] text-center">Acciones</th>
                                     </tr>
@@ -182,8 +182,10 @@ export default function ConveniosReportPage() {
                                             <tr key={c.id} className="hover:bg-blue-50/30 transition-all group">
                                                 <td className="px-6 py-5 whitespace-nowrap">
                                                     <div className="flex flex-col">
-                                                        <span className="font-bold text-gray-900">{formatDate(c.fecha).split(' ')[0]}</span>
-                                                        <span className="text-[10px] text-gray-400 uppercase tracking-tighter">Registrado hoy</span>
+                                                        <span className="font-bold text-gray-900">{formatDate(c.fechaRegistro).split(' ')[0]}</span>
+                                                        <span className="text-[10px] text-indigo-600 font-black uppercase tracking-tighter flex items-center gap-1">
+                                                            <Calendar className="w-2.5 h-2.5" /> Paga: {formatDate(c.fecha).split(' ')[0]}
+                                                        </span>
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-5">

@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
         }
 
         if (fechaDesde && fechaHasta) {
-            where.fecha = {
+            where.fechaRegistro = {
                 gte: new Date(fechaDesde),
                 lte: new Date(fechaHasta),
             };
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
                         }
                     }
                 },
-                orderBy: { fecha: 'desc' },
+                orderBy: { fechaRegistro: 'desc' },
                 skip,
                 take: limit,
             }),
