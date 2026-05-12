@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import {
   Settings,
   Shield,
@@ -192,7 +193,14 @@ export default function ConfiguracionPage() {
         const response = await fetch('/api/configuracion');
         if (response.ok) {
           const data = await response.json();
-          setConfig(data);
+          // Merge seguro para evitar que campos faltantes (como landing) rompan la UI
+          setConfig(prev => ({
+            ...prev,
+            ...data,
+            landing: data.landing || prev.landing,
+            empresa: { ...prev.empresa, ...data.empresa },
+            notificaciones: { ...prev.notificaciones, ...data.notificaciones }
+          }));
         }
       } catch (error) {
         console.error('Error al cargar configuración:', error);
