@@ -174,19 +174,50 @@ export async function GET(request: NextRequest) {
         : 0,
     };
 
-    const response = {
-      rutasPorCobrador: Object.values(rutasPorCobrador),
+    // Aplanar rutas para el frontend (una entrada por cobrador/día)
+    const rutasAplanadas: any[] = [];
+    Object.values(rutasPorCobrador).forEach((c: any) => {
+      c.dias.forEach((dia: any) => {
+        rutasAplanadas.push({
+          id: `${c.cobrador.id}-${dia.fecha}`,
+          fecha: dia.fecha,
+          cobrador: {
+            name: c.cobrador.name
+          },
+          clientesVisitados: {
+            total: dia.resumen.clientesVisitados,
+            exitosos: dia.resumen.totalPagos,
+            fallidos: 0 // Dato no disponible sin tabla de visitas
+          },
+          totalCobrado: dia.resumen.totalImporte,
+          tiempoTotal: 0,
+          eficiencia: 100 // Por ahora 100% si hubo pago
+        });
+      });
+    });
+
+    const estadisticas = {
+      rutasCompletadas: rutasAplanadas.length,
+      promedioClientesPorRuta: rutasAplanadas.length > 0 
+        ? rutasAplanadas.reduce((sum, r) => sum + r.clientesVisitados.total, 0) / rutasAplanadas.length 
+        : 0,
+      promedioCobroPorRuta: rutasAplanadas.length > 0 
+        ? estadisticasGenerales.totalImporte / rutasAplanadas.length 
+        : 0,
+      eficienciaPromedio: 100
+    };
+
+    return NextResponse.json({
+      rutas: rutasAplanadas,
       cobradores,
-      estadisticasGenerales,
+      estadisticas,
       filtros: {
         periodo,
         cobradorId,
         fechaInicio: fechaInicio.toISOString(),
         fechaFin: fechaFin.toISOString(),
       },
-    };
-
-    return NextResponse.json(response);
+    });
 
   } catch (error) {
     console.error('Error al obtener reporte de rutas:', error);

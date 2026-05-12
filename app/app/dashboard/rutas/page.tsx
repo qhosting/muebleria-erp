@@ -42,6 +42,7 @@ export default function RutasPage() {
   const [loading, setLoading] = useState(true);
   const [selectedPeriodo, setSelectedPeriodo] = useState('30');
   const [selectedCobrador, setSelectedCobrador] = useState('all');
+  const [cobradores, setCobradores] = useState<any[]>([]);
 
   useEffect(() => {
     fetchRutas();
@@ -58,6 +59,7 @@ export default function RutasPage() {
       const data = await response.json();
       setRutas(data.rutas || []);
       setEstadisticas(data.estadisticas || null);
+      if (data.cobradores) setCobradores(data.cobradores);
     } catch (error) {
       console.error('Error al cargar rutas:', error);
       toast.error('Error al cargar rutas');
@@ -102,7 +104,9 @@ export default function RutasPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
-                {/* Aquí se cargarían dinámicamente los cobradores */}
+                {cobradores.map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
