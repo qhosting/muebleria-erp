@@ -92,6 +92,18 @@ interface ConfiguracionSistema {
       icon: string;
     }>;
   };
+  contpaqi: {
+    apiUrl: string;
+    apiKey: string;
+    empresas: Array<{
+      id: string;
+      nombre: string;
+      baseDatos: string;
+      apiUrl?: string;
+      apiKey?: string;
+      isActive: boolean;
+    }>;
+  };
 }
 
 export default function ConfiguracionPage() {
@@ -149,6 +161,13 @@ export default function ConfiguracionPage() {
         imagenUrl: ''
       },
       features: []
+    },
+    contpaqi: {
+      apiUrl: '',
+      apiKey: '',
+      empresas: [
+        { id: 'default', nombre: 'Empresa Principal', baseDatos: 'adDASOPLUS16', isActive: true }
+      ]
     }
   });
 
@@ -200,7 +219,8 @@ export default function ConfiguracionPage() {
             ...data,
             landing: data.landing || prev.landing,
             empresa: { ...prev.empresa, ...data.empresa },
-            notificaciones: { ...prev.notificaciones, ...data.notificaciones }
+            notificaciones: { ...prev.notificaciones, ...data.notificaciones },
+            contpaqi: data.contpaqi || prev.contpaqi
           }));
         }
       } catch (error) {
@@ -319,6 +339,7 @@ export default function ConfiguracionPage() {
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="landing">Landing Builder</TabsTrigger>
             <TabsTrigger value="notificaciones">WhatsApp/IA</TabsTrigger>
+            <TabsTrigger value="contpaqi">ERP / Contpaqi</TabsTrigger>
             <TabsTrigger value="avanzado">Avanzado</TabsTrigger>
           </TabsList>
 
@@ -701,6 +722,149 @@ export default function ConfiguracionPage() {
                     </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="contpaqi" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Conexión con Contpaqi Comercial
+                </CardTitle>
+                <CardDescription>Configura la comunicación con tu servidor local de Contpaqi.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <Label htmlFor="contpaqiUrl">URL Global del API Wrapper</Label>
+                    <Input
+                      id="contpaqiUrl"
+                      placeholder="http://vortex520.qhosting.net:5000"
+                      value={config.contpaqi.apiUrl}
+                      onChange={(e) => setConfig({ ...config, contpaqi: { ...config.contpaqi, apiUrl: e.target.value } })}
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">La dirección donde está instalado el servicio REST de Contpaqi.</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label htmlFor="contpaqiKey">API Key Global</Label>
+                    <Input
+                      id="contpaqiKey"
+                      type="password"
+                      placeholder="Tu llave secreta"
+                      value={config.contpaqi.apiKey}
+                      onChange={(e) => setConfig({ ...config, contpaqi: { ...config.contpaqi, apiKey: e.target.value } })}
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">Llave de seguridad para autorizar peticiones desde el ERP.</p>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Empresas Vinculadas</h3>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => {
+                        const newEmpresas = [...config.contpaqi.empresas];
+                        newEmpresas.push({
+                          id: `empresa_${Date.now()}`,
+                          nombre: 'Nueva Empresa',
+                          baseDatos: '',
+                          isActive: true
+                        });
+                        setConfig({ ...config, contpaqi: { ...config.contpaqi, empresas: newEmpresas } });
+                      }}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Añadir Empresa
+                    </Button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {config.contpaqi.empresas.map((empresa, idx) => (
+                      <div key={empresa.id} className="p-4 border rounded-xl bg-slate-50/50 space-y-4">
+                        <div className="flex justify-between items-start">
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700">Empresa #{idx + 1}</Badge>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 h-7"
+                            onClick={() => {
+                              const newEmpresas = config.contpaqi.empresas.filter((_, i) => i !== idx);
+                              setConfig({ ...config, contpaqi: { ...config.contpaqi, empresas: newEmpresas } });
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-xs">Nombre Comercial</Label>
+                            <Input
+                              placeholder="Ej. Mueblería DASO"
+                              value={empresa.nombre}
+                              onChange={(e) => {
+                                const newEmpresas = [...config.contpaqi.empresas];
+                                newEmpresas[idx].nombre = e.target.value;
+                                setConfig({ ...config, contpaqi: { ...config.contpaqi, empresas: newEmpresas } });
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Base de Datos (Alias Contpaqi)</Label>
+                            <Input
+                              placeholder="Ej. adDASOPLUS16"
+                              value={empresa.baseDatos}
+                              onChange={(e) => {
+                                const newEmpresas = [...config.contpaqi.empresas];
+                                newEmpresas[idx].baseDatos = e.target.value;
+                                setConfig({ ...config, contpaqi: { ...config.contpaqi, empresas: newEmpresas } });
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="pt-2">
+                          <details className="text-xs">
+                            <summary className="cursor-pointer text-blue-600 font-medium">Configuración Avanzada (Overrides)</summary>
+                            <div className="mt-3 space-y-3 pl-2 border-l-2 border-blue-200">
+                              <div>
+                                <Label className="text-[10px] uppercase">URL Específica (Opcional)</Label>
+                                <Input
+                                  className="h-8 text-xs"
+                                  placeholder="Dejar vacío para usar Global"
+                                  value={empresa.apiUrl || ''}
+                                  onChange={(e) => {
+                                    const newEmpresas = [...config.contpaqi.empresas];
+                                    newEmpresas[idx].apiUrl = e.target.value;
+                                    setConfig({ ...config, contpaqi: { ...config.contpaqi, empresas: newEmpresas } });
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-[10px] uppercase">API Key Específica (Opcional)</Label>
+                                <Input
+                                  className="h-8 text-xs"
+                                  type="password"
+                                  placeholder="Dejar vacío para usar Global"
+                                  value={empresa.apiKey || ''}
+                                  onChange={(e) => {
+                                    const newEmpresas = [...config.contpaqi.empresas];
+                                    newEmpresas[idx].apiKey = e.target.value;
+                                    setConfig({ ...config, contpaqi: { ...config.contpaqi, empresas: newEmpresas } });
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </details>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
