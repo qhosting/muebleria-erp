@@ -61,9 +61,21 @@ export async function GET(request: NextRequest) {
           backupAutomatico: true
         },
         impresion: {
-          nombreImpresora: 'Impresora Bluetooth',
-          anchoPapel: 80,
           cortarPapel: true
+        },
+        landing: {
+          hero: {
+            titulo: 'Rediseña tu Hogar con Estilo Único',
+            subtitulo: 'Descubre colecciones exclusivas de muebles que combinan diseño moderno, confort supremo y la mejor calidad artesanal.',
+            botonTexto: 'Explorar Colección',
+            imagenUrl: '/furniture_ecommerce_hero.png'
+          },
+          features: [
+            { id: 1, titulo: 'Envío Gratis', descripcion: 'En zonas locales', icon: 'Truck' },
+            { id: 2, titulo: 'Crédito Fácil', descripcion: 'Aprobación inmediata', icon: 'CreditCard' },
+            { id: 3, titulo: 'Garantía Total', descripcion: '2 años de respaldo', icon: 'ShieldCheck' },
+            { id: 4, titulo: 'Calidad Premium', descripcion: 'Más de 15 años', icon: 'Star' }
+          ]
         }
       };
 
@@ -121,6 +133,7 @@ export async function GET(request: NextRequest) {
       notificaciones: finalNotificaciones,
       sincronizacion: config.sincronizacion,
       impresion: config.impresion,
+      landing: config.landing || {},
       contpaqi: contpaqiConfig
     });
   } catch (error) {
@@ -165,7 +178,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { empresa, cobranza, notificaciones, sincronizacion, impresion, contpaqi } = body;
+    const { empresa, cobranza, notificaciones, sincronizacion, impresion, contpaqi, landing } = body;
 
     // Actualizar o crear configuración
     const config = await prisma.configuracionSistema.upsert({
@@ -176,7 +189,8 @@ export async function POST(request: NextRequest) {
         notificaciones,
         sincronizacion,
         impresion,
-        contpaqi
+        contpaqi,
+        landing
       } as any,
       create: {
         clave: 'sistema',
@@ -185,7 +199,8 @@ export async function POST(request: NextRequest) {
         notificaciones,
         sincronizacion,
         impresion,
-        contpaqi
+        contpaqi,
+        landing
       } as any
     });
 
@@ -197,6 +212,7 @@ export async function POST(request: NextRequest) {
         notificaciones: config.notificaciones,
         sincronizacion: config.sincronizacion,
         impresion: config.impresion,
+        landing: config.landing,
         contpaqi: (config as any).contpaqi
       }
     });

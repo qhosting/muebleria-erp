@@ -35,6 +35,20 @@ export default function LandingPage() {
   const pagoSemanal = Math.ceil(montoCompra / plazoSemanas);
 
   const [empresaConfig, setEmpresaConfig] = useState<any>({});
+  const [landingConfig, setLandingConfig] = useState<any>({
+    hero: {
+      titulo: 'Rediseña tu Hogar con Estilo Único',
+      subtitulo: 'Descubre colecciones exclusivas de muebles que combinan diseño moderno, confort supremo y la mejor calidad artesanal.',
+      botonTexto: 'Explorar Colección',
+      imagenUrl: '/furniture_ecommerce_hero.png'
+    },
+    features: [
+      { id: 1, titulo: 'Envío Gratis', descripcion: 'En zonas locales', icon: 'Truck' },
+      { id: 2, titulo: 'Crédito Fácil', descripcion: 'Aprobación inmediata', icon: 'CreditCard' },
+      { id: 3, titulo: 'Garantía Total', descripcion: '2 años de respaldo', icon: 'ShieldCheck' },
+      { id: 4, titulo: 'Calidad Premium', descripcion: 'Más de 15 años', icon: 'Star' }
+    ]
+  });
 
   useEffect(() => {
     fetch('/api/tienda/productos')
@@ -43,6 +57,9 @@ export default function LandingPage() {
         setProductos(data.productos || []);
         setCategorias(data.categorias || []);
         setEmpresaConfig(data.configuracion || {});
+        if (data.configuracion?.landing && Object.keys(data.configuracion.landing).length > 0) {
+          setLandingConfig(data.configuracion.landing);
+        }
       })
       .catch(err => console.error('Error cargando productos:', err))
       .finally(() => setLoading(false));
@@ -54,6 +71,17 @@ export default function LandingPage() {
       currency: 'MXN', 
       minimumFractionDigits: 0 
     }).format(price || 0);
+
+  // Helper para renderizar iconos de features de forma dinámica
+  const renderIcon = (iconName: string) => {
+    switch (iconName) {
+      case 'Truck': return <Truck className="text-blue-600 w-6 h-6" />;
+      case 'CreditCard': return <CreditCard className="text-blue-600 w-6 h-6" />;
+      case 'ShieldCheck': return <ShieldCheck className="text-blue-600 w-6 h-6" />;
+      case 'Star': return <Star className="text-blue-600 w-6 h-6" />;
+      default: return <Star className="text-blue-600 w-6 h-6" />;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -101,8 +129,8 @@ export default function LandingPage() {
       <section className="relative h-[85vh] flex items-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <Image 
-            src="/furniture_ecommerce_hero.png"
-            alt="Muebles de Lujo DomiaHome"
+            src={landingConfig.hero.imagenUrl || "/furniture_ecommerce_hero.png"}
+            alt="Muebles de Lujo"
             fill
             className="object-cover"
             priority
@@ -117,16 +145,15 @@ export default function LandingPage() {
               <span>Catálogo Disponible</span>
             </div>
             <h1 className="text-6xl md:text-7xl font-extrabold text-slate-900 leading-tight mb-6">
-              Rediseña tu Hogar con <span className="text-blue-600">Estilo Único.</span>
+              {landingConfig.hero.titulo.split(' ').slice(0, -2).join(' ')} <span className="text-blue-600">{landingConfig.hero.titulo.split(' ').slice(-2).join(' ')}</span>
             </h1>
             <p className="text-xl text-slate-700 mb-10 leading-relaxed">
-              Descubre colecciones exclusivas de muebles que combinan diseño moderno, 
-              confort supremo y la mejor calidad artesanal.
+              {landingConfig.hero.subtitulo}
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <a href="#productos">
                 <Button size="lg" className="h-14 px-8 text-lg bg-slate-900 hover:bg-slate-800 text-white rounded-full">
-                  Explorar Colección <ArrowRight className="ml-2 w-5 h-5" />
+                  {landingConfig.hero.botonTexto} <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
               </a>
               <Button 
@@ -146,42 +173,17 @@ export default function LandingPage() {
       <div className="bg-slate-50 py-12 border-y">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
-                <Truck className="text-blue-600 w-6 h-6" />
+            {landingConfig.features.map((feature: any) => (
+              <div key={feature.id} className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
+                  {renderIcon(feature.icon)}
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900">{feature.titulo}</h4>
+                  <p className="text-sm text-slate-500">{feature.descripcion}</p>
+                </div>
               </div>
-              <div>
-                <h4 className="font-bold text-slate-900">Envío Gratis</h4>
-                <p className="text-sm text-slate-500">En zonas locales</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
-                <CreditCard className="text-blue-600 w-6 h-6" />
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-900">Crédito Fácil</h4>
-                <p className="text-sm text-slate-500">Aprobación inmediata</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
-                <ShieldCheck className="text-blue-600 w-6 h-6" />
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-900">Garantía Total</h4>
-                <p className="text-sm text-slate-500">2 años de respaldo</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
-                <Star className="text-blue-600 w-6 h-6" />
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-900">Calidad Premium</h4>
-                <p className="text-sm text-slate-500">Más de 15 años</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
@@ -383,7 +385,7 @@ export default function LandingPage() {
                 <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold">D</span>
                 </div>
-                <span className="text-xl font-bold text-slate-900 tracking-tight">DOMIAHOME</span>
+                <span className="text-xl font-bold text-slate-900 tracking-tight uppercase">{empresaConfig.nombre || 'DOMIAHOME'}</span>
               </div>
               <p className="text-slate-500 max-w-sm leading-relaxed">
                 Transformando hogares con elegancia y accesibilidad desde hace más de 15 años. 
@@ -401,14 +403,14 @@ export default function LandingPage() {
             <div>
               <h4 className="font-bold text-slate-900 mb-6">Contacto</h4>
               <ul className="space-y-4 text-slate-600 text-sm">
-                <li>📍 Av. Principal #123, Col. Centro</li>
-                <li>📞 800-MUEBLES (683-2537)</li>
-                <li>✉️ hola@domiahome.com</li>
+                <li>📍 {empresaConfig.direccion || 'Av. Principal #123, Col. Centro'}</li>
+                <li>📞 {empresaConfig.telefono || '800-MUEBLES'}</li>
+                <li>✉️ {empresaConfig.email || 'hola@muebleria.com'}</li>
               </ul>
             </div>
           </div>
           <div className="mt-20 pt-8 border-t text-center text-slate-400 text-sm">
-            <p>&copy; {new Date().getFullYear()} DOMIAHOME. Todos los derechos reservados.</p>
+            <p>&copy; {new Date().getFullYear()} {empresaConfig.nombre || 'DOMIAHOME'}. Todos los derechos reservados.</p>
           </div>
         </div>
       </footer>
