@@ -109,15 +109,13 @@ export async function GET(request: NextRequest) {
     // Configuración de Contpaqi (Multi-empresa)
     const contpaqiData = (config as any).contpaqi || {};
     const contpaqiConfig = {
+      apiUrl: contpaqiData.apiUrl || process.env.CONTPAQI_API_URL || 'http://localhost:5000',
+      apiKey: contpaqiData.apiKey || process.env.CONTPAQI_API_KEY || 'VortexContpaqiAPI2024',
       empresas: contpaqiData.empresas || [
         {
           id: 'default',
           nombre: 'Empresa Principal',
-          apiUrl: process.env.CONTPAQI_API_URL || 'http://localhost:5000',
-          apiKey: process.env.CONTPAQI_API_KEY || 'VortexContpaqiAPI2024',
-          conceptoAbono: process.env.CONTPAQI_CONCEPTO_ABONO || 'ABONO CLIENTE',
-          clasificacion: 'COBRANZA NORMAL',
-          ruta: '',
+          baseDatos: 'adDASOPLUS16',
           isActive: true
         }
       ]
