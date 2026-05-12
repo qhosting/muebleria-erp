@@ -4,6 +4,54 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
+const DEFAULT_LANDING_CONFIG = {
+  hero: {
+    titulo: 'Rediseña tu Hogar con Estilo Único',
+    subtitulo: 'Descubre colecciones exclusivas de muebles que combinan diseño moderno, confort supremo y la mejor calidad artesanal.',
+    botonTexto: 'Explorar Colección',
+    imagenUrl: '/furniture_ecommerce_hero.png'
+  },
+  features: [
+    { id: 1, titulo: 'Envío Gratis', descripcion: 'En zonas locales', icon: 'Truck' },
+    { id: 2, titulo: 'Crédito Fácil', descripcion: 'Aprobación inmediata', icon: 'CreditCard' },
+    { id: 3, titulo: 'Garantía Total', descripcion: '2 años de respaldo', icon: 'ShieldCheck' },
+    { id: 4, titulo: 'Calidad Premium', descripcion: 'Más de 15 años', icon: 'Star' }
+  ]
+};
+
+const DEFAULT_CONFIG = {
+  empresa: {
+    nombre: 'VertexERP Muebles',
+    direccion: 'Av. Principal 123, Col. Centro',
+    telefono: '555-1234',
+    email: 'contacto@muebleria.com'
+  },
+  cobranza: {
+    diasGracia: 3,
+    cargoMoratorio: 50,
+    requiereTicket: true,
+    permitirPagoParcial: true
+  },
+  notificaciones: {
+    whatsappEnabled: false,
+    emailEnabled: true,
+    smsEnabled: false,
+    recordatoriosDias: 2,
+    wahaApiUrl: '',
+    wahaApiKey: '',
+    wahaSessionName: 'default'
+  },
+  sincronizacion: {
+    intervaloMinutos: 15,
+    sincronizacionAutomatica: true,
+    backupAutomatico: true
+  },
+  impresion: {
+    cortarPapel: true
+  },
+  landing: DEFAULT_LANDING_CONFIG
+};
+
 // GET - Obtener la configuración actual
 export async function GET(request: NextRequest) {
   try {
@@ -14,75 +62,23 @@ export async function GET(request: NextRequest) {
       where: { clave: 'sistema' }
     });
 
-    // Si no hay sesión, devolver solo información básica de la empresa
+    // Si no hay sesión, devolver solo información básica de la empresa y la landing
     if (!session) {
-      if (!config) {
-        return NextResponse.json({
-          empresa: {
-            nombre: 'VertexERP Muebles',
-            direccion: 'Av. Principal 123, Col. Centro',
-            telefono: '555-1234',
-            email: 'contacto@muebleria.com'
-          }
-        });
-      }
+      const basicConfig = config || DEFAULT_CONFIG;
       return NextResponse.json({
-        empresa: config.empresa
+        empresa: basicConfig.empresa,
+        landing: (basicConfig.landing && Object.keys(basicConfig.landing).length > 0) 
+                 ? basicConfig.landing 
+                 : DEFAULT_LANDING_CONFIG
       });
     }
 
     // Si no existe, crear una configuración por defecto
     if (!config) {
-      const defaultConfig = {
-        empresa: {
-          nombre: 'VertexERP Muebles',
-          direccion: 'Av. Principal 123, Col. Centro',
-          telefono: '555-1234',
-          email: 'contacto@muebleria.com'
-        },
-        cobranza: {
-          diasGracia: 3,
-          cargoMoratorio: 50,
-          requiereTicket: true,
-          permitirPagoParcial: true
-        },
-        notificaciones: {
-          whatsappEnabled: false,
-          emailEnabled: true,
-          smsEnabled: false,
-          recordatoriosDias: 2,
-          wahaApiUrl: '',
-          wahaApiKey: '',
-          wahaSessionName: 'default'
-        },
-        sincronizacion: {
-          intervaloMinutos: 15,
-          sincronizacionAutomatica: true,
-          backupAutomatico: true
-        },
-        impresion: {
-          cortarPapel: true
-        },
-        landing: {
-          hero: {
-            titulo: 'Rediseña tu Hogar con Estilo Único',
-            subtitulo: 'Descubre colecciones exclusivas de muebles que combinan diseño moderno, confort supremo y la mejor calidad artesanal.',
-            botonTexto: 'Explorar Colección',
-            imagenUrl: '/furniture_ecommerce_hero.png'
-          },
-          features: [
-            { id: 1, titulo: 'Envío Gratis', descripcion: 'En zonas locales', icon: 'Truck' },
-            { id: 2, titulo: 'Crédito Fácil', descripcion: 'Aprobación inmediata', icon: 'CreditCard' },
-            { id: 3, titulo: 'Garantía Total', descripcion: '2 años de respaldo', icon: 'ShieldCheck' },
-            { id: 4, titulo: 'Calidad Premium', descripcion: 'Más de 15 años', icon: 'Star' }
-          ]
-        }
-      };
-
       config = await prisma.configuracionSistema.create({
         data: {
           clave: 'sistema',
-          ...defaultConfig
+          ...DEFAULT_CONFIG
         }
       });
     }
@@ -133,7 +129,9 @@ export async function GET(request: NextRequest) {
       notificaciones: finalNotificaciones,
       sincronizacion: config.sincronizacion,
       impresion: config.impresion,
-      landing: config.landing || {},
+      landing: (config.landing && Object.keys(config.landing).length > 0) 
+               ? config.landing 
+               : DEFAULT_LANDING_CONFIG,
       contpaqi: contpaqiConfig
     });
   } catch (error) {
