@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake } from "lucide-react";
+import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake, RefreshCw } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { usePlatform } from "@/hooks/usePlatform";
 import { formatWhatsAppNumber } from "@/lib/utils";
@@ -10,6 +10,7 @@ import { VerificacionModal } from "@/components/mobile/verificacion-modal";
 import { ConvenioModal } from "@/components/mobile/convenio-modal";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { db } from "@/lib/offline-db";
 
 export default function MobileClientes() {
     const { data: session } = useSession();
@@ -47,12 +48,24 @@ export default function MobileClientes() {
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isOffline, setIsOffline] = useState(false);
 
     useEffect(() => {
         const fetchClientes = async (reset = false) => {
+            setLoading(true);
+            const isActuallyOffline = !navigator.onLine;
+            setIsOffline(isActuallyOffline);
+
             try {
+                if (isActuallyOffline) {
+                    console.log("Modo Offline detectado, consultando base de datos local...");
+                    await fetchOfflineClientes(reset);
+                    return;
+                }
+
                 const currentPage = reset ? 1 : page;
                 const response = await fetch(`/api/mobile/clientes?q=${searchTerm}&page=${currentPage}&limit=30`);
+                
                 if (response.ok) {
                     const result = await response.json();
                     const newData = result.data || [];
@@ -62,20 +75,84 @@ export default function MobileClientes() {
                         setPage(1);
                     } else {
                         setClientes(prev => {
-                            // Evitar duplicados
                             const existingIds = new Set(prev.map(c => c.id));
                             const uniqueNew = newData.filter((c: any) => !existingIds.has(c.id));
                             return [...prev, ...uniqueNew];
                         });
                     }
-                    
                     setHasMore(result.page < result.totalPages);
+
+                    // 🚀 SINCRONIZACIÓN: Guardar en local para futuros usos offline
+                    if (newData.length > 0) {
+                        await syncToLocalDB(newData);
+                    }
+                } else {
+                    // Si falla el API, intentar local
+                    await fetchOfflineClientes(reset);
                 }
             } catch (error) {
                 console.error("Error fetching clientes:", error);
+                await fetchOfflineClientes(reset);
             } finally {
                 setLoading(false);
                 setIsRefreshing(false);
+            }
+        };
+
+        const fetchOfflineClientes = async (reset: boolean) => {
+            try {
+                let query = db.clientes.toCollection();
+                
+                if (searchTerm) {
+                    const searchLower = searchTerm.toLowerCase();
+                    query = db.clientes.filter(c => 
+                        (c.nombreCompleto?.toLowerCase() || "").includes(searchLower) ||
+                        (c.direccion?.toLowerCase() || "").includes(searchLower)
+                    );
+                }
+
+                const allOffline = await query.toArray();
+                
+                // Mapear al formato que espera la UI si es necesario
+                const mapped = allOffline.map(c => ({
+                    id: c.id,
+                    nombre: c.nombreCompleto,
+                    direccion: c.direccion,
+                    diaPago: c.diaPago,
+                    estatus: c.statusCuenta === 'activo' ? 'aldia' : c.statusCuenta,
+                    saldo: Number(c.saldoPendiente || 0),
+                    saldoVencido: Number(c.saldoVencido || 0),
+                    pagoSemanal: Number(c.montoAcordado || 0),
+                    telefono: c.telefono,
+                    yaPagoEstaSemana: false 
+                }));
+
+                setClientes(mapped);
+                setHasMore(false); 
+                if (reset) setPage(1);
+            } catch (err) {
+                console.error("Error in fetchOfflineClientes:", err);
+            }
+        };
+
+        const syncToLocalDB = async (data: any[]) => {
+            try {
+                const toPut = data.map(c => ({
+                    id: c.id,
+                    nombreCompleto: c.nombre,
+                    direccion: c.direccion,
+                    diaPago: c.diaPago,
+                    statusCuenta: c.estatus === 'aldia' ? 'activo' : (c.estatus === 'atrasado' ? 'activo' : c.estatus),
+                    saldoPendiente: c.saldo,
+                    saldoVencido: c.saldoVencido,
+                    montoAcordado: c.pagoSemanal,
+                    telefono: c.telefono,
+                    lastSync: Date.now(),
+                    syncStatus: 'synced'
+                }));
+                await db.clientes.bulkPut(toPut as any);
+            } catch (err) {
+                console.warn("Failed to sync to local DB:", err);
             }
         };
 
@@ -149,12 +226,14 @@ export default function MobileClientes() {
             console.warn("No se pudo obtener ubicación GPS para el cobro:", error);
         }
 
-        const { agregarColaSincronizacion } = await import("@/lib/native/sync");
+        const { syncService } = await import("@/lib/sync-service");
+        const cobradorId = (session?.user as any)?.id;
         
         const montoTotal = parseFloat(montoCobrar) + parseFloat(interesMoratorio) + parseFloat(gastosCobranza);
         
         const pagoPayload = {
             clienteId: selectedCliente.id,
+            cobradorId,
             monto: montoTotal,
             montoAbono: parseFloat(montoCobrar),
             interesMoratorio: parseFloat(interesMoratorio),
@@ -168,17 +247,34 @@ export default function MobileClientes() {
         };
 
         try {
-            await agregarColaSincronizacion('pago', pagoPayload);
+            // 1. Agregar a la cola de sincronización robusta (Dexie)
+            await syncService.addPagoOffline(pagoPayload as any);
+            
+            // 2. Actualizar base de datos local (Dexie) para que persista el nuevo saldo offline
+            const clienteLocal = await db.clientes.get(selectedCliente.id);
+            if (clienteLocal) {
+                const nuevoSaldo = Number(clienteLocal.saldoPendiente || 0) - parseFloat(montoCobrar);
+                await db.clientes.update(selectedCliente.id, {
+                    saldoPendiente: nuevoSaldo,
+                    syncStatus: 'synced' // Marcamos como sincronizado localmente
+                });
+            }
+
             setPagoExitoso(true);
             
-            // Actualizar estado local
+            // 3. Actualizar estado local de la UI
             setClientes(prev => prev.map(c => 
                 c.id === selectedCliente.id 
                 ? { ...c, saldo: c.saldo - parseFloat(montoCobrar), yaPagoEstaSemana: true } 
                 : c
             ));
+
+            toast.success("Pago registrado localmente", {
+                description: "Se sincronizará automáticamente cuando tengas señal."
+            });
         } catch (error) {
             console.error("Error al registrar pago:", error);
+            toast.error("Error al guardar el pago");
         }
     };
 

@@ -1,28 +1,81 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePlatform } from "@/hooks/usePlatform";
 import { Loader2, DollarSign, MapPin, Printer, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { isPlatform } from "@/hooks/usePlatform";
+import { db } from "@/lib/offline-db";
 
 export default function MobileHome() {
     const [loading, setLoading] = useState(true);
     const { isNative } = usePlatform();
     const [data, setData] = useState<any>(null);
+    const [isOffline, setIsOffline] = useState(false);
 
     useEffect(() => {
         const fetchDashboardData = async () => {
+            const isActuallyOffline = !navigator.onLine;
+            setIsOffline(isActuallyOffline);
+
             try {
+                if (isActuallyOffline) {
+                    console.log("Dashboard en modo offline...");
+                    await loadOfflineDashboard();
+                    return;
+                }
+
                 const response = await fetch('/api/mobile/dashboard');
                 if (response.ok) {
                     const result = await response.json();
                     setData(result);
+                } else {
+                    await loadOfflineDashboard();
                 }
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
+                await loadOfflineDashboard();
             } finally {
                 setLoading(false);
+            }
+        };
+
+        const loadOfflineDashboard = async () => {
+            try {
+                // 1. Calcular cobrado hoy desde base de datos local
+                const hoy = new Date();
+                hoy.setHours(0, 0, 0, 0);
+                
+                const pagosHoy = await db.pagos.where('fechaPago').aboveOrEqual(hoy.toISOString()).toArray();
+                const totalCobrado = pagosHoy.reduce((acc, p) => acc + Number(p.monto), 0);
+                const cuentasCobradas = pagosHoy.length;
+
+                // 2. Clientes pendientes (Simplificado para offline)
+                const clientesActivos = await db.clientes.where('statusCuenta').equals('activo').toArray();
+                const clientesPendientes = clientesActivos.length; // En offline asumimos activos como pendientes si no hay sync complejo
+
+                // 3. Próximos clientes (Top 10 por saldo vencido)
+                const proximos = await db.clientes
+                    .where('statusCuenta').equals('activo')
+                    .reverse()
+                    .sortBy('saldoVencido');
+
+                setData({
+                    stats: {
+                        totalCobrado,
+                        cuentasCobradas,
+                        clientesPendientes,
+                        efectividad: clientesActivos.length > 0 ? Math.round((cuentasCobradas / (cuentasCobradas + clientesPendientes)) * 100) : 100
+                    },
+                    proximosClientes: proximos.slice(0, 10).map(c => ({
+                        id: c.id,
+                        nombre: c.nombreCompleto,
+                        direccion: c.direccion,
+                        saldo: Number(c.saldoPendiente || 0),
+                        vencido: Number(c.saldoVencido || 0)
+                    }))
+                });
+            } catch (err) {
+                console.error("Error loading offline dashboard:", err);
             }
         };
 

@@ -18,9 +18,11 @@ export default function MobilePerfilPage() {
 
     useEffect(() => {
         const loadPending = async () => {
-            const { obtenerTamañoCola } = await import('@/lib/native/sync');
-            const size = await obtenerTamañoCola();
-            setPendingCount(size);
+            if (session?.user) {
+                const userId = (session.user as any).id;
+                const count = await db.pagos.where('syncStatus').equals('pending').and(p => p.cobradorId === userId).count();
+                setPendingCount(count);
+            }
         };
         loadPending();
 
@@ -143,16 +145,14 @@ export default function MobilePerfilPage() {
 
                 <Button
                     onClick={async () => {
-                        const { sincronizarCola } = await import('@/lib/native/sync');
-                        toast.info('Sincronizando datos...');
-                        const result = await sincronizarCola();
-                        if (result.procesados > 0) {
-                            toast.success(`Se sincronizaron ${result.procesados} elementos`);
-                            setPendingCount(0);
-                        } else if (result.offline) {
-                            toast.error('Sin conexión a internet');
-                        } else {
-                            toast.info('No hay datos pendientes de sincronizar');
+                        if (!session?.user) return;
+                        const { syncService } = await import('@/lib/sync-service');
+                        const userId = (session.user as any).id;
+                        
+                        const success = await syncService.syncAll(userId);
+                        if (success) {
+                            const newCount = await db.pagos.where('syncStatus').equals('pending').and(p => p.cobradorId === userId).count();
+                            setPendingCount(newCount);
                         }
                     }}
                     className="w-full bg-slate-900 border border-slate-800 hover:bg-slate-800 text-white justify-between h-12"

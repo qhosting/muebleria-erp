@@ -15,6 +15,22 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
     const pathname = usePathname();
     const [pendingCount, setPendingCount] = useState(0);
 
+    const [isOnline, setIsOnline] = useState(true);
+
+    useEffect(() => {
+        setIsOnline(navigator.onLine);
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
     useEffect(() => {
         const fetchPending = async () => {
             try {
@@ -79,10 +95,12 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
                         <p className="text-xs text-slate-400">Modo Cobrador</p>
                     </div>
                     <div className="flex items-center space-x-3">
-                        {/* Indicadores de Estado */}
+                        {/* Indicadores de Estado Dinámicos */}
                         <div className="flex items-center space-x-1">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            <span className="text-xs text-slate-400">Online</span>
+                            <span className={`w-2 h-2 rounded-full animate-pulse ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]'}`}></span>
+                            <span className={`text-xs font-bold uppercase tracking-wider ${isOnline ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                {isOnline ? 'Online' : 'Offline'}
+                            </span>
                         </div>
                     </div>
                 </div>
