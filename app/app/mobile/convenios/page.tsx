@@ -6,13 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Calendar, User, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Calendar, User, Clock, CheckCircle2, AlertCircle, Printer, RefreshCw, Settings } from 'lucide-react';
 import { toast } from 'sonner';
+import { useBluetoothPrinter } from '@/hooks/use-bluetooth-printer';
+import { PrinterConfigModal } from '@/components/mobile/printer-config-modal';
 
 export default function MobileConveniosPage() {
     const { data: session } = useSession();
     const [convenios, setConvenios] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [printingId, setPrintingId] = useState<string | null>(null);
+    const [showPrinterConfig, setShowPrinterConfig] = useState(false);
+    const { isConnected: isPrinterConnected, printConvenio } = useBluetoothPrinter();
 
     useEffect(() => {
         fetchConvenios();
@@ -34,6 +39,32 @@ export default function MobileConveniosPage() {
         }
     };
 
+    const handlePrint = async (convenio: any) => {
+        if (!isPrinterConnected) {
+            toast.error('Impresora no conectada');
+            setShowPrinterConfig(true);
+            return;
+        }
+
+        setPrintingId(convenio.id);
+        try {
+            const success = await printConvenio({
+                ...convenio,
+                gestor: {
+                    name: convenio.gestor?.name || session?.user?.name || 'Cobrador'
+                }
+            });
+            if (success) {
+                toast.success('Convenio impreso correctamente');
+            }
+        } catch (error) {
+            console.error('Error imprimiendo convenio:', error);
+            toast.error('Error al imprimir convenio');
+        } finally {
+            setPrintingId(null);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -45,9 +76,19 @@ export default function MobileConveniosPage() {
 
     return (
         <div className="space-y-6 pb-20">
-            <div className="space-y-1">
-                <h2 className="text-2xl font-black text-white">Mis Convenios</h2>
-                <p className="text-slate-400 text-sm">Seguimiento de compromisos de pago</p>
+            <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                    <h2 className="text-2xl font-black text-white">Mis Convenios</h2>
+                    <p className="text-slate-400 text-sm">Seguimiento de compromisos de pago</p>
+                </div>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowPrinterConfig(true)}
+                    className={`h-10 w-10 p-0 rounded-full ${isPrinterConnected ? 'text-emerald-400' : 'text-slate-500'}`}
+                >
+                    <Settings className="w-5 h-5" />
+                </Button>
             </div>
 
             {convenios.length === 0 ? (
@@ -109,30 +150,49 @@ export default function MobileConveniosPage() {
                                     </div>
                                 )}
 
-                                <div className="pt-2 flex gap-2">
-                                    <Button 
-                                        variant="outline" 
-                                        className="flex-1 bg-slate-800 border-slate-700 text-white hover:bg-slate-700"
-                                        onClick={() => window.location.href = `/mobile/clientes?search=${c.cliente.id}`}
-                                    >
-                                        <User className="w-4 h-4 mr-2" />
-                                        VER CLIENTE
-                                    </Button>
-                                    {c.status === 'PENDIENTE' && (
+                                <div className="pt-2 flex flex-col gap-2">
+                                    <div className="flex gap-2">
                                         <Button 
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                                            onClick={() => window.location.href = `/mobile/clientes?cobrar=${c.cliente.id}`}
+                                            variant="outline" 
+                                            className="flex-1 bg-slate-800 border-slate-700 text-white hover:bg-slate-700"
+                                            onClick={() => window.location.href = `/mobile/clientes?search=${c.cliente.id}`}
                                         >
-                                            <CheckCircle2 className="w-4 h-4 mr-2" />
-                                            COBRAR
+                                            <User className="w-4 h-4 mr-2" />
+                                            CLIENTE
                                         </Button>
-                                    )}
+                                        {c.status === 'PENDIENTE' && (
+                                            <Button 
+                                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                                                onClick={() => window.location.href = `/mobile/clientes?cobrar=${c.cliente.id}`}
+                                            >
+                                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                                                COBRAR
+                                            </Button>
+                                        )}
+                                    </div>
+                                    <Button 
+                                        variant="secondary"
+                                        className="w-full bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold"
+                                        onClick={() => handlePrint(c)}
+                                        disabled={printingId === c.id}
+                                    >
+                                        {printingId === c.id ? (
+                                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                        ) : (
+                                            <Printer className="w-4 h-4 mr-2" />
+                                        )}
+                                        {printingId === c.id ? 'IMPRIMIENDO...' : 'REIMPRIMIR TICKET'}
+                                    </Button>
                                 </div>
                             </CardContent>
                         </Card>
                     ))}
                 </div>
             )}
+            <PrinterConfigModal
+                isOpen={showPrinterConfig}
+                onClose={() => setShowPrinterConfig(false)}
+            />
         </div>
     );
 }
