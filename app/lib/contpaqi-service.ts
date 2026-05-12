@@ -357,18 +357,20 @@ export async function getContpaqiService(prisma?: any, empresaId?: string): Prom
         if (config?.contpaqi) {
             const c = config.contpaqi as any;
             
-            // Si se proporciona un empresaId, buscamos sus credenciales específicas
-            if (empresaId && c.empresas) {
+            // Prioridad 1: Si hay valores globales en el objeto contpaqi, usarlos como base
+            if (c.apiUrl) apiUrl = c.apiUrl;
+            if (c.apiKey) apiKey = c.apiKey;
+
+            // Prioridad 2: Si se proporciona un empresaId, buscar credenciales específicas
+            if (empresaId && c.empresas && Array.isArray(c.empresas)) {
                 const empresa = c.empresas.find((e: any) => e.id === empresaId);
                 if (empresa) {
                     apiUrl = empresa.apiUrl || apiUrl;
                     apiKey = empresa.apiKey || apiKey;
-                    console.log(`🏢 Usando credenciales específicas para empresa: ${empresa.nombre}`);
+                    console.log(`🏢 Usando credenciales de empresa: ${empresa.nombre} (ID: ${empresaId})`);
+                } else if (empresaId !== 'default') {
+                    console.warn(`⚠️ No se encontró la empresa con ID: ${empresaId}, usando configuración base.`);
                 }
-            } else {
-                // Fallback a globales o primera empresa
-                if (c.apiUrl) apiUrl = c.apiUrl;
-                if (c.apiKey) apiKey = c.apiKey;
             }
         }
     }
