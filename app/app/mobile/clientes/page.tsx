@@ -68,9 +68,10 @@ export default function MobileClientes() {
     };
 
     const handleCobrarClick = (cliente: any) => {
+        if (!cliente) return;
         setDetailCliente(null);
         setSelectedCliente(cliente);
-        setMontoCobrar(cliente.pagoSemanal.toString());
+        setMontoCobrar((cliente.pagoSemanal || 0).toString());
         setInteresMoratorio("0");
         setGastosCobranza("0");
         setTipoPago("regular");
@@ -338,10 +339,10 @@ Fecha: ${new Date().toLocaleDateString()}.
                     >
                         <div className="flex justify-between items-start">
                             <div className="max-w-[70%]">
-                                <h3 className="font-bold text-slate-200 truncate">{cliente.nombre}</h3>
+                                <h3 className="font-bold text-slate-200 truncate">{cliente.nombre || 'Sin Nombre'}</h3>
                                 <div className="flex items-start text-slate-500 text-[11px] mt-1">
                                     <MapPin className="w-3 h-3 mr-1 mt-0.5 flex-shrink-0" />
-                                    <span className="line-clamp-1">{cliente.direccion}</span>
+                                    <span className="line-clamp-1">{cliente.direccion || 'Sin dirección'}</span>
                                 </div>
                             </div>
                             <div className="flex flex-col items-end gap-1">
@@ -359,11 +360,11 @@ Fecha: ${new Date().toLocaleDateString()}.
                             <div className="flex gap-4">
                                 <div>
                                     <p className="text-[9px] text-slate-500 uppercase font-bold">Saldo</p>
-                                    <p className="text-base font-mono font-bold text-slate-200">${cliente.saldo}</p>
+                                    <p className="text-base font-mono font-bold text-slate-200">${cliente.saldo || 0}</p>
                                 </div>
                                 <div>
                                     <p className="text-[9px] text-amber-500 uppercase font-bold">Vencido</p>
-                                    <p className="text-base font-mono font-bold text-amber-500">${Math.round(cliente.saldoVencido)}</p>
+                                    <p className="text-base font-mono font-bold text-amber-500">${Math.round(cliente.saldoVencido || 0)}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
@@ -398,12 +399,12 @@ Fecha: ${new Date().toLocaleDateString()}.
                             </div>
 
                             <div className="grid grid-cols-2 gap-4 bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
-                                <InfoItem label="Periodicidad" value={detailCliente.periodicidad} />
-                                <InfoItem label="Pago Sugerido" value={`$${detailCliente.pagoSemanal}`} highlight="text-emerald-400" />
-                                <InfoItem label="Saldo Actual" value={`$${detailCliente.saldo}`} highlight="text-white" />
-                                <InfoItem label="Saldo Vencido" value={`$${Math.round(detailCliente.saldoVencido)}`} highlight="text-amber-500" />
-                                <InfoItem label="Días Vencido" value={detailCliente.diasVencidos} />
-                                <InfoItem label="Monto Crédito" value={`$${detailCliente.montoCredito}`} />
+                                <InfoItem label="Periodicidad" value={detailCliente.periodicidad || 'N/A'} />
+                                <InfoItem label="Pago Sugerido" value={`$${detailCliente.pagoSemanal || 0}`} highlight="text-emerald-400" />
+                                <InfoItem label="Saldo Actual" value={`$${detailCliente.saldo || 0}`} highlight="text-white" />
+                                <InfoItem label="Saldo Vencido" value={`$${Math.round(detailCliente.saldoVencido || 0)}`} highlight="text-amber-500" />
+                                <InfoItem label="Días Vencido" value={detailCliente.diasVencidos || 0} />
+                                <InfoItem label="Monto Crédito" value={`$${detailCliente.montoCredito || 0}`} />
                             </div>
 
                             <div className="space-y-4 pt-2">
