@@ -218,7 +218,8 @@ export function SmsDashboard() {
               <CardHeader>
                 <CardTitle>Configurar Envío</CardTitle>
                 <CardDescription>Selecciona el tipo de campaña y filtros.</CardDescription>
-              <              <CardContent className="space-y-4">
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <Tabs value={mode} onValueChange={(v: any) => setMode(v)} className="w-full">
                   <TabsList className="grid w-full grid-cols-2 mb-4">
                     <TabsTrigger value="template">Plantillas</TabsTrigger>
@@ -288,7 +289,6 @@ export function SmsDashboard() {
                   Previsualizar Clientes ({previewClients.length})
                 </Button>
               </CardContent>
-   </CardContent>
             </Card>
 
             <Card className="md:col-span-2">
