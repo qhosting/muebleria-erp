@@ -9,6 +9,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   MessageSquare, 
   Users, 
@@ -39,6 +41,8 @@ export default function MobileSmsCampaignPage() {
   const [templates, setTemplates] = useState<SmsTemplate[]>([]);
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [customMessage, setCustomMessage] = useState('');
+  const [mode, setMode] = useState<'template' | 'custom'>('template');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDia, setFilterDia] = useState('all');
   const [loading, setLoading] = useState(true);
@@ -107,13 +111,26 @@ export default function MobileSmsCampaignPage() {
       toast.error('Selecciona al menos un cliente');
       return;
     }
-    if (!selectedTemplate) {
-      toast.error('Selecciona una plantilla');
-      return;
-    }
 
-    const template = templates.find(t => t.id === selectedTemplate);
-    if (!template) return;
+    let messageBody = '';
+    let campaignKey = 'manual_mobile';
+
+    if (mode === 'template') {
+      if (!selectedTemplate) {
+        toast.error('Selecciona una plantilla');
+        return;
+      }
+      const template = templates.find(t => t.id === selectedTemplate);
+      if (!template) return;
+      messageBody = template.templateText;
+      campaignKey = template.campaignKey;
+    } else {
+      if (!customMessage.trim()) {
+        toast.error('Escribe un mensaje');
+        return;
+      }
+      messageBody = customMessage;
+    }
 
     setSending(true);
     setProgress({ current: 0, total: selectedClients.length });
@@ -139,9 +156,9 @@ export default function MobileSmsCampaignPage() {
           const res = await fetch('/api/sms/campaign', {
             method: 'POST',
             body: JSON.stringify({
-              campaignKey: template.campaignKey,
+              campaignKey,
               clients: [cliente],
-              templateText: template.templateText
+              templateText: messageBody
             })
           });
           result = { success: res.ok };
@@ -190,26 +207,53 @@ export default function MobileSmsCampaignPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-2 text-slate-200">
             <MessageSquare className="h-4 w-4 text-emerald-500" />
-            1. Seleccionar Plantilla
+            1. Redactar Mensaje
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-            <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-200">
-              <SelectValue placeholder="Elige una plantilla..." />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
-              {templates.map(t => (
-                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {selectedTemplate && (
-            <div className="mt-3 p-3 bg-slate-950 rounded-md text-xs text-slate-400 border border-slate-800">
-              <p className="font-semibold mb-1 text-slate-300">Vista previa:</p>
-              <p>{templates.find(t => t.id === selectedTemplate)?.templateText}</p>
-            </div>
-          )}
+          <Tabs value={mode} onValueChange={(v: any) => setMode(v)} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 bg-slate-950 border border-slate-800 h-10 p-1">
+              <TabsTrigger value="template" className="text-xs data-[state=active]:bg-slate-800">Plantillas</TabsTrigger>
+              <TabsTrigger value="custom" className="text-xs data-[state=active]:bg-slate-800">Texto Libre</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="template" className="space-y-4 pt-4">
+              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                <SelectTrigger className="bg-slate-950 border-slate-800 text-slate-200">
+                  <SelectValue placeholder="Elige una plantilla..." />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-800 text-slate-200">
+                  {templates.map(t => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedTemplate && (
+                <div className="p-3 bg-slate-950 rounded-xl text-xs text-slate-400 border border-slate-800">
+                  <p className="font-bold mb-1 text-slate-300">Vista previa:</p>
+                  <p>{templates.find(t => t.id === selectedTemplate)?.templateText}</p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="custom" className="space-y-3 pt-4">
+              <div className="relative">
+                <Textarea 
+                  placeholder="Escribe tu mensaje aquí..."
+                  className="bg-slate-950 border-slate-800 text-slate-200 min-h-[100px] resize-none focus:ring-emerald-500"
+                  maxLength={160}
+                  value={customMessage}
+                  onChange={e => setCustomMessage(e.target.value)}
+                />
+                <div className={`absolute bottom-2 right-3 text-[10px] font-bold px-1.5 py-0.5 rounded ${customMessage.length > 140 ? 'bg-amber-500/20 text-amber-400' : 'text-slate-500'}`}>
+                  {customMessage.length} / 160
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-500 italic px-1">
+                Tip: Usa <span className="text-emerald-500 font-bold">[nombre]</span> para que el sistema ponga el nombre de cada cliente.
+              </p>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
