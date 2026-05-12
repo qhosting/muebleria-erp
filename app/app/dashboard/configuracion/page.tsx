@@ -32,6 +32,7 @@ interface ConfiguracionSistema {
     telefono: string;
     email: string;
     logoUrl?: string;
+    habilitarLandingPage?: boolean;
   };
   cobranza: {
     diasGracia: number;
@@ -82,7 +83,8 @@ export default function ConfiguracionPage() {
       direccion: '',
       telefono: '',
       email: '',
-      logoUrl: ''
+      logoUrl: '',
+      habilitarLandingPage: true
     },
     cobranza: {
       diasGracia: 3,
@@ -315,6 +317,18 @@ export default function ConfiguracionPage() {
                 placeholder="https://ejemplo.com/logo.png"
                 value={config.empresa.logoUrl || ''}
                 onChange={(e) => setConfig({ ...config, empresa: { ...config.empresa, logoUrl: e.target.value } })}
+              />
+            </div>
+            <Separator className="my-4" />
+            <div className="flex items-center justify-between bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+              <div>
+                <Label htmlFor="habilitarLanding" className="text-blue-900 font-bold">Habilitar Landing Page (Tienda Pública)</Label>
+                <p className="text-xs text-blue-700/70">Si se desactiva, la página principal redirigirá automáticamente al Login.</p>
+              </div>
+              <Switch 
+                id="habilitarLanding"
+                checked={config.empresa.habilitarLandingPage ?? true}
+                onCheckedChange={(checked) => setConfig({ ...config, empresa: { ...config.empresa, habilitarLandingPage: checked } })}
               />
             </div>
           </CardContent>
