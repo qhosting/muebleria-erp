@@ -23,77 +23,86 @@ export async function GET() {
       return NextResponse.json({ error: 'No autorizado para esta vista' }, { status: 403 });
     }
 
-    const hoy = new Date();
-    const inicioDia = new Date(hoy);
-    inicioDia.setHours(0, 0, 0, 0);
+    if (!userId) {
+      return NextResponse.json({ error: 'ID de usuario no encontrado en sesión' }, { status: 400 });
+    }
 
-    const dayOfWeek = hoy.getDay(); 
+    // Lógica de ciclo semanal: Sábado a Viernes
+    const hoy = new Date();
+    const inicioHoy = new Date(hoy);
+    inicioHoy.setHours(0, 0, 0, 0);
+
+    const dayOfWeek = hoy.getDay(); // 0: Dom, 1: Lun, ..., 6: Sab
     const diffToSaturday = (dayOfWeek + 1) % 7; 
     const inicioCiclo = new Date(hoy);
     inicioCiclo.setDate(hoy.getDate() - diffToSaturday);
     inicioCiclo.setHours(0, 0, 0, 0);
 
-    let dayNumber = hoy.getDay();
-    if (dayNumber === 0) dayNumber = 7;
-    const diaHoy = dayNumber.toString();
+    try {
+      const [hoyResult, clientesPendientesCount, proximosClientes] = await Promise.all([
+        // 1. Cobrado hoy (Optimizado con índice)
+        prisma.pago.aggregate({
+          where: {
+            cobradorId: userId,
+            fechaPago: { gte: inicioHoy },
+          },
+          _sum: { monto: true },
+          _count: { id: true }
+        }),
+        // 2. Clientes pendientes (Optimizado con índice)
+        prisma.cliente.count({
+          where: {
+            cobradorAsignadoId: userId,
+            statusCuenta: 'activo',
+            pagos: {
+              none: {
+                fechaPago: { gte: inicioCiclo },
+                tipoPago: 'regular'
+              }
+            }
+          }
+        }),
+        // 3. Próximos clientes a visitar (Limitado a 10 para velocidad)
+        prisma.cliente.findMany({
+          where: {
+            cobradorAsignadoId: userId,
+            statusCuenta: 'activo',
+            pagos: {
+              none: {
+                fechaPago: { gte: inicioCiclo },
+                tipoPago: 'regular'
+              }
+            }
+          },
+          take: 10,
+          orderBy: {
+            diasVencidos: 'desc'
+          }
+        })
+      ]);
 
-    const [cobradoHoy, clientesPendientes, proximosClientes] = await Promise.all([
-      // Suma de cobrado hoy por este cobrador
-      prisma.pago.aggregate({
-        _sum: { monto: true },
-        where: {
-          cobradorId: isAdminOrSupervisor ? undefined : userId,
-          fechaPago: { gte: inicioDia }
-        }
-      }),
-      // Conteo de clientes asignados con saldo pendiente que NO han pagado esta semana
-      prisma.cliente.count({
-        where: {
-          cobradorAsignadoId: isAdminOrSupervisor ? undefined : userId,
-          statusCuenta: 'activo',
-          saldoActual: { gt: 0 },
-          pagos: {
-            none: {
-              fechaPago: { gte: inicioCiclo },
-              tipoPago: 'regular'
-            }
-          }
-        }
-      }),
-      // Lista de los próximos clientes del DÍA que aún no han pagado
-      prisma.cliente.findMany({
-        where: {
-          cobradorAsignadoId: isAdminOrSupervisor ? undefined : userId,
-          diaPago: diaHoy,
-          statusCuenta: 'activo',
-          saldoActual: { gt: 0 },
-          pagos: {
-            none: {
-              fechaPago: { gte: inicioCiclo },
-              tipoPago: 'regular'
-            }
-          }
+      return NextResponse.json({
+        stats: {
+          totalCobrado: hoyResult._sum.monto ? parseFloat(hoyResult._sum.monto.toString()) : 0,
+          cuentasCobradas: hoyResult._count.id || 0,
+          clientesPendientes: clientesPendientesCount || 0,
+          efectividad: clientesPendientesCount > 0 
+            ? Math.round((hoyResult._count.id / (hoyResult._count.id + clientesPendientesCount)) * 100) 
+            : 100
         },
-        take: 10, // Aumentamos a 10 para que vea más del día
-        orderBy: {
-          nombreCompleto: 'asc'
-        }
-      })
-    ]);
-
-    return NextResponse.json({
-      cobradoHoy: cobradoHoy._sum.monto ? parseFloat(cobradoHoy._sum.monto.toString()) : 0,
-      clientesPendientes,
-      proximosClientes: proximosClientes.map(c => ({
-        id: c.id,
-        nombre: c.nombreCompleto,
-        direccion: c.direccionCompleta,
-        saldo: parseFloat(c.saldoActual.toString()),
-        pagoSugerido: parseFloat(c.montoPago.toString()),
-        periodicidad: c.periodicidad
-      })),
-      rutaNombre: isAdminOrSupervisor ? "Consolidado General" : `Ruta de ${session.user.name || 'Cobranza'}`
-    });
+        proximosClientes: proximosClientes.map(c => ({
+          id: c.id,
+          nombre: c.nombreCompleto,
+          direccion: c.direccionCompleta,
+          saldo: parseFloat(c.saldoActual.toString()),
+          vencido: parseFloat(c.saldoVencido.toString()),
+          diaPago: c.diaPago
+        }))
+      });
+    } catch (dbError) {
+      console.error('Error de base de datos en dashboard:', dbError);
+      return NextResponse.json({ error: 'Error al consultar la base de datos' }, { status: 500 });
+    }
 
   } catch (error) {
     console.error('Error al obtener dashboard de cobrador:', error);

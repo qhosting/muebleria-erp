@@ -270,6 +270,13 @@ export function SyncStatus() {
                 Todo sincronizado
               </div>
             )}
+
+            {syncStatus?.preferOffline && (
+              <div className="flex items-center gap-1">
+                <WifiOff className="w-3 h-3 text-amber-500" />
+                Modo Offline Preferido
+              </div>
+            )}
           </div>
         </div>
       </CardContent>

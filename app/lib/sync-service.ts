@@ -20,7 +20,22 @@ export class SyncService {
 
   // Inicializar sincronización automática
   public async initAutoSync(cobradorId: string) {
-    const settings = await db.settings.get(cobradorId);
+    let settings = await db.settings.get(cobradorId);
+    
+    // 🚀 OPTIMIZACIÓN: Si no existen settings, inicializar con preferOffline: true por defecto
+    if (!settings) {
+        console.log('Inicializando ajustes por defecto para cobrador:', cobradorId);
+        settings = {
+            cobradorId,
+            syncEnabled: true,
+            autoSync: true,
+            preferOffline: true, // 🚀 MODO OFFLINE PREFERIDO POR DEFECTO
+            offlineMode: false,
+            printFormat: 'thermal'
+        };
+        await db.settings.put(settings);
+    }
+
     if (settings?.autoSync && navigator.onLine) {
       this.startAutoSync(cobradorId);
     }
@@ -253,13 +268,17 @@ export class SyncService {
 
   // Actualizar timestamp de última sincronización
   private async updateLastSync(cobradorId: string) {
+    const existing = await db.settings.get(cobradorId);
+    
     await db.settings.put({
+      ...existing,
       cobradorId,
       lastFullSync: Date.now(),
       syncEnabled: true,
       autoSync: true,
       printFormat: 'thermal',
-      offlineMode: false
+      offlineMode: false,
+      preferOffline: existing ? existing.preferOffline : true
     });
   }
 
@@ -331,7 +350,8 @@ export class SyncService {
       pendingMotararios,
       failedItems,
       isOnline: navigator.onLine,
-      syncInProgress: this.syncInProgress
+      syncInProgress: this.syncInProgress,
+      preferOffline: settings?.preferOffline || false
     };
   }
 

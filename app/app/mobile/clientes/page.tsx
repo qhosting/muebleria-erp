@@ -44,24 +44,72 @@ export default function MobileClientes() {
     // Estados para Convenio
     const [verConvenio, setVerConvenio] = useState(false);
 
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
     useEffect(() => {
-        const fetchClientes = async () => {
+        const fetchClientes = async (reset = false) => {
             try {
-                const response = await fetch(`/api/mobile/clientes?q=${searchTerm}`);
+                const currentPage = reset ? 1 : page;
+                const response = await fetch(`/api/mobile/clientes?q=${searchTerm}&page=${currentPage}&limit=30`);
                 if (response.ok) {
-                    const data = await response.json();
-                    setClientes(data);
+                    const result = await response.json();
+                    const newData = result.data || [];
+                    
+                    if (reset) {
+                        setClientes(newData);
+                        setPage(1);
+                    } else {
+                        setClientes(prev => {
+                            // Evitar duplicados
+                            const existingIds = new Set(prev.map(c => c.id));
+                            const uniqueNew = newData.filter((c: any) => !existingIds.has(c.id));
+                            return [...prev, ...uniqueNew];
+                        });
+                    }
+                    
+                    setHasMore(result.page < result.totalPages);
                 }
             } catch (error) {
                 console.error("Error fetching clientes:", error);
             } finally {
                 setLoading(false);
+                setIsRefreshing(false);
             }
         };
 
-        const timer = setTimeout(fetchClientes, 300);
+        const timer = setTimeout(() => fetchClientes(true), 300);
         return () => clearTimeout(timer);
     }, [searchTerm]);
+
+    const handleLoadMore = async () => {
+        if (!hasMore || loading) return;
+        
+        const nextPage = page + 1;
+        setPage(nextPage);
+        setLoading(true);
+        
+        try {
+            const response = await fetch(`/api/mobile/clientes?q=${searchTerm}&page=${nextPage}&limit=30`);
+            if (response.ok) {
+                const result = await response.json();
+                const newData = result.data || [];
+                
+                setClientes(prev => {
+                    const existingIds = new Set(prev.map(c => c.id));
+                    const uniqueNew = newData.filter((c: any) => !existingIds.has(c.id));
+                    return [...prev, ...uniqueNew];
+                });
+                
+                setHasMore(result.page < result.totalPages);
+            }
+        } catch (error) {
+            console.error("Error loading more clientes:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleClienteClick = (cliente: any) => {
         setDetailCliente(cliente);
@@ -240,9 +288,14 @@ Fecha: ${new Date().toLocaleDateString()}.
     };
 
     const filteredClientes = clientes.filter(c => {
+        if (!c) return false;
+        
         // Búsqueda por Nombre, Calle o Colonia (ya viene filtrado por API pero reforzamos localmente)
-        const matchesSearch = c.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.direccion.toLowerCase().includes(searchTerm.toLowerCase());
+        const nombre = c.nombre || "";
+        const direccion = c.direccion || "";
+        
+        const matchesSearch = nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            direccion.toLowerCase().includes(searchTerm.toLowerCase());
         
         // Filtro por Día
         const matchesDia = filtroDia === "todos" || c.diaPago === filtroDia;
@@ -348,11 +401,11 @@ Fecha: ${new Date().toLocaleDateString()}.
                             <div className="flex flex-col items-end gap-1">
                                 <span className="text-[9px] font-bold text-sky-400 bg-sky-400/10 px-1.5 py-0.5 rounded border border-sky-400/20">D{cliente.diaPago}</span>
                                 <span className={`text-[9px] px-2 py-0.5 rounded-full border uppercase font-bold ${cliente.estatus === 'aldia' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                        cliente.estatus === 'atrasado' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                            'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                    }`}>
-                                    {cliente.estatus === 'atrasado' ? 'Lento' : cliente.estatus}
-                                </span>
+                                         cliente.estatus === 'atrasado' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                             'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                     }`}>
+                                     {cliente.estatus === 'atrasado' ? 'Lento' : cliente.estatus}
+                                 </span>
                             </div>
                         </div>
 
@@ -374,6 +427,34 @@ Fecha: ${new Date().toLocaleDateString()}.
                         </div>
                     </div>
                 ))}
+
+                {hasMore && (
+                    <button
+                        onClick={handleLoadMore}
+                        disabled={loading}
+                        className="w-full py-4 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 text-sm font-bold active:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+                    >
+                        {loading ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <span>Cargar más clientes</span>
+                        )}
+                    </button>
+                )}
+
+                {!hasMore && filteredClientes.length > 0 && (
+                    <p className="text-center text-[10px] text-slate-600 py-4 uppercase tracking-widest font-bold">
+                        Fin de la lista
+                    </p>
+                )}
+
+                {filteredClientes.length === 0 && !loading && (
+                    <div className="text-center py-20 bg-slate-900/30 rounded-3xl border border-slate-800/50">
+                        <Search className="w-10 h-10 mx-auto mb-3 text-slate-700" />
+                        <p className="text-slate-500 font-bold">No se encontraron clientes</p>
+                        <p className="text-[10px] text-slate-600 mt-1 uppercase">Prueba con otro filtro o término de búsqueda</p>
+                    </div>
+                )}
             </div>
 
             {/* MODAL DE DETALLE DEL CLIENTE */}

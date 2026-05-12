@@ -252,6 +252,9 @@ model Cliente {
   avisosCobro         AvisoCobro[] @relation("ClienteAviso")
   cuentasBancarias    CuentaBancariaCliente[]
 
+  @@index([cobradorAsignadoId])
+  @@index([statusCuenta])
+  @@index([diaPago])
   @@map("clientes")
 }
 
@@ -282,6 +285,10 @@ model Pago {
   cobrador      User     @relation(fields: [cobradorId], references: [id])
   ticket        Ticket?  @relation(fields: [ticketId], references: [id])
 
+  @@index([clienteId])
+  @@index([cobradorId])
+  @@index([fechaPago])
+  @@index([tipoPago])
   @@map("pagos")
 }
 

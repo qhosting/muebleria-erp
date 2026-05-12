@@ -9,20 +9,15 @@ import { isPlatform } from "@/hooks/usePlatform";
 export default function MobileHome() {
     const [loading, setLoading] = useState(true);
     const { isNative } = usePlatform();
-    const [stats, setStats] = useState({
-        cobradoHoy: 0,
-        clientesPendientes: 0,
-        rutaNombre: "Cargando ruta...",
-        proximosClientes: []
-    });
+    const [data, setData] = useState<any>(null);
 
     useEffect(() => {
         const fetchDashboardData = async () => {
             try {
                 const response = await fetch('/api/mobile/dashboard');
                 if (response.ok) {
-                    const data = await response.json();
-                    setStats(data);
+                    const result = await response.json();
+                    setData(result);
                 }
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
@@ -43,6 +38,9 @@ export default function MobileHome() {
         );
     }
 
+    const stats = data?.stats || { totalCobrado: 0, clientesPendientes: 0, cuentasCobradas: 0, efectividad: 0 };
+    const proximosClientes = data?.proximosClientes || [];
+
     return (
         <div className="space-y-6">
             {/* TARJETA RESUMEN DEL DÍA */}
@@ -50,7 +48,7 @@ export default function MobileHome() {
                 <h2 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-4">Resumen del Día</h2>
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                        <p className="text-3xl font-bold text-emerald-400">${stats.cobradoHoy}</p>
+                        <p className="text-3xl font-bold text-emerald-400">${stats.totalCobrado}</p>
                         <p className="text-xs text-slate-500">Cobrado Hoy</p>
                     </div>
                     <div className="space-y-1 text-right">
@@ -61,11 +59,11 @@ export default function MobileHome() {
 
                 <div className="mt-4 pt-4 border-t border-slate-700 flex justify-between items-center">
                     <div className="flex items-center space-x-2 text-slate-300">
-                        <MapPin className="w-4 h-4 text-sky-400" />
-                        <span className="text-sm">{stats.rutaNombre || "Ruta General"}</span>
+                        <TrendingUp className="w-4 h-4 text-sky-400" />
+                        <span className="text-sm">Efectividad: {stats.efectividad}%</span>
                     </div>
                     <Link href="/mobile/mapa-ruta" className="bg-sky-600 hover:bg-sky-500 transition-colors text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg active:scale-95 transition-transform inline-block text-center">
-                        Iniciar Ruta
+                        Ver Ruta
                     </Link>
                 </div>
             </div>
@@ -73,17 +71,17 @@ export default function MobileHome() {
             {/* LISTA DE PRÓXIMOS CLIENTES (REAL DATA) */}
             <div className="space-y-3">
                 <div className="flex justify-between items-center px-2">
-                    <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Clientes de Hoy</h3>
+                    <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Prioridad de Visita</h3>
                     <Link href="/mobile/clientes" className="text-xs text-sky-400 font-medium">Ver todos</Link>
                 </div>
 
-                {stats.proximosClientes.length > 0 ? (
-                    (stats.proximosClientes as any[]).map((cliente) => (
+                {proximosClientes.length > 0 ? (
+                    proximosClientes.map((cliente: any) => (
                         <Link key={cliente.id} href={`/mobile/clientes?search=${encodeURIComponent(cliente.nombre)}`} className="block">
                             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between active:scale-95 transition-transform">
                                 <div className="flex items-center space-x-3">
                                     <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-emerald-500">
-                                        {cliente.nombre.charAt(0)}
+                                        {cliente.nombre?.charAt(0) || "C"}
                                     </div>
                                     <div className="max-w-[180px]">
                                         <p className="font-bold text-slate-200 truncate">{cliente.nombre}</p>
@@ -92,7 +90,7 @@ export default function MobileHome() {
                                 </div>
                                 <div className="text-right">
                                     <p className="font-mono text-emerald-500 font-bold">${cliente.saldo}</p>
-                                    <p className="text-[10px] text-slate-600 uppercase">{cliente.periodicidad}</p>
+                                    <p className="text-[10px] text-amber-500 uppercase font-bold">Vencido: ${cliente.vencido}</p>
                                 </div>
                             </div>
                         </Link>
