@@ -438,8 +438,8 @@ async function handleOficina(from: string, payload: any, session: string, agentN
         return NextResponse.json({ status: 'buffered' });
     }
 
-    // Somos el primer mensaje, esperamos 6 segundos para capturar el resto
-    await new Promise(resolve => setTimeout(resolve, 6000));
+    // Somos el primer mensaje, esperamos 2.5 segundos para capturar el resto
+    await new Promise(resolve => setTimeout(resolve, 2500));
 
     // Recuperar todos los mensajes acumulados
     const messages = await redis.lrange(bufferKey, 0, -1);
@@ -517,10 +517,19 @@ async function handleOficina(from: string, payload: any, session: string, agentN
             data: { leadId: currentLead.id } 
         });
 
-        // NOTIFICAR A ADMINISTRADORES POR PUSH
+        // NOTIFICAR A ADMINISTRADORES
         try {
             const { notifyByRole } = await import('@/lib/notifications');
-            await notifyByRole('admin', '🔥 Nuevo Lead Captado', `Un nuevo cliente (${from}) está interesado en: ${aiResponse.datos_extraidos.producto || 'productos'}.`, '/dashboard/ventas');
+            const adminMsg = `🔔 *NUEVO PROSPECTO DETECTADO* 🔔\n\n👤 *Cliente:* ${from}\n🎯 *Interés:* ${aiResponse.datos_extraidos.producto || 'Ventas General'}\n🤖 *Resumen:* ${aiResponse.resumen_interno}\n\n🔗 *Ver Dashboard:* https://muebleria-erp.vercel.app/dashboard/ventas/leads`;
+            
+            // 1. Notificación Push
+            await notifyByRole('admin', '🔥 Nuevo Lead Captado', `Cliente: ${from}. Interés: ${aiResponse.datos_extraidos.producto || 'productos'}.`, '/dashboard/ventas/leads');
+            
+            // 2. Notificación WhatsApp al Administrador (Tú)
+            const adminPhone = '5214425060999';
+            if (wahaConfig.apiUrl) {
+                await sendWahaMessage(wahaConfig, adminPhone, adminMsg);
+            }
         } catch (nError) {
             console.error('Error enviando notificación de lead:', nError);
         }
