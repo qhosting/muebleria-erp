@@ -157,6 +157,7 @@ export default function ConfiguracionPage() {
   const [saved, setSaved] = useState(false);
   const [testPhone, setTestPhone] = useState('');
   const [loadingTest, setLoadingTest] = useState(false);
+  const [activeTab, setActiveTab] = useState('general');
 
   const handleTestWhatsapp = async () => {
     if (!testPhone) return;
@@ -291,7 +292,7 @@ export default function ConfiguracionPage() {
     );
   }
 
-  const [activeTab, setActiveTab] = useState('general');
+
 
   return (
     <DashboardLayout>
