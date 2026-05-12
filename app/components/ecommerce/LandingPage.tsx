@@ -395,7 +395,6 @@ export default function LandingPage() {
               <ul className="space-y-4 text-slate-600">
                 <li><a href="#productos" className="hover:text-blue-600 transition-colors">Ver Productos</a></li>
                 <li><a href="#credito" className="hover:text-blue-600 transition-colors">Solicitar Crédito</a></li>
-                <li><Link href="/consulta" className="text-blue-600 font-bold hover:underline">Consultar Mi Saldo (WhatsApp)</Link></li>
                 <li><Link href="/login" className="hover:text-blue-600 transition-colors">Portal Empleados</Link></li>
               </ul>
             </div>
