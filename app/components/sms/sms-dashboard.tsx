@@ -56,6 +56,8 @@ export function SmsDashboard() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [customMessage, setCustomMessage] = useState('');
+  const [mode, setMode] = useState<'template' | 'custom'>('template');
   const [previewClients, setPreviewClients] = useState<ClientPreview[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -93,10 +95,10 @@ export function SmsDashboard() {
   };
 
   const fetchPreview = async () => {
-    if (!selectedTemplate) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/sms/preview?campaignKey=${selectedTemplate.campaignKey}&diaCobro=${diaFilter}`);
+      const key = mode === 'template' ? selectedTemplate.campaignKey : 'custom_manual';
+      const res = await fetch(`/api/sms/preview?campaignKey=${key}&diaCobro=${diaFilter}`);
       const data = await res.json();
       setPreviewClients(data);
       toast.success(`${data.length} clientes encontrados`);
@@ -123,7 +125,15 @@ export function SmsDashboard() {
   };
 
   const handleSendCampaign = async () => {
-    if (!selectedTemplate || previewClients.length === 0) return;
+    if (mode === 'template' && !selectedTemplate) return;
+    if (mode === 'custom' && !customMessage.trim()) {
+      toast.error('Escribe un mensaje personalizado');
+      return;
+    }
+    if (previewClients.length === 0) {
+      toast.error('Previsualiza los clientes antes de enviar');
+      return;
+    }
     
     if (!confirm(`¿Estás seguro de enviar ${previewClients.length} mensajes?`)) return;
 
@@ -132,9 +142,9 @@ export function SmsDashboard() {
       const res = await fetch('/api/sms/campaign', {
         method: 'POST',
         body: JSON.stringify({
-          campaignKey: selectedTemplate.campaignKey,
+          campaignKey: mode === 'template' ? selectedTemplate?.campaignKey : 'custom_manual',
           clients: previewClients,
-          templateText: selectedTemplate.templateText
+          templateText: mode === 'template' ? selectedTemplate?.templateText : customMessage
         }),
       });
 
@@ -208,27 +218,54 @@ export function SmsDashboard() {
               <CardHeader>
                 <CardTitle>Configurar Envío</CardTitle>
                 <CardDescription>Selecciona el tipo de campaña y filtros.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tipo de Campaña</label>
-                  <Select 
-                    onValueChange={(val) => setSelectedTemplate(templates.find(t => t.campaignKey === val) || null)}
-                    value={selectedTemplate?.campaignKey}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {templates.map(t => (
-                        <SelectItem key={t.id} value={t.campaignKey}>{t.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <              <CardContent className="space-y-4">
+                <Tabs value={mode} onValueChange={(v: any) => setMode(v)} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 mb-4">
+                    <TabsTrigger value="template">Plantillas</TabsTrigger>
+                    <TabsTrigger value="custom">Texto Libre</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="template" className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Tipo de Campaña</label>
+                      <Select 
+                        onValueChange={(val) => setSelectedTemplate(templates.find(t => t.campaignKey === val) || null)}
+                        value={selectedTemplate?.campaignKey}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {templates.map(t => (
+                            <SelectItem key={t.id} value={t.campaignKey}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="custom" className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Mensaje Personalizado</label>
+                      <Textarea 
+                        placeholder="Escribe el mensaje aquí..."
+                        className="h-32 resize-none"
+                        maxLength={160}
+                        value={customMessage}
+                        onChange={(e) => setCustomMessage(e.target.value)}
+                      />
+                      <div className="flex justify-between text-[10px] text-muted-foreground uppercase font-bold">
+                        <span>Variable: [nombre]</span>
+                        <span className={customMessage.length > 140 ? 'text-amber-600' : ''}>
+                          {customMessage.length} / 160
+                        </span>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Día de Cobro</label>
+                  <label className="text-sm font-medium">Filtrar por Día de Cobro</label>
                   <Select onValueChange={setDiaFilter} value={diaFilter}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todos" />
@@ -246,11 +283,12 @@ export function SmsDashboard() {
                   </Select>
                 </div>
 
-                <Button className="w-full" onClick={fetchPreview} disabled={loading || !selectedTemplate}>
+                <Button className="w-full mt-2" onClick={fetchPreview} disabled={loading || (mode === 'template' && !selectedTemplate) || (mode === 'custom' && !customMessage)}>
                   <Users className="mr-2 h-4 w-4" />
-                  Previsualizar ({previewClients.length})
+                  Previsualizar Clientes ({previewClients.length})
                 </Button>
               </CardContent>
+   </CardContent>
             </Card>
 
             <Card className="md:col-span-2">
