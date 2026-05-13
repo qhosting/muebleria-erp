@@ -13,7 +13,8 @@ import {
     Eye,
     Download,
     ExternalLink,
-    Filter
+    Filter,
+    XCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -32,6 +33,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Plus } from 'lucide-react';
+import { DigitalizadorModal } from '@/components/ventas/digitalizador-modal';
+import { useSession } from 'next-auth/react';
 
 export default function SolicitudesCreditoPage() {
     const [solicitudes, setSolicitudes] = useState<any[]>([]);
@@ -40,6 +43,12 @@ export default function SolicitudesCreditoPage() {
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [createLoading, setCreateLoading] = useState(false);
+    
+    // Estados para el digitalizador
+    const [showDigitalizador, setShowDigitalizador] = useState(false);
+    const [selectedForDocs, setSelectedForDocs] = useState<any>(null);
+    const { data: session } = useSession();
+    const isAdmin = ['admin', 'gestor_cobranza', 'jefe_ventas'].includes(session?.user?.role as string);
 
     const [newSolicitud, setNewSolicitud] = useState({
         nombreCompleto: '',
@@ -113,6 +122,25 @@ export default function SolicitudesCreditoPage() {
             toast.error("Error de conexión");
         } finally {
             setCreateLoading(false);
+        }
+    };
+
+    const handleUpdateStatus = async (id: string, status: string) => {
+        try {
+            const response = await fetch('/api/ventas/solicitudes/status', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, status })
+            });
+
+            if (response.ok) {
+                toast.success(`Solicitud ${status.toLowerCase()} correctamente`);
+                fetchSolicitudes();
+            } else {
+                toast.error("Error al actualizar estado");
+            }
+        } catch (error) {
+            toast.error("Error de conexión");
         }
     };
 
@@ -331,12 +359,40 @@ export default function SolicitudesCreditoPage() {
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex justify-end gap-2">
-                                                    <Button variant="ghost" size="icon" title="Ver documentación">
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        title="Ver documentación"
+                                                        onClick={() => {
+                                                            setSelectedForDocs({
+                                                                nombreCompleto: sol.nombreCompleto,
+                                                                curp: sol.curp,
+                                                                codigoCliente: sol.contpaqiCodigo,
+                                                                numContrato: sol.folio
+                                                            });
+                                                            setShowDigitalizador(true);
+                                                        }}
+                                                    >
                                                         <Eye className="w-4 h-4" />
                                                     </Button>
-                                                    <Button variant="ghost" size="icon" title="Aprobar" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50">
-                                                        <CheckCircle2 className="w-4 h-4" />
-                                                    </Button>
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        title="Aprobar" 
+                                                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                                        onClick={() => handleUpdateStatus(sol.id, 'APROBADA')}
+                                                     >
+                                                         <CheckCircle2 className="w-4 h-4" />
+                                                     </Button>
+                                                     <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        title="Rechazar" 
+                                                        className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                                        onClick={() => handleUpdateStatus(sol.id, 'RECHAZADA')}
+                                                     >
+                                                         <XCircle className="w-4 h-4" />
+                                                     </Button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -346,6 +402,15 @@ export default function SolicitudesCreditoPage() {
                         </table>
                     </div>
                 </Card>
+
+                {selectedForDocs && (
+                    <DigitalizadorModal 
+                        open={showDigitalizador}
+                        onOpenChange={setShowDigitalizador}
+                        cliente={selectedForDocs}
+                        isAdmin={isAdmin}
+                    />
+                )}
             </div>
         </DashboardLayout>
     );

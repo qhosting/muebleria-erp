@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { LeadModal } from "@/components/mobile/lead-modal";
 import { LeadConversionModal } from "@/components/mobile/lead-conversion-modal";
+import { DigitalizadorModal } from "@/components/ventas/digitalizador-modal";
+import { useSession } from "next-auth/react";
 import { TrendingUp, Target, Package, DollarSign, Calendar, ChevronRight, User, MapPin, UserPlus, Star, Tag, UserCheck } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { format } from "date-fns";
@@ -17,14 +19,33 @@ import { es } from "date-fns/locale";
 export default function SalesMobilePage() {
   const [data, setData] = useState<any>(null);
   const [leads, setLeads] = useState<any[]>([]);
+  const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [showConvertModal, setShowConvertModal] = useState(false);
+  
+  // Estados para el digitalizador
+  const [showDigitalizador, setShowDigitalizador] = useState(false);
+  const [selectedForDocs, setSelectedForDocs] = useState<any>(null);
+  const { data: session } = useSession();
 
   useEffect(() => {
     fetchMetrics();
     fetchLeads();
+    fetchSolicitudes();
   }, []);
+
+  const fetchSolicitudes = async () => {
+    try {
+      const res = await fetch("/api/ventas/solicitudes");
+      if (res.ok) {
+        const json = await res.json();
+        setSolicitudes(json);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchLeads = async () => {
     try {
@@ -172,50 +193,69 @@ export default function SalesMobilePage() {
           </div>
         </div>
 
-        {/* --- MIS PROSPECTOS (LEADS) --- */}
+          </div>
+        </div>
+
+        {/* --- MIS SOLICITUDES DE CRÉDITO --- */}
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-              <Star className="h-5 w-5 text-amber-500" />
-              Mis Prospectos
+              <FileText className="h-5 w-5 text-sky-500" />
+              Solicitudes de Crédito
             </h2>
-            <Badge variant="outline" className="rounded-full bg-white">{leads.length}</Badge>
+            <Badge variant="outline" className="rounded-full bg-white">{solicitudes.length}</Badge>
           </div>
 
           <div className="space-y-3">
-            {leads.length === 0 ? (
+            {solicitudes.length === 0 ? (
               <div className="p-8 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
-                <UserPlus className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-xs text-gray-500">No tienes prospectos pendientes.</p>
+                <FileText className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-xs text-gray-500">No tienes solicitudes pendientes.</p>
               </div>
             ) : (
-              leads.map((lead: any) => (
-                <Card key={lead.id} className="border-none shadow-sm rounded-2xl overflow-hidden">
+              solicitudes.map((sol: any) => (
+                <Card key={sol.id} className="border-none shadow-sm rounded-2xl overflow-hidden">
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <p className="font-bold text-gray-900">{lead.nombre}</p>
-                        <p className="text-xs text-gray-500">{lead.telefono || "Sin teléfono"}</p>
+                        <p className="font-bold text-gray-900">{sol.nombreCompleto}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-[10px] text-slate-500 uppercase font-bold">{sol.telefono}</p>
+                            {sol.scoreBuro && (
+                                <Badge variant="outline" className="text-[9px] h-4 py-0 px-1 border-emerald-200 text-emerald-600 bg-emerald-50">
+                                    Score: {sol.scoreBuro}
+                                </Badge>
+                            )}
+                        </div>
                       </div>
-                      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none">
-                        {lead.estado}
+                      <Badge className={
+                          sol.status === 'APROBADA' ? 'bg-emerald-100 text-emerald-700 border-none' :
+                          sol.status === 'RECHAZADA' ? 'bg-rose-100 text-rose-700 border-none' :
+                          'bg-amber-100 text-amber-700 border-none'
+                      }>
+                        {sol.status}
                       </Badge>
                     </div>
                     
                     <div className="flex items-center gap-1.5 text-xs text-gray-600 mb-4">
                       <Tag className="h-3 w-3" />
-                      <span>Interés: {lead.interes || "General"}</span>
+                      <span>{sol.productoInteres || "Producto no especificado"}</span>
                     </div>
 
                     <Button 
-                      className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2"
+                      className="w-full h-10 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2"
                       onClick={() => {
-                        setSelectedLead(lead);
-                        setShowConvertModal(true);
+                        setSelectedForDocs({
+                          nombreCompleto: sol.nombreCompleto,
+                          curp: sol.curp,
+                          codigoCliente: sol.contpaqiCodigo,
+                          numContrato: sol.folio
+                        });
+                        setShowDigitalizador(true);
                       }}
                     >
-                      <UserCheck className="h-4 w-4" />
-                      CONVERTIR A CLIENTE
+                      <ImageIcon className="h-4 w-4" />
+                      DIGITALIZAR DOCUMENTOS
                     </Button>
                   </CardContent>
                 </Card>
@@ -225,6 +265,14 @@ export default function SalesMobilePage() {
         </div>
 
         {/* MODALES */}
+        {selectedForDocs && (
+          <DigitalizadorModal 
+            open={showDigitalizador}
+            onOpenChange={setShowDigitalizador}
+            cliente={selectedForDocs}
+            isAdmin={false}
+          />
+        )}
         <LeadConversionModal 
           lead={selectedLead} 
           open={showConvertModal} 

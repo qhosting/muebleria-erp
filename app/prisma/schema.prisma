@@ -140,6 +140,7 @@ model User {
   dispositivosAutorizados DispositivoAutorizado[]
   pushSubscriptions       PushSubscription[]
   solicitudesCredito      SolicitudCredito[] @relation("VendedorSolicitud")
+  validacionesDocumentos DocumentoBoveda[] @relation("ValidadorDocumento")
 
   @@map("users")
 }
@@ -864,4 +865,27 @@ model SolicitudCredito {
   vendedor       User?      @relation("VendedorSolicitud", fields: [vendedorId], references: [id])
 
   @@map("solicitudes_credito")
+}
+
+model DocumentoBoveda {
+  id              String   @id @default(cuid())
+  clienteCurp     String?  // Identificador único del cliente
+  codigoCliente   String?  // Código de cliente vinculado
+  folioContrato   String?  // Folio de contrato vinculado
+  nombreCliente   String?
+  tipoDocumento   String   // INE_FRONT, INE_BACK, DOMICILIO, INGRESOS, PROPIEDAD, OTRO
+  url             String
+  status          String   @default("PENDIENTE") // PENDIENTE, VALIDADO, RECHAZADO
+  motivoRechazo   String?
+  validadoPorId   String?
+  fechaValidacion DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  validadoPor     User?    @relation("ValidadorDocumento", fields: [validadoPorId], references: [id])
+
+  @@index([clienteCurp])
+  @@index([codigoCliente])
+  @@index([folioContrato])
+  @@map("documentos_boveda")
 }
