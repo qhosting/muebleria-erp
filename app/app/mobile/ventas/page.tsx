@@ -275,6 +275,5 @@ export default function SalesMobilePage() {
           </>
         )}
       </div>
-    </div>
   );
 }
