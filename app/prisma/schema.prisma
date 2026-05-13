@@ -139,6 +139,7 @@ model User {
 
   dispositivosAutorizados DispositivoAutorizado[]
   pushSubscriptions       PushSubscription[]
+  solicitudesCredito      SolicitudCredito[] @relation("VendedorSolicitud")
 
   @@map("users")
 }
@@ -818,4 +819,49 @@ model CuentaBancariaCliente {
   @@index([clienteId])
   @@index([clabe])
   @@map("cuentas_bancarias_clientes")
+}
+
+model SolicitudCredito {
+  id             String     @id @default(cuid())
+  nombreCompleto String
+  telefono       String
+  direccion      String?
+  
+  // Documentacion
+  ineFrontUrl    String?
+  ineBackUrl     String?
+  comprobanteDomicilioUrl String?
+  comprobanteIngresosUrl  String?
+  comprobantePropiedadUrl String?
+  
+  // Datos de Credito
+  productoInteres String?
+  montoSolicitado Decimal?   @db.Decimal(10, 2)
+  plazoSemanas    Int?
+  
+  // Scoring y Validacion
+  scoreBuro       Int?       
+  tipoPropiedad   String?    
+  profesion       String?
+  tieneTrabajo    Boolean    @default(true)
+  
+  // Datos Contpaqi
+  contpaqiCodigo  String?
+  contpaqiClasif  String?
+  contpaqiSaldo   Decimal?   @db.Decimal(10, 2)
+  contpaqiTipo    String?
+  
+  // Aval (Si aplica)
+  nombreAval      String?
+  telefonoAval    String?
+  propiedadAvalUrl String?
+  status          String     @default("PENDIENTE") 
+  vendedorId      String?
+ 
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+
+  vendedor       User?      @relation("VendedorSolicitud", fields: [vendedorId], references: [id])
+
+  @@map("solicitudes_credito")
 }
