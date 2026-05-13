@@ -150,6 +150,7 @@ const navigation: NavItem[] = [
     icon: TrendingUp,
     roles: ['admin', 'jefe_ventas', 'vendedor'],
     subItems: [
+      { name: 'Solicitudes de Crédito', href: '/dashboard/ventas/solicitudes', icon: FileText },
       { name: 'Leads (AI Sofia)', href: '/dashboard/ventas/leads', icon: MessageSquare },
       { name: 'Programa de Recompras', href: '/dashboard/ventas/recompras', icon: Gift },
       { name: 'Dashboard Ventas', href: '/mobile/ventas', icon: BarChart3 },
