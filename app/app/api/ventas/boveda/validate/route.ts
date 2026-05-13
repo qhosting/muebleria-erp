@@ -7,7 +7,8 @@ import { authOptions } from '@/lib/auth';
 export async function PATCH(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session || !['admin', 'gestor_cobranza', 'jefe_ventas'].includes(session.user?.role as string)) {
+        const user = session.user as any;
+        if (!session || !['admin', 'gestor_cobranza', 'jefe_ventas'].includes(user?.role)) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
         }
 
@@ -24,7 +25,7 @@ export async function PATCH(request: NextRequest) {
             data: {
                 status,
                 motivoRechazo: status === 'RECHAZADO' ? motivoRechazo : null,
-                validadoPorId: session.user?.id,
+                validadoPorId: user?.id,
                 fechaValidacion: new Date()
             }
         });
