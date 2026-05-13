@@ -28,7 +28,8 @@ import {
   Layout,
   Image as ImageIcon,
   Type,
-  Upload
+  Upload,
+  Plus
 } from 'lucide-react';
 import { toast } from 'sonner';
 

@@ -200,7 +200,7 @@ export default function MobileClientes() {
         setInteresMoratorio("0");
         setGastosCobranza("0");
         setTipoPago("regular");
-        setMetodoPago("GESTOR");
+        setMetodoPago("gestor");
         setConcepto("");
         setPagoExitoso(false);
     };
@@ -228,6 +228,11 @@ export default function MobileClientes() {
 
         const { syncService } = await import("@/lib/sync-service");
         const cobradorId = (session?.user as any)?.id;
+
+        if (!cobradorId) {
+            toast.error("Error de sesión", { description: "Por favor vuelve a iniciar sesión." });
+            return;
+        }
         
         const montoTotal = parseFloat(montoCobrar) + parseFloat(interesMoratorio) + parseFloat(gastosCobranza);
         
@@ -756,9 +761,9 @@ Fecha: ${new Date().toLocaleDateString()}.
                                                     onChange={(e) => setMetodoPago(e.target.value)}
                                                     className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-white text-xs focus:outline-none focus:border-sky-500 appearance-none"
                                                 >
-                                                    <option value="GESTOR">GESTOR</option>
-                                                    <option value="GESTOR BANCOS">GESTOR BANCOS</option>
-                                                    <option value="BANCOS BOT">BANCOS BOT</option>
+                                                    <option value="gestor">GESTOR</option>
+                                                    <option value="bancario">GESTOR BANCOS</option>
+                                                    <option value="bancario_bot">BANCOS BOT</option>
                                                 </select>
                                             </div>
                                         </div>

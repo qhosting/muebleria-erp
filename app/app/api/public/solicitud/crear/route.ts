@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/db";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { v4 as uuidv4 } from "uuid";
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
             const buffer = Buffer.from(bytes);
             const fileName = `${uuidv4()}-${file.name}`;
             const path = join(uploadDir, fileName);
-            await writeFile(path, buffer);
+            await writeFile(path, new Uint8Array(buffer));
             return `/uploads/solicitudes/${fileName}`;
         };
 

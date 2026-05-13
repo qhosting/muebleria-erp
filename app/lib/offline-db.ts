@@ -38,7 +38,7 @@ export interface OfflineCliente {
 }
 
 export interface OfflinePago {
-  id: string;
+  id?: number;
   clienteId: string;
   monto: number;
   tipoPago: 'regular' | 'abono' | 'liquidacion' | 'mora' | 'moratorio';

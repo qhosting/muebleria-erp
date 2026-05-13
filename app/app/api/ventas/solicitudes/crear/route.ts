@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/db";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { v4 as uuidv4 } from "uuid";
 
 export async function POST(req: NextRequest) {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user) {
         return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
+
+    const userId = (session.user as any).id;
 
     try {
         const formData = await req.formData();
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
             const buffer = Buffer.from(bytes);
             const fileName = `${uuidv4()}-${file.name}`;
             const path = join(uploadDir, fileName);
-            await writeFile(path, buffer);
+            await writeFile(path, new Uint8Array(buffer));
             return `/uploads/solicitudes/${fileName}`;
         };
 
@@ -66,7 +68,7 @@ export async function POST(req: NextRequest) {
             contpaqiTipo: formData.get("contpaqiTipo") as string,
             nombreAval: formData.get("nombreAval") as string,
             telefonoAval: formData.get("telefonoAval") as string,
-            vendedorId: session.user.id,
+            vendedorId: userId,
             ineFrontUrl,
             ineBackUrl,
             comprobanteDomicilioUrl,
