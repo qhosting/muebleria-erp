@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, DollarSign, MapPin, Printer, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import { isPlatform } from "@/hooks/usePlatform";
+import { usePlatform } from "@/hooks/usePlatform";
 import { db } from "@/lib/offline-db";
 
 export default function MobileHome() {
