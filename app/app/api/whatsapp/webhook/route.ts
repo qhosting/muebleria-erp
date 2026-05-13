@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { redis } from '@/lib/redis';
 import { detectIntent, extractTicketFromImage } from '@/lib/ai-service';
 import { sendWahaMessage, getWahaConfig, getWahaMedia } from '@/lib/whatsapp';
+import { notifyByRole } from '@/lib/notifications';
 
 // Cast prisma to any for flexibility with dynamically loaded models/fields
 const db = prisma as any;
@@ -21,6 +22,16 @@ export async function POST(request: NextRequest) {
         // Solo procesamos mensajes entrantes de otros
         if (event !== 'message' || !payload) {
             return NextResponse.json({ status: 'ignored' });
+        }
+
+        // 0. Ignorar Estados / Historias de WhatsApp
+        const isStatus = payload.from === 'status@broadcast' || 
+                         payload.chatId === 'status@broadcast' || 
+                         (payload.broadcast === true) ||
+                         (payload.type === 'status');
+        
+        if (isStatus) {
+            return NextResponse.json({ status: 'ignored_status' });
         }
 
         // 1. DETECCIÓN DE HUMANO: Si el mensaje lo envió el dueño de la cuenta (móvil/web)
@@ -451,6 +462,10 @@ async function handleOficina(from: string, payload: any, session: string, agentN
         return NextResponse.json({ status: 'buffered' });
     }
 
+    // Preparar configuración de WAHA por adelantado para evitar ReferenceErrors
+    const wahaConfig = await getWahaConfig(prisma, 'leads');
+    if (session) wahaConfig.session = session;
+
     // Somos el primer mensaje, esperamos 2.5 segundos para capturar el resto
     await new Promise(resolve => setTimeout(resolve, 2500));
 
@@ -469,9 +484,6 @@ async function handleOficina(from: string, payload: any, session: string, agentN
 
     if (lastIntent && lead) {
         // Ya se detectó una intención (Venta, Cobranza, etc.) hoy
-        const wahaConfig = await getWahaConfig(prisma, 'leads');
-        if (session) wahaConfig.session = session;
-        
         const patienceMsg = `¡Hola! 👋 He recibido tus mensajes. Como te mencioné anteriormente, ya he pasado tu reporte a un asesor y pronto se pondrán en contacto contigo. ¡Gracias por tu paciencia! 😊`;
         
         await sendWahaMessage(wahaConfig, from, patienceMsg);
@@ -532,15 +544,14 @@ async function handleOficina(from: string, payload: any, session: string, agentN
 
         // NOTIFICAR A ADMINISTRADORES
         try {
-            const { notifyByRole } = await import('@/lib/notifications');
             const adminMsg = `🔔 *NUEVO PROSPECTO DETECTADO* 🔔\n\n👤 *Cliente:* ${from}\n🎯 *Interés:* ${aiResponse.datos_extraidos.producto || 'Ventas General'}\n🤖 *Resumen:* ${aiResponse.resumen_interno}\n\n🔗 *Ver Dashboard:* https://muebleria-erp.vercel.app/dashboard/ventas/leads`;
             
             // 1. Notificación Push
             await notifyByRole('admin', '🔥 Nuevo Lead Captado', `Cliente: ${from}. Interés: ${aiResponse.datos_extraidos.producto || 'productos'}.`, '/dashboard/ventas/leads');
             
-            // 2. Notificación WhatsApp al Administrador (Tú)
-            const adminPhone = '5214425060999';
+            // 2. Notificación WhatsApp al Administrador
             if (wahaConfig.apiUrl) {
+                const adminPhone = '5214425060999';
                 await sendWahaMessage(wahaConfig, adminPhone, adminMsg);
             }
         } catch (nError) {
@@ -562,9 +573,6 @@ async function handleOficina(from: string, payload: any, session: string, agentN
     }
 
     // 9. Enviar respuesta por WhatsApp
-    const wahaConfig = await getWahaConfig(prisma, 'leads');
-    if (session) wahaConfig.session = session;
-
     if (wahaConfig.apiUrl) {
         try {
             await sendWahaMessage(wahaConfig, from, aiResponse.respuesta);
