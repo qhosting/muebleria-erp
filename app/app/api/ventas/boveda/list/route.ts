@@ -17,9 +17,11 @@ export async function GET(request: NextRequest) {
         const folio = searchParams.get('folio');
         const search = searchParams.get('search');
 
+        const db = prisma as any;
+
         // Si hay un término de búsqueda general, buscamos de forma más amplia
         if (search) {
-            const documentos = await prisma.documentoBoveda.findMany({
+            const documentos = await db.documentoBoveda.findMany({
                 where: {
                     OR: [
                         { nombreCompleto: { contains: search, mode: 'insensitive' } },
@@ -51,7 +53,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json(expedientes);
         }
 
-        const documentos = await prisma.documentoBoveda.findMany({
+        const documentos = await db.documentoBoveda.findMany({
             where: {
                 OR: [
                     { clienteCurp: curp || undefined },

@@ -45,8 +45,10 @@ export async function POST(request: NextRequest) {
 
         const publicUrl = `/uploads/${folder}/${fileName}`;
 
+        const db = prisma as any;
+
         // Guardar en base de datos
-        const documento = await prisma.documentoBoveda.create({
+        const documento = await db.documentoBoveda.create({
             data: {
                 clienteCurp,
                 codigoCliente,

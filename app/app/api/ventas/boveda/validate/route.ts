@@ -17,7 +17,9 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: 'ID y Status son requeridos' }, { status: 400 });
         }
 
-        const documento = await prisma.documentoBoveda.update({
+        const db = prisma as any;
+
+        const documento = await db.documentoBoveda.update({
             where: { id },
             data: {
                 status,
