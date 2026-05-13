@@ -41,7 +41,8 @@ import {
   Smartphone,
   Activity,
   ShoppingBag,
-  Gift
+  Gift,
+  Database
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -150,6 +151,7 @@ const navigation: NavItem[] = [
     icon: TrendingUp,
     roles: ['admin', 'jefe_ventas', 'vendedor'],
     subItems: [
+      { name: 'Bóveda Digital', href: '/dashboard/ventas/boveda', icon: Database },
       { name: 'Solicitudes de Crédito', href: '/dashboard/ventas/solicitudes', icon: FileText },
       { name: 'Leads (AI Sofia)', href: '/dashboard/ventas/leads', icon: MessageSquare },
       { name: 'Programa de Recompras', href: '/dashboard/ventas/recompras', icon: Gift },

@@ -15,6 +15,41 @@ export async function GET(request: NextRequest) {
         const curp = searchParams.get('curp');
         const codigo = searchParams.get('codigo');
         const folio = searchParams.get('folio');
+        const search = searchParams.get('search');
+
+        // Si hay un término de búsqueda general, buscamos de forma más amplia
+        if (search) {
+            const documentos = await prisma.documentoBoveda.findMany({
+                where: {
+                    OR: [
+                        { nombreCompleto: { contains: search, mode: 'insensitive' } },
+                        { clienteCurp: { contains: search, mode: 'insensitive' } },
+                        { codigoCliente: { contains: search, mode: 'insensitive' } },
+                        { folioContrato: { contains: search, mode: 'insensitive' } }
+                    ]
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            // Agrupar por CURP para devolver "expedientes" únicos en la búsqueda
+            const expedientes: any[] = [];
+            const seenCurps = new Set();
+
+            documentos.forEach((doc: any) => {
+                const key = doc.clienteCurp || doc.nombreCompleto;
+                if (!seenCurps.has(key)) {
+                    seenCurps.add(key);
+                    expedientes.push({
+                        nombreCompleto: doc.nombreCompleto,
+                        curp: doc.clienteCurp,
+                        codigoCliente: doc.codigoCliente,
+                        folioContrato: doc.folioContrato,
+                    });
+                }
+            });
+
+            return NextResponse.json(expedientes);
+        }
 
         const documentos = await prisma.documentoBoveda.findMany({
             where: {
