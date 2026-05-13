@@ -124,7 +124,16 @@ export default function MobileClientes() {
                     saldoVencido: Number(c.saldoVencido || 0),
                     pagoSemanal: Number(c.montoAcordado || 0),
                     telefono: c.telefono,
-                    yaPagoEstaSemana: false 
+                    yaPagoEstaSemana: false,
+                    // Campos extendidos para perfil
+                    descripcionProducto: c.descripcionProducto,
+                    vendedorNombre: c.vendedorNombre,
+                    empleado: c.empleado,
+                    aval: c.aval,
+                    montoCredito: c.montoCredito,
+                    vendidoEn: c.vendidoEn,
+                    precios: c.precios || { contado: 0, p6: 0, p12: 0 },
+                    diasVencidos: c.diasVencidos || 0
                 }));
 
                 setClientes(mapped);
@@ -147,6 +156,15 @@ export default function MobileClientes() {
                     saldoVencido: c.saldoVencido,
                     montoAcordado: c.pagoSemanal,
                     telefono: c.telefono,
+                    // Datos extendidos
+                    descripcionProducto: c.descripcionProducto,
+                    vendedorNombre: c.vendedorNombre,
+                    empleado: c.empleado,
+                    aval: c.aval,
+                    montoCredito: c.montoCredito,
+                    vendidoEn: c.vendidoEn,
+                    precios: c.precios,
+                    diasVencidos: c.diasVencidos,
                     lastSync: Date.now(),
                     syncStatus: 'synced'
                 }));
