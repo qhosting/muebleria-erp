@@ -572,11 +572,11 @@ Fecha: ${new Date().toLocaleDateString()}.
                         <div className="overflow-y-auto p-6 space-y-6 custom-scrollbar">
                             <div className="flex items-center space-x-4">
                                 <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-500 font-bold text-2xl">
-                                    {detailCliente.nombre.charAt(0)}
+                                    {(detailCliente.nombre || "S").charAt(0)}
                                 </div>
                                 <div>
-                                    <h4 className="text-xl font-bold text-white leading-tight">{detailCliente.nombre}</h4>
-                                    <p className="text-sm text-slate-500 font-mono">Código: {detailCliente.codigoCliente}</p>
+                                    <h4 className="text-xl font-bold text-white leading-tight">{detailCliente.nombre || "Sin Nombre"}</h4>
+                                    <p className="text-sm text-slate-500 font-mono">Código: {detailCliente.codigoCliente || "N/A"}</p>
                                 </div>
                             </div>
 
@@ -623,15 +623,15 @@ Fecha: ${new Date().toLocaleDateString()}.
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-1">
                                             <p className="text-[10px] text-slate-500 uppercase font-bold">Vendedor</p>
-                                            <p className="text-sm text-slate-300">{detailCliente.vendedorNombre}</p>
+                                            <p className="text-sm text-slate-300">{detailCliente.vendedorNombre || 'No asignado'}</p>
                                         </div>
                                         <div className="space-y-1">
                                             <p className="text-[10px] text-slate-500 uppercase font-bold">Aval</p>
-                                            <p className="text-sm text-slate-300">{detailCliente.aval}</p>
+                                            <p className="text-sm text-slate-300">{detailCliente.aval || 'No asignado'}</p>
                                         </div>
                                         <div className="col-span-2 space-y-1">
                                             <p className="text-[10px] text-slate-500 uppercase font-bold">Ocupación / Empleado</p>
-                                            <p className="text-sm text-slate-300">{detailCliente.empleado}</p>
+                                            <p className="text-sm text-slate-300">{detailCliente.empleado || 'No especificado'}</p>
                                         </div>
                                     </div>
                                 </div>
