@@ -22,12 +22,37 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
+import { 
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    DialogFooter
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Plus } from 'lucide-react';
 
 export default function SolicitudesCreditoPage() {
     const [solicitudes, setSolicitudes] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [createLoading, setCreateLoading] = useState(false);
+
+    const [newSolicitud, setNewSolicitud] = useState({
+        nombreCompleto: '',
+        telefono: '',
+        direccion: '',
+        productoInteres: '',
+        montoSolicitado: '',
+        plazoSemanas: '24',
+        tipoPropiedad: 'PROPIA',
+        profesion: '',
+        scoreBuro: '0',
+        contpaqiCodigo: ''
+    });
 
     useEffect(() => {
         fetchSolicitudes();
@@ -49,6 +74,48 @@ export default function SolicitudesCreditoPage() {
         }
     };
 
+    const handleCreate = async () => {
+        if (!newSolicitud.nombreCompleto || !newSolicitud.telefono) {
+            toast.error("Nombre y teléfono son obligatorios");
+            return;
+        }
+
+        setCreateLoading(true);
+        try {
+            const formData = new FormData();
+            Object.entries(newSolicitud).forEach(([key, value]) => formData.append(key, value));
+            
+            const response = await fetch('/api/ventas/solicitudes/crear', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                toast.success("Solicitud creada exitosamente");
+                setShowCreateModal(false);
+                setNewSolicitud({
+                    nombreCompleto: '',
+                    telefono: '',
+                    direccion: '',
+                    productoInteres: '',
+                    montoSolicitado: '',
+                    plazoSemanas: '24',
+                    tipoPropiedad: 'PROPIA',
+                    profesion: '',
+                    scoreBuro: '0',
+                    contpaqiCodigo: ''
+                });
+                fetchSolicitudes();
+            } else {
+                toast.error("Error al crear solicitud");
+            }
+        } catch (error) {
+            toast.error("Error de conexión");
+        } finally {
+            setCreateLoading(false);
+        }
+    };
+
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'PENDIENTE': return <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20">Pendiente</Badge>;
@@ -67,6 +134,103 @@ export default function SolicitudesCreditoPage() {
                         <p className="text-slate-500 text-sm">Gestiona los pre-registros y documentación de nuevos clientes.</p>
                     </div>
                     <div className="flex gap-2 w-full md:w-auto">
+                        <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+                            <DialogTrigger asChild>
+                                <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-900/20">
+                                    <Plus className="w-4 h-4" />
+                                    <span>Nueva Solicitud</span>
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                                <DialogHeader>
+                                    <DialogTitle>Nueva Solicitud de Crédito</DialogTitle>
+                                </DialogHeader>
+                                <div className="grid grid-cols-2 gap-4 py-4">
+                                    <div className="col-span-2 space-y-2">
+                                        <Label>Nombre Completo</Label>
+                                        <Input 
+                                            placeholder="Nombre del prospecto" 
+                                            value={newSolicitud.nombreCompleto}
+                                            onChange={(e) => setNewSolicitud({...newSolicitud, nombreCompleto: e.target.value})}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Teléfono</Label>
+                                        <Input 
+                                            placeholder="10 dígitos" 
+                                            value={newSolicitud.telefono}
+                                            onChange={(e) => setNewSolicitud({...newSolicitud, telefono: e.target.value})}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Producto de Interés</Label>
+                                        <Input 
+                                            placeholder="Ej: Comedor" 
+                                            value={newSolicitud.productoInteres}
+                                            onChange={(e) => setNewSolicitud({...newSolicitud, productoInteres: e.target.value})}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Monto Estimado ($)</Label>
+                                        <Input 
+                                            type="number" 
+                                            placeholder="0.00" 
+                                            value={newSolicitud.montoSolicitado}
+                                            onChange={(e) => setNewSolicitud({...newSolicitud, montoSolicitado: e.target.value})}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Plazo (Semanas)</Label>
+                                        <select 
+                                            className="w-full h-10 px-3 border rounded-md text-sm"
+                                            value={newSolicitud.plazoSemanas}
+                                            onChange={(e) => setNewSolicitud({...newSolicitud, plazoSemanas: e.target.value})}
+                                        >
+                                            <option value="12">12 Semanas</option>
+                                            <option value="24">24 Semanas</option>
+                                            <option value="36">36 Semanas</option>
+                                            <option value="48">48 Semanas</option>
+                                        </select>
+                                    </div>
+                                    <div className="col-span-2 space-y-2">
+                                        <Label>Dirección</Label>
+                                        <Input 
+                                            placeholder="Calle, número, colonia..." 
+                                            value={newSolicitud.direccion}
+                                            onChange={(e) => setNewSolicitud({...newSolicitud, direccion: e.target.value})}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Score de Buró (0-10)</Label>
+                                        <Input 
+                                            type="number" 
+                                            max="10" 
+                                            min="0"
+                                            value={newSolicitud.scoreBuro}
+                                            onChange={(e) => setNewSolicitud({...newSolicitud, scoreBuro: e.target.value})}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Código Contpaqi (Si ya existe)</Label>
+                                        <Input 
+                                            placeholder="Ej: C001" 
+                                            value={newSolicitud.contpaqiCodigo}
+                                            onChange={(e) => setNewSolicitud({...newSolicitud, contpaqiCodigo: e.target.value})}
+                                        />
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button variant="outline" onClick={() => setShowCreateModal(false)}>Cancelar</Button>
+                                    <Button 
+                                        onClick={handleCreate} 
+                                        disabled={createLoading}
+                                        className="bg-emerald-600 hover:bg-emerald-700"
+                                    >
+                                        {createLoading ? 'Creando...' : 'Crear Solicitud'}
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
                         <div className="relative flex-1 md:w-64">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <Input 
