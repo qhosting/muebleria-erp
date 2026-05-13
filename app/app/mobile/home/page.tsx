@@ -6,7 +6,13 @@ import Link from "next/link";
 import { usePlatform } from "@/hooks/usePlatform";
 import { db } from "@/lib/offline-db";
 
+import { useSession } from "next-auth/react";
+
 export default function MobileHome() {
+    const { data: session } = useSession();
+    const userRole = (session?.user as any)?.role;
+    const isVendedor = userRole === 'vendedor' || userRole === 'jefe_ventas';
+
     const [loading, setLoading] = useState(true);
     const { isNative } = usePlatform();
     const [data, setData] = useState<any>(null);
@@ -24,7 +30,8 @@ export default function MobileHome() {
                     return;
                 }
 
-                const response = await fetch('/api/mobile/dashboard');
+                const endpoint = isVendedor ? '/api/mobile/vendedor/dashboard' : '/api/mobile/dashboard';
+                const response = await fetch(endpoint);
                 if (response.ok) {
                     const result = await response.json();
                     setData(result);
@@ -87,6 +94,91 @@ export default function MobileHome() {
             <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 space-y-4 text-slate-400">
                 <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
                 <p className="animate-pulse">Sincronizando datos...</p>
+            </div>
+        );
+    }
+
+    if (isVendedor) {
+        const stats = data?.stats || { ventasHoy: 0, leadsActivos: 0, metaAlcanzada: 0 };
+        const prospectos = data?.prospectos || [];
+
+        return (
+            <div className="space-y-6">
+                {/* DASHBOARD VENTAS */}
+                <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-6 text-white shadow-xl">
+                    <h2 className="text-white/70 text-xs font-bold uppercase tracking-wider mb-4">Métricas de Venta</h2>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <p className="text-3xl font-bold">${stats.ventasHoy}</p>
+                            <p className="text-[10px] text-white/60 uppercase">Ventas Hoy</p>
+                        </div>
+                        <div className="space-y-1 text-right">
+                            <p className="text-3xl font-bold">{stats.leadsActivos}</p>
+                            <p className="text-[10px] text-white/60 uppercase">Leads Activos</p>
+                        </div>
+                    </div>
+                    <div className="mt-6 space-y-2">
+                        <div className="flex justify-between items-end mb-1">
+                            <span className="text-xs font-bold text-white/80">Avance de Meta Mensual</span>
+                            <span className="text-xs font-bold">{stats.metaAlcanzada}%</span>
+                        </div>
+                        <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                            <div className="h-full bg-white rounded-full" style={{ width: `${stats.metaAlcanzada}%` }}></div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ACCIONES RÁPIDAS */}
+                <div className="grid grid-cols-2 gap-3">
+                    <Link href="/mobile/ventas#leads" className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center justify-center space-y-2 active:scale-95 transition-transform">
+                        <div className="h-10 w-10 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center">
+                            <TrendingUp className="h-5 w-5" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-300">Nuevo Lead</span>
+                    </Link>
+                    <Link href="/dashboard/ventas/boveda" className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center justify-center space-y-2 active:scale-95 transition-transform">
+                        <div className="h-10 w-10 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center">
+                            <Printer className="h-5 w-5" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-300">Bóveda Digital</span>
+                    </Link>
+                </div>
+
+                {/* PROSPECTOS RECIENTES */}
+                <div className="space-y-3">
+                    <div className="flex justify-between items-center px-2">
+                        <h3 className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Leads Recientes</h3>
+                        <Link href="/mobile/ventas" className="text-xs text-blue-400 font-bold">Ver todos</Link>
+                    </div>
+
+                    {prospectos.length > 0 ? (
+                        prospectos.map((lead: any) => (
+                            <Link key={lead.id} href="/mobile/ventas" className="block group">
+                                <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between group-active:scale-95 transition-all">
+                                    <div className="flex items-center space-x-3">
+                                        <div className="h-10 w-10 bg-slate-800 rounded-xl flex items-center justify-center text-blue-500 font-bold">
+                                            {lead.nombre?.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-slate-200">{lead.nombre}</p>
+                                            <p className="text-[10px] text-slate-500">{lead.productoInteres}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-bold uppercase border border-blue-500/20">
+                                            {lead.estado}
+                                        </span>
+                                        <p className="text-[8px] text-slate-600 mt-1 uppercase font-bold">{lead.canal}</p>
+                                    </div>
+                                </div>
+                            </Link>
+                        ))
+                    ) : (
+                        <div className="bg-slate-900/50 border border-dashed border-slate-800 p-8 rounded-2xl text-center">
+                            <p className="text-slate-500 text-xs italic">No hay prospectos recientes</p>
+                        </div>
+                    )}
+                </div>
             </div>
         );
     }

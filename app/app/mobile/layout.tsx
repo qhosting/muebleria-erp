@@ -17,6 +17,10 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
 
     const [isOnline, setIsOnline] = useState(true);
 
+    const { data: session } = useSession();
+    const userRole = (session?.user as any)?.role;
+    const isVendedor = userRole === 'vendedor' || userRole === 'jefe_ventas';
+
     useEffect(() => {
         setIsOnline(navigator.onLine);
         const handleOnline = () => setIsOnline(true);
@@ -33,6 +37,7 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
 
     useEffect(() => {
         const fetchPending = async () => {
+            if (isVendedor) return; // No buscamos convenios si es vendedor
             try {
                 const response = await fetch('/api/mobile/convenios');
                 if (response.ok) {
@@ -64,7 +69,7 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
                             body: JSON.stringify({
                                 deviceId,
                                 latitud: pos.coords.latitude,
-                                longitud: pos.coords.longitude
+                                longitd: pos.coords.longitude
                             })
                         });
                     }, (err) => console.warn("Heartbeat GPS error:", err), {
@@ -83,7 +88,7 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
         return () => {
             clearInterval(heartbeatInterval);
         };
-    }, []);
+    }, [isVendedor]);
 
     return (
         <div className="flex flex-col h-[100dvh] bg-slate-950 text-slate-100 overflow-hidden relative">
@@ -92,7 +97,9 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-lg font-bold text-emerald-400">VertexERP</h1>
-                        <p className="text-xs text-slate-400">Modo Cobrador</p>
+                        <p className="text-xs text-slate-400">
+                            {isVendedor ? 'Modo Vendedor' : 'Modo Cobrador'}
+                        </p>
                     </div>
                     <div className="flex items-center space-x-3">
                         {/* Indicadores de Estado Dinámicos */}
@@ -115,10 +122,22 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
             <nav className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 pb-safe-bottom z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.3)]">
                 <div className="grid grid-cols-5 h-16">
                     <NavButton icon="home" label="Inicio" href="/mobile/home" active={pathname === "/mobile/home"} />
-                    <NavButton icon="users" label="Clientes" href="/mobile/clientes" active={pathname === "/mobile/clientes"} />
-                    <NavButton icon="convenios" label="Convenios" href="/mobile/convenios" active={pathname === "/mobile/convenios"} badge={pendingCount > 0 ? pendingCount : undefined} />
-                    <NavButton icon="dollar" label="Caja" href="/mobile/caja" active={pathname === "/mobile/caja"} />
-                    <NavButton icon="menu" label="Menú" href="/mobile/menu" active={pathname === "/mobile/menu"} badge={pendingCount > 0 ? true : false} />
+                    
+                    {isVendedor ? (
+                        <>
+                            <NavButton icon="shopping-bag" label="Ventas" href="/mobile/ventas" active={pathname === "/mobile/ventas"} />
+                            <NavButton icon="message-square" label="Prospectos" href="/mobile/ventas#leads" active={pathname === "/mobile/ventas"} />
+                            <NavButton icon="database" label="Bóveda" href="/dashboard/ventas/boveda" active={pathname === "/dashboard/ventas/boveda"} />
+                        </>
+                    ) : (
+                        <>
+                            <NavButton icon="users" label="Clientes" href="/mobile/clientes" active={pathname === "/mobile/clientes"} />
+                            <NavButton icon="convenios" label="Convenios" href="/mobile/convenios" active={pathname === "/mobile/convenios"} badge={pendingCount > 0 ? pendingCount : undefined} />
+                            <NavButton icon="dollar" label="Caja" href="/mobile/caja" active={pathname === "/mobile/caja"} />
+                        </>
+                    )}
+                    
+                    <NavButton icon="menu" label="Menú" href="/mobile/menu" active={pathname === "/mobile/menu"} badge={!isVendedor && pendingCount > 0 ? true : false} />
                 </div>
             </nav>
         </div>
@@ -139,6 +158,15 @@ function NavButton({ icon, label, href, active = false, badge }: any) {
         ),
         convenios: (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /><path d="m9 16 2 2 4-4" /></svg>
+        ),
+        'shopping-bag': (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        ),
+        'message-square': (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        ),
+        database: (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
         ),
         menu: (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" /></svg>

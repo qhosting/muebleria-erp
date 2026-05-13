@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import MobileLayout from "../layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,7 +76,7 @@ export default function SalesMobilePage() {
   };
 
   return (
-    <DashboardLayout>
+    <MobileLayout>
       <div className="space-y-6 pb-20">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Cargando métricas de venta...</div>
@@ -285,6 +285,6 @@ export default function SalesMobilePage() {
           </>
         )}
       </div>
-    </DashboardLayout>
+    </MobileLayout>
   );
 }
