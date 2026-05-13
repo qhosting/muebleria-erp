@@ -11,10 +11,6 @@ export const dynamic = 'force-dynamic';
 const isCapacitor = process.env.BUILD_TARGET === 'capacitor';
 
 export default async function HomePage() {
-  if (isCapacitor) {
-    return <LandingPage />;
-  }
-
   let session = null;
   try {
     session = await getServerSession(authOptions);
@@ -30,6 +26,16 @@ export default async function HomePage() {
       redirect('/cobrador-app');
     }
     redirect('/dashboard');
+  }
+
+  // 🚀 MODO COBRADOR: Si la app está compilada específicamente para cobradores,
+  // redirigir al entry-point de cobrador (el cual manejará el login si no hay sesión)
+  if (process.env.NEXT_PUBLIC_APP_MODE === 'cobrador') {
+    redirect('/cobrador-app');
+  }
+
+  if (isCapacitor) {
+    return <LandingPage />;
   }
 
   // Consultar configuración del sistema para ver si el landing page está habilitado

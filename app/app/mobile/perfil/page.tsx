@@ -172,25 +172,76 @@ export default function MobilePerfilPage() {
 
             <div className="space-y-3 pt-4">
                 <Button
-                    onClick={() => {
-                        if (confirm("¿Deseas forzar la actualización de la aplicación? Se cerrará la sesión y se recargará la caché.")) {
-                            // Limpiar Service Worker y Caché
-                            if ('serviceWorker' in navigator) {
-                                navigator.serviceWorker.getRegistrations().then(registrations => {
-                                    for (let registration of registrations) {
-                                        registration.unregister();
+                    onClick={async () => {
+                        // 🚀 SEGURIDAD: Evitar pérdida de datos locales
+                        if (pendingCount > 0) {
+                            const proceed = confirm(`⚠️ Tienes ${pendingCount} pagos pendientes de sincronizar. Si continúas, podrías perder esta información. \n\n¿Deseas intentar sincronizar ahora?`);
+                            
+                            if (proceed) {
+                                try {
+                                    const { syncService } = await import('@/lib/sync-service');
+                                    const userId = (session?.user as any)?.id;
+                                    
+                                    toast.loading('Sincronizando datos pendientes...');
+                                    const success = await syncService.syncAll(userId);
+                                    
+                                    if (success) {
+                                        toast.dismiss();
+                                        toast.success('¡Datos sincronizados con éxito!');
+                                        setPendingCount(0);
+                                        // Ahora que está sincronizado, pedimos confirmación final para actualizar
+                                    } else {
+                                        toast.dismiss();
+                                        toast.error('No se pudieron sincronizar todos los datos. Verifica tu conexión.');
+                                        return; // Detener para evitar pérdida
                                     }
-                                });
+                                } catch (error) {
+                                    toast.error('Error durante la sincronización');
+                                    return;
+                                }
+                            } else {
+                                // Si el usuario dice que NO quiere sincronizar, le preguntamos si está seguro de perder los datos
+                                const ignore = confirm("¿Estás SEGURO de continuar sin sincronizar? Los datos pendientes se perderán.");
+                                if (!ignore) return;
                             }
-                            // Limpiar cachés de archivos
+                        }
+
+                        if (confirm("¿Confirmas la actualización forzada? La app se reiniciará y se limpiará la caché.")) {
+                            // 1. Limpiar Service Worker y Caché
+                            if ('serviceWorker' in navigator) {
+                                try {
+                                    const registrations = await navigator.serviceWorker.getRegistrations();
+                                    for (let registration of registrations) {
+                                        await registration.unregister();
+                                    }
+                                } catch (e) { console.error("Error unregistering SW:", e); }
+                            }
+                            
+                            // 2. Limpiar cachés de archivos
                             if ('caches' in window) {
-                                caches.keys().then(names => {
-                                    for (let name of names) caches.delete(name);
-                                });
+                                try {
+                                    const names = await caches.keys();
+                                    for (let name of names) await caches.delete(name);
+                                } catch (e) { console.error("Error deleting caches:", e); }
                             }
-                            // Cerrar sesión y recargar
+
+                            // 3. Limpiar Storage pero PRESERVAR ajustes de servidor
+                            const customUrl = localStorage.getItem('custom_server_url');
+                            const rememberedEmail = localStorage.getItem('remembered_email');
+                            const pwaInstalled = localStorage.getItem('pwa-installed');
+                            
                             localStorage.clear();
-                            window.location.href = "/login";
+                            
+                            if (customUrl) localStorage.setItem('custom_server_url', customUrl);
+                            if (rememberedEmail) localStorage.setItem('remembered_email', rememberedEmail);
+                            if (pwaInstalled) localStorage.setItem('pwa-installed', pwaInstalled);
+
+                            // 4. Limpiar Base de Datos Offline (OPCIONAL - solo si realmente queremos reset total)
+                            // Si queremos conservar los datos aunque se actualice, comentamos esta línea:
+                            // await db.delete(); 
+
+                            // 5. Cerrar sesión oficialmente y redirigir
+                            signOut({ callbackUrl: '/login' });
                         }
                     }}
                     variant="destructive"
