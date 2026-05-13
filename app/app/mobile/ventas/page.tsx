@@ -80,14 +80,6 @@ export default function SalesMobilePage() {
           <div className="p-8 text-center text-gray-500">Cargando métricas de venta...</div>
         ) : (
           <>
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Seguimiento de Ventas</h1>
-                <p className="text-sm text-muted-foreground">{format(new Date(), "EEEE d 'de' MMMM", { locale: es })}</p>
-              </div>
-              <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none px-3 py-1">Vendedor</Badge>
-            </div>
-
             {/* --- MI PRESUPUESTO Y AVANCE --- */}
             {data?.presupuesto && (
               <Card className="border-none shadow-md bg-gradient-to-br from-blue-600 to-indigo-700 text-white overflow-hidden">

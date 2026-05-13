@@ -45,7 +45,9 @@ export default function MobileMenu() {
                 </div>
                 <div>
                     <h2 className="text-xl font-bold text-slate-100">{session?.user?.name || "Usuario"}</h2>
-                    <p className="text-sm text-slate-500 uppercase tracking-wider font-medium">Cobrador Autorizado</p>
+                    <p className="text-sm text-slate-500 uppercase tracking-wider font-medium">
+                        {(session?.user as any)?.role === 'vendedor' ? 'Vendedor Autorizado' : 'Cobrador Autorizado'}
+                    </p>
                 </div>
             </div>
 

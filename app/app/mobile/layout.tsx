@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Network, Wifi, WifiOff, MapPin, Printer, MessageSquare } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
+import Link from "next/link";
 
 interface CobradorLayoutProps {
     children: React.ReactNode;
@@ -175,7 +176,7 @@ function NavButton({ icon, label, href, active = false, badge }: any) {
     };
 
     return (
-        <a href={href} className={`flex flex-col items-center justify-center space-y-1 relative ${active ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-100'}`}>
+        <Link href={href} className={`flex flex-col items-center justify-center space-y-1 relative ${active ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-100'}`}>
             <div className="relative">
                 {Icons[icon]}
                 {badge && (
@@ -186,6 +187,6 @@ function NavButton({ icon, label, href, active = false, badge }: any) {
                 )}
             </div>
             <span className="text-[10px] font-medium">{label}</span>
-        </a>
+        </Link>
     )
 }
