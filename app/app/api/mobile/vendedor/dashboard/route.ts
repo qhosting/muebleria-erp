@@ -58,18 +58,34 @@ export async function GET(request: NextRequest) {
             take: 5
         });
 
+        // Calcular logrado en el periodo
+        let logradoMonto = 0;
+        if (presupuesto) {
+            const ventasPeriodo = await prisma.cliente.findMany({
+                where: {
+                    vendedorId: user.id,
+                    fechaVenta: {
+                        gte: presupuesto.fechaInicio,
+                        lte: presupuesto.fechaFin
+                    }
+                },
+                select: { montoPago: true }
+            });
+            logradoMonto = ventasPeriodo.reduce((acc, v) => acc + Number(v.montoPago), 0);
+        }
+
         return NextResponse.json({
             stats: {
                 ventasHoy: totalVentasHoy,
                 leadsActivos: leadsActivos,
-                metaAlcanzada: presupuesto ? Math.round((Number(presupuesto.logradoMonto) / Number(presupuesto.metaMonto)) * 100) : 0
+                metaAlcanzada: presupuesto ? Math.round((logradoMonto / Number(presupuesto.metaMonto)) * 100) : 0
             },
             prospectos: prospectosRecientes.map(l => ({
                 id: l.id,
                 nombre: l.nombre,
-                productoInteres: l.productoInteres,
+                productoInteres: l.interes,
                 estado: l.estado,
-                canal: l.canal
+                canal: l.origen
             }))
         });
 

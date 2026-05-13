@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession } from "next-auth/react";
 import { usePlatform } from "@/hooks/usePlatform";
 import { usePathname } from "next/navigation";
 import { Network, Wifi, WifiOff, MapPin, Printer, MessageSquare } from "lucide-react";
