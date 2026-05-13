@@ -147,7 +147,7 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
       const success = await printConvenio({
         ...convenio,
         cliente: {
-          nombreCompleto: cliente.nombreCompleto,
+          nombreCompleto: cliente.nombreCompleto || cliente.nombre,
           codigoCliente: cliente.codigoCliente
         },
         gestor: {
@@ -196,9 +196,9 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
     return {
       numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-8)}`,
       cliente: {
-        nombreCompleto: cliente.nombreCompleto,
+        nombreCompleto: cliente.nombreCompleto || cliente.nombre || "",
         telefono: cliente.telefono,
-        direccion: cliente.direccion,
+        direccion: cliente.direccionCompleta || cliente.direccion || "",
         diaPago: cliente.diaPago
       },
       cobrador: {
@@ -360,20 +360,20 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
                       <CardHeader className="pb-2">
                         <CardTitle className="text-sm flex items-center gap-2">
                           <User className="w-4 h-4" />
-                          {cliente.nombreCompleto}
+                          {cliente.nombreCompleto || cliente.nombre || "Sin Nombre"}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-2">
                         <div className="text-sm text-muted-foreground flex items-center gap-1">
                           <MapPin className="w-3 h-3" />
-                          {cliente.direccion}
+                          {cliente.direccionCompleta || cliente.direccion || "Sin Dirección"}
                         </div>
                         
                         <div className="grid grid-cols-2 gap-4 text-sm">
                           <div>
                             <span className="text-muted-foreground">Saldo Actual: </span>
                             <span className="font-semibold text-red-600">
-                              {formatCurrency(cliente.saldoPendiente)}
+                              {formatCurrency(cliente.saldoPendiente || cliente.saldo || 0)}
                             </span>
                           </div>
                           <div>

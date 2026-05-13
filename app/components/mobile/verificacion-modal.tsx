@@ -153,12 +153,12 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
                     {/* INFO CLIENTE */}
                     <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center gap-4">
                         <div className="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center text-orange-500 font-bold">
-                            {cliente.nombre.charAt(0)}
+                            {(cliente.nombreCompleto || cliente.nombre || "C").charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Cliente</p>
-                            <p className="text-sm font-bold text-white truncate">{cliente.nombre}</p>
-                            <p className="text-[10px] text-slate-400 truncate">{cliente.direccion}</p>
+                            <p className="text-sm font-bold text-white truncate">{cliente.nombreCompleto || cliente.nombre || "Sin Nombre"}</p>
+                            <p className="text-[10px] text-slate-400 truncate">{cliente.direccionCompleta || cliente.direccion || "Sin Dirección"}</p>
                         </div>
                     </div>
 

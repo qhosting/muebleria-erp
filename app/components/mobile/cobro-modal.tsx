@@ -79,8 +79,8 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
       setConcepto('');
       setNumeroRecibo('');
       setCalculatedValues({
-        saldoAnterior: cliente.saldoPendiente,
-        saldoNuevo: cliente.saldoPendiente,
+        saldoAnterior: cliente.saldoPendiente || cliente.saldo || 0,
+        saldoNuevo: cliente.saldoPendiente || cliente.saldo || 0,
         montoTotal: 0,
         montoAbono: 0,
         interesMoratorio: 0,
@@ -96,30 +96,30 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
     const gastosNum = parseFloat(gastosCobranza) || 0;
 
     const montoTotal = abonoNum + moratorioNum + gastosNum;
-    const nuevoSaldo = Math.max(0, cliente.saldoPendiente - abonoNum);
+    const nuevoSaldo = Math.max(0, (cliente.saldoPendiente || cliente.saldo || 0) - abonoNum);
 
     setCalculatedValues({
-      saldoAnterior: cliente.saldoPendiente,
+      saldoAnterior: cliente.saldoPendiente || cliente.saldo || 0,
       saldoNuevo: nuevoSaldo,
       montoTotal: montoTotal,
       montoAbono: abonoNum,
       interesMoratorio: moratorioNum,
       gastosCobranza: gastosNum
     });
-  }, [montoAbono, interesMoratorio, gastosCobranza, cliente.saldoPendiente]);
+  }, [montoAbono, interesMoratorio, gastosCobranza, cliente.saldoPendiente, cliente.saldo]);
 
   const createTicketData = (fechaPago: string, numeroReciboFinal: string): TicketData => {
     return {
       numeroRecibo: numeroReciboFinal,
       cliente: {
-        nombreCompleto: cliente.nombreCompleto,
+        nombreCompleto: cliente.nombreCompleto || cliente.nombre || "",
         telefono: cliente.telefono,
-        direccion: cliente.direccion,
+        direccion: cliente.direccionCompleta || cliente.direccion || "",
         diaPago: cliente.diaPago
       },
       cobrador: {
         nombre: (session?.user as any)?.name || 'Cobrador',
-        id: userId
+        id: userId || ""
       },
       pago: {
         monto: calculatedValues.montoAbono,
@@ -262,8 +262,8 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
   };
 
   const getQuickAmounts = () => {
-    const acordado = cliente.montoAcordado;
-    const pendiente = cliente.saldoPendiente;
+    const acordado = cliente.montoAcordado || 0;
+    const pendiente = cliente.saldoPendiente || cliente.saldo || 0;
 
     const amounts = [
       acordado,
@@ -302,14 +302,14 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
           {/* Información del cliente */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">{cliente.nombreCompleto}</CardTitle>
+              <CardTitle className="text-sm">{cliente.nombreCompleto || cliente.nombre || "Sin Nombre"}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Saldo Actual:</span>
                   <div className="font-semibold text-red-600">
-                    {formatCurrency(cliente.saldoPendiente)}
+                    {formatCurrency(cliente.saldoPendiente || cliente.saldo || 0)}
                   </div>
                 </div>
                 <div>

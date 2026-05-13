@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake, RefreshCw } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import { usePlatform } from "@/hooks/usePlatform";
 import { formatWhatsAppNumber } from "@/lib/utils";
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
@@ -12,11 +13,25 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { db } from "@/lib/offline-db";
 
-export default function MobileClientes() {
+export default function MobileClientesPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <RefreshCw className="w-8 h-8 animate-spin text-emerald-500" />
+            </div>
+        }>
+            <MobileClientes />
+        </Suspense>
+    );
+}
+
+function MobileClientes() {
     const { data: session } = useSession();
     const { isNative } = usePlatform();
+    const searchParams = useSearchParams();
     const { isConnected, printCollectionNotice, connectToPrinter, printTicket } = useBluetoothPrinter();
-    const [searchTerm, setSearchTerm] = useState("");
+    const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
+    const [idFromUrl, setIdFromUrl] = useState(searchParams.get("id"));
     const [selectedCliente, setSelectedCliente] = useState<any>(null);
     const [detailCliente, setDetailCliente] = useState<any>(null);
     const [montoCobrar, setMontoCobrar] = useState("");
@@ -177,6 +192,18 @@ export default function MobileClientes() {
         const timer = setTimeout(() => fetchClientes(true), 300);
         return () => clearTimeout(timer);
     }, [searchTerm]);
+
+    // 🚀 NUEVO: Abrir modal automáticamente si viene ID en la URL
+    useEffect(() => {
+        if (idFromUrl && clientes.length > 0) {
+            const found = clientes.find(c => c.id === idFromUrl);
+            if (found) {
+                setDetailCliente(found);
+                // Limpiar el ID para que no se abra de nuevo si cierra y vuelve a buscar
+                setIdFromUrl(null);
+            }
+        }
+    }, [clientes, idFromUrl]);
 
     const handleLoadMore = async () => {
         if (!hasMore || loading) return;

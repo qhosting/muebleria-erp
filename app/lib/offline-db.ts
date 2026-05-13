@@ -6,11 +6,15 @@ import Dexie, { Table } from 'dexie';
 export interface OfflineCliente {
   id: string;
   nombreCompleto: string;
+  nombre?: string; // Alias para compatibilidad con vistas móviles
+  codigoCliente?: string; // Código de cliente para identificación y recibos
   telefono: string;
   direccion: string;
+  direccionCompleta?: string; // Alias para compatibilidad
   diaPago: string;
   montoAcordado: number;
   saldoPendiente: number;
+  saldo?: number; // Alias para compatibilidad
   saldoVencido?: number;
   diasVencidos?: number;
   fechaUltimoPago?: string;

@@ -35,9 +35,10 @@ export default function MobileMap() {
             try {
                 const response = await fetch('/api/mobile/clientes');
                 if (response.ok) {
-                    const data = await response.json();
+                    const result = await response.json();
+                    const clientsArray = result.data || [];
                     // Filtrar solo los que tienen coordenadas (o simularlas si faltan para demo)
-                    const validPoints = data.map((c: any) => ({
+                    const validPoints = clientsArray.map((c: any) => ({
                         id: c.id,
                         lat: c.latitud || (19.432608 + (Math.random() - 0.5) * 0.02),
                         lng: c.longitud || (-99.133209 + (Math.random() - 0.5) * 0.02),

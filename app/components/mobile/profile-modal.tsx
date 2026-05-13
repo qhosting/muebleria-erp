@@ -83,11 +83,11 @@ export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
                 <div className="overflow-y-auto p-6 space-y-8 custom-scrollbar">
                     {/* Encabezado con Nombre */}
                     <div className="flex items-center space-x-5">
-                        <div className="w-20 h-20 bg-emerald-500/20 rounded-3xl flex items-center justify-center text-emerald-500 font-bold text-3xl shadow-inner">
-                            {cliente.nombreCompleto.charAt(0)}
+                        <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-white text-3xl font-black mb-4">
+                            {(cliente.nombreCompleto || cliente.nombre || "C").charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <h4 className="text-2xl font-black text-white leading-tight truncate">{cliente.nombreCompleto}</h4>
+                            <h4 className="text-2xl font-black text-white leading-tight truncate">{cliente.nombreCompleto || cliente.nombre || "Sin Nombre"}</h4>
                             <p className="text-sm text-slate-500 font-mono tracking-tighter mt-1 uppercase">ID: {cliente.id}</p>
                         </div>
                     </div>
@@ -96,7 +96,7 @@ export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-sm">
                             <p className="text-[10px] text-slate-500 uppercase font-black mb-1 tracking-widest">Saldo Actual</p>
-                            <p className="text-2xl font-black text-white">{formatCurrency(cliente.saldoPendiente)}</p>
+                            <p className="text-2xl font-black text-white">{formatCurrency(cliente.saldoPendiente || cliente.saldo || 0)}</p>
                         </div>
                         <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-sm">
                             <p className="text-[10px] text-slate-500 uppercase font-black mb-1 tracking-widest">Saldo Vencido</p>

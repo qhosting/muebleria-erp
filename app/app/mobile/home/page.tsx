@@ -130,7 +130,7 @@ export default function MobileHome() {
 
                 {proximosClientes.length > 0 ? (
                     proximosClientes.map((cliente: any) => (
-                        <Link key={cliente.id} href={`/mobile/clientes?search=${encodeURIComponent(cliente.nombre)}`} className="block">
+                        <Link key={cliente.id} href={`/mobile/clientes?id=${cliente.id}&search=${encodeURIComponent(cliente.nombre)}`} className="block">
                             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between active:scale-95 transition-transform">
                                 <div className="flex items-center space-x-3">
                                     <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center font-bold text-emerald-500">
@@ -142,8 +142,8 @@ export default function MobileHome() {
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="font-mono text-emerald-500 font-bold">${cliente.saldo}</p>
-                                    <p className="text-[10px] text-amber-500 uppercase font-bold">Vencido: ${cliente.vencido}</p>
+                                    <p className="font-mono text-emerald-500 font-bold">${Math.round(cliente.saldo)}</p>
+                                    <p className="text-[10px] text-amber-500 uppercase font-bold">Vencido: ${Math.round(cliente.vencido)}</p>
                                 </div>
                             </div>
                         </Link>

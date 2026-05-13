@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
+import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 
 interface ConvenioModalProps {
     cliente: any;
@@ -79,7 +80,7 @@ export function ConvenioModal({ cliente, isOpen, onClose, onSuccess, isOnline }:
             await printConvenio({
                 ...convenio,
                 cliente: {
-                    nombreCompleto: cliente.nombreCompleto,
+                    nombreCompleto: cliente.nombreCompleto || cliente.nombre,
                     codigoCliente: cliente.codigoCliente
                 },
                 gestor: {
@@ -169,11 +170,11 @@ export function ConvenioModal({ cliente, isOpen, onClose, onSuccess, isOnline }:
                     {/* INFO CLIENTE */}
                     <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center gap-4">
                         <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-500 font-bold">
-                            {cliente.nombre.charAt(0)}
+                            {(cliente.nombreCompleto || cliente.nombre || "C").charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Saldo Pendiente</p>
-                            <p className="text-xl font-black text-white">{formatCurrency(cliente.saldo)}</p>
+                            <p className="text-xl font-black text-white">{formatCurrency(cliente.saldoPendiente || cliente.saldo || 0)}</p>
                         </div>
                     </div>
 
