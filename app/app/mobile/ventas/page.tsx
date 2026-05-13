@@ -11,7 +11,7 @@ import { LeadModal } from "@/components/mobile/lead-modal";
 import { LeadConversionModal } from "@/components/mobile/lead-conversion-modal";
 import { DigitalizadorModal } from "@/components/ventas/digitalizador-modal";
 import { useSession } from "next-auth/react";
-import { TrendingUp, Target, Package, DollarSign, Calendar, ChevronRight, User, MapPin, UserPlus, Star, Tag, UserCheck } from "lucide-react";
+import { TrendingUp, Target, Package, DollarSign, Calendar, ChevronRight, User, MapPin, UserPlus, Star, Tag, UserCheck, FileText, Image as ImageIcon } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -190,9 +190,6 @@ export default function SalesMobilePage() {
                 </Card>
               ))
             )}
-          </div>
-        </div>
-
           </div>
         </div>
 
