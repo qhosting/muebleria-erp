@@ -16,8 +16,38 @@ export async function GET(request: NextRequest) {
         const codigo = searchParams.get('codigo');
         const folio = searchParams.get('folio');
         const search = searchParams.get('search');
+        const mine = searchParams.get('mine') === 'true';
 
         const db = prisma as any;
+
+        // Si se solicita "mis documentos" (recientes)
+        if (mine) {
+            const documentos = await db.documentoBoveda.findMany({
+                where: { vendedorId: (session.user as any).id },
+                orderBy: { createdAt: 'desc' },
+                take: 15
+            });
+
+            // Agrupar por expediente (CURP/Nombre)
+            const expedientes: any[] = [];
+            const seenKeys = new Set();
+
+            documentos.forEach((doc: any) => {
+                const key = doc.clienteCurp || doc.nombreCliente || doc.folioContrato;
+                if (!seenKeys.has(key)) {
+                    seenKeys.add(key);
+                    expedientes.push({
+                        nombreCompleto: doc.nombreCliente,
+                        curp: doc.clienteCurp,
+                        codigoCliente: doc.codigoCliente,
+                        folioContrato: doc.folioContrato,
+                        recent: true // Marca para UI
+                    });
+                }
+            });
+
+            return NextResponse.json(expedientes);
+        }
 
         // Si hay un término de búsqueda general, buscamos de forma más amplia
         if (search) {

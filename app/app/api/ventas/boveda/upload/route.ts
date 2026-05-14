@@ -56,7 +56,8 @@ export async function POST(request: NextRequest) {
                 nombreCliente,
                 tipoDocumento,
                 url: publicUrl,
-                status: 'PENDIENTE'
+                status: 'PENDIENTE',
+                vendedorId: (session.user as any).id
             }
         });
 

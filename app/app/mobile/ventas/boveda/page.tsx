@@ -33,6 +33,8 @@ export default function MobileBovedaPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<any[]>([]);
+    const [recentResults, setRecentResults] = useState<any[]>([]);
+    const [loadingRecent, setLoadingRecent] = useState(false);
     
     // Estados para el modal del digitalizador
     const [showDigitalizador, setShowDigitalizador] = useState(false);
@@ -45,6 +47,25 @@ export default function MobileBovedaPage() {
         codigo: '',
         contrato: ''
     });
+
+    useEffect(() => {
+        fetchRecent();
+    }, []);
+
+    const fetchRecent = async () => {
+        setLoadingRecent(true);
+        try {
+            const res = await fetch('/api/ventas/boveda/list?mine=true');
+            if (res.ok) {
+                const data = await res.json();
+                setRecentResults(data);
+            }
+        } catch (error) {
+            console.error('Error al cargar recientes:', error);
+        } finally {
+            setLoadingRecent(false);
+        }
+    };
 
     const handleCreateExpediente = () => {
         if (!newClient.nombre) {
@@ -140,44 +161,52 @@ export default function MobileBovedaPage() {
                             <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto mb-4" />
                             <p className="text-slate-500 font-medium">Buscando expedientes...</p>
                         </div>
-                    ) : results.length > 0 ? (
-                        results.map((res: any, idx: number) => (
-                            <div 
-                                key={idx} 
-                                className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4 shadow-lg active:scale-[0.98] transition-transform"
-                                onClick={() => openVaultForCliente(res)}
-                            >
-                                <div className="flex justify-between items-start">
-                                    <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
-                                        <Fingerprint className="h-6 w-6" />
-                                    </div>
-                                    <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px]">
-                                        ACTIVO
-                                    </Badge>
+                    ) : (searchTerm ? results : recentResults).length > 0 ? (
+                        <>
+                            {!searchTerm && (
+                                <div className="flex items-center gap-2 px-1 mb-2">
+                                    <Clock className="w-4 h-4 text-emerald-500" />
+                                    <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Mis Expedientes Recientes</h2>
                                 </div>
-                                
-                                <div>
-                                    <h3 className="font-bold text-slate-100 text-lg uppercase leading-tight">
-                                        {res.nombreCompleto || 'N/A'}
-                                    </h3>
-                                    <div className="space-y-1 mt-2">
-                                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                                            <ShieldCheck className="h-3.5 w-3.5" />
-                                            <span className="font-mono">{res.curp || 'SIN CURP'}</span>
+                            )}
+                            {(searchTerm ? results : recentResults).map((res: any, idx: number) => (
+                                <div 
+                                    key={idx} 
+                                    className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4 shadow-lg active:scale-[0.98] transition-transform"
+                                    onClick={() => openVaultForCliente(res)}
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
+                                            <Fingerprint className="h-6 w-6" />
                                         </div>
-                                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                                            <User className="h-3.5 w-3.5" />
-                                            <span>Código: {res.codigoCliente || 'N/A'}</span>
+                                        <Badge className={`${res.recent ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'} border-transparent text-[10px]`}>
+                                            {res.recent ? 'RECIENTE' : 'SISTEMA'}
+                                        </Badge>
+                                    </div>
+                                    
+                                    <div>
+                                        <h3 className="font-bold text-slate-100 text-lg uppercase leading-tight">
+                                            {res.nombreCompleto || 'N/A'}
+                                        </h3>
+                                        <div className="space-y-1 mt-2">
+                                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                <ShieldCheck className="h-3.5 w-3.5" />
+                                                <span className="font-mono">{res.curp || 'SIN CURP'}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                <User className="h-3.5 w-3.5" />
+                                                <span>Contrato: {res.folioContrato || 'N/A'}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                <Button className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-6 rounded-xl flex items-center justify-center gap-2">
-                                    <FileText className="h-5 w-5" />
-                                    ABRIR EXPEDIENTE
-                                </Button>
-                            </div>
-                        ))
+                                    <Button className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold h-12 rounded-xl flex items-center justify-center gap-2 border border-slate-700">
+                                        <FileText className="h-4 h-4" />
+                                        VER ESTATUS
+                                    </Button>
+                                </div>
+                            ))}
+                        </>
                     ) : searchTerm ? (
                         <div className="py-20 text-center">
                             <AlertCircle className="h-12 w-12 text-slate-700 mx-auto mb-4" />
@@ -193,11 +222,15 @@ export default function MobileBovedaPage() {
                                 Crear Nuevo Expediente
                             </Button>
                         </div>
+                    ) : loadingRecent ? (
+                        <div className="py-20 text-center">
+                            <Loader2 className="h-8 w-8 animate-spin text-slate-700 mx-auto" />
+                        </div>
                     ) : (
                         <div className="py-20 text-center space-y-4">
                             <Database className="h-16 w-16 text-slate-800 mx-auto opacity-20" />
                             <p className="text-slate-500 text-sm max-w-[200px] mx-auto">
-                                Ingresa datos para buscar o pulsa NUEVO para dar de alta.
+                                No tienes expedientes recientes. Ingresa datos para buscar o pulsa NUEVO.
                             </p>
                         </div>
                     )}
