@@ -41,7 +41,8 @@ export default function MobileBovedaPage() {
     const [newClient, setNewClient] = useState({
         nombre: '',
         curp: '',
-        codigo: ''
+        codigo: '',
+        contrato: ''
     });
 
     const handleCreateExpediente = () => {
@@ -50,9 +51,10 @@ export default function MobileBovedaPage() {
             return;
         }
         setSelectedCliente({
-            nombreCompleto: newClient.nombre,
-            curp: newClient.curp,
-            codigoCliente: newClient.codigo
+            nombreCompleto: newClient.nombre.toUpperCase(),
+            curp: newClient.curp.toUpperCase(),
+            codigoCliente: newClient.codigo.toUpperCase(),
+            numContrato: newClient.contrato.toUpperCase()
         });
         setIsCreating(false);
         setShowDigitalizador(true);
@@ -214,31 +216,40 @@ export default function MobileBovedaPage() {
                         <div className="space-y-2">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Nombre Completo</label>
                             <Input 
-                                className="bg-slate-900 border-slate-800 text-white h-12 rounded-xl"
-                                placeholder="Ej. Mario Pérez"
+                                className="bg-slate-900 border-slate-800 text-white h-12 rounded-xl uppercase"
+                                placeholder="EJ. MARIO PÉREZ"
                                 value={newClient.nombre}
-                                onChange={(e) => setNewClient({...newClient, nombre: e.target.value})}
+                                onChange={(e) => setNewClient({...newClient, nombre: e.target.value.toUpperCase()})}
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">CURP (Opcional)</label>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Folio Contrato</label>
                                 <Input 
-                                    className="bg-slate-900 border-slate-800 text-white h-12 rounded-xl font-mono uppercase"
-                                    placeholder="CURP"
-                                    value={newClient.curp}
-                                    onChange={(e) => setNewClient({...newClient, curp: e.target.value.toUpperCase()})}
+                                    className="bg-slate-900 border-slate-800 text-white h-12 rounded-xl uppercase"
+                                    placeholder="FOLIO"
+                                    value={newClient.contrato}
+                                    onChange={(e) => setNewClient({...newClient, contrato: e.target.value.toUpperCase()})}
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Código Cliente</label>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Código (Opcional)</label>
                                 <Input 
-                                    className="bg-slate-900 border-slate-800 text-white h-12 rounded-xl"
-                                    placeholder="Código"
+                                    className="bg-slate-900 border-slate-800 text-white h-12 rounded-xl uppercase"
+                                    placeholder="CÓDIGO"
                                     value={newClient.codigo}
-                                    onChange={(e) => setNewClient({...newClient, codigo: e.target.value})}
+                                    onChange={(e) => setNewClient({...newClient, codigo: e.target.value.toUpperCase()})}
                                 />
                             </div>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">CURP (Opcional)</label>
+                            <Input 
+                                className="bg-slate-900 border-slate-800 text-white h-12 rounded-xl font-mono uppercase"
+                                placeholder="CURP"
+                                value={newClient.curp}
+                                onChange={(e) => setNewClient({...newClient, curp: e.target.value.toUpperCase()})}
+                            />
                         </div>
                         <Button 
                             className="w-full bg-emerald-600 hover:bg-emerald-500 h-14 rounded-xl font-bold mt-4"
