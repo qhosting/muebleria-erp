@@ -24,6 +24,7 @@ export class ContpaqiService {
         return name.trim();
     }
 
+    private async request(endpoint: string, method: string = 'GET', body?: any) {
         const url = new URL(endpoint, this.config.apiUrl);
         
         // Auto-inyectar empresa si está configurada y no está en el endpoint
@@ -48,7 +49,7 @@ export class ContpaqiService {
             `${this.config.apiKey.substring(0, 4)}...${this.config.apiKey.substring(this.config.apiKey.length - 2)}` : 
             'MISSING';
         
-        console.log(`🌐 [Contpaqi Request] ${method} ${url} | Key: ${maskedKey}`);
+        console.log(`🌐 [Contpaqi Request] ${method} ${finalUrl} | Key: ${maskedKey}`);
 
         let response;
         try {
