@@ -5,7 +5,7 @@ import {
     User, Phone, MapPin, Search, CreditCard, 
     Home, Briefcase, Camera, Check, AlertCircle, 
     ChevronRight, ChevronLeft, Loader2, FileText, 
-    ShieldCheck, UserCheck
+    ShieldCheck, UserCheck, Image as ImageIcon
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
