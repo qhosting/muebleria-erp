@@ -121,27 +121,29 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
             </main>
 
             {/* BOTTOM NAVIGATION BAR */}
-            <nav className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 pb-safe-bottom z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.3)]">
-                <div className="grid grid-cols-5 h-16">
-                    <NavButton icon="home" label="Inicio" href="/mobile/home" active={pathname === "/mobile/home"} />
-                    
-                    {isVendedor ? (
-                        <>
-                            <NavButton icon="shopping-bag" label="Ventas" href="/mobile/ventas" active={pathname === "/mobile/ventas"} />
-                            <NavButton icon="message-square" label="Prospectos" href="/mobile/ventas#leads" active={pathname === "/mobile/ventas"} />
-                            <NavButton icon="database" label="Bóveda" href="/dashboard/ventas/boveda" active={pathname === "/dashboard/ventas/boveda"} />
-                        </>
-                    ) : (
-                        <>
-                            <NavButton icon="users" label="Clientes" href="/mobile/clientes" active={pathname === "/mobile/clientes"} />
-                            <NavButton icon="convenios" label="Convenios" href="/mobile/convenios" active={pathname === "/mobile/convenios"} badge={pendingCount > 0 ? pendingCount : undefined} />
-                            <NavButton icon="dollar" label="Caja" href="/mobile/caja" active={pathname === "/mobile/caja"} />
-                        </>
-                    )}
-                    
-                    <NavButton icon="menu" label="Menú" href="/mobile/menu" active={pathname === "/mobile/menu"} badge={!isVendedor && pendingCount > 0 ? true : false} />
-                </div>
-            </nav>
+            {!pathname.includes('/mobile/ventas/solicitud') && (
+                <nav className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 pb-safe-bottom z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.3)]">
+                    <div className="grid grid-cols-5 h-16">
+                        <NavButton icon="home" label="Inicio" href="/mobile/home" active={pathname === "/mobile/home"} />
+                        
+                        {isVendedor ? (
+                            <>
+                                <NavButton icon="shopping-bag" label="Ventas" href="/mobile/ventas" active={pathname === "/mobile/ventas"} />
+                                <NavButton icon="message-square" label="Prospectos" href="/mobile/ventas#leads" active={pathname === "/mobile/ventas"} />
+                                <NavButton icon="database" label="Bóveda" href="/mobile/ventas/boveda" active={pathname === "/mobile/ventas/boveda"} />
+                            </>
+                        ) : (
+                            <>
+                                <NavButton icon="users" label="Clientes" href="/mobile/clientes" active={pathname === "/mobile/clientes"} />
+                                <NavButton icon="convenios" label="Convenios" href="/mobile/convenios" active={pathname === "/mobile/convenios"} badge={pendingCount > 0 ? pendingCount : undefined} />
+                                <NavButton icon="dollar" label="Caja" href="/mobile/caja" active={pathname === "/mobile/caja"} />
+                            </>
+                        )}
+                        
+                        <NavButton icon="menu" label="Menú" href="/mobile/menu" active={pathname === "/mobile/menu"} badge={!isVendedor && pendingCount > 0 ? true : false} />
+                    </div>
+                </nav>
+            )}
         </div>
     );
 }
