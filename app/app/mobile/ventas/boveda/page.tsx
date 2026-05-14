@@ -29,6 +29,7 @@ import Link from 'next/link';
 
 export default function MobileBovedaPage() {
     const { data: session } = useSession();
+    const isAdmin = ['admin', 'jefe_ventas', 'gestor_cobranza'].includes((session?.user as any)?.role);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<any[]>([]);
@@ -222,7 +223,7 @@ export default function MobileBovedaPage() {
                                 onChange={(e) => setNewClient({...newClient, nombre: e.target.value.toUpperCase()})}
                             />
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className={isAdmin ? "grid grid-cols-2 gap-3" : ""}>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Folio Contrato</label>
                                 <Input 
@@ -232,15 +233,17 @@ export default function MobileBovedaPage() {
                                     onChange={(e) => setNewClient({...newClient, contrato: e.target.value.toUpperCase()})}
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Código (Opcional)</label>
-                                <Input 
-                                    className="bg-slate-900 border-slate-800 text-white h-12 rounded-xl uppercase"
-                                    placeholder="CÓDIGO"
-                                    value={newClient.codigo}
-                                    onChange={(e) => setNewClient({...newClient, codigo: e.target.value.toUpperCase()})}
-                                />
-                            </div>
+                            {isAdmin && (
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Código (Opcional)</label>
+                                    <Input 
+                                        className="bg-slate-900 border-slate-800 text-white h-12 rounded-xl uppercase"
+                                        placeholder="CÓDIGO"
+                                        value={newClient.codigo}
+                                        onChange={(e) => setNewClient({...newClient, codigo: e.target.value.toUpperCase()})}
+                                    />
+                                </div>
+                            )}
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">CURP (Opcional)</label>
@@ -267,7 +270,7 @@ export default function MobileBovedaPage() {
                     open={showDigitalizador}
                     onOpenChange={setShowDigitalizador}
                     cliente={selectedCliente}
-                    isAdmin={['admin', 'jefe_ventas', 'gestor_cobranza'].includes((session?.user as any)?.role)}
+                    isAdmin={isAdmin}
                 />
             )}
         </div>
