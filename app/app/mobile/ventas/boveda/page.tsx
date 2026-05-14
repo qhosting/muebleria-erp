@@ -9,12 +9,19 @@ import {
     AlertCircle,
     Loader2,
     Database,
-    Fingerprint,
+    Fingerprint, 
+    UserPlus,
     ChevronLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { 
+    Dialog, 
+    DialogContent, 
+    DialogHeader, 
+    DialogTitle 
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { DigitalizadorModal } from '@/components/ventas/digitalizador-modal';
 import { useSession } from 'next-auth/react';
@@ -29,6 +36,27 @@ export default function MobileBovedaPage() {
     // Estados para el modal del digitalizador
     const [showDigitalizador, setShowDigitalizador] = useState(false);
     const [selectedCliente, setSelectedCliente] = useState<any>(null);
+
+    const [isCreating, setIsCreating] = useState(false);
+    const [newClient, setNewClient] = useState({
+        nombre: '',
+        curp: '',
+        codigo: ''
+    });
+
+    const handleCreateExpediente = () => {
+        if (!newClient.nombre) {
+            toast.error("El nombre es obligatorio");
+            return;
+        }
+        setSelectedCliente({
+            nombreCompleto: newClient.nombre,
+            curp: newClient.curp,
+            codigoCliente: newClient.codigo
+        });
+        setIsCreating(false);
+        setShowDigitalizador(true);
+    };
 
     const handleSearch = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -67,16 +95,26 @@ export default function MobileBovedaPage() {
         <div className="min-h-screen bg-slate-950 text-slate-200 pb-20">
             {/* Header */}
             <div className="bg-slate-900/50 backdrop-blur-md border-b border-slate-800 p-4 sticky top-0 z-10">
-                <div className="flex items-center gap-3">
-                    <Link href="/mobile/home" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
-                        <ChevronLeft className="w-6 h-6 text-slate-400" />
-                    </Link>
-                    <div className="flex items-center gap-2">
-                        <div className="bg-blue-500/20 p-2 rounded-lg">
-                            <Database className="w-5 h-5 text-blue-400" />
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Link href="/mobile/home" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
+                            <ChevronLeft className="w-6 h-6 text-slate-400" />
+                        </Link>
+                        <div className="flex items-center gap-2">
+                            <div className="bg-blue-500/20 p-2 rounded-lg">
+                                <Database className="w-5 h-5 text-blue-400" />
+                            </div>
+                            <h1 className="font-bold text-lg">Bóveda Digital</h1>
                         </div>
-                        <h1 className="font-bold text-lg">Bóveda Digital</h1>
                     </div>
+                    <Button 
+                        size="sm" 
+                        onClick={() => setIsCreating(true)}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-full px-4 h-9 font-bold text-xs gap-1.5"
+                    >
+                        <UserPlus className="w-4 h-4" />
+                        NUEVO
+                    </Button>
                 </div>
             </div>
 
@@ -90,7 +128,6 @@ export default function MobileBovedaPage() {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
-                    <button type="submit" className="hidden">Buscar</button>
                 </form>
 
                 {/* Results Section */}
@@ -142,18 +179,76 @@ export default function MobileBovedaPage() {
                         <div className="py-20 text-center">
                             <AlertCircle className="h-12 w-12 text-slate-700 mx-auto mb-4" />
                             <h3 className="text-lg font-bold text-slate-400">Sin resultados</h3>
-                            <p className="text-slate-600 text-sm">No encontramos expedientes para "{searchTerm}"</p>
+                            <p className="text-slate-600 text-sm mb-6">No encontramos expedientes para "{searchTerm}"</p>
+                            <Button 
+                                onClick={() => {
+                                    setNewClient({ ...newClient, nombre: searchTerm });
+                                    setIsCreating(true);
+                                }}
+                                className="bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl h-12"
+                            >
+                                Crear Nuevo Expediente
+                            </Button>
                         </div>
                     ) : (
                         <div className="py-20 text-center space-y-4">
                             <Database className="h-16 w-16 text-slate-800 mx-auto opacity-20" />
                             <p className="text-slate-500 text-sm max-w-[200px] mx-auto">
-                                Ingresa datos para buscar en el archivo digital centralizado.
+                                Ingresa datos para buscar o pulsa NUEVO para dar de alta.
                             </p>
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* MODAL DE NUEVO EXPEDIENTE */}
+            <Dialog open={isCreating} onOpenChange={setIsCreating}>
+                <DialogContent className="max-w-[95%] w-[420px] bg-slate-950 border-slate-800 rounded-3xl p-6">
+                    <DialogHeader className="mb-4">
+                        <DialogTitle className="text-white flex items-center gap-2">
+                            <UserPlus className="w-5 h-5 text-emerald-500" />
+                            Nuevo Expediente Digital
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Nombre Completo</label>
+                            <Input 
+                                className="bg-slate-900 border-slate-800 text-white h-12 rounded-xl"
+                                placeholder="Ej. Mario Pérez"
+                                value={newClient.nombre}
+                                onChange={(e) => setNewClient({...newClient, nombre: e.target.value})}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">CURP (Opcional)</label>
+                                <Input 
+                                    className="bg-slate-900 border-slate-800 text-white h-12 rounded-xl font-mono uppercase"
+                                    placeholder="CURP"
+                                    value={newClient.curp}
+                                    onChange={(e) => setNewClient({...newClient, curp: e.target.value.toUpperCase()})}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Código Cliente</label>
+                                <Input 
+                                    className="bg-slate-900 border-slate-800 text-white h-12 rounded-xl"
+                                    placeholder="Código"
+                                    value={newClient.codigo}
+                                    onChange={(e) => setNewClient({...newClient, codigo: e.target.value})}
+                                />
+                            </div>
+                        </div>
+                        <Button 
+                            className="w-full bg-emerald-600 hover:bg-emerald-500 h-14 rounded-xl font-bold mt-4"
+                            onClick={handleCreateExpediente}
+                        >
+                            INICIAR CARGA DE DOCUMENTOS
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* MODAL DEL DIGITALIZADOR */}
             {selectedCliente && (
