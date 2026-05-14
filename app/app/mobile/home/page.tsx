@@ -136,7 +136,7 @@ export default function MobileHome() {
                         </div>
                         <span className="text-xs font-bold text-slate-300">Nuevo Lead</span>
                     </Link>
-                    <Link href="/dashboard/ventas/boveda" className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center justify-center space-y-2 active:scale-95 transition-transform">
+                    <Link href="/mobile/ventas/boveda" className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center justify-center space-y-2 active:scale-95 transition-transform">
                         <div className="h-10 w-10 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center">
                             <Printer className="h-5 w-5" />
                         </div>
