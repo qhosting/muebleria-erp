@@ -10,7 +10,8 @@ import { LeadModal } from "@/components/mobile/lead-modal";
 import { LeadConversionModal } from "@/components/mobile/lead-conversion-modal";
 import { DigitalizadorModal } from "@/components/ventas/digitalizador-modal";
 import { useSession } from "next-auth/react";
-import { TrendingUp, Target, Package, DollarSign, Calendar, ChevronRight, User, MapPin, UserPlus, Star, Tag, UserCheck, FileText, Image as ImageIcon, Loader2 } from "lucide-react";
+import { TrendingUp, Target, Package, DollarSign, Calendar, ChevronRight, User, MapPin, UserPlus, Star, Tag, UserCheck, FileText, Image as ImageIcon, Loader2, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -136,8 +137,14 @@ export default function SalesMobilePage() {
       )}
 
       {/* --- ACCIONES --- */}
-      <div className="grid grid-cols-1 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <LeadModal onSuccess={fetchMetrics} />
+        <Link href="/mobile/ventas/solicitud" className="flex-1">
+          <Button className="w-full bg-slate-900 hover:bg-slate-800 h-12 rounded-xl shadow-lg flex items-center justify-center gap-2 border border-slate-700">
+            <ShieldCheck className="h-5 w-5 text-emerald-500" />
+            Nueva Solicitud
+          </Button>
+        </Link>
       </div>
 
       {/* --- VENTAS DEL DÍA --- */}
@@ -241,9 +248,9 @@ export default function SalesMobilePage() {
                     onClick={() => {
                       setSelectedForDocs({
                         nombreCompleto: sol.nombreCompleto,
-                        curp: sol.curp,
-                        codigoCliente: sol.contpaqiCodigo,
-                        numContrato: sol.folio
+                        curp: sol.curp || "",
+                        codigoCliente: sol.contpaqiCodigo || "",
+                        numContrato: sol.id // Usamos el ID de solicitud como folio para la bóveda
                       });
                       setShowDigitalizador(true);
                     }}

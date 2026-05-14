@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
         const data = {
             nombreCompleto: formData.get("nombreCompleto") as string,
             telefono: formData.get("telefono") as string,
+            curp: formData.get("curp") as string,
             direccion: formData.get("direccion") as string,
             productoInteres: formData.get("productoInteres") as string,
             montoSolicitado: parseFloat(formData.get("montoSolicitado") as string || "0"),

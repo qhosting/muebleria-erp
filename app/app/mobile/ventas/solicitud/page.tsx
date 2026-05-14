@@ -23,6 +23,7 @@ export default function VendedorSolicitudPage() {
     const [formData, setFormData] = useState({
         nombreCompleto: "",
         telefono: "",
+        curp: "",
         direccion: "",
         scoreBuro: 0,
         tipoPropiedad: "PROPIA",
@@ -214,6 +215,17 @@ export default function VendedorSolicitudPage() {
                                         onChange={handleInputChange}
                                         placeholder="10 dígitos"
                                         className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-xs text-slate-500 ml-1">CURP</label>
+                                    <input 
+                                        name="curp"
+                                        value={formData.curp}
+                                        onChange={handleInputChange}
+                                        placeholder="18 caracteres"
+                                        className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none uppercase"
                                     />
                                 </div>
                                 
