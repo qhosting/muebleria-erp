@@ -6,6 +6,7 @@
 export interface ContpaqiConfig {
     apiUrl: string;
     apiKey: string;
+    empresa?: string;
 }
 
 export class ContpaqiService {
@@ -23,16 +24,20 @@ export class ContpaqiService {
         return name.trim();
     }
 
-    private async request(endpoint: string, method: string = 'GET', body?: any) {
-        // Limpiamos el nombre de la empresa si viene en la query string
-        let finalEndpoint = endpoint;
-        if (endpoint.includes('empresa=')) {
-            const parts = endpoint.split('empresa=');
-            const empresaValue = decodeURIComponent(parts[1]);
-            finalEndpoint = `${parts[0]}empresa=${encodeURIComponent(this.cleanEmpresaName(empresaValue))}`;
+        const url = new URL(endpoint, this.config.apiUrl);
+        
+        // Auto-inyectar empresa si está configurada y no está en el endpoint
+        if (this.config.empresa && !url.searchParams.has('empresa')) {
+            url.searchParams.set('empresa', this.cleanEmpresaName(this.config.empresa));
         }
 
-        const url = `${this.config.apiUrl}${finalEndpoint}`;
+        // Limpiar el nombre de la empresa si ya venía en el endpoint (por compatibilidad)
+        if (url.searchParams.has('empresa')) {
+            const empresaValue = url.searchParams.get('empresa') || '';
+            url.searchParams.set('empresa', this.cleanEmpresaName(empresaValue));
+        }
+
+        const finalUrl = url.toString();
         const headers: any = {
             'Content-Type': 'application/json',
             'X-API-Key': this.config.apiKey.trim()
@@ -47,19 +52,19 @@ export class ContpaqiService {
 
         let response;
         try {
-            response = await fetch(url, {
+            response = await fetch(finalUrl, {
                 method,
                 headers,
                 body: body ? JSON.stringify(body) : undefined
             });
         } catch (e: any) {
-            console.error(`❌ Fetch failed to ${url}:`, e.message);
-            throw new Error(`No se pudo conectar con el servidor Contpaqi en ${url}. Verifique que la URL sea correcta y el servidor esté encendido. (${e.message})`);
+            console.error(`❌ Fetch failed to ${finalUrl}:`, e.message);
+            throw new Error(`No se pudo conectar con el servidor Contpaqi en ${finalUrl}. Verifique que la URL sea correcta y el servidor esté encendido. (${e.message})`);
         }
 
         if (!response.ok) {
             const error = await response.text();
-            throw new Error(`Contpaqi API Error (${response.status}) at ${url}: ${error}`);
+            throw new Error(`Contpaqi API Error (${response.status}) at ${finalUrl}: ${error}`);
         }
 
         return await response.json();
@@ -367,7 +372,9 @@ export async function getContpaqiService(prisma?: any, empresaId?: string): Prom
                 if (empresa) {
                     apiUrl = empresa.apiUrl || apiUrl;
                     apiKey = empresa.apiKey || apiKey;
-                    console.log(`🏢 Usando credenciales de empresa: ${empresa.nombre} (ID: ${empresaId})`);
+                    const empresaName = empresa.nombre || empresa.baseDatos;
+                    console.log(`🏢 Usando credenciales de empresa: ${empresaName} (ID: ${empresaId})`);
+                    return new ContpaqiService({ apiUrl, apiKey, empresa: empresaName });
                 } else if (empresaId !== 'default') {
                     console.warn(`⚠️ No se encontró la empresa con ID: ${empresaId}, usando configuración base.`);
                 }
