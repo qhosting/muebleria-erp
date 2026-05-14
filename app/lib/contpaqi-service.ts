@@ -370,9 +370,9 @@ export async function getContpaqiService(prisma?: any, empresaId?: string): Prom
                 if (empresa) {
                     apiUrl = empresa.apiUrl || apiUrl;
                     apiKey = empresa.apiKey || apiKey;
-                    const empresaName = empresa.nombre || empresa.baseDatos;
-                    console.log(`🏢 Usando credenciales de empresa: ${empresaName} (ID: ${empresaId})`);
-                    return new ContpaqiService({ apiUrl, apiKey, empresa: empresaName });
+                    const empresaContext = empresa.baseDatos || empresa.nombre;
+                    console.log(`🏢 Usando credenciales de empresa: ${empresa.nombre} (DB: ${empresaContext})`);
+                    return new ContpaqiService({ apiUrl, apiKey, empresa: empresaContext });
                 } else if (empresaId !== 'default') {
                     console.warn(`⚠️ No se encontró la empresa con ID: ${empresaId}, usando configuración base.`);
                 }
