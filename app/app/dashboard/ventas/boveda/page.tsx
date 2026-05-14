@@ -43,6 +43,10 @@ export default function BovedaDigitalPage() {
     const [selectedCliente, setSelectedCliente] = useState<any>(null);
     const [recentResults, setRecentResults] = useState<any[]>([]);
     const [loadingRecent, setLoadingRecent] = useState(false);
+    
+    // Filtros
+    const [filterVendedor, setFilterVendedor] = useState('');
+    const [filterStatus, setFilterStatus] = useState('');
 
     // Estados para el modal de nuevo expediente
     const [isCreating, setIsCreating] = useState(false);
@@ -96,12 +100,14 @@ export default function BovedaDigitalPage() {
 
         setLoading(true);
         try {
-            // Buscamos en la boveda agrupando por CURP
-            const res = await fetch(`/api/ventas/boveda/list?search=${encodeURIComponent(searchTerm)}`);
+            const params = new URLSearchParams();
+            params.append('search', searchTerm);
+            if (filterVendedor === 'mine') params.append('mine', 'true');
+            if (filterStatus) params.append('status', filterStatus);
+
+            const res = await fetch(`/api/ventas/boveda/list?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
-                // La API list usualmente devuelve los documentos. 
-                // Necesitamos agruparlos por cliente o simplemente permitir abrir el digitalizador por cliente encontrado
                 setResults(data);
             }
         } catch (error) {
@@ -126,24 +132,7 @@ export default function BovedaDigitalPage() {
     return (
         <DashboardLayout>
             <div className="space-y-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex flex-col gap-1">
-                        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                            <Database className="h-8 w-8 text-blue-600" />
-                            Bóveda Digital de Documentos
-                        </h1>
-                        <p className="text-gray-500">
-                            Consulta y valida la documentación de clientes centralizada por CURP y Nombre.
-                        </p>
-                    </div>
-                    <Button 
-                        onClick={() => setIsCreating(true)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-6 h-12 shadow-md flex items-center gap-2"
-                    >
-                        <Plus className="h-5 w-5" />
-                        NUEVO EXPEDIENTE
-                    </Button>
-                </div>
+                {/* Encabezado eliminado como se solicitó */}
 
                 <Card className="border-none shadow-lg bg-gradient-to-br from-slate-50 to-white">
                     <CardHeader className="pb-4">
@@ -156,7 +145,7 @@ export default function BovedaDigitalPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleSearch} className="flex gap-2">
+                        <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-3">
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                                 <Input 
@@ -166,9 +155,42 @@ export default function BovedaDigitalPage() {
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
-                            <Button type="submit" disabled={loading} className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md">
-                                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'BUSCAR'}
-                            </Button>
+                            
+                            {/* Filtros solicitados */}
+                            <div className="flex gap-2">
+                                <select 
+                                    className="h-12 px-4 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={filterVendedor}
+                                    onChange={(e) => setFilterVendedor(e.target.value)}
+                                >
+                                    <option value="">Todos los Vendedores</option>
+                                    <option value="mine">Mis Registros</option>
+                                </select>
+                                <select 
+                                    className="h-12 px-4 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={filterStatus}
+                                    onChange={(e) => setFilterStatus(e.target.value)}
+                                >
+                                    <option value="">Cualquier Estado</option>
+                                    <option value="PENDIENTE">Pendientes</option>
+                                    <option value="VALIDADO">Validados</option>
+                                    <option value="RECHAZADO">Rechazados</option>
+                                </select>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <Button type="submit" disabled={loading} className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md">
+                                    {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'BUSCAR'}
+                                </Button>
+                                <Button 
+                                    type="button"
+                                    onClick={() => setIsCreating(true)}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-6 h-12 shadow-md flex items-center gap-2"
+                                >
+                                    <Plus className="h-5 w-5" />
+                                    NUEVO
+                                </Button>
+                            </div>
                         </form>
                     </CardContent>
                 </Card>

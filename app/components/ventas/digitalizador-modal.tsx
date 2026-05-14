@@ -164,7 +164,7 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+            <DialogContent className="max-w-[98vw] w-full h-[98vh] max-h-[98vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl">
                 <DialogHeader className="p-6 border-b bg-slate-50">
                     <DialogTitle className="flex items-center gap-2">
                         <FileText className="w-5 h-5 text-sky-600" />
@@ -187,7 +187,7 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                     </Button>
                                 </div>
                                 
-                                <div className="relative flex-1 bg-black rounded-xl overflow-hidden border border-slate-700 min-h-[350px] flex items-center justify-center">
+                                <div className="relative flex-1 bg-black rounded-xl overflow-hidden border border-slate-700 min-h-[500px] flex items-center justify-center">
                                     {selectedDoc.url.toLowerCase().endsWith('.pdf') ? (
                                         <iframe 
                                             src={selectedDoc.url} 
@@ -199,6 +199,10 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                             src={selectedDoc.url} 
                                             alt="Documento" 
                                             className="max-w-full max-h-full object-contain"
+                                            onError={(e) => {
+                                                console.error("Error al cargar imagen:", selectedDoc.url);
+                                                (e.target as any).src = "https://placehold.co/600x400?text=Error+al+cargar+imagen";
+                                            }}
                                         />
                                     )}
                                 </div>

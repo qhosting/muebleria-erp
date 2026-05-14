@@ -24,9 +24,15 @@ export async function GET(request: NextRequest) {
         if (mine) {
             const userRole = ((session.user as any).role || '').toLowerCase();
             const isAdmin = ['admin', 'jefe_ventas', 'gestor_cobranza', 'administrador'].includes(userRole);
+            const status = searchParams.get('status');
             
             const documentos = await db.documentoBoveda.findMany({
-                where: isAdmin ? {} : { vendedorId: (session.user as any).id },
+                where: {
+                    AND: [
+                        isAdmin ? {} : { vendedorId: (session.user as any).id },
+                        status ? { status } : {}
+                    ]
+                },
                 orderBy: { createdAt: 'desc' },
                 take: 50 // Aumentamos el límite para admins
             });
@@ -54,13 +60,20 @@ export async function GET(request: NextRequest) {
 
         // Si hay un término de búsqueda general, buscamos de forma más amplia
         if (search) {
+            const status = searchParams.get('status');
+            
             const documentos = await db.documentoBoveda.findMany({
                 where: {
-                    OR: [
-                        { nombreCliente: { contains: search, mode: 'insensitive' } },
-                        { clienteCurp: { contains: search, mode: 'insensitive' } },
-                        { codigoCliente: { contains: search, mode: 'insensitive' } },
-                        { folioContrato: { contains: search, mode: 'insensitive' } }
+                    AND: [
+                        {
+                            OR: [
+                                { nombreCliente: { contains: search, mode: 'insensitive' } },
+                                { clienteCurp: { contains: search, mode: 'insensitive' } },
+                                { codigoCliente: { contains: search, mode: 'insensitive' } },
+                                { folioContrato: { contains: search, mode: 'insensitive' } }
+                            ]
+                        },
+                        status ? { status } : {}
                     ]
                 },
                 orderBy: { createdAt: 'desc' }
