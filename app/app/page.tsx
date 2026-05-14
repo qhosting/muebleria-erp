@@ -22,7 +22,8 @@ export default async function HomePage() {
   if (session) {
     const userRole = (session.user as any)?.role;
     console.log('User session found, role:', userRole);
-    if (userRole === 'cobrador') {
+    const mobileRoles = ['cobrador', 'vendedor', 'jefe_ventas'];
+    if (mobileRoles.includes(userRole)) {
       redirect('/cobrador-app');
     }
     redirect('/dashboard');

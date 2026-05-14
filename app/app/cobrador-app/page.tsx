@@ -78,7 +78,11 @@ export default function CobradorAppPage() {
 
                 <h1 className="text-2xl font-bold tracking-tight text-center">
                     VertexERP
-                    <span className="block text-emerald-400 text-lg font-medium mt-1">Cobranza Móvil</span>
+                    <span className="block text-emerald-400 text-lg font-medium mt-1">
+                        {(session?.user as any)?.role === 'vendedor' || (session?.user as any)?.role === 'jefe_ventas' 
+                            ? 'Ventas Móvil' 
+                            : 'Cobranza Móvil'}
+                    </span>
                 </h1>
 
                 <div className="flex flex-col items-center space-y-4 w-full">
