@@ -10,7 +10,10 @@ import {
     Loader2,
     Database,
     Fingerprint,
-    UploadCloud
+    UploadCloud,
+    UserPlus,
+    Clock,
+    Plus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -20,6 +23,14 @@ import { toast } from 'sonner';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { DigitalizadorModal } from '@/components/ventas/digitalizador-modal';
 import { useSession } from 'next-auth/react';
+import { 
+    Dialog, 
+    DialogContent, 
+    DialogHeader, 
+    DialogTitle,
+    DialogFooter
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 export default function BovedaDigitalPage() {
     const { data: session } = useSession();
@@ -30,6 +41,51 @@ export default function BovedaDigitalPage() {
     // Estados para el modal del digitalizador
     const [showDigitalizador, setShowDigitalizador] = useState(false);
     const [selectedCliente, setSelectedCliente] = useState<any>(null);
+    const [recentResults, setRecentResults] = useState<any[]>([]);
+    const [loadingRecent, setLoadingRecent] = useState(false);
+
+    // Estados para el modal de nuevo expediente
+    const [isCreating, setIsCreating] = useState(false);
+    const [newClient, setNewClient] = useState({
+        nombre: '',
+        curp: '',
+        codigo: '',
+        contrato: ''
+    });
+
+    useEffect(() => {
+        fetchRecent();
+    }, []);
+
+    const fetchRecent = async () => {
+        setLoadingRecent(true);
+        try {
+            const res = await fetch('/api/ventas/boveda/list?mine=true');
+            if (res.ok) {
+                const data = await res.json();
+                setRecentResults(data);
+            }
+        } catch (error) {
+            console.error('Error al cargar recientes:', error);
+        } finally {
+            setLoadingRecent(false);
+        }
+    };
+
+    const handleCreateExpediente = () => {
+        if (!newClient.nombre) {
+            toast.error("El nombre es obligatorio");
+            return;
+        }
+        setSelectedCliente({
+            nombreCompleto: newClient.nombre.toUpperCase(),
+            curp: newClient.curp.toUpperCase(),
+            codigoCliente: newClient.codigo.toUpperCase(),
+            numContrato: newClient.contrato.toUpperCase()
+        });
+        setIsCreating(false);
+        setShowDigitalizador(true);
+    };
 
     const handleSearch = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -70,14 +126,23 @@ export default function BovedaDigitalPage() {
     return (
         <DashboardLayout>
             <div className="space-y-6">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                        <Database className="h-8 w-8 text-blue-600" />
-                        Bóveda Digital de Documentos
-                    </h1>
-                    <p className="text-gray-500">
-                        Consulta y valida la documentación de clientes centralizada por CURP y Nombre.
-                    </p>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex flex-col gap-1">
+                        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                            <Database className="h-8 w-8 text-blue-600" />
+                            Bóveda Digital de Documentos
+                        </h1>
+                        <p className="text-gray-500">
+                            Consulta y valida la documentación de clientes centralizada por CURP y Nombre.
+                        </p>
+                    </div>
+                    <Button 
+                        onClick={() => setIsCreating(true)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-6 h-12 shadow-md flex items-center gap-2"
+                    >
+                        <Plus className="h-5 w-5" />
+                        NUEVO EXPEDIENTE
+                    </Button>
                 </div>
 
                 <Card className="border-none shadow-lg bg-gradient-to-br from-slate-50 to-white">
@@ -109,66 +174,150 @@ export default function BovedaDigitalPage() {
                 </Card>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {loading && (
+                    {(loading || loadingRecent) && (
                         <div className="col-span-full py-20 text-center">
                             <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto mb-4" />
-                            <p className="text-slate-500 font-medium">Buscando en la base de datos segura...</p>
+                            <p className="text-slate-500 font-medium">Buscando expedientes seguros...</p>
                         </div>
                     )}
 
-                    {!loading && results.length > 0 && results.map((res: any, idx: number) => (
-                        <Card key={idx} className="hover:shadow-md transition-all border-slate-200 overflow-hidden group">
-                            <div className="h-2 bg-blue-500 w-0 group-hover:w-full transition-all duration-300" />
-                            <CardContent className="p-5">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="h-12 w-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600">
-                                        <Fingerprint className="h-6 w-6" />
-                                    </div>
-                                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-100">
-                                        EXPEDIENTE ACTIVO
-                                    </Badge>
+                    {!loading && !loadingRecent && (searchTerm ? results : recentResults).length > 0 && (
+                        <>
+                            {!searchTerm && (
+                                <div className="col-span-full flex items-center gap-2 mb-2 px-1">
+                                    <Clock className="h-5 w-5 text-emerald-500" />
+                                    <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Registros Recientes</h2>
                                 </div>
-                                <h3 className="font-bold text-slate-900 text-lg mb-1 uppercase">
-                                    {res.nombreCompleto || 'N/A'}
-                                </h3>
-                                <div className="space-y-2 mb-6">
-                                    <div className="flex items-center gap-2 text-sm text-slate-500">
-                                        <ShieldCheck className="h-4 w-4" />
-                                        <span className="font-mono">{res.curp}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-sm text-slate-500">
-                                        <User className="h-4 w-4" />
-                                        <span>Código: {res.codigoCliente || 'N/A'}</span>
-                                    </div>
-                                </div>
-                                <Button 
-                                    className="w-full bg-slate-900 hover:bg-black text-white rounded-xl py-6 flex items-center justify-center gap-2"
-                                    onClick={() => openVaultForCliente(res)}
-                                >
-                                    <FileText className="h-5 w-5" />
-                                    ABRIR BÓVEDA DIGITAL
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    ))}
+                            )}
+                            {(searchTerm ? results : recentResults).map((res: any, idx: number) => (
+                                <Card key={idx} className="hover:shadow-md transition-all border-slate-200 overflow-hidden group cursor-pointer" onClick={() => openVaultForCliente(res)}>
+                                    <div className="h-2 bg-blue-500 w-0 group-hover:w-full transition-all duration-300" />
+                                    <CardContent className="p-5">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="h-12 w-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600">
+                                                <Fingerprint className="h-6 w-6" />
+                                            </div>
+                                            <Badge variant="outline" className={`${res.recent ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
+                                                {res.recent ? 'RECIENTE' : 'SISTEMA'}
+                                            </Badge>
+                                        </div>
+                                        <h3 className="font-bold text-slate-900 text-lg mb-1 uppercase">
+                                            {res.nombreCompleto || 'N/A'}
+                                        </h3>
+                                        <div className="space-y-2 mb-6">
+                                            <div className="flex items-center gap-2 text-sm text-slate-500">
+                                                <ShieldCheck className="h-4 w-4" />
+                                                <span className="font-mono">{res.curp || 'SIN CURP'}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-sm text-slate-500">
+                                                <User className="h-4 w-4" />
+                                                <span>Folio: {res.folioContrato || 'N/A'}</span>
+                                            </div>
+                                        </div>
+                                        <Button 
+                                            className="w-full bg-slate-900 hover:bg-black text-white rounded-xl py-6 flex items-center justify-center gap-2"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openVaultForCliente(res);
+                                            }}
+                                        >
+                                            <FileText className="h-5 w-5" />
+                                            ABRIR BÓVEDA DIGITAL
+                                        </Button>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </>
+                    )}
 
-                    {!loading && searchTerm && results.length === 0 && (
+                    {!loading && !loadingRecent && searchTerm && results.length === 0 && (
                         <div className="col-span-full py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
                             <AlertCircle className="h-12 w-12 text-slate-300 mx-auto mb-4" />
                             <h3 className="text-lg font-bold text-slate-900">No se encontraron expedientes</h3>
                             <p className="text-slate-500">Prueba con otros términos o registra un nuevo contrato para generar la bóveda.</p>
+                            <Button 
+                                variant="outline"
+                                onClick={() => {
+                                    setNewClient({ ...newClient, nombre: searchTerm });
+                                    setIsCreating(true);
+                                }}
+                                className="mt-4 border-emerald-600 text-emerald-600 hover:bg-emerald-50"
+                            >
+                                Crear Nuevo Expediente
+                            </Button>
                         </div>
                     )}
 
-                    {!loading && !searchTerm && (
-                         <div className="col-span-full py-20 text-center">
+                    {!loading && !loadingRecent && !searchTerm && recentResults.length === 0 && (
+                         <div className="col-span-full py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
                             <UploadCloud className="h-16 w-16 text-slate-200 mx-auto mb-4" />
                             <p className="text-slate-400 font-medium max-w-xs mx-auto">
-                                Ingresa el nombre o CURP de un cliente para acceder a sus documentos digitalizados.
+                                No hay registros recientes. Ingresa el nombre o CURP de un cliente para acceder a sus documentos.
                             </p>
                          </div>
                     )}
                 </div>
+
+                {/* DIALOG DE NUEVO EXPEDIENTE */}
+                <Dialog open={isCreating} onOpenChange={setIsCreating}>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                                <UserPlus className="h-5 w-5 text-emerald-600" />
+                                Nuevo Expediente Digital
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="name">Nombre Completo</Label>
+                                <Input 
+                                    id="name" 
+                                    className="uppercase"
+                                    placeholder="EJ. MARIO PÉREZ" 
+                                    value={newClient.nombre}
+                                    onChange={(e) => setNewClient({...newClient, nombre: e.target.value.toUpperCase()})}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="contrato">Folio Contrato</Label>
+                                    <Input 
+                                        id="contrato" 
+                                        className="uppercase"
+                                        placeholder="C-0001" 
+                                        value={newClient.contrato}
+                                        onChange={(e) => setNewClient({...newClient, contrato: e.target.value.toUpperCase()})}
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="codigo">Código Cliente</Label>
+                                    <Input 
+                                        id="codigo" 
+                                        className="uppercase"
+                                        placeholder="12345" 
+                                        value={newClient.codigo}
+                                        onChange={(e) => setNewClient({...newClient, codigo: e.target.value.toUpperCase()})}
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="curp">CURP (Opcional)</Label>
+                                <Input 
+                                    id="curp" 
+                                    className="uppercase font-mono"
+                                    placeholder="CURP..." 
+                                    value={newClient.curp}
+                                    onChange={(e) => setNewClient({...newClient, curp: e.target.value.toUpperCase()})}
+                                />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={handleCreateExpediente}>
+                                INICIAR CARGA DE DOCUMENTOS
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
                 {/* MODAL DEL DIGITALIZADOR */}
                 {selectedCliente && (

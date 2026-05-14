@@ -22,10 +22,13 @@ export async function GET(request: NextRequest) {
 
         // Si se solicita "mis documentos" (recientes)
         if (mine) {
+            const userRole = ((session.user as any).role || '').toLowerCase();
+            const isAdmin = ['admin', 'jefe_ventas', 'gestor_cobranza', 'administrador'].includes(userRole);
+            
             const documentos = await db.documentoBoveda.findMany({
-                where: { vendedorId: (session.user as any).id },
+                where: isAdmin ? {} : { vendedorId: (session.user as any).id },
                 orderBy: { createdAt: 'desc' },
-                take: 15
+                take: 50 // Aumentamos el límite para admins
             });
 
             // Agrupar por expediente (CURP/Nombre)
@@ -54,7 +57,7 @@ export async function GET(request: NextRequest) {
             const documentos = await db.documentoBoveda.findMany({
                 where: {
                     OR: [
-                        { nombreCompleto: { contains: search, mode: 'insensitive' } },
+                        { nombreCliente: { contains: search, mode: 'insensitive' } },
                         { clienteCurp: { contains: search, mode: 'insensitive' } },
                         { codigoCliente: { contains: search, mode: 'insensitive' } },
                         { folioContrato: { contains: search, mode: 'insensitive' } }
@@ -68,11 +71,11 @@ export async function GET(request: NextRequest) {
             const seenCurps = new Set();
 
             documentos.forEach((doc: any) => {
-                const key = doc.clienteCurp || doc.nombreCompleto;
+                const key = doc.clienteCurp || doc.nombreCliente;
                 if (!seenCurps.has(key)) {
                     seenCurps.add(key);
                     expedientes.push({
-                        nombreCompleto: doc.nombreCompleto,
+                        nombreCompleto: doc.nombreCliente,
                         curp: doc.clienteCurp,
                         codigoCliente: doc.codigoCliente,
                         folioContrato: doc.folioContrato,
@@ -109,7 +112,8 @@ export async function GET(request: NextRequest) {
         console.error('Error en boveda list:', error);
         return NextResponse.json({ 
             error: 'Error al listar documentos',
-            details: error.message 
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         }, { status: 500 });
     }
 }
