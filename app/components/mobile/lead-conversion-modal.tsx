@@ -1,14 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserCheck, Home, MapPin, Phone, CreditCard, Save, ChevronRight, Info, DollarSign } from "lucide-react";
+import { UserCheck, Home, MapPin, Phone, CreditCard, Save, ChevronRight, Info, DollarSign, ChevronLeft, Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
-import { formatCurrency } from "@/lib/utils";
 
 interface LeadConversionModalProps {
   lead: any;
@@ -22,29 +21,26 @@ export function LeadConversionModal({ lead, open, onOpenChange, onSuccess }: Lea
   const [step, setStep] = useState(1);
   
   const [form, setForm] = useState({
-    // Datos Personales (vienen del lead)
     nombre: lead?.nombre || "",
     telefono: lead?.telefono || "",
-    
-    // Dirección Detallada
     calle: "",
     numeroExterior: "",
     colonia: "",
     codigoPostal: "",
     ciudad: "",
     referenciaDireccion: "",
-    
-    // Perfil de Crédito Básico
     tipoPropiedad: "PROPIA",
     ingresosMensuales: "",
     scoreBuro: "0",
-    
-    // Producto
     productoInteres: lead?.interes || "",
     pagoSemanalSugerido: ""
   });
 
   const handleConvert = async () => {
+    if (!form.calle || !form.colonia) {
+      toast.error("La dirección es obligatoria");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`/api/ventas/leads/${lead.id}/convert`, {
@@ -54,7 +50,7 @@ export function LeadConversionModal({ lead, open, onOpenChange, onSuccess }: Lea
       });
 
       if (res.ok) {
-        toast.success("Lead convertido a cliente. Enviado a aprobación.");
+        toast.success("¡Cliente registrado! Se ha enviado para validación.");
         onOpenChange(false);
         if (onSuccess) onSuccess();
       } else {
@@ -72,59 +68,64 @@ export function LeadConversionModal({ lead, open, onOpenChange, onSuccess }: Lea
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden rounded-t-3xl sm:rounded-2xl">
-        <DialogHeader className="p-6 bg-blue-600 text-white">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-lg">
-                <UserCheck className="h-6 w-6" />
+      <DialogContent className="max-w-[95%] w-[420px] p-0 overflow-hidden bg-slate-950 border-slate-800 rounded-3xl">
+        <DialogHeader className="p-6 bg-gradient-to-r from-blue-600/20 to-emerald-600/20 border-b border-slate-800">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-500 rounded-2xl shadow-lg shadow-blue-500/20">
+                <UserCheck className="h-6 w-6 text-white" />
             </div>
             <div>
-                <DialogTitle className="text-xl">Convertir a Cliente</DialogTitle>
-                <p className="text-blue-100 text-xs">Formalización de contrato en campo</p>
+                <DialogTitle className="text-xl text-white">Convertir a Cliente</DialogTitle>
+                <p className="text-slate-500 text-xs uppercase tracking-widest font-bold mt-0.5">Formalización en Campo</p>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto pb-10 custom-scrollbar">
             {step === 1 && (
-                <div className="space-y-4 animate-in slide-in-from-right duration-300">
-                    <div className="bg-blue-50 p-4 rounded-2xl flex items-start gap-3 border border-blue-100">
-                        <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div className="space-y-6 animate-in slide-in-from-right duration-300">
+                    <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex items-start gap-4">
+                        <div className="bg-blue-500/10 p-2 rounded-lg">
+                            <Info className="h-5 w-5 text-blue-400" />
+                        </div>
                         <div>
-                            <p className="text-sm font-bold text-blue-900">Datos del Prospecto</p>
-                            <p className="text-xs text-blue-700">{lead.nombre} • {lead.telefono}</p>
-                            <p className="text-xs text-blue-700 mt-1">Interés: <span className="font-bold">{lead.interes || "No especificado"}</span></p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Prospecto</p>
+                            <p className="text-sm font-bold text-slate-200">{lead.nombre}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{lead.telefono} • <span className="text-blue-400 font-bold">{lead.interes || "Sin producto"}</span></p>
                         </div>
                     </div>
 
-                    <div className="space-y-4 pt-2">
-                        <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Dirección de Entrega</h3>
+                    <div className="space-y-4">
+                        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Ubicación del Domicilio</h3>
                         
                         <div className="space-y-2">
-                            <Label className="text-xs">Calle y Número</Label>
-                            <Input 
-                                placeholder="Ej. Av. Juarez 123" 
-                                className="h-12 rounded-xl bg-gray-50"
-                                value={form.calle}
-                                onChange={(e) => setForm({...form, calle: e.target.value})}
-                            />
+                            <Label className="text-xs text-slate-400 ml-1">Calle y Número</Label>
+                            <div className="relative">
+                                <Home className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600" />
+                                <Input 
+                                    className="h-14 pl-12 rounded-2xl bg-slate-900 border-slate-800 text-white placeholder:text-slate-700" 
+                                    placeholder="Ej. Av. Juarez 123"
+                                    value={form.calle}
+                                    onChange={(e) => setForm({...form, calle: e.target.value})}
+                                />
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label className="text-xs">Colonia</Label>
+                                <Label className="text-xs text-slate-400 ml-1">Colonia</Label>
                                 <Input 
-                                    placeholder="Colonia" 
-                                    className="h-12 rounded-xl bg-gray-50"
+                                    className="h-14 rounded-2xl bg-slate-900 border-slate-800 text-white placeholder:text-slate-700" 
+                                    placeholder="Colonia"
                                     value={form.colonia}
                                     onChange={(e) => setForm({...form, colonia: e.target.value})}
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-xs">Código Postal</Label>
+                                <Label className="text-xs text-slate-400 ml-1">C.P.</Label>
                                 <Input 
-                                    placeholder="45600" 
-                                    className="h-12 rounded-xl bg-gray-50"
+                                    className="h-14 rounded-2xl bg-slate-900 border-slate-800 text-white placeholder:text-slate-700" 
+                                    placeholder="45600"
                                     value={form.codigoPostal}
                                     onChange={(e) => setForm({...form, codigoPostal: e.target.value})}
                                 />
@@ -132,83 +133,95 @@ export function LeadConversionModal({ lead, open, onOpenChange, onSuccess }: Lea
                         </div>
 
                         <div className="space-y-2">
-                            <Label className="text-xs">Referencias de Ubicación</Label>
+                            <Label className="text-xs text-slate-400 ml-1">Referencias</Label>
                             <Input 
-                                placeholder="Entre calles, color de casa, etc." 
-                                className="h-12 rounded-xl bg-gray-50"
+                                className="h-14 rounded-2xl bg-slate-900 border-slate-800 text-white placeholder:text-slate-700" 
+                                placeholder="Color de casa, entre calles..."
                                 value={form.referenciaDireccion}
                                 onChange={(e) => setForm({...form, referenciaDireccion: e.target.value})}
                             />
                         </div>
                     </div>
 
-                    <Button className="w-full h-12 bg-blue-600 rounded-xl mt-4" onClick={() => setStep(2)}>
-                        Siguiente Paso
-                        <ChevronRight className="h-4 w-4 ml-2" />
+                    <Button className="w-full h-16 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 mt-4" onClick={() => setStep(2)}>
+                        SIGUIENTE PASO
+                        <ChevronRight className="h-5 w-5" />
                     </Button>
                 </div>
             )}
 
             {step === 2 && (
-                <div className="space-y-4 animate-in slide-in-from-right duration-300">
-                    <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Perfil de Crédito</h3>
+                <div className="space-y-6 animate-in slide-in-from-right duration-300">
+                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Perfil y Propuesta</h3>
                     
-                    <div className="space-y-2">
-                        <Label className="text-xs">Tipo de Propiedad</Label>
-                        <Select value={form.tipoPropiedad} onValueChange={(v) => setForm({...form, tipoPropiedad: v})}>
-                            <SelectTrigger className="h-12 rounded-xl bg-gray-50">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="PROPIA">Propia</SelectItem>
-                                <SelectItem value="RENTADA">Rentada</SelectItem>
-                                <SelectItem value="FAMILIAR">Familiar</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label className="text-xs text-slate-400 ml-1">Tipo de Residencia</Label>
+                            <Select value={form.tipoPropiedad} onValueChange={(v) => setForm({...form, tipoPropiedad: v})}>
+                                <SelectTrigger className="h-14 rounded-2xl bg-slate-900 border-slate-800 text-white">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                                    <SelectItem value="PROPIA">Propia</SelectItem>
+                                    <SelectItem value="RENTADA">Rentada</SelectItem>
+                                    <SelectItem value="FAMILIAR">Familiar</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                    <div className="space-y-2">
-                        <Label className="text-xs">Ingresos Mensuales Aprox.</Label>
-                        <div className="relative">
-                            <DollarSign className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
-                            <Input 
-                                type="number"
-                                placeholder="0.00" 
-                                className="h-12 pl-10 rounded-xl bg-gray-50"
-                                value={form.ingresosMensuales}
-                                onChange={(e) => setForm({...form, ingresosMensuales: e.target.value})}
-                            />
+                        <div className="space-y-2">
+                            <Label className="text-xs text-slate-400 ml-1">Ingresos Estimados</Label>
+                            <div className="relative">
+                                <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
+                                <Input 
+                                    type="number"
+                                    className="h-14 pl-12 rounded-2xl bg-slate-900 border-slate-800 text-white placeholder:text-slate-700 font-bold" 
+                                    placeholder="0.00"
+                                    value={form.ingresosMensuales}
+                                    onChange={(e) => setForm({...form, ingresosMensuales: e.target.value})}
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    <div className="pt-4 border-t border-gray-100 space-y-4">
-                        <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Propuesta Económica</h3>
-                        <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
-                             <Label className="text-[10px] text-emerald-700 uppercase font-black">Pago Semanal Estimado</Label>
-                             <div className="flex items-center gap-3 mt-1">
-                                <div className="text-2xl font-black text-emerald-900">$</div>
+                    <div className="pt-4 border-t border-slate-800/50 space-y-4">
+                        <div className="bg-emerald-500/10 p-5 rounded-3xl border border-emerald-500/20">
+                             <div className="flex items-center gap-2 mb-2">
+                                <Zap className="h-4 w-4 text-emerald-500" />
+                                <Label className="text-[10px] text-emerald-500 uppercase font-black tracking-widest">Plan de Pago Sugerido</Label>
+                             </div>
+                             <div className="flex items-center gap-3">
+                                <div className="text-3xl font-black text-white">$</div>
                                 <Input 
                                     type="number"
-                                    className="bg-transparent border-none text-2xl font-black text-emerald-900 focus-visible:ring-0 p-0 h-auto"
+                                    className="bg-transparent border-none text-4xl font-black text-emerald-400 focus-visible:ring-0 p-0 h-auto w-full"
                                     placeholder="0"
                                     value={form.pagoSemanalSugerido}
                                     onChange={(e) => setForm({...form, pagoSemanalSugerido: e.target.value})}
                                 />
+                                <div className="text-xs font-bold text-slate-500 uppercase">/ Sem</div>
                              </div>
                         </div>
                     </div>
 
-                    <div className="flex gap-3 mt-6">
-                        <Button variant="outline" className="flex-1 h-12 rounded-xl" onClick={() => setStep(1)}>
-                            Regresar
+                    <div className="flex gap-4 mt-6">
+                        <Button variant="ghost" className="flex-1 h-16 rounded-2xl text-slate-400 font-bold hover:bg-slate-900" onClick={() => setStep(1)}>
+                            <ChevronLeft className="h-5 w-5 mr-1" />
+                            ATRÁS
                         </Button>
                         <Button 
-                            className="flex-[2] h-12 bg-gray-900 rounded-xl"
+                            className="flex-[2] h-16 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold shadow-xl shadow-emerald-900/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                             disabled={loading}
                             onClick={handleConvert}
                         >
-                            {loading ? "Procesando..." : "Finalizar y Enviar"}
-                            {!loading && <Save className="h-4 w-4 ml-2" />}
+                            {loading ? (
+                                <Loader2 className="h-6 w-6 animate-spin" />
+                            ) : (
+                                <>
+                                    <Save className="h-6 w-6" />
+                                    CONVERTIR AHORA
+                                </>
+                            )}
                         </Button>
                     </div>
                 </div>
