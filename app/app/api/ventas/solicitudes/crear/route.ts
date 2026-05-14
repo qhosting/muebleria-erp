@@ -17,17 +17,28 @@ export async function POST(req: NextRequest) {
     try {
         const formData = await req.formData();
         
-        // Extraer archivos
+        // Extraer archivos Cliente
         const ineFront = formData.get("ineFront") as File;
         const ineBack = formData.get("ineBack") as File;
         const comprobanteDomicilio = formData.get("comprobanteDomicilio") as File;
         const comprobanteIngresos = formData.get("comprobanteIngresos") as File;
         const comprobantePropiedad = formData.get("comprobantePropiedad") as File;
+        const contratoFront = formData.get("contratoFront") as File;
+        const contratoBack = formData.get("contratoBack") as File;
+        const selfie = formData.get("selfie") as File;
+
+        // Extraer archivos Aval
+        const avalIneFront = formData.get("avalIneFront") as File;
+        const avalIneBack = formData.get("avalIneBack") as File;
+        const avalComprobanteDomicilio = formData.get("avalComprobanteDomicilio") as File;
+        const avalContratoFront = formData.get("avalContratoFront") as File;
+        const avalContratoBack = formData.get("avalContratoBack") as File;
+        const avalSelfie = formData.get("avalSelfie") as File;
 
         const uploadDir = join(process.cwd(), "public", "uploads", "solicitudes");
 
         const saveFile = async (file: File | null) => {
-            if (!file) return null;
+            if (!file || typeof file === 'string') return null;
             const bytes = await file.arrayBuffer();
             const buffer = Buffer.from(bytes);
             const fileName = `${uuidv4()}-${file.name}`;
@@ -41,13 +52,31 @@ export async function POST(req: NextRequest) {
             ineBackUrl, 
             comprobanteDomicilioUrl, 
             comprobanteIngresosUrl, 
-            comprobantePropiedadUrl
+            comprobantePropiedadUrl,
+            contratoFrontUrl,
+            contratoBackUrl,
+            selfieUrl,
+            avalIneFrontUrl,
+            avalIneBackUrl,
+            avalComprobanteDomicilioUrl,
+            avalContratoFrontUrl,
+            avalContratoBackUrl,
+            avalSelfieUrl
         ] = await Promise.all([
             saveFile(ineFront),
             saveFile(ineBack),
             saveFile(comprobanteDomicilio),
             saveFile(comprobanteIngresos),
-            saveFile(comprobantePropiedad)
+            saveFile(comprobantePropiedad),
+            saveFile(contratoFront),
+            saveFile(contratoBack),
+            saveFile(selfie),
+            saveFile(avalIneFront),
+            saveFile(avalIneBack),
+            saveFile(avalComprobanteDomicilio),
+            saveFile(avalContratoFront),
+            saveFile(avalContratoBack),
+            saveFile(avalSelfie)
         ]);
 
         // Extraer datos del formulario
@@ -75,6 +104,15 @@ export async function POST(req: NextRequest) {
             comprobanteDomicilioUrl,
             comprobanteIngresosUrl,
             comprobantePropiedadUrl,
+            contratoFrontUrl,
+            contratoBackUrl,
+            selfieUrl,
+            avalIneFrontUrl,
+            avalIneBackUrl,
+            avalComprobanteDomicilioUrl,
+            avalContratoFrontUrl,
+            avalContratoBackUrl,
+            avalSelfieUrl,
             status: "PENDIENTE"
         };
 

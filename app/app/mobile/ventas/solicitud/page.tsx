@@ -46,6 +46,16 @@ export default function VendedorSolicitudPage() {
         comprobanteDomicilio: null,
         comprobanteIngresos: null,
         comprobantePropiedad: null,
+        contratoFront: null,
+        contratoBack: null,
+        selfie: null,
+        // Aval Docs
+        avalIneFront: null,
+        avalIneBack: null,
+        avalComprobanteDomicilio: null,
+        avalContratoFront: null,
+        avalContratoBack: null,
+        avalSelfie: null,
     });
 
     // Business Logic: Require Aval based on rules
@@ -323,6 +333,19 @@ export default function VendedorSolicitudPage() {
                         </h2>
 
                         <div className="grid grid-cols-2 gap-3">
+                            <h3 className="col-span-2 text-xs font-bold text-slate-500 uppercase mt-2">Documentos del Cliente</h3>
+                            <FileUploader 
+                                label="Contrato Frente" 
+                                name="contratoFront" 
+                                file={files.contratoFront} 
+                                onChange={handleFileChange} 
+                            />
+                            <FileUploader 
+                                label="Contrato Posterior" 
+                                name="contratoBack" 
+                                file={files.contratoBack} 
+                                onChange={handleFileChange} 
+                            />
                             <FileUploader 
                                 label="INE Frente" 
                                 name="ineFront" 
@@ -336,14 +359,22 @@ export default function VendedorSolicitudPage() {
                                 onChange={handleFileChange} 
                             />
                             <FileUploader 
-                                label="Comprobante Domicilio" 
+                                label="Comp. Domicilio" 
                                 name="comprobanteDomicilio" 
                                 file={files.comprobanteDomicilio} 
                                 onChange={handleFileChange} 
-                                full
                             />
                             <FileUploader 
-                                label="Comprobante Ingresos" 
+                                label="Selfie Cliente" 
+                                name="selfie" 
+                                file={files.selfie} 
+                                onChange={handleFileChange} 
+                                isSelfie
+                            />
+                            
+                            {/* Opcionales */}
+                            <FileUploader 
+                                label="Comp. Ingresos" 
                                 name="comprobanteIngresos" 
                                 file={files.comprobanteIngresos} 
                                 onChange={handleFileChange} 
@@ -354,6 +385,50 @@ export default function VendedorSolicitudPage() {
                                 file={files.comprobantePropiedad} 
                                 onChange={handleFileChange} 
                             />
+
+                            {/* SECCION AVAL SI APLICA */}
+                            {requiresAval && (
+                                <>
+                                    <h3 className="col-span-2 text-xs font-bold text-amber-500 uppercase mt-4 pt-4 border-t border-slate-800">Documentos del Aval</h3>
+                                    <FileUploader 
+                                        label="Aval: Contrato Fr." 
+                                        name="avalContratoFront" 
+                                        file={files.avalContratoFront} 
+                                        onChange={handleFileChange} 
+                                    />
+                                    <FileUploader 
+                                        label="Aval: Contrato Post." 
+                                        name="avalContratoBack" 
+                                        file={files.avalContratoBack} 
+                                        onChange={handleFileChange} 
+                                    />
+                                    <FileUploader 
+                                        label="Aval: INE Frente" 
+                                        name="avalIneFront" 
+                                        file={files.avalIneFront} 
+                                        onChange={handleFileChange} 
+                                    />
+                                    <FileUploader 
+                                        label="Aval: INE Vuelta" 
+                                        name="avalIneBack" 
+                                        file={files.avalIneBack} 
+                                        onChange={handleFileChange} 
+                                    />
+                                    <FileUploader 
+                                        label="Aval: Comp. Domicilio" 
+                                        name="avalComprobanteDomicilio" 
+                                        file={files.avalComprobanteDomicilio} 
+                                        onChange={handleFileChange} 
+                                    />
+                                    <FileUploader 
+                                        label="Aval: Selfie" 
+                                        name="avalSelfie" 
+                                        file={files.avalSelfie} 
+                                        onChange={handleFileChange} 
+                                        isSelfie
+                                    />
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
@@ -462,7 +537,7 @@ export default function VendedorSolicitudPage() {
     );
 }
 
-function FileUploader({ label, name, file, onChange, full }: any) {
+function FileUploader({ label, name, file, onChange, full, isSelfie }: any) {
     return (
         <div className={`${full ? 'col-span-2' : ''} space-y-1`}>
             <p className="text-[10px] text-slate-500 ml-1 uppercase">{label}</p>
@@ -471,7 +546,14 @@ function FileUploader({ label, name, file, onChange, full }: any) {
                 ${file ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-900 border-slate-800'} 
                 border-2 border-dashed rounded-xl cursor-pointer hover:bg-slate-800 transition-colors
             `}>
-                <input type="file" name={name} className="hidden" onChange={onChange} accept="image/*" capture="environment" />
+                <input 
+                    type="file" 
+                    name={name} 
+                    className="hidden" 
+                    onChange={onChange} 
+                    accept="image/*" 
+                    capture={isSelfie ? "user" : "environment"} 
+                />
                 {file ? (
                     <>
                         <Check className="w-6 h-6 text-emerald-500" />
@@ -479,8 +561,8 @@ function FileUploader({ label, name, file, onChange, full }: any) {
                     </>
                 ) : (
                     <>
-                        <Camera className="w-6 h-6 text-slate-600" />
-                        <span className="text-[10px] text-slate-500">Tomar foto</span>
+                        {isSelfie ? <UserCheck className="w-6 h-6 text-sky-500" /> : <Camera className="w-6 h-6 text-slate-600" />}
+                        <span className="text-[10px] text-slate-500">{isSelfie ? "Tomar Selfie" : "Tomar foto"}</span>
                     </>
                 )}
             </label>

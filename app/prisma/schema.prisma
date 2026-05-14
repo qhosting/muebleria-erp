@@ -829,12 +829,23 @@ model SolicitudCredito {
   curp           String?
   direccion      String?
   
-  // Documentacion
+  // Documentacion Cliente
   ineFrontUrl    String?
   ineBackUrl     String?
   comprobanteDomicilioUrl String?
   comprobanteIngresosUrl  String?
   comprobantePropiedadUrl String?
+  contratoFrontUrl String?
+  contratoBackUrl  String?
+  selfieUrl        String?
+  
+  // Documentacion Aval
+  avalIneFrontUrl    String?
+  avalIneBackUrl     String?
+  avalComprobanteDomicilioUrl String?
+  avalContratoFrontUrl String?
+  avalContratoBackUrl  String?
+  avalSelfieUrl        String?
   
   // Datos de Credito
   productoInteres String?
