@@ -10,6 +10,8 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { usePlatform } from "@/hooks/usePlatform";
+import { agregarColaSincronizacion } from "@/lib/native/sync";
+import { db } from "@/lib/offline-db";
 
 export default function VendedorSolicitudPage() {
     const router = useRouter();
@@ -113,11 +115,57 @@ export default function VendedorSolicitudPage() {
         toast.success("Datos de Contpaqi vinculados");
     };
 
+    const fileToBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = error => reject(error);
+        });
+    };
+
     const handleSubmit = async () => {
         setLoading(true);
+        const isOffline = !navigator.onLine;
+
         try {
+            if (isOffline) {
+                toast.info("Sin conexión. Guardando en cola de sincronización...");
+                
+                // Convertir todos los archivos a Base64 para guardarlos en IndexedDB
+                const base64Files: {[key: string]: string} = {};
+                for (const [key, file] of Object.entries(files)) {
+                    if (file) {
+                        base64Files[key] = await fileToBase64(file as File);
+                    }
+                }
+
+                const localId = `sol_${Date.now()}`;
+                
+                // Guardar en la tabla de solicitudes local para persistencia
+                await (db as any).solicitudes.add({
+                    localId,
+                    data: formData,
+                    files: base64Files,
+                    fecha: new Date().toISOString(),
+                    syncStatus: 'pending'
+                });
+
+                // Agregar a la cola de sincronización global
+                await agregarColaSincronizacion('solicitud', {
+                    data: formData,
+                    files: base64Files
+                });
+
+                toast.success("Solicitud guardada localmente. Se enviará automáticamente al recuperar red.");
+                router.push("/mobile/home");
+                return;
+            }
+
             const body = new FormData();
-            Object.entries(formData).forEach(([key, value]) => body.append(key, value.toString()));
+            Object.entries(formData).forEach(([key, value]) => {
+                if (value !== null && value !== undefined) body.append(key, value.toString());
+            });
             Object.entries(files).forEach(([key, value]) => {
                 if (value) body.append(key, value);
             });
@@ -134,7 +182,8 @@ export default function VendedorSolicitudPage() {
                 toast.error("Error al enviar la solicitud");
             }
         } catch (error) {
-            toast.error("Error de conexión");
+            console.error("Error en submit:", error);
+            toast.error("Error al procesar solicitud");
         } finally {
             setLoading(false);
         }

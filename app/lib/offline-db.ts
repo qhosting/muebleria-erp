@@ -101,6 +101,15 @@ export interface AppSettings {
   offlineMode: boolean;
 }
 
+export interface OfflineSolicitud {
+  localId: string;
+  data: any; // Datos del formulario (nombre, curp, etc)
+  files: { [key: string]: string }; // Base64 de las imágenes
+  fecha: string;
+  syncStatus: 'pending' | 'syncing' | 'synced' | 'failed';
+  error?: string;
+}
+
 // Base de datos Dexie
 export class OfflineDatabase extends Dexie {
   clientes!: Table<OfflineCliente>;
@@ -108,16 +117,18 @@ export class OfflineDatabase extends Dexie {
   motararios!: Table<OfflineMotarario>;
   syncQueue!: Table<SyncQueue>;
   settings!: Table<AppSettings>;
+  solicitudes!: Table<OfflineSolicitud>;
 
   constructor() {
     super('MuebleriaCobranzaDB');
 
-    this.version(1).stores({
+    this.version(2).stores({
       clientes: 'id, nombreCompleto, cobradorAsignadoId, diaPago, statusCuenta, lastSync, syncStatus',
       pagos: '++id, localId, clienteId, cobradorId, fechaPago, syncStatus, createdOffline, printStatus',
       motararios: '++id, localId, clienteId, cobradorId, fecha, syncStatus, createdOffline',
       syncQueue: '++id, type, localId, status, attempts, lastAttempt',
-      settings: 'cobradorId'
+      settings: 'cobradorId',
+      solicitudes: 'localId, syncStatus'
     });
   }
 }

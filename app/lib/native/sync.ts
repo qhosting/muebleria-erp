@@ -5,7 +5,7 @@ import { obtenerEstadoRed } from './network';
 
 export interface TareaSincronizacion {
     id: string;
-    tipo: 'pago' | 'motarario' | 'cierre_caja';
+    tipo: 'pago' | 'motarario' | 'cierre_caja' | 'solicitud';
     payload: any;
     fecha: number;
     intentos: number;
@@ -13,7 +13,7 @@ export interface TareaSincronizacion {
 
 const COLA_SYNC_KEY = 'cola_sincronizacion';
 
-export async function agregarColaSincronizacion(tipo: 'pago' | 'motarario' | 'cierre_caja', payload: any) {
+export async function agregarColaSincronizacion(tipo: 'pago' | 'motarario' | 'cierre_caja' | 'solicitud', payload: any) {
     const colaActual = (await obtenerDatoCobrador<TareaSincronizacion[]>(COLA_SYNC_KEY)) || [];
 
     const nuevaTarea: TareaSincronizacion = {
@@ -89,18 +89,42 @@ async function enviarTareaAlServidor(tarea: TareaSincronizacion): Promise<boolea
         case 'pago': endpoint = '/api/pagos'; break;
         case 'motarario': endpoint = '/api/motararios'; break;
         case 'cierre_caja': endpoint = '/api/caja/cierre'; break;
+        case 'solicitud': endpoint = '/api/ventas/solicitudes/crear'; break;
     }
 
     try {
         console.log(`📡 Sincronizando ${tarea.tipo} al servidor:`, tarea.payload);
 
+        const isSolicitud = tarea.tipo === 'solicitud';
+        const headers: any = {};
+        let body: any;
+
+        if (isSolicitud) {
+            // Reconstruir FormData para la solicitud con imágenes
+            const formData = new FormData();
+            // Payload de solicitud tiene { data, files }
+            Object.entries(tarea.payload.data).forEach(([key, value]: [string, any]) => {
+                if (value !== null && value !== undefined) formData.append(key, value.toString());
+            });
+
+            // Convertir Base64 de vuelta a Blobs
+            for (const [key, base64] of Object.entries(tarea.payload.files as {[key: string]: string})) {
+                if (base64) {
+                    const blob = await fetch(base64).then(r => r.blob());
+                    formData.append(key, blob, `${key}.jpg`);
+                }
+            }
+            body = formData;
+            // No setear Content-Type para que el navegador ponga el boundary
+        } else {
+            headers['Content-Type'] = 'application/json';
+            body = JSON.stringify(tarea.payload);
+        }
+
         const response = await fetch(`${baseUrl}${endpoint}`, {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                // En nativo pasamos credenciales si es necesario
-            },
-            body: JSON.stringify(tarea.payload)
+            headers,
+            body
         });
 
         if (response.ok) {
