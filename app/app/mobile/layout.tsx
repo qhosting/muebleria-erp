@@ -94,8 +94,9 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
 
     return (
         <div className="flex flex-col h-[100dvh] bg-slate-950 text-slate-100 overflow-hidden relative">
-            {/* HEADER NATIVO */}
-            <header className="flex-none bg-slate-900 border-b border-slate-800 p-4 pt-safe-top z-20 shadow-md">
+            {/* HEADER NATIVO - Opcional según la página */}
+            {pathname !== '/mobile/home' && (
+                <header className="flex-none bg-slate-900 border-b border-slate-800 p-4 pt-safe-top z-20 shadow-md">
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-lg font-bold text-emerald-400">VertexERP</h1>
@@ -114,9 +115,10 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
                     </div>
                 </div>
             </header>
+            )}
 
             {/* CONTENIDO PRINCIPAL SCROLLEABLE */}
-            <main className="flex-1 overflow-y-auto p-4 pb-24 z-10">
+            <main className={`flex-1 overflow-y-auto px-4 pb-24 z-10 ${pathname === '/mobile/home' ? 'pt-safe-top' : 'pt-2'}`}>
                 {children}
             </main>
 
