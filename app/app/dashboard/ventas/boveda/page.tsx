@@ -84,11 +84,32 @@ export default function BovedaDigitalPage() {
         }
     };
 
-    const handleCreateExpediente = () => {
+    const handleCreateExpediente = async () => {
         if (!newClient.nombre) {
             toast.error("El nombre es obligatorio");
             return;
         }
+
+        // Si hay CURP, validamos si ya existe
+        if (newClient.curp) {
+            try {
+                const res = await fetch(`/api/ventas/boveda/list?curp=${newClient.curp}`);
+                if (res.ok) {
+                    const existing = await res.json();
+                    if (existing && existing.length > 0) {
+                        const confirmOpen = confirm("Ya existe un expediente con este CURP. ¿Deseas abrir el existente en lugar de crear uno nuevo?");
+                        if (confirmOpen) {
+                            openVaultForCliente(existing[0]);
+                            setIsCreating(false);
+                            return;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Error validando duplicado:", e);
+            }
+        }
+
         setSelectedCliente({
             nombreCompleto: newClient.nombre.toUpperCase(),
             curp: newClient.curp.toUpperCase(),
@@ -97,6 +118,32 @@ export default function BovedaDigitalPage() {
         });
         setIsCreating(false);
         setShowDigitalizador(true);
+    };
+
+    const handleDeleteExpediente = async (cliente: any) => {
+        const confirmDelete = confirm(`¿Estás seguro de eliminar el expediente COMPLETO de ${cliente.nombreCompleto}? Esta acción borrará todos sus documentos permanentemente.`);
+        if (!confirmDelete) return;
+
+        try {
+            const response = await fetch('/api/ventas/boveda/delete-client', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    curp: cliente.curp,
+                    nombre: cliente.nombreCompleto
+                })
+            });
+
+            if (response.ok) {
+                toast.success("Expediente eliminado correctamente");
+                if (searchTerm) handleSearch();
+                else fetchRecent();
+            } else {
+                toast.error("Error al eliminar expediente");
+            }
+        } catch (error) {
+            toast.error("Error de conexión");
+        }
     };
 
     const handleUpdateCurp = async () => {
@@ -266,19 +313,32 @@ export default function BovedaDigitalPage() {
                                                 {res.recent ? 'RECIENTE' : 'SISTEMA'}
                                             </Badge>
                                             {['admin', 'jefe_ventas', 'gestor_cobranza'].includes((session?.user as any)?.role) && (
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="icon" 
-                                                    className="h-8 w-8 text-slate-400 hover:text-blue-600"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setCurpToEdit(res);
-                                                        setNewCurpVal(res.curp || '');
-                                                        setIsEditingCurp(true);
-                                                    }}
-                                                >
-                                                    <Edit3 className="h-4 h-4" />
-                                                </Button>
+                                                <div className="flex gap-1">
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setCurpToEdit(res);
+                                                            setNewCurpVal(res.curp || '');
+                                                            setIsEditingCurp(true);
+                                                        }}
+                                                    >
+                                                        <Edit3 className="h-4 h-4" />
+                                                    </Button>
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        className="h-8 w-8 text-slate-400 hover:text-rose-600"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeleteExpediente(res);
+                                                        }}
+                                                    >
+                                                        <Trash2 className="h-4 h-4" />
+                                                    </Button>
+                                                </div>
                                             )}
                                         </div>
                                         <h3 className="font-bold text-slate-900 text-lg mb-1 uppercase">
