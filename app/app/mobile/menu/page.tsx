@@ -17,13 +17,17 @@ import Link from "next/link";
 
 export default function MobileMenu() {
     const { data: session } = useSession();
+    const userRole = (session?.user as any)?.role;
+    const isVendedor = userRole === 'vendedor' || userRole === 'jefe_ventas';
 
     const menuItems = [
         {
             title: "Operación",
             items: [
                 { icon: <Trophy className="w-5 h-5" />, label: "Mis Metas y Logros", href: "/mobile/metas", color: "text-yellow-400" },
-                { icon: <MessageSquare className="w-5 h-5" />, label: "Campaña SMS", href: "/mobile/sms", color: "text-sky-400" },
+                ...(isVendedor ? [] : [
+                    { icon: <MessageSquare className="w-5 h-5" />, label: "Campaña SMS", href: "/mobile/sms", color: "text-sky-400" }
+                ]),
                 { icon: <Database className="w-5 h-5" />, label: "Estado de Sincronización", href: "/mobile/sync", color: "text-emerald-400" },
             ]
         },
