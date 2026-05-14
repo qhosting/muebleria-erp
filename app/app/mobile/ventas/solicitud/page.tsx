@@ -541,31 +541,65 @@ function FileUploader({ label, name, file, onChange, full, isSelfie }: any) {
     return (
         <div className={`${full ? 'col-span-2' : ''} space-y-1`}>
             <p className="text-[10px] text-slate-500 ml-1 uppercase">{label}</p>
-            <label className={`
-                flex flex-col items-center justify-center w-full h-24 
+            <div className={`
+                flex flex-col items-center justify-center w-full min-h-24 py-3
                 ${file ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-900 border-slate-800'} 
-                border-2 border-dashed rounded-xl cursor-pointer hover:bg-slate-800 transition-colors
+                border-2 border-dashed rounded-xl transition-colors
             `}>
-                <input 
-                    type="file" 
-                    name={name} 
-                    className="hidden" 
-                    onChange={onChange} 
-                    accept="image/*" 
-                    capture={isSelfie ? "user" : "environment"} 
-                />
                 {file ? (
-                    <>
+                    <div className="flex flex-col items-center gap-1">
                         <Check className="w-6 h-6 text-emerald-500" />
-                        <span className="text-[10px] text-emerald-500 font-bold truncate max-w-[100px] px-2">{file.name}</span>
-                    </>
+                        <span className="text-[10px] text-emerald-500 font-bold truncate max-w-[120px] px-2">{file.name}</span>
+                        <label className="mt-1 cursor-pointer text-[9px] text-slate-400 underline uppercase font-bold hover:text-slate-200">
+                             Cambiar
+                             <input type="file" name={name} className="hidden" onChange={onChange} accept="image/*" />
+                        </label>
+                    </div>
                 ) : (
-                    <>
-                        {isSelfie ? <UserCheck className="w-6 h-6 text-sky-500" /> : <Camera className="w-6 h-6 text-slate-600" />}
-                        <span className="text-[10px] text-slate-500">{isSelfie ? "Tomar Selfie" : "Tomar foto"}</span>
-                    </>
+                    <div className="flex flex-col gap-2 w-full px-3">
+                        {isSelfie ? (
+                            <>
+                                <label className="flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-500 text-white py-2 rounded-lg cursor-pointer transition-all active:scale-95">
+                                    <Camera className="w-4 h-4" />
+                                    <span className="text-[10px] font-bold uppercase">Tomar Selfie</span>
+                                    <input 
+                                        type="file" 
+                                        name={name} 
+                                        className="hidden" 
+                                        onChange={onChange} 
+                                        accept="image/*" 
+                                        capture="user" 
+                                    />
+                                </label>
+                                <label className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg cursor-pointer transition-all active:scale-95">
+                                    <ImageIcon className="w-4 h-4" />
+                                    <span className="text-[10px] font-bold uppercase">De Galería</span>
+                                    <input 
+                                        type="file" 
+                                        name={name} 
+                                        className="hidden" 
+                                        onChange={onChange} 
+                                        accept="image/*" 
+                                    />
+                                </label>
+                            </>
+                        ) : (
+                            <label className="flex flex-col items-center justify-center w-full cursor-pointer group">
+                                <Camera className="w-6 h-6 text-slate-600 group-hover:text-slate-400 mb-1" />
+                                <span className="text-[10px] text-slate-500 group-hover:text-slate-400">Tomar foto</span>
+                                <input 
+                                    type="file" 
+                                    name={name} 
+                                    className="hidden" 
+                                    onChange={onChange} 
+                                    accept="image/*" 
+                                    capture="environment" 
+                                />
+                            </label>
+                        )}
+                    </div>
                 )}
-            </label>
+            </div>
         </div>
     );
 }
