@@ -26,19 +26,19 @@ export async function GET(request: NextRequest) {
             }
         });
 
-        // 2. Ventas de hoy
+        // 2. Ventas de hoy (las ventas son registros en Cliente con fechaVenta)
         const hoyInicio = new Date();
         hoyInicio.setHours(0, 0, 0, 0);
         
-        const db = prisma as any;
-        const ventasHoy = await db.venta.findMany({
+        const ventasHoy = await prisma.cliente.findMany({
             where: {
                 vendedorId: user.id,
-                createdAt: { gte: hoyInicio }
-            }
+                fechaVenta: { gte: hoyInicio }
+            },
+            select: { montoPago: true }
         });
 
-        const totalVentasHoy = ventasHoy.reduce((acc: number, v: any) => acc + Number(v.total), 0);
+        const totalVentasHoy = ventasHoy.reduce((acc: number, v: any) => acc + Number(v.montoPago), 0);
 
         // 3. Leads activos
         const leadsActivos = await prisma.lead.count({
