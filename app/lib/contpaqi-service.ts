@@ -18,6 +18,11 @@ export class ContpaqiService {
 
     private cleanEmpresaName(name: string): string {
         if (!name) return '';
+        // Si el nombre contiene un guión corto o largo con espacios (ej: DP - adDASO), 
+        // tomamos solo la parte de la derecha que es el nombre estándar/BD.
+        if (name.includes(' - ')) {
+            return name.split(' - ')[1].trim();
+        }
         return name.trim();
     }
 
@@ -370,8 +375,11 @@ export async function getContpaqiService(prisma?: any, empresaId?: string): Prom
                 if (empresa) {
                     apiUrl = empresa.apiUrl || apiUrl;
                     apiKey = empresa.apiKey || apiKey;
-                    const empresaContext = empresa.baseDatos || empresa.nombre;
-                    console.log(`🏢 Usando credenciales de empresa: ${empresa.nombre} (DB: ${empresaContext})`);
+                    let empresaContext = empresa.baseDatos || empresa.nombre || '';
+                    if (empresaContext.includes(' - ')) {
+                        empresaContext = empresaContext.split(' - ')[1].trim();
+                    }
+                    console.log(`🏢 Usando nombre estándar de empresa: ${empresaContext}`);
                     return new ContpaqiService({ apiUrl, apiKey, empresa: empresaContext });
                 } else if (empresaId !== 'default') {
                     console.warn(`⚠️ No se encontró la empresa con ID: ${empresaId}, usando configuración base.`);
