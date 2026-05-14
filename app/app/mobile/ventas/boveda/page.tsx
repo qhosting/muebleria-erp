@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
     Search, 
     FileText, 
@@ -11,7 +11,8 @@ import {
     Database,
     Fingerprint, 
     UserPlus,
-    ChevronLeft
+    ChevronLeft,
+    Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
