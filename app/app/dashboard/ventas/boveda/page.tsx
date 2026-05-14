@@ -13,7 +13,9 @@ import {
     UploadCloud,
     UserPlus,
     Clock,
-    Plus
+    Plus,
+    Edit3,
+    Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -57,6 +59,12 @@ export default function BovedaDigitalPage() {
         contrato: ''
     });
 
+    // Edición de CURP
+    const [isEditingCurp, setIsEditingCurp] = useState(false);
+    const [curpToEdit, setCurpToEdit] = useState<any>(null);
+    const [newCurpVal, setNewCurpVal] = useState('');
+    const [updatingCurp, setUpdatingCurp] = useState(false);
+
     useEffect(() => {
         fetchRecent();
     }, []);
@@ -89,6 +97,41 @@ export default function BovedaDigitalPage() {
         });
         setIsCreating(false);
         setShowDigitalizador(true);
+    };
+
+    const handleUpdateCurp = async () => {
+        if (!newCurpVal || newCurpVal.length < 18) {
+            toast.error("CURP inválido");
+            return;
+        }
+
+        setUpdatingCurp(true);
+        try {
+            const response = await fetch('/api/ventas/boveda/update-curp', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    currentCurp: curpToEdit.curp,
+                    currentNombre: curpToEdit.nombreCompleto,
+                    newCurp: newCurpVal
+                })
+            });
+
+            if (response.ok) {
+                toast.success("CURP actualizado correctamente");
+                setIsEditingCurp(false);
+                setNewCurpVal('');
+                // Refrescar resultados
+                if (searchTerm) handleSearch();
+                else fetchRecent();
+            } else {
+                toast.error("Error al actualizar CURP");
+            }
+        } catch (error) {
+            toast.error("Error de conexión");
+        } finally {
+            setUpdatingCurp(false);
+        }
     };
 
     const handleSearch = async (e?: React.FormEvent) => {
@@ -222,6 +265,21 @@ export default function BovedaDigitalPage() {
                                             <Badge variant="outline" className={`${res.recent ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
                                                 {res.recent ? 'RECIENTE' : 'SISTEMA'}
                                             </Badge>
+                                            {['admin', 'jefe_ventas', 'gestor_cobranza'].includes((session?.user as any)?.role) && (
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setCurpToEdit(res);
+                                                        setNewCurpVal(res.curp || '');
+                                                        setIsEditingCurp(true);
+                                                    }}
+                                                >
+                                                    <Edit3 className="h-4 h-4" />
+                                                </Button>
+                                            )}
                                         </div>
                                         <h3 className="font-bold text-slate-900 text-lg mb-1 uppercase">
                                             {res.nombreCompleto || 'N/A'}
@@ -336,6 +394,47 @@ export default function BovedaDigitalPage() {
                         <DialogFooter>
                             <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={handleCreateExpediente}>
                                 INICIAR CARGA DE DOCUMENTOS
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* DIALOG DE EDICIÓN DE CURP */}
+                <Dialog open={isEditingCurp} onOpenChange={setIsEditingCurp}>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                                <Edit3 className="h-5 w-5 text-blue-600" />
+                                Actualizar CURP del Expediente
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="py-4 space-y-4">
+                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Cliente</p>
+                                <p className="text-sm font-bold text-slate-700 uppercase">{curpToEdit?.nombreCompleto}</p>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="new-curp">Nuevo CURP</Label>
+                                <Input 
+                                    id="new-curp" 
+                                    className="uppercase font-mono text-lg tracking-widest h-12"
+                                    placeholder="ABCD123456HDF..." 
+                                    maxLength={18}
+                                    value={newCurpVal}
+                                    onChange={(e) => setNewCurpVal(e.target.value.toUpperCase())}
+                                />
+                                <p className="text-[10px] text-slate-400 italic">
+                                    Esto actualizará todos los documentos asociados a este nombre y CURP previo.
+                                </p>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button 
+                                className="w-full bg-blue-600 hover:bg-blue-700 font-bold h-12 rounded-xl" 
+                                onClick={handleUpdateCurp}
+                                disabled={updatingCurp}
+                            >
+                                {updatingCurp ? <Loader2 className="h-5 w-5 animate-spin" /> : 'ACTUALIZAR CURP'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

@@ -14,7 +14,8 @@ import {
     XCircle,
     Download,
     Eye,
-    Clock
+    Clock,
+    Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
@@ -146,6 +147,26 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
         }
     };
 
+    const handleDelete = async (id: string) => {
+        if (!confirm("¿Estás seguro de eliminar este documento de forma permanente?")) return;
+        
+        try {
+            const response = await fetch(`/api/ventas/boveda/delete?id=${id}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                toast.success("Documento eliminado");
+                setSelectedDoc(null);
+                fetchDocumentos();
+            } else {
+                toast.error("Error al eliminar documento");
+            }
+        } catch (error) {
+            toast.error("Error de conexión");
+        }
+    };
+
     const getStatusIcon = (status: string) => {
         switch (status) {
             case 'VALIDADO': return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
@@ -220,6 +241,17 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                                     Descargar
                                                 </Button>
                                             </a>
+                                            {isAdmin && (
+                                                <Button 
+                                                    variant="destructive" 
+                                                    size="sm" 
+                                                    className="h-8 gap-2"
+                                                    onClick={() => handleDelete(selectedDoc.id)}
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                    Eliminar
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
 
