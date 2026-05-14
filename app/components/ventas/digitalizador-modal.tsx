@@ -172,88 +172,35 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                     </DialogTitle>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Lista de Tipos Requeridos */}
-                    <div className="space-y-4">
-                        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider px-1">Documentación Requerida</h3>
-                        <div className="space-y-2">
-                            {TIPOS_DOCUMENTO.map((tipo) => {
-                                const doc = documentos.find(d => d.tipoDocumento === tipo.id);
-                                return (
-                                    <div 
-                                        key={tipo.id} 
-                                        className={`p-4 rounded-xl border transition-all flex items-center justify-between ${
-                                            doc ? 'bg-slate-50 border-slate-200' : 'bg-white border-dashed border-slate-300 hover:border-sky-400'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                                                {doc ? <Check className="w-5 h-5" /> : <ImageIcon className="w-4 h-4" />}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold text-slate-900">{tipo.label}</p>
-                                                {doc ? (
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                        {getStatusBadge(doc.status)}
-                                                        <span className="text-[10px] text-slate-400">{new Date(doc.createdAt).toLocaleDateString()}</span>
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Pendiente de subir</p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex gap-1">
-                                            {doc && (
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="icon" 
-                                                    className="h-8 w-8 text-sky-600"
-                                                    onClick={() => setSelectedDoc(doc)}
-                                                >
-                                                    <Eye className="w-4 h-4" />
-                                                </Button>
-                                            )}
-                                            <label className={`cursor-pointer ${uploading === tipo.id ? 'opacity-50 pointer-events-none' : ''}`}>
-                                                <input 
-                                                    type="file" 
-                                                    className="hidden" 
-                                                    accept="image/*,application/pdf"
-                                                    onChange={(e) => {
-                                                        const file = e.target.files?.[0];
-                                                        if (file) handleFileUpload(tipo.id, file);
-                                                    }}
-                                                />
-                                                <div className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors">
-                                                    {uploading === tipo.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                                                </div>
-                                            </label>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Previsualización y Validación */}
-                    <div className="bg-slate-900 rounded-2xl border border-slate-800 p-4 min-h-[400px] flex flex-col">
-                        {selectedDoc ? (
+                <div className="flex-1 overflow-y-auto p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Previsualización y Validación - Mover al principio en móvil si hay algo seleccionado */}
+                    {selectedDoc && (
+                        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-4 min-h-[400px] flex flex-col order-first md:order-last">
                             <div className="flex-1 flex flex-col space-y-4">
                                 <div className="flex justify-between items-center text-white">
-                                    <h4 className="font-bold text-sm">{TIPOS_DOCUMENTO.find(t => t.id === selectedDoc.tipoDocumento)?.label}</h4>
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="font-bold text-sm">{TIPOS_DOCUMENTO.find(t => t.id === selectedDoc.tipoDocumento)?.label}</h4>
+                                        <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20">VISTA PREVIA</Badge>
+                                    </div>
                                     <Button variant="ghost" size="icon" onClick={() => setSelectedDoc(null)} className="text-slate-400 hover:text-white">
                                         <X className="w-4 h-4" />
                                     </Button>
                                 </div>
                                 
-                                <div className="relative flex-1 bg-black rounded-xl overflow-hidden border border-slate-700 min-h-[300px]">
-                                    <Image 
-                                        src={selectedDoc.url} 
-                                        alt="Documento" 
-                                        fill 
-                                        className="object-contain"
-                                        unoptimized
-                                    />
+                                <div className="relative flex-1 bg-black rounded-xl overflow-hidden border border-slate-700 min-h-[350px] flex items-center justify-center">
+                                    {selectedDoc.url.toLowerCase().endsWith('.pdf') ? (
+                                        <iframe 
+                                            src={selectedDoc.url} 
+                                            className="w-full h-full border-0"
+                                            title="PDF Preview"
+                                        />
+                                    ) : (
+                                        <img 
+                                            src={selectedDoc.url} 
+                                            alt="Documento" 
+                                            className="max-w-full max-h-full object-contain"
+                                        />
+                                    )}
                                 </div>
 
                                 <div className="space-y-4">
@@ -262,12 +209,14 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                             {getStatusIcon(selectedDoc.status)}
                                             <span className="text-white text-xs font-bold uppercase">{selectedDoc.status}</span>
                                         </div>
-                                        <a href={selectedDoc.url} target="_blank" rel="noopener noreferrer">
-                                            <Button variant="outline" size="sm" className="h-8 gap-2 bg-slate-800 border-slate-700 text-white">
-                                                <Download className="w-3 h-3" />
-                                                Descargar
-                                            </Button>
-                                        </a>
+                                        <div className="flex gap-2">
+                                            <a href={selectedDoc.url} target="_blank" rel="noopener noreferrer">
+                                                <Button variant="outline" size="sm" className="h-8 gap-2 bg-slate-800 border-slate-700 text-white text-xs">
+                                                    <Download className="w-3 h-3" />
+                                                    Descargar
+                                                </Button>
+                                            </a>
+                                        </div>
                                     </div>
 
                                     {isAdmin && selectedDoc.status === 'PENDIENTE' && (
@@ -307,16 +256,87 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                     )}
                                 </div>
                             </div>
-                        ) : (
-                            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 text-center p-8 space-y-4">
-                                <ImageIcon className="w-12 h-12 opacity-20" />
-                                <div>
-                                    <p className="text-sm font-bold text-slate-400">Sin vista previa</p>
-                                    <p className="text-xs">Selecciona un documento subido para visualizarlo y validarlo.</p>
-                                </div>
-                            </div>
-                        )}
+                        </div>
+                    )}
+
+                    {/* Lista de Tipos Requeridos */}
+                    <div className={`space-y-4 ${selectedDoc ? 'hidden md:block' : ''}`}>
+                        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider px-1">Documentación Requerida</h3>
+                        <div className="space-y-2">
+                            {TIPOS_DOCUMENTO.map((tipo) => {
+                                const doc = documentos.find(d => d.tipoDocumento === tipo.id);
+                                return (
+                                    <div 
+                                        key={tipo.id} 
+                                        className={`p-4 rounded-xl border transition-all flex items-center justify-between ${
+                                            doc ? 'bg-slate-50 border-slate-200' : 'bg-white border-dashed border-slate-300 hover:border-sky-400'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                {doc ? <Check className="w-5 h-5" /> : <ImageIcon className="w-4 h-4" />}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-900">{tipo.label}</p>
+                                                {doc ? (
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        {getStatusBadge(doc.status)}
+                                                        <span className="text-[10px] text-slate-400">{new Date(doc.createdAt).toLocaleDateString()}</span>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Pendiente de subir</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-1">
+                                            {doc && (
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-8 w-8 text-sky-600"
+                                                    onClick={() => {
+                                                        setSelectedDoc(doc);
+                                                        // En móvil, hacer scroll hacia arriba para ver el visualizador
+                                                        if (window.innerWidth < 768) {
+                                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                        }
+                                                    }}
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                </Button>
+                                            )}
+                                            <label className={`cursor-pointer ${uploading === tipo.id ? 'opacity-50 pointer-events-none' : ''}`}>
+                                                <input 
+                                                    type="file" 
+                                                    className="hidden" 
+                                                    accept="image/*,application/pdf"
+                                                    capture="environment"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) handleFileUpload(tipo.id, file);
+                                                    }}
+                                                />
+                                                <div className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors">
+                                                    {uploading === tipo.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
+
+                    {!selectedDoc && (
+                        <div className="bg-slate-50 rounded-2xl border border-dashed border-slate-300 p-8 flex flex-col items-center justify-center text-center space-y-4">
+                            <ImageIcon className="w-12 h-12 text-slate-300" />
+                            <div>
+                                <p className="text-sm font-bold text-slate-400 uppercase">Sin selección</p>
+                                <p className="text-xs text-slate-400">Pulsa en el icono del ojo para visualizar un documento ya subido.</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <DialogFooter className="p-4 border-t bg-slate-50">
