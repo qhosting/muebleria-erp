@@ -312,7 +312,7 @@ export default function BovedaDigitalPage() {
                                             <Badge variant="outline" className={`${res.recent ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
                                                 {res.recent ? 'RECIENTE' : 'SISTEMA'}
                                             </Badge>
-                                            {['admin', 'jefe_ventas', 'gestor_cobranza'].includes((session?.user as any)?.role) && (
+                                            {['admin', 'jefe_ventas', 'gestor_cobranza', 'administrador'].includes((session?.user as any)?.role?.toLowerCase()) && (
                                                 <div className="flex gap-1">
                                                     <Button 
                                                         variant="ghost" 
@@ -506,7 +506,7 @@ export default function BovedaDigitalPage() {
                         open={showDigitalizador}
                         onOpenChange={setShowDigitalizador}
                         cliente={selectedCliente}
-                        isAdmin={['admin', 'jefe_ventas', 'gestor_cobranza'].includes((session?.user as any)?.role)}
+                        isAdmin={['admin', 'jefe_ventas', 'gestor_cobranza', 'administrador'].includes((session?.user as any)?.role?.toLowerCase())}
                     />
                 )}
             </div>
