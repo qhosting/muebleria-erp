@@ -28,13 +28,23 @@ export async function DELETE(request: NextRequest) {
         }
 
         const db = prisma as any;
+
+        const whereClause: any = {
+            nombreCliente: nombre
+        };
+
+        if (curp) {
+            whereClause.clienteCurp = curp;
+        } else {
+            whereClause.OR = [
+                { clienteCurp: null },
+                { clienteCurp: "" }
+            ];
+        }
         
         // Buscar todos los documentos del cliente para borrarlos físicamente
         const documentos = await db.documentoBoveda.findMany({
-            where: {
-                nombreCliente: nombre,
-                clienteCurp: curp || null
-            }
+            where: whereClause
         });
 
         // Eliminar archivos físicos
@@ -51,10 +61,7 @@ export async function DELETE(request: NextRequest) {
 
         // Eliminar registros de base de datos
         const result = await db.documentoBoveda.deleteMany({
-            where: {
-                nombreCliente: nombre,
-                clienteCurp: curp || null
-            }
+            where: whereClause
         });
 
         return NextResponse.json({ 
