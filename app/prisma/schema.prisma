@@ -94,6 +94,16 @@ enum StatusAprobacion {
   EXCEPCION
 }
 
+enum ClasificacionCobranza {
+  RUTA
+  NC
+  FD
+  PA
+  PE
+  AD
+  VD
+}
+
 // Models
 model User {
   id               String    @id @default(cuid())
@@ -174,6 +184,7 @@ model Cliente {
   productoId          String?
   sucursalId          String?
   statusCuenta        StatusCuenta @default(activo)
+  clasificacionCobranza ClasificacionCobranza @default(RUTA)
   direccionCompleta   String
   descripcionProducto String
   diaPago              String
@@ -457,6 +468,20 @@ model RutaCobranza {
   cobrador          User     @relation(fields: [cobradorId], references: [id])
 
   @@map("rutas_cobranza")
+}
+
+model CalendarioCobranza {
+  id                    String   @id @default(cuid())
+  anio                  Int
+  semana                Int
+  fechaInicio           DateTime
+  fechaFin              DateTime
+  periodicidadesActivas Json     // Array of strings: ["semanal", "quincenal", etc]
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([anio, semana])
+  @@map("calendarios_cobranza")
 }
 
 model SesionCaja {

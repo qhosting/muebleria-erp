@@ -125,6 +125,25 @@ export async function GET(req: NextRequest) {
       // ---------------------------------
       
       const db = prisma as any;
+      
+      // Determinar semana actual
+      const startOfYear = new Date(today.getFullYear(), 0, 1);
+      const days = Math.floor((today.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+      const currentWeek = Math.ceil((today.getDay() + 1 + days) / 7);
+      
+      // Buscar el calendario para la semana actual
+      const calendarioSemana = await db.calendarioCobranza.findUnique({
+        where: {
+          anio_semana: {
+            anio: today.getFullYear(),
+            semana: currentWeek
+          }
+        }
+      });
+
+      // Si no hay calendario, por defecto se cobra todo (fallback seguro)
+      const periodicidadesPermitidas = calendarioSemana?.periodicidadesActivas || ['diario', 'semanal', 'catorcenal', 'quincenal', 'mensual'];
+
       // 1. Cobrado Hoy
       const pagosHoy = await db.pago.findMany({
         where: {
@@ -144,10 +163,12 @@ export async function GET(req: NextRequest) {
           cobradorAsignadoId: userId,
           diaPago: diaHoyNombre,
           statusCuenta: 'activo',
+          clasificacionCobranza: 'RUTA', // SOLO RUTAS
+          periodicidad: { in: periodicidadesPermitidas } // FILTRADO POR EL CALENDARIO DE LA SEMANA
         },
       });
 
-      // Metas Reales (sin fallbacks inventados)
+      // Metas Reales (calculadas inteligentemente en base a los clientes que TOCA cobrar hoy según calendario y clasificación)
       const metaMontoHoy = clientesHoy.reduce((acc: number, c: any) => acc + Number(c.montoPago), 0); 
       const totalClientesHoy = clientesHoy.length;
 

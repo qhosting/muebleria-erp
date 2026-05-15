@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { User, Users, Target, Save, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CobranzaCalendarioTab } from "./CobranzaCalendarioTab";
 
 export default function BudgetConfigPage() {
   const [vendedores, setVendedores] = useState<any[]>([]);
@@ -120,10 +122,17 @@ export default function BudgetConfigPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Configuración de Presupuestos</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Metas y Presupuestos</h1>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <Tabs defaultValue="ventas" className="w-full">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsTrigger value="ventas">Vendedores (Mensual)</TabsTrigger>
+                <TabsTrigger value="cobranza">Cobradores (Calendario)</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="ventas" className="mt-6">
+                <div className="grid md:grid-cols-3 gap-6">
           {/* Formulario de Asignación */}
           <Card className="md:col-span-1 shadow-sm">
             <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Plus className="h-5 w-5" /> Asignar Meta</CardTitle></CardHeader>
@@ -269,6 +278,12 @@ export default function BudgetConfigPage() {
              </CardContent>
           </Card>
         </div>
+        </TabsContent>
+
+        <TabsContent value="cobranza" className="mt-6">
+            <CobranzaCalendarioTab />
+        </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );
