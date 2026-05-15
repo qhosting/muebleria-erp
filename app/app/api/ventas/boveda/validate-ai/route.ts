@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
             }
         });
 
-        const textResponse = response.text();
+        const textResponse = response.text;
         if (!textResponse) {
              throw new Error('Sin respuesta de Gemini');
         }
