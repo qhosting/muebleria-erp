@@ -504,7 +504,16 @@ export default function BovedaDigitalPage() {
                 {selectedCliente && (
                     <DigitalizadorModal 
                         open={showDigitalizador}
-                        onOpenChange={setShowDigitalizador}
+                        onOpenChange={(open) => {
+                            setShowDigitalizador(open);
+                            if (!open) {
+                                if (searchTerm && searchTerm.length >= 3) {
+                                    handleSearch();
+                                } else {
+                                    fetchRecent();
+                                }
+                            }
+                        }}
                         cliente={selectedCliente}
                         isAdmin={['admin', 'jefe_ventas', 'gestor_cobranza', 'administrador'].includes((session?.user as any)?.role?.toLowerCase())}
                     />
