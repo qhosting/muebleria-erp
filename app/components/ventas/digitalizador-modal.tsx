@@ -15,7 +15,8 @@ import {
     Download,
     Eye,
     Clock,
-    Trash2
+    Trash2,
+    ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
@@ -72,6 +73,7 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
     const [uploading, setUploading] = useState<string | null>(null);
     const [selectedDoc, setSelectedDoc] = useState<Documento | null>(null);
     const [motivoRechazo, setMotivoRechazo] = useState('');
+    const [validatingAi, setValidatingAi] = useState<string | null>(null);
 
     useEffect(() => {
         if (open) {
@@ -144,6 +146,34 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
             }
         } catch (error) {
             toast.error("Error al procesar validación");
+        }
+    };
+
+    const handleValidateAI = async (id: string) => {
+        setValidatingAi(id);
+        try {
+            const response = await fetch('/api/ventas/boveda/validate-ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ documentoId: id })
+            });
+            
+            const data = await response.json();
+            if (response.ok) {
+                if (data.isValid) {
+                    toast.success("Auditoría IA: Documento Válido");
+                } else {
+                    toast.error("Auditoría IA: Documento detectado como falso/inválido");
+                }
+                setSelectedDoc(data.documento);
+                fetchDocumentos();
+            } else {
+                toast.error(data.error || "Error al validar con IA");
+            }
+        } catch (error) {
+            toast.error("Error de conexión con IA");
+        } finally {
+            setValidatingAi(null);
         }
     };
 
@@ -266,19 +296,27 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                                     onChange={(e) => setMotivoRechazo(e.target.value)}
                                                 />
                                             </div>
-                                            <div className="grid grid-cols-2 gap-2">
+                                            <div className="grid grid-cols-2 gap-2 mt-2">
+                                                <Button 
+                                                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold col-span-2 flex gap-2 items-center justify-center"
+                                                    onClick={() => handleValidateAI(selectedDoc.id)}
+                                                    disabled={validatingAi === selectedDoc.id}
+                                                >
+                                                    {validatingAi === selectedDoc.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                                                    {validatingAi === selectedDoc.id ? 'Analizando con IA...' : 'Auditar documento con IA'}
+                                                </Button>
                                                 <Button 
                                                     className="bg-emerald-600 hover:bg-emerald-500 font-bold"
                                                     onClick={() => handleValidate(selectedDoc.id, 'VALIDADO')}
                                                 >
-                                                    Aprobar
+                                                    Aprobar Manual
                                                 </Button>
                                                 <Button 
                                                     variant="destructive" 
                                                     className="font-bold"
                                                     onClick={() => handleValidate(selectedDoc.id, 'RECHAZADO')}
                                                 >
-                                                    Rechazar
+                                                    Rechazar Manual
                                                 </Button>
                                             </div>
                                         </div>
