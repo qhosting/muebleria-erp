@@ -91,7 +91,7 @@ export default function MetasPage() {
                 </div>
             </div>
 
-            {/* --- METAS DIARIAS --- */}
+            {/* --- METAS DIARIAS / MENSUALES --- */}
             <div className="grid grid-cols-2 gap-4">
                 <Card className="bg-slate-900 border-slate-800 rounded-2xl overflow-hidden">
                     <CardContent className="p-4 flex flex-col items-center text-center space-y-3">
@@ -99,7 +99,7 @@ export default function MetasPage() {
                             <Target className="w-6 h-6" />
                         </div>
                         <div>
-                            <p className="text-[9px] font-black text-slate-500 uppercase">Cobro del Día</p>
+                            <p className="text-[9px] font-black text-slate-500 uppercase">{metas.tituloPrincipal}</p>
                             <p className="text-lg font-black text-white">{metas.porcentajeMonto}%</p>
                         </div>
                         <Progress value={metas.porcentajeMonto} className="h-1.5 w-full bg-slate-800" indicatorClassName="bg-blue-500" />
@@ -112,7 +112,7 @@ export default function MetasPage() {
                             <Users className="w-6 h-6" />
                         </div>
                         <div>
-                            <p className="text-[9px] font-black text-slate-500 uppercase">Visitas del Día</p>
+                            <p className="text-[9px] font-black text-slate-500 uppercase">{metas.tituloSecundario}</p>
                             <p className="text-lg font-black text-white">{metas.porcentajeVisitas}%</p>
                         </div>
                         <Progress value={metas.porcentajeVisitas} className="h-1.5 w-full bg-slate-800" indicatorClassName="bg-amber-500" />
