@@ -8,6 +8,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    volumes:
+      - uploads-data:/app/public/uploads
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - NEXTAUTH_URL=${NEXTAUTH_URL}
@@ -24,3 +26,6 @@ services:
       start_period: 40s
     labels:
       - "coolify.managed=true"
+
+volumes:
+  uploads-data:

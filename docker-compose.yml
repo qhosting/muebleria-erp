@@ -20,6 +20,7 @@ services:
       - app-network
     volumes:
       - app-data:/app/.next/cache
+      - uploads-data:/app/public/uploads
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - NEXTAUTH_URL=${NEXTAUTH_URL}
@@ -66,6 +67,7 @@ volumes:
   postgres_data:
   redis_data:
   app-data:
+  uploads-data:
 
 networks:
   app-network:
