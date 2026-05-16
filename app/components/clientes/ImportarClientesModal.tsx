@@ -187,17 +187,20 @@ export function ImportarClientesModal({
           const headers = hasHeader ? firstRow.map(h => h?.toString().trim() || "") : [];
           const startIndex = hasHeader ? 1 : 0;
 
-          // Mapa de alias para columnas
+          // Mapa de alias robusto para columnas
           const aliasMap: Record<string, string[]> = {
-            codigoCliente: ['codigo', 'id', 'no.', 'cve', 'codigo de cliente'],
-            nombreCompleto: ['nombre', 'razon social', 'cliente', 'nombre completo', 'razón social'],
-            montoPago: ['pago', 'monto', 'cuota', 'pago sugerido', 'abono'],
-            saldoActual: ['saldo', 'deuda', 'pendiente', 'saldo actual', 'balance'],
-            direccionCompleta: ['direccion', 'calle', 'domicilio', 'ubicacion', 'dirección'],
+            codigoCliente: ['codigo', 'id', 'no.', 'cve', 'codigo de cliente', 'codigocliente'],
+            nombreCompleto: ['nombre', 'razon social', 'cliente', 'nombre completo', 'razón social', 'razonsocial', 'nombrecompleto', 'nombres', 'apellidos'],
+            montoPago: ['pago', 'monto', 'cuota', 'pago sugerido', 'abono', 'montopago', 'pagosugerido'],
+            saldoActual: ['saldo', 'deuda', 'pendiente', 'saldo actual', 'balance', 'saldoactual'],
+            direccionCompleta: ['direccion', 'calle', 'domicilio', 'ubicacion', 'dirección', 'direccioncompleta'],
             telefono: ['telefono', 'tel', 'celular', 'whatsapp', 'teléfono'],
             periodicidad: ['periodicidad', 'periodo', 'frecuencia'],
-            diaPago: ['dia', 'dia de pago', 'dia cobro'],
-            codigoGestor: ['gestor', 'cobrador', 'codigo gestor', 'código gestor', 'codigo cobrador', 'cod gestor'],
+            diaPago: ['dia', 'dia de pago', 'dia cobro', 'diapago'],
+            codigoGestor: ['gestor', 'cobrador', 'codigo gestor', 'código gestor', 'codigo cobrador', 'cod gestor', 'codigogestor'],
+            descripcionProducto: ['producto', 'artículo', 'descripcion', 'descripción', 'descripcionproducto', 'mercancia'],
+            fechaVenta: ['fecha', 'fecha de venta', 'fecha contrato', 'fechaventa', 'fechacontrato'],
+            vendedor: ['vendedor', 'agente'],
             importe1: ['contado', 'precio contado', 'importe1'],
             importe2: ['vendido', 'vendido en', 'importe2'],
             importe3: ['p6', 'precio 6 meses', 'importe3'],
@@ -205,14 +208,32 @@ export function ImportarClientesModal({
           };
 
           const getInternalKey = (header: string, index: number): string | null => {
-            const clean = header.toLowerCase().trim();
+            const clean = header.toLowerCase().trim().replace(/_/g, '').replace(/ /g, '');
             for (const [key, aliases] of Object.entries(aliasMap)) {
-              if (clean === key.toLowerCase() || aliases.includes(clean) || aliases.some(a => clean.includes(a))) {
+              // Limpiar también los aliases para comparar sin espacios ni guiones
+              const cleanKey = key.toLowerCase();
+              if (clean === cleanKey || aliases.some(a => {
+                const cleanA = a.toLowerCase().trim().replace(/_/g, '').replace(/ /g, '');
+                return clean === cleanA || clean.includes(cleanA);
+              })) {
                 return key;
               }
             }
+            
+            // Mapeo posicional por defecto si no se encontró por nombre (siguiendo plantilla oficial)
             if (index === 0) return 'codigoCliente';
-            if (index === 1) return 'saldoActual';
+            if (index === 1) return 'nombreCompleto';
+            if (index === 2) return 'telefono';
+            if (index === 3) return 'vendedor';
+            if (index === 4) return 'codigoGestor';
+            if (index === 5) return 'direccionCompleta';
+            if (index === 6) return 'descripcionProducto';
+            if (index === 7) return 'diaPago';
+            if (index === 8) return 'montoPago';
+            if (index === 9) return 'periodicidad';
+            if (index === 10) return 'saldoActual';
+            if (index === 11) return 'fechaVenta';
+            
             return null;
           };
 
@@ -303,14 +324,20 @@ export function ImportarClientesModal({
     // Normalizar saltos de línea y filtrar líneas vacías
     const lines = text.replace(/\r\n/g, '\n').split('\n');
 
-    // Filtrar líneas vacías o comentarios, pero manteniendo el índice original para reportar errores correctamente
+    // Filtrar líneas vacías o comentarios
     const activeLines = lines.map((line, index) => ({ content: line.trim(), index: index + 1 }))
       .filter(item => item.content && !item.content.startsWith('#'));
 
     if (activeLines.length < 2) return { data: [], errors: [{ row: 0, error: 'El archivo no contiene suficientes datos (falta cabecera o filas)' }] };
 
-    // Función robusta para separar por comas respetando comillas
-    const splitCSVLine = (line: string) => {
+    // Detección automática del separador (coma o punto y coma)
+    const firstLine = activeLines[0].content;
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const semicolonCount = (firstLine.match(/;/g) || []).length;
+    const separator = semicolonCount > commaCount ? ';' : ',';
+
+    // Función robusta para separar por el separador detectado respetando comillas
+    const splitCSVLine = (line: string, sep: string) => {
       const result = [];
       let start = 0;
       let inQuotes = false;
@@ -318,7 +345,7 @@ export function ImportarClientesModal({
       for (let i = 0; i < line.length; i++) {
         if (line[i] === '"') {
           inQuotes = !inQuotes;
-        } else if (line[i] === ',' && !inQuotes) {
+        } else if (line[i] === sep && !inQuotes) {
           let value = line.substring(start, i).trim();
           // Remover comillas si existen
           if (value.startsWith('"') && value.endsWith('"')) {
@@ -341,11 +368,12 @@ export function ImportarClientesModal({
 
     // Función para detectar si una línea es de cabecera
     const isHeaderLine = (vals: string[]) => {
-      const headerKeywords = ['nombre', 'codigo', 'razon', 'saldo', 'pago', 'direccion', 'tel'];
-      return vals.some(v => headerKeywords.some(kw => v.toLowerCase().includes(kw)));
+      if (vals.length < 2) return false;
+      const headerKeywords = ['nombre', 'codigo', 'razon', 'saldo', 'pago', 'direccion', 'tel', 'calle', 'producto'];
+      return vals.some(v => v && typeof v === 'string' && headerKeywords.some(kw => v.toLowerCase().includes(kw)));
     };
 
-    const firstLineValues = splitCSVLine(activeLines[0].content);
+    const firstLineValues = splitCSVLine(activeLines[0].content, separator);
     const hasHeader = isHeaderLine(firstLineValues);
     
     const data: any[] = [];
@@ -354,41 +382,64 @@ export function ImportarClientesModal({
     const headers = hasHeader ? firstLineValues.map(h => h.replace(/^\ufeff/, '').trim()) : [];
     const startIndex = hasHeader ? 1 : 0;
 
-    // Mapa de alias para columnas
+    // Mapa de alias robusto para columnas (unificado con XLSX)
     const aliasMap: Record<string, string[]> = {
-      codigoCliente: ['codigo', 'id', 'no.', 'cve', 'codigo de cliente'],
-      nombreCompleto: ['nombre', 'razon social', 'cliente', 'nombre completo'],
-      montoPago: ['pago', 'monto', 'cuota', 'pago sugerido', 'abono'],
-      saldoActual: ['saldo', 'deuda', 'pendiente', 'saldo actual', 'balance'],
-      direccionCompleta: ['direccion', 'calle', 'domicilio', 'ubicacion'],
-      telefono: ['telefono', 'tel', 'celular', 'whatsapp'],
+      codigoCliente: ['codigo', 'id', 'no.', 'cve', 'codigo de cliente', 'codigocliente'],
+      nombreCompleto: ['nombre', 'razon social', 'cliente', 'nombre completo', 'razón social', 'razonsocial', 'nombrecompleto', 'nombres', 'apellidos'],
+      montoPago: ['pago', 'monto', 'cuota', 'pago sugerido', 'abono', 'montopago', 'pagosugerido'],
+      saldoActual: ['saldo', 'deuda', 'pendiente', 'saldo actual', 'balance', 'saldoactual'],
+      direccionCompleta: ['direccion', 'calle', 'domicilio', 'ubicacion', 'dirección', 'direccioncompleta'],
+      telefono: ['telefono', 'tel', 'celular', 'whatsapp', 'teléfono'],
       periodicidad: ['periodicidad', 'periodo', 'frecuencia'],
-      diaPago: ['dia', 'dia de pago', 'dia cobro'],
-      codigoGestor: ['gestor', 'cobrador', 'codigo gestor', 'código gestor', 'codigo cobrador', 'cod gestor']
+      diaPago: ['dia', 'dia de pago', 'dia cobro', 'diapago'],
+      codigoGestor: ['gestor', 'cobrador', 'codigo gestor', 'código gestor', 'codigo cobrador', 'cod gestor', 'codigogestor'],
+      descripcionProducto: ['producto', 'artículo', 'descripcion', 'descripción', 'descripcionproducto', 'mercancia'],
+      fechaVenta: ['fecha', 'fecha de venta', 'fecha contrato', 'fechaventa', 'fechacontrato'],
+      vendedor: ['vendedor', 'agente'],
+      importe1: ['contado', 'precio contado', 'importe1'],
+      importe2: ['vendido', 'vendido en', 'importe2'],
+      importe3: ['p6', 'precio 6 meses', 'importe3'],
+      importe4: ['p12', 'precio 12 meses', 'importe4', 'pagar']
     };
 
     const getInternalKey = (header: string, index: number): string | null => {
-      const clean = header.toLowerCase().trim();
+      const clean = header.toLowerCase().trim().replace(/_/g, '').replace(/ /g, '');
       for (const [key, aliases] of Object.entries(aliasMap)) {
-        if (clean === key.toLowerCase() || aliases.includes(clean) || aliases.some(a => clean.includes(a))) {
+        const cleanKey = key.toLowerCase();
+        if (clean === cleanKey || aliases.some(a => {
+          const cleanA = a.toLowerCase().trim().replace(/_/g, '').replace(/ /g, '');
+          return clean === cleanA || clean.includes(cleanA);
+        })) {
           return key;
         }
       }
-      // Mapeo posicional por defecto si no se encontró por nombre
+      
+      // Mapeo posicional por defecto si no se encontró por nombre (siguiendo plantilla oficial)
       if (index === 0) return 'codigoCliente';
-      if (index === 1) return 'saldoActual';
+      if (index === 1) return 'nombreCompleto';
+      if (index === 2) return 'telefono';
+      if (index === 3) return 'vendedor';
+      if (index === 4) return 'codigoGestor';
+      if (index === 5) return 'direccionCompleta';
+      if (index === 6) return 'descripcionProducto';
+      if (index === 7) return 'diaPago';
+      if (index === 8) return 'montoPago';
+      if (index === 9) return 'periodicidad';
+      if (index === 10) return 'saldoActual';
+      if (index === 11) return 'fechaVenta';
+      
       return null;
     };
 
     for (let i = startIndex; i < activeLines.length; i++) {
       const lineObj = activeLines[i];
-      const values = splitCSVLine(lineObj.content);
+      const values = splitCSVLine(lineObj.content, separator);
 
       const row: any = { _originalRowIndex: lineObj.index };
       
       // Mapeo inteligente
       values.forEach((val, idx) => {
-        const key = headers[idx] ? getInternalKey(headers[idx], idx) : (idx === 0 ? 'codigoCliente' : idx === 1 ? 'saldoActual' : null);
+        const key = headers[idx] ? getInternalKey(headers[idx], idx) : getInternalKey("", idx);
         if (key) {
           row[key] = val;
         }
@@ -399,10 +450,6 @@ export function ImportarClientesModal({
         // Guardar por posición por si acaso
         row[`col${idx}`] = val;
       });
-
-      // Asegurar que codigoCliente y saldoActual estén mapeados por posición si falló lo demás
-      if (!row.codigoCliente) row.codigoCliente = values[0];
-      if (!row.saldoActual) row.saldoActual = values[1];
 
       data.push(row);
     }
