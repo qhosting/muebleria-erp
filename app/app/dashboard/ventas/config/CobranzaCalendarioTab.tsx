@@ -7,8 +7,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, Save, CheckCircle2 } from "lucide-react";
+import { CalendarDays, Save, CheckCircle2, FileUp, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
+import { ImportarCalendarioModal } from "@/components/ventas/ImportarCalendarioModal";
+import * as XLSX from "xlsx";
 
 const PERIODICIDADES = [
   { id: "diario", label: "Diario" },
@@ -29,6 +31,7 @@ export function CobranzaCalendarioTab() {
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
   const [selectedPeriodicidades, setSelectedPeriodicidades] = useState<string[]>(["diario", "semanal", "catorcenal", "quincenal", "mensual"]);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   useEffect(() => {
     fetchCalendarios();
@@ -117,6 +120,21 @@ export function CobranzaCalendarioTab() {
     }
   };
 
+  const downloadTemplate = () => {
+    const headers = ["Semana", "Periodicidades (separadas por coma)"];
+    const sampleData = [
+      ["1", "diario, semanal, catorcenal, quincenal, mensual"],
+      ["2", "semanal, catorcenal"],
+      ["3", "semanal, quincenal"]
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Plantilla Calendario");
+    XLSX.writeFile(wb, `plantilla_calendario_${selectedYear}.xlsx`);
+    toast.success("Plantilla descargada");
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid md:grid-cols-3 gap-6">
@@ -190,10 +208,19 @@ export function CobranzaCalendarioTab() {
 
         {/* Listado de Semanas Programadas */}
         <Card className="md:col-span-2 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-                Calendario Anual {selectedYear}
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle className="text-lg">Calendario Anual</CardTitle>
+              <CardDescription>Visualización de semanas configuradas para el año {selectedYear}</CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={downloadTemplate}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" /> Plantilla
+              </Button>
+              <Button variant="outline" size="sm" className="border-blue-200 text-blue-600 hover:bg-blue-50" onClick={() => setImportModalOpen(true)}>
+                <FileUp className="h-4 w-4 mr-2" /> Importar
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -241,6 +268,13 @@ export function CobranzaCalendarioTab() {
         </Card>
 
       </div>
+
+      <ImportarCalendarioModal 
+        open={importModalOpen} 
+        onOpenChange={setImportModalOpen} 
+        anio={selectedYear} 
+        onSuccess={fetchCalendarios} 
+      />
     </div>
   );
 }
