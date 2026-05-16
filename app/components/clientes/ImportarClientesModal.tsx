@@ -475,11 +475,32 @@ export function ImportarClientesModal({
       }
     }
 
-    // Validate diaPago
-    const diaPago = parseInt(row.diaPago);
-    if (isNaN(diaPago) || diaPago < 1 || diaPago > 7) {
-      return `Fila ${rowNum}: 'Día de Pago' debe ser un número entre 1 (Lunes) y 7 (Domingo). Valor encontrado: ${row.diaPago}`;
+    // Normalizar y validar diaPago
+    const normalizeDiaPago = (val: any): string => {
+      if (!val) return "";
+      const s = val.toString().toUpperCase().trim()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Quitar acentos
+      
+      const map: Record<string, string> = {
+        'LUNES': '1', 'MARTES': '2', 'MIERCOLES': '3', 'JUEVES': '4', 'VIERNES': '5', 'SABADO': '6', 'DOMINGO': '7',
+        'LUN': '1', 'MAR': '2', 'MIE': '3', 'JUE': '4', 'VIE': '5', 'SAB': '6', 'DOM': '7',
+        'L': '1', 'M': '2', 'MI': '3', 'J': '4', 'V': '5', 'S': '6', 'D': '7',
+        'LENTO': '1', // Valor legacy, mapear a Lunes por defecto
+        '1': '1', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7'
+      };
+      
+      return map[s] || s;
+    };
+
+    const diaPagoNormalizado = normalizeDiaPago(row.diaPago);
+    const diaPagoNum = parseInt(diaPagoNormalizado);
+
+    if (isNaN(diaPagoNum) || diaPagoNum < 1 || diaPagoNum > 7) {
+      return `Fila ${rowNum}: 'Día de Pago' debe ser un número entre 1 (Lunes) y 7 (Domingo) o el nombre del día. Valor encontrado: ${row.diaPago}`;
     }
+
+    // Actualizar el valor en el objeto row para que se use el normalizado
+    row.diaPago = diaPagoNormalizado;
 
     // Validate montoPago (only if present)
     if (row.montoPago) {
@@ -645,6 +666,7 @@ export function ImportarClientesModal({
             importe2: row.importe2 ? parseFloat(row.importe2) : null,
             importe3: row.importe3 ? parseFloat(row.importe3) : null,
             importe4: row.importe4 ? parseFloat(row.importe4) : null,
+            diaPago: row.diaPago?.toString() || "1",
             codigoGestor: row.codigoGestor?.toString().trim() || null,
           });
         }
