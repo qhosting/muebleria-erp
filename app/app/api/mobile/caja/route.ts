@@ -32,10 +32,29 @@ export async function GET(request: Request) {
       finRango = new Date(toParam);
     } else {
       const hoy = new Date();
-      // Inicio del día en UTC-6 (México)
-      inicioRango = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0);
-      inicioRango.setHours(inicioRango.getHours() - 6);
-      finRango = new Date(); // Hasta ahora
+      const day = hoy.getDay(); // 0: Sunday, 1: Monday, ..., 6: Saturday
+      
+      let daysToSubtract = 0;
+      if (day === 6) {
+        daysToSubtract = 0;
+      } else {
+        daysToSubtract = day + 1;
+      }
+      
+      let daysToAdd = 0;
+      if (day === 6) {
+        daysToAdd = 6;
+      } else {
+        daysToAdd = 5 - day;
+      }
+      
+      inicioRango = new Date(hoy);
+      inicioRango.setDate(hoy.getDate() - daysToSubtract);
+      inicioRango.setHours(0, 0, 0, 0);
+      
+      finRango = new Date(hoy);
+      finRango.setDate(hoy.getDate() + daysToAdd);
+      finRango.setHours(23, 59, 59, 999);
     }
 
     // Obtener todos los pagos del rango para este cobrador

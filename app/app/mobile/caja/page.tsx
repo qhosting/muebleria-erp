@@ -30,8 +30,38 @@ export default function MobileCaja() {
     const [printing, setPrinting] = useState<string | null>(null);
     const [selectedPago, setSelectedPago] = useState<any | null>(null);
     const [showArqueoModal, setShowArqueoModal] = useState(false);
-    const [dateFrom, setDateFrom] = useState(dayjs().startOf('day').format('YYYY-MM-DDTHH:mm'));
-    const [dateTo, setDateTo] = useState(dayjs().format('YYYY-MM-DDTHH:mm'));
+
+    // Calcular ciclo semanal de cobranza (Sábado a Viernes)
+    const getWeekCycleDates = () => {
+        const today = dayjs();
+        const day = today.day(); // 0: Sunday, 1: Monday, ..., 6: Saturday
+        
+        let daysToSubtract = 0;
+        if (day === 6) {
+            daysToSubtract = 0;
+        } else {
+            daysToSubtract = day + 1;
+        }
+        
+        let daysToAdd = 0;
+        if (day === 6) {
+            daysToAdd = 6;
+        } else {
+            daysToAdd = 5 - day;
+        }
+        
+        const startOfCycle = today.subtract(daysToSubtract, 'day').startOf('day');
+        const endOfCycle = today.add(daysToAdd, 'day').endOf('day');
+        
+        return {
+            from: startOfCycle.format('YYYY-MM-DDTHH:mm'),
+            to: endOfCycle.format('YYYY-MM-DDTHH:mm')
+        };
+    };
+
+    const cycleDates = getWeekCycleDates();
+    const [dateFrom, setDateFrom] = useState(cycleDates.from);
+    const [dateTo, setDateTo] = useState(cycleDates.to);
     const [showFilters, setShowFilters] = useState(false);
 
     const fetchCajaData = useCallback(async () => {
