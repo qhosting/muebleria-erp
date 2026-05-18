@@ -313,32 +313,68 @@ export default function MobileCaja() {
                     <div className="space-y-6 pl-0">
                         {pagos.map((pago) => (
                             <div key={pago.id} className="relative flex items-start pl-10 group">
-                                <div className="absolute left-[11px] top-1 w-2.5 h-2.5 rounded-full bg-slate-700 border-2 border-slate-900 group-hover:bg-emerald-500 transition-colors z-10"></div>
+                                <div className="absolute left-[11px] top-4 w-2.5 h-2.5 rounded-full bg-slate-700 border-2 border-slate-900 group-hover:bg-emerald-500 transition-colors z-10"></div>
 
                                 <div 
-                                    className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-xl p-3 hover:bg-slate-800 transition-colors active:scale-[0.99]"
+                                    className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-2xl p-4 hover:bg-slate-800 transition-colors active:scale-[0.99] space-y-3"
                                     onClick={() => fetchPagoDetails(pago.id)}
                                 >
-                                    <div className="flex justify-between items-start mb-1">
-                                        <p className="font-bold text-slate-200 text-sm">{pago.cliente}</p>
-                                        <p className="font-mono text-emerald-400 font-bold text-sm">+{formatCurrency(pago.monto)}</p>
+                                    {/* Header: Cliente y Código */}
+                                    <div className="flex justify-between items-start">
+                                        <div className="space-y-1">
+                                            <span className="text-[9px] font-black text-slate-300 bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700/60 uppercase">
+                                                {pago.codigoCliente || 'S/C'}
+                                            </span>
+                                            <p className="font-bold text-slate-200 text-sm mt-1">{pago.cliente}</p>
+                                        </div>
+                                        
+                                        {/* Monto Principal */}
+                                        <div className="text-right">
+                                            <p className="font-mono text-emerald-400 font-extrabold text-base">+{formatCurrency(pago.monto)}</p>
+                                            <p className="text-[10px] text-slate-500 font-bold uppercase">{pago.metodo}</p>
+                                        </div>
                                     </div>
-                                    <div className="flex justify-between items-center text-xs text-slate-500">
+
+                                    {/* Desglose de Moras y Gastos (Solo si alguno es mayor a 0) */}
+                                    {(pago.interesMoratorio > 0 || pago.gastosCobranza > 0) && (
+                                        <div className="grid grid-cols-2 gap-2 bg-slate-950/40 p-2.5 rounded-xl border border-slate-805/50 text-[11px] font-medium text-slate-400">
+                                            {pago.interesMoratorio > 0 && (
+                                                <div className="flex justify-between">
+                                                    <span>Mora:</span>
+                                                    <span className="text-orange-400 font-bold">+{formatCurrency(pago.interesMoratorio)}</span>
+                                                </div>
+                                            )}
+                                            {pago.gastosCobranza > 0 && (
+                                                <div className="flex justify-between">
+                                                    <span>Gtos. Cobranza:</span>
+                                                    <span className="text-sky-400 font-bold">+{formatCurrency(pago.gastosCobranza)}</span>
+                                                </div>
+                                            )}
+                                            <div className="col-span-2 border-t border-slate-800/60 pt-1 flex justify-between font-bold text-slate-300">
+                                                <span>Total Recibido:</span>
+                                                <span className="text-emerald-400 font-black">+{formatCurrency(pago.monto + pago.interesMoratorio + pago.gastosCobranza)}</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Footer: Fecha, Hora y Reimpresión */}
+                                    <div className="flex justify-between items-center pt-2 border-t border-slate-800/40 text-[11px] text-slate-500 font-semibold">
                                         <div className="flex items-center space-x-2">
-                                            <span>{pago.metodo}</span>
-                                            <span className="w-1 h-1 rounded-full bg-slate-600"></span>
+                                            <span>{pago.fecha}</span>
+                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-700"></span>
                                             <span>{pago.hora}</span>
                                         </div>
-                                        {/* Botón ticket pequeño */}
+                                        
                                         <button 
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleReprintTicket(pago.id);
                                             }}
                                             disabled={!!printing}
-                                            className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors active:scale-90"
+                                            className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors active:scale-90"
+                                            title="Reimprimir Ticket"
                                         >
-                                            <Printer className={`w-4 h-4 ${printing === pago.id ? "animate-spin text-emerald-400" : ""}`} />
+                                            <Printer className={`w-3.5 h-3.5 ${printing === pago.id ? "animate-spin text-emerald-400" : ""}`} />
                                         </button>
                                     </div>
                                 </div>

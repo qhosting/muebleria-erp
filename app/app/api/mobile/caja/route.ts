@@ -49,7 +49,10 @@ export async function GET(request: Request) {
       },
       include: {
         cliente: {
-          select: { nombreCompleto: true }
+          select: { 
+            nombreCompleto: true,
+            codigoCliente: true
+          }
         }
       },
       orderBy: {
@@ -97,7 +100,11 @@ export async function GET(request: Request) {
       pagos: pagos.map(p => ({
         id: p.id,
         cliente: p.cliente.nombreCompleto,
+        codigoCliente: p.cliente.codigoCliente,
         monto: parseFloat(p.monto.toString()),
+        interesMoratorio: parseFloat(p.interesMoratorio.toString()) || 0,
+        gastosCobranza: parseFloat(p.gastosCobranza.toString()) || 0,
+        fecha: new Date(p.fechaPago).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }),
         hora: new Date(p.fechaPago).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         metodo: p.metodoPago
       }))
