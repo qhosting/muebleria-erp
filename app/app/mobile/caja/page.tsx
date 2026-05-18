@@ -193,6 +193,11 @@ export default function MobileCaja() {
         }
     };
 
+    const totalAbonos = pagos.reduce((sum: number, p: any) => sum + (p.monto || 0), 0);
+    const totalMoras = pagos.reduce((sum: number, p: any) => sum + (p.interesMoratorio || 0), 0);
+    const totalGastos = pagos.reduce((sum: number, p: any) => sum + (p.gastosCobranza || 0), 0);
+    const granTotal = totalAbonos + totalMoras + totalGastos;
+
     return (
         <div className="space-y-6 pt-2">
             {/* FILTROS DE RANGO */}
@@ -382,6 +387,42 @@ export default function MobileCaja() {
                         ))}
                     </div>
                 </div>
+
+                {/* TOTALIZADOR DE MOVIMIENTOS */}
+                {pagos.length > 0 && (
+                    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 mt-2 space-y-3 shadow-inner">
+                        <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                            Resumen Contable de la Lista
+                        </h3>
+                        <div className="space-y-2 text-xs">
+                            <div className="flex justify-between text-slate-400 font-semibold">
+                                <span>Total Abonos Principal:</span>
+                                <span className="font-mono text-slate-200">{formatCurrency(totalAbonos)}</span>
+                            </div>
+                            
+                            {totalMoras > 0 && (
+                                <div className="flex justify-between text-slate-400 font-semibold">
+                                    <span>Total Intereses Moratorios:</span>
+                                    <span className="font-mono text-orange-400">+{formatCurrency(totalMoras)}</span>
+                                </div>
+                            )}
+                            
+                            {totalGastos > 0 && (
+                                <div className="flex justify-between text-slate-400 font-semibold">
+                                    <span>Total Gastos Cobranza:</span>
+                                    <span className="font-mono text-sky-400">+{formatCurrency(totalGastos)}</span>
+                                </div>
+                            )}
+                            
+                            <div className="border-t border-slate-850 pt-2.5 flex justify-between items-center">
+                                <span className="text-slate-300 font-bold uppercase tracking-wide">Gran Total Recibido:</span>
+                                <span className="text-lg font-black text-emerald-400 font-mono">
+                                    {formatCurrency(granTotal)}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* MODAL DE DETALLE DE PAGO */}
