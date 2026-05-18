@@ -109,34 +109,49 @@ export async function GET(
 
     const sumMap = new Map(consolidadoSums.map((s: any) => [s.telefono, parseFloat(s._sum.saldoActual?.toString() || '0')]));
 
-    // Transformar datos para formato offline
-    const clientesOffline = clientes.map((cliente: any) => ({
-      id: cliente.id,
-      nombreCompleto: cliente.nombreCompleto,
-      telefono: cliente.telefono,
-      direccion: cliente.direccionCompleta,
-      diaPago: cliente.diaPago,
-      montoAcordado: parseFloat(cliente.montoPago.toString()),
-      saldoPendiente: parseFloat(cliente.saldoActual.toString()),
-      saldoConsolidado: sumMap.get(cliente.telefono) || parseFloat(cliente.saldoActual.toString()),
-      fechaUltimoPago: cliente.pagos[0]?.fechaPago?.toISOString(),
-      statusCuenta: cliente.statusCuenta,
-      cobradorAsignadoId: cliente.cobradorAsignadoId,
-      notas: null,
-      saldoVencido: parseFloat(cliente.saldoVencido?.toString() || '0'),
-      diasVencidos: cliente.diasVencidos || 0,
-      descripcionProducto: cliente.descripcionProducto,
-      vendedorNombre: cliente.vendedor || cliente.vendedorRel?.name || 'No asignado',
-      empleado: cliente.ocupacion || 'No especificado',
-      aval: cliente.avalId || 'No asignado',
-      montoCredito: cliente.importe1 ? Number(cliente.importe1) : 0,
-      vendidoEn: cliente.importe2 ? Number(cliente.importe2) : 0,
-      precios: {
-        contado: cliente.importe1 ? Number(cliente.importe1) : 0,
-        p6: cliente.importe3 ? Number(cliente.importe3) : 0,
-        p12: cliente.importe4 ? Number(cliente.importe4) : 0
+    // Transformar datos para formato offline de forma segura e impecable
+    const clientesOffline = clientes.map((cliente: any) => {
+      const montoPago = cliente.montoPago ? parseFloat(cliente.montoPago.toString()) : 0;
+      const saldoActual = cliente.saldoActual ? parseFloat(cliente.saldoActual.toString()) : 0;
+      const saldoVencido = cliente.saldoVencido ? parseFloat(cliente.saldoVencido.toString()) : 0;
+      
+      let fechaUltimoPago = null;
+      if (cliente.pagos && cliente.pagos[0]?.fechaPago) {
+        try {
+          fechaUltimoPago = new Date(cliente.pagos[0].fechaPago).toISOString();
+        } catch (e) {
+          console.error("Error formatting payment date:", e);
+        }
       }
-    }));
+
+      return {
+        id: cliente.id,
+        nombreCompleto: cliente.nombreCompleto || 'Sin nombre',
+        telefono: cliente.telefono || '',
+        direccion: cliente.direccionCompleta || 'Sin dirección',
+        diaPago: cliente.diaPago || 'No especificado',
+        montoAcordado: montoPago,
+        saldoPendiente: saldoActual,
+        saldoConsolidado: (cliente.telefono ? sumMap.get(cliente.telefono) : null) || saldoActual,
+        fechaUltimoPago,
+        statusCuenta: cliente.statusCuenta || 'activo',
+        cobradorAsignadoId: cliente.cobradorAsignadoId,
+        notas: null,
+        saldoVencido: saldoVencido,
+        diasVencidos: cliente.diasVencidos || 0,
+        descripcionProducto: cliente.descripcionProducto || '',
+        vendedorNombre: cliente.vendedor || cliente.vendedorRel?.name || 'No asignado',
+        empleado: cliente.ocupacion || 'No especificado',
+        aval: cliente.avalId || 'No asignado',
+        montoCredito: cliente.importe1 ? Number(cliente.importe1) : 0,
+        vendidoEn: cliente.importe2 ? Number(cliente.importe2) : 0,
+        precios: {
+          contado: cliente.importe1 ? Number(cliente.importe1) : 0,
+          p6: cliente.importe3 ? Number(cliente.importe3) : 0,
+          p12: cliente.importe4 ? Number(cliente.importe4) : 0
+        }
+      };
+    });
 
     return NextResponse.json(clientesOffline);
 

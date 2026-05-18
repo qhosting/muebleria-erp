@@ -121,12 +121,12 @@ export class SyncService {
 
       const clientesServidor = await response.json();
 
-      // Limpiar clientes locales y agregar los del servidor
+      // Limpiar clientes locales y agregar/actualizar los del servidor
       await db.transaction('rw', db.clientes, async () => {
         await db.clientes.where('cobradorAsignadoId').equals(cobradorId).delete();
 
         for (const cliente of clientesServidor) {
-          await db.clientes.add({
+          await db.clientes.put({
             ...cliente,
             lastSync: Date.now(),
             syncStatus: 'synced' as const
