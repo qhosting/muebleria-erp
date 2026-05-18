@@ -38,14 +38,26 @@ export default function MobileCaja() {
         setLoading(true);
         try {
             const url = new URL('/api/mobile/caja', window.location.origin);
-            url.searchParams.append('from', new Date(dateFrom).toISOString());
-            url.searchParams.append('to', new Date(dateTo).toISOString());
+            
+            const fromDate = dayjs(dateFrom);
+            const toDate = dayjs(dateTo);
+            
+            if (fromDate.isValid() && toDate.isValid()) {
+                url.searchParams.append('from', fromDate.toISOString());
+                url.searchParams.append('to', toDate.toISOString());
+            } else {
+                toast.error("Rango de fechas inválido");
+                setLoading(false);
+                return;
+            }
             
             const response = await fetch(url.toString());
             if (response.ok) {
                 const data = await response.json();
                 setStats(data.stats);
                 setPagos(data.pagos);
+            } else {
+                toast.error("Error al obtener los datos de la caja");
             }
         } catch (error) {
             console.error("Error fetching caja data:", error);
@@ -429,7 +441,10 @@ export default function MobileCaja() {
 
             {/* BOTÓN CIERRE DE DÍA */}
             <div className="sticky bottom-4 mx-4">
-                <button className="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-rose-900/20 active:scale-[0.98] transition-all flex items-center justify-center space-x-2">
+                <button 
+                    onClick={() => setShowArqueoModal(true)}
+                    className="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-rose-900/20 active:scale-[0.98] transition-all flex items-center justify-center space-x-2"
+                >
                     <Download className="w-5 h-5" />
                     <span>Cerrar Caja del Día</span>
                 </button>

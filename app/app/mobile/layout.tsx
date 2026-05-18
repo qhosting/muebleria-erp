@@ -54,33 +54,29 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
         // Silent Heartbeat (Rastreo de dispositivo)
         const sendHeartbeat = async () => {
             try {
-                // Solo si es nativo o tenemos permiso de ubicación
-                if (typeof window !== 'undefined' && navigator.geolocation) {
-                    let deviceId = 'web-browser';
-                    
-                    if (Capacitor.isNativePlatform()) {
-                        const { Device } = await import('@capacitor/device');
-                        const info = await Device.getId();
-                        deviceId = info.identifier;
-                    }
-
-                    navigator.geolocation.getCurrentPosition(async (pos) => {
-                        await fetch('/api/mobile/dispositivos/heartbeat', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                deviceId,
-                                latitud: pos.coords.latitude,
-                                longitd: pos.coords.longitude
-                            })
-                        });
-                    }, (err) => console.warn("Heartbeat GPS error:", err), {
-                        enableHighAccuracy: false, // Low accuracy for silent heartbeat to save battery
-                        timeout: 10000
-                    });
+                let deviceId = 'web-browser';
+                
+                if (Capacitor.isNativePlatform()) {
+                    const { Device } = await import('@capacitor/device');
+                    const info = await Device.getId();
+                    deviceId = info.identifier;
                 }
+
+                // Importar dinámicamente para evitar problemas de SSR / Capacitor
+                const { obtenerUbicacionCobrador } = await import('@/lib/native/location');
+                const pos = await obtenerUbicacionCobrador(false, 300000); // Baja precisión, caché de 5 minutos
+
+                await fetch('/api/mobile/dispositivos/heartbeat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        deviceId,
+                        latitud: pos.lat,
+                        longitd: pos.lng
+                    })
+                });
             } catch (e) {
-                console.error("Heartbeat failed:", e);
+                console.warn("Heartbeat GPS error o fallido:", e);
             }
         };
 

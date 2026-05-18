@@ -51,21 +51,20 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
             setFotos([]);
             
             // Intentar obtener ubicación GPS con alta precisión
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => {
-                        setCoords({
-                            lat: pos.coords.latitude,
-                            lng: pos.coords.longitude
-                        });
-                    },
-                    (err) => {
-                        console.warn("Error de geolocalización:", err);
-                        toast.error("No se pudo obtener la ubicación GPS precisa.");
-                    },
-                    { enableHighAccuracy: true, timeout: 5000 }
-                );
-            }
+            const getUbicacion = async () => {
+                try {
+                    const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
+                    const pos = await obtenerUbicacionCobrador(true, 5000);
+                    setCoords({
+                        lat: pos.lat,
+                        lng: pos.lng
+                    });
+                } catch (error) {
+                    console.warn("Error de geolocalización en verificación:", error);
+                    toast.error("No se pudo obtener la ubicación GPS precisa.");
+                }
+            };
+            getUbicacion();
         }
     }, [isOpen]);
 

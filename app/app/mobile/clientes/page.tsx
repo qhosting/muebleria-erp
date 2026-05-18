@@ -41,6 +41,7 @@ function MobileClientes() {
     const [mostrarTodos, setMostrarTodos] = useState(false);
     const [filtroDia, setFiltroDia] = useState("todos");
     const [filtroEstatus, setFiltroEstatus] = useState("todos");
+    const [filtroCobro, setFiltroCobro] = useState<"todos" | "cobrados" | "nocobrados">("todos");
     
     // Estados para el cobro
     const [interesMoratorio, setInteresMoratorio] = useState("0");
@@ -258,15 +259,10 @@ function MobileClientes() {
 
         // Intentar obtener ubicación GPS
         try {
-            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, {
-                    enableHighAccuracy: true,
-                    timeout: 5000,
-                    maximumAge: 0
-                });
-            });
-            latitud = position.coords.latitude.toString();
-            longitud = position.coords.longitude.toString();
+            const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
+            const pos = await obtenerUbicacionCobrador(true, 0);
+            latitud = pos.lat.toString();
+            longitud = pos.lng.toString();
         } catch (error) {
             console.warn("No se pudo obtener ubicación GPS para el cobro:", error);
         }
@@ -449,10 +445,18 @@ Fecha: ${new Date().toLocaleDateString()}.
         // Filtro Lento (Atrasado)
         const matchesLento = filtroEstatus === "todos" || c.estatus === "atrasado";
 
-        // Filtro Pendientes vs Todos
-        const matchesPendiente = mostrarTodos || !c.yaPagoEstaSemana;
+        // Filtro Cobros (Cobrados, No Cobrados, Todos)
+        let matchesCobro = true;
+        if (filtroCobro === "cobrados") {
+            matchesCobro = !!c.yaPagoEstaSemana;
+        } else if (filtroCobro === "nocobrados") {
+            matchesCobro = !c.yaPagoEstaSemana;
+        } else {
+            // Si es "todos", respetamos el filtro original de "mostrarTodos/Pendientes"
+            matchesCobro = mostrarTodos || !c.yaPagoEstaSemana;
+        }
 
-        return matchesSearch && matchesDia && matchesLento && matchesPendiente;
+        return matchesSearch && matchesDia && matchesLento && matchesCobro;
     });
 
     const dias = [
@@ -519,6 +523,24 @@ Fecha: ${new Date().toLocaleDateString()}.
                                 }`}
                             >
                                 {filtroEstatus === "lento" ? 'Solo Lentos' : 'Todo Estatus'}
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    setFiltroCobro(prev => {
+                                        if (prev === "todos") return "cobrados";
+                                        if (prev === "cobrados") return "nocobrados";
+                                        return "todos";
+                                    });
+                                }}
+                                className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase transition-colors border ${
+                                    filtroCobro === "cobrados" 
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                                    : filtroCobro === "nocobrados"
+                                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                    : 'bg-slate-800 text-slate-400 border-transparent'
+                                }`}
+                            >
+                                {filtroCobro === "cobrados" ? 'Cobrados' : filtroCobro === "nocobrados" ? 'No Cobrados' : 'Todo Cobro'}
                             </button>
                         </div>
                         <p className="text-[10px] text-slate-600 font-mono">

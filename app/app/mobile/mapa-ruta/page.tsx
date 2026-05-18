@@ -21,14 +21,18 @@ export default function MobileMap() {
 
     useEffect(() => {
         // 1. Obtener ubicación actual del cobrador
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => setPosition([pos.coords.latitude, pos.coords.longitude]),
-                () => setPosition([19.432608, -99.133209]) // Fallback
-            );
-        } else {
-            setPosition([19.432608, -99.133209]);
-        }
+        const getUbicacion = async () => {
+            try {
+                const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
+                const pos = await obtenerUbicacionCobrador(true, 60000);
+                setPosition([pos.lat, pos.lng]);
+            } catch (error) {
+                console.warn("Error obteniendo ubicación, usando fallback:", error);
+                setPosition([19.432608, -99.133209]); // Fallback
+            }
+        };
+
+        getUbicacion();
 
         // 2. Cargar clientes reales con coordenadas
         const fetchRouteData = async () => {

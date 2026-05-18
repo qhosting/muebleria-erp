@@ -59,14 +59,19 @@ export function ConvenioModal({ cliente, isOpen, onClose, onSuccess, isOnline }:
             setComentario("");
             setSavedConvenio(null);
 
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition((pos) => {
+            const getUbicacion = async () => {
+                try {
+                    const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
+                    const pos = await obtenerUbicacionCobrador(true, 60000);
                     setCoords({
-                        lat: pos.coords.latitude,
-                        lng: pos.coords.longitude
+                        lat: pos.lat,
+                        lng: pos.lng
                     });
-                });
-            }
+                } catch (error) {
+                    console.warn("Error obteniendo ubicación para convenio:", error);
+                }
+            };
+            getUbicacion();
         }
     }, [isOpen, cliente]);
 
