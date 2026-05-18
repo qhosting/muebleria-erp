@@ -427,8 +427,8 @@ class BluetoothPrinterService {
       ticket += (range ? 'CORTE DE COBRANZA' : 'REPORTE DIARIO DE COBRANZA') + this.LF;
       
       if (range) {
-        ticket += 'DE: ' + this.formatDate(range.from) + ' ' + new Date(range.from).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + this.LF;
-        ticket += 'A:  ' + this.formatDate(range.to) + ' ' + new Date(range.to).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + this.LF;
+        ticket += 'DE: ' + this.formatDate(range.from) + this.LF;
+        ticket += 'A:  ' + this.formatDate(range.to) + this.LF;
       } else {
         ticket += new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString() + this.LF;
       }
@@ -454,13 +454,61 @@ class BluetoothPrinterService {
       ticket += this.COMMANDS.BOLD_ON;
       ticket += 'MOVIMIENTOS (' + pagos.length + '):' + this.LF;
       ticket += this.COMMANDS.BOLD_OFF;
+      ticket += this.createDivider('.', 32) + this.LF;
 
       pagos.forEach(p => {
-        const line = `${p.hora} ${p.cliente.substring(0, 15)}`;
-        ticket += line + this.rightAlignText(this.formatCurrency(p.monto)) + this.LF;
+        // Línea 1: [Codigo] NombreCliente
+        const codigo = p.codigoCliente || 'S/C';
+        const clientePart = p.cliente.substring(0, 32 - codigo.length - 3); // Dejar espacio para brackets y separación
+        ticket += `[${codigo}] ${clientePart}` + this.LF;
+        
+        // Línea 2: Fecha y Hora + Metodo
+        const fechaHora = `${p.fecha || ''} ${p.hora || ''}`.trim();
+        const metodoPart = (p.metodo || '').toUpperCase();
+        const leftPart = `${fechaHora} (${metodoPart})`;
+        ticket += leftPart + this.LF;
+
+        // Línea 3: Desglose de importes
+        if ((p.interesMoratorio && p.interesMoratorio > 0) || (p.gastosCobranza && p.gastosCobranza > 0)) {
+          ticket += `  Abono: ` + this.rightAlignText(this.formatCurrency(p.monto), 23) + this.LF;
+          if (p.interesMoratorio > 0) {
+            ticket += `  Mora:  ` + this.rightAlignText(this.formatCurrency(p.interesMoratorio), 23) + this.LF;
+          }
+          if (p.gastosCobranza > 0) {
+            ticket += `  Gastos:` + this.rightAlignText(this.formatCurrency(p.gastosCobranza), 23) + this.LF;
+          }
+          const totalRecibido = p.monto + (p.interesMoratorio || 0) + (p.gastosCobranza || 0);
+          ticket += `  TOTAL: ` + this.rightAlignText(this.formatCurrency(totalRecibido), 23) + this.LF;
+        } else {
+          ticket += `  Abono: ` + this.rightAlignText(this.formatCurrency(p.monto), 23) + this.LF;
+        }
+        
+        // Divisor punteado entre movimientos
+        ticket += this.createDivider('.', 32) + this.LF;
       });
 
+      // Cálculo de totales dinámicos para resumen final
+      const totalAbonos = pagos.reduce((sum, p) => sum + (p.monto || 0), 0);
+      const totalMoras = pagos.reduce((sum, p) => sum + (p.interesMoratorio || 0), 0);
+      const totalGastos = pagos.reduce((sum, p) => sum + (p.gastosCobranza || 0), 0);
+      const granTotal = totalAbonos + totalMoras + totalGastos;
+
       ticket += this.createDivider() + this.LF;
+      ticket += this.COMMANDS.BOLD_ON;
+      ticket += 'RESUMEN CONTABLE DE LISTA:' + this.LF;
+      ticket += this.COMMANDS.BOLD_OFF;
+      ticket += 'Total Abonos: ' + this.rightAlignText(this.formatCurrency(totalAbonos), 18) + this.LF;
+      if (totalMoras > 0) {
+        ticket += 'Total Moras:  ' + this.rightAlignText(this.formatCurrency(totalMoras), 18) + this.LF;
+      }
+      if (totalGastos > 0) {
+        ticket += 'Total Gastos: ' + this.rightAlignText(this.formatCurrency(totalGastos), 18) + this.LF;
+      }
+      ticket += this.COMMANDS.BOLD_ON;
+      ticket += 'GRAN TOTAL:   ' + this.rightAlignText(this.formatCurrency(granTotal), 18) + this.LF;
+      ticket += this.COMMANDS.BOLD_OFF;
+      ticket += this.createDivider() + this.LF;
+
       ticket += this.LF + this.LF + this.LF;
       ticket += this.COMMANDS.CUT;
 
