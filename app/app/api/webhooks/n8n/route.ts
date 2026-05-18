@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import crypto from "crypto";
 
 /**
  * Webhook para recibir datos de tickets procesados por n8n (WhatsApp / IA)
@@ -235,6 +236,54 @@ export async function POST(req: Request) {
                     where: { remitente }
                 });
             }
+
+            // I. Sincronizar con el Buzón de Tesorería (Cola de Comprobantes) para el Dashboard
+            let uniqueHash = null;
+            if (base64Data) {
+                uniqueHash = crypto.createHash('md5').update(base64Data).digest('hex');
+            } else {
+                const uniqueStr = `${cliente.id}-${monto}-${referencia || 'noref'}-${fechaTicket.toISOString()}`;
+                uniqueHash = crypto.createHash('md5').update(uniqueStr).digest('hex');
+            }
+
+            await tx.buzonTesoreria.upsert({
+                where: { hash: uniqueHash },
+                update: {
+                    estado: movimientoBancario ? 'PROCESADO' : 'PENDIENTE',
+                    contractId: codigoFinal,
+                    monto: parseFloat(monto),
+                    referencia: referencia !== 'null' ? referencia : null,
+                    base64Data: base64Data || null,
+                    metadata: {
+                        contrato: codigoFinal,
+                        monto: parseFloat(monto),
+                        referencia: referencia,
+                        folio: folio,
+                        fecha: fecha,
+                        hr: hr,
+                        claverastreo: claverastreo
+                    }
+                },
+                create: {
+                    telefono: remitente || "N/A",
+                    hash: uniqueHash,
+                    base64Data: base64Data || null,
+                    contractId: codigoFinal,
+                    monto: parseFloat(monto),
+                    referencia: referencia !== 'null' ? referencia : null,
+                    fecha: fechaTicket,
+                    estado: movimientoBancario ? 'PROCESADO' : 'PENDIENTE',
+                    metadata: {
+                        contrato: codigoFinal,
+                        monto: parseFloat(monto),
+                        referencia: referencia,
+                        folio: folio,
+                        fecha: fecha,
+                        hr: hr,
+                        claverastreo: claverastreo
+                    }
+                }
+            });
 
             return {
                 ticketId: newTicket.id,
