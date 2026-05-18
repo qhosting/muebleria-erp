@@ -73,7 +73,8 @@ export async function GET(request: NextRequest) {
             periodicidad: p.cliente.periodicidad,
             diaCobro: p.cliente.diaPago,
             telefono: p.cliente.telefono,
-            mora: p.tipoPago === 'moratorio' ? parseFloat(p.monto.toString()) : 0,
+            mora: parseFloat(p.interesMoratorio?.toString() || '0'),
+            gastos: parseFloat(p.gastosCobranza?.toString() || '0'),
             tipo: p.metodoPago.toLowerCase() === 'bancario' ? 'BANCARIO' : 'GESTOR',
         }));
 

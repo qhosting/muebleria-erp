@@ -147,7 +147,10 @@ export default function PagosGestorPage() {
             'Código Cliente': p.codigoCliente,
             'Nombre Cliente': p.nombreCliente,
             'Referencia': p.referencia,
-            'Monto': p.monto,
+            'Abono Principal': p.monto,
+            'Interés Moratorio': p.mora || 0,
+            'Gastos Cobranza': p.gastos || 0,
+            'Total Recibido': (p.monto || 0) + (p.mora || 0) + (p.gastos || 0),
             'Agente': p.agente,
             'Concepto': p.concepto,
             'Tipo': p.tipo
@@ -314,8 +317,10 @@ export default function PagosGestorPage() {
                                     <TableHead className="text-white">Nombre Cliente</TableHead>
                                     <TableHead className="text-white">Ref.</TableHead>
                                     <TableHead className="text-white text-right">Monto</TableHead>
-                                    <TableHead className="text-white">Agente</TableHead>
                                     <TableHead className="text-white text-right">Mora</TableHead>
+                                    <TableHead className="text-white text-right">Gastos</TableHead>
+                                    <TableHead className="text-white text-right">Total</TableHead>
+                                    <TableHead className="text-white">Agente</TableHead>
                                     <TableHead className="text-white">Tipo</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -323,13 +328,15 @@ export default function PagosGestorPage() {
                                 {pagos.map((p) => (
                                     <TableRow key={p.id} className="hover:bg-gray-50">
                                         <TableCell className="text-xs font-mono">{p.id.substring(0, 8)}</TableCell>
-                                        <TableCell>{formatDate(new Date(p.fechaPago))}</TableCell>
+                                        <TableCell>{formatDate(new Date(p.fechaPago)).split(' ')[0]}</TableCell>
                                         <TableCell className="font-bold">{p.codigoCliente}</TableCell>
                                         <TableCell className="text-xs">{p.nombreCliente}</TableCell>
                                         <TableCell className="text-xs">{p.referencia}</TableCell>
                                         <TableCell className="text-right font-bold text-green-700">{formatCurrency(p.monto)}</TableCell>
+                                        <TableCell className="text-right text-red-600 font-medium">{formatCurrency(p.mora || 0)}</TableCell>
+                                        <TableCell className="text-right text-sky-600 font-medium">{formatCurrency(p.gastos || 0)}</TableCell>
+                                        <TableCell className="text-right text-emerald-600 font-black">{formatCurrency((p.monto || 0) + (p.mora || 0) + (p.gastos || 0))}</TableCell>
                                         <TableCell className="text-xs">{p.agente}</TableCell>
-                                        <TableCell className="text-right text-red-600">{formatCurrency(p.mora)}</TableCell>
                                         <TableCell>
                                             <Badge variant={p.tipo === 'BANCARIO' ? 'default' : 'outline'} className={p.tipo === 'GESTOR' ? 'border-orange-200 text-orange-700' : ''}>
                                                 {p.tipo}
@@ -339,7 +346,7 @@ export default function PagosGestorPage() {
                                 ))}
                                 {pagos.length === 0 && !loadingPagos && (
                                     <TableRow>
-                                        <TableCell colSpan={9} className="text-center py-20 text-gray-400 italic">
+                                        <TableCell colSpan={11} className="text-center py-20 text-gray-400 italic">
                                             No has realizado ninguna búsqueda todavía.
                                         </TableCell>
                                     </TableRow>
