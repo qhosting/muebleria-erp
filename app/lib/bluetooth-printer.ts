@@ -288,15 +288,15 @@ class BluetoothPrinterService {
         }
       }
 
-      // 3. Si no hay ID guardado o no se encontró en getDevices, solicitar selección normal
-      console.log('ℹ️ No se encontró impresora autorizada previa. Iniciando selección normal...');
-      return await this.connectToPrinter();
+      // 3. Si no hay ID guardado o no se encontró en getDevices, terminar silenciosamente
+      console.log('ℹ️ No se pudo reconectar de forma automática/silenciosa.');
+      return false;
 
     } catch (error) {
       console.error('❌ Error reconectando a impresora:', error);
       this.connection.isConnected = false;
       this.saveConnectionState(false);
-      throw error;
+      return false;
     }
   }
 

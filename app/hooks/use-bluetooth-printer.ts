@@ -114,6 +114,7 @@ export function useBluetoothPrinter() {
         return true;
       }
       
+      toast.error('No se pudo reconectar de forma automática. Por favor, vuelve a vincular la impresora.');
       return false;
     } catch (error: any) {
       const message = error.message || 'Error reconectando a la impresora';
