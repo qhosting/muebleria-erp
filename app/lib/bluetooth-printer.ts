@@ -198,6 +198,42 @@ class BluetoothPrinterService {
     return this.connection.server.connected === true;
   }
 
+  private handleGattDisconnection = () => {
+    console.log('⚠️ Impresora desconectada (evento GATT)');
+    this.connection.isConnected = false;
+    this.saveConnectionState(false);
+  };
+
+  private async connectGattDevice(device: any): Promise<boolean> {
+    if (!device.gatt) {
+      throw new Error('GATT no disponible en el dispositivo');
+    }
+
+    this.connection.server = await device.gatt.connect();
+
+    if (!this.connection.server) {
+      throw new Error('No se pudo conectar al servidor GATT');
+    }
+
+    // Obtener el servicio
+    this.connection.service = await this.connection.server.getPrimaryService(this.SERVICE_UUID);
+
+    // Obtener la característica
+    this.connection.characteristic = await this.connection.service.getCharacteristic(this.CHARACTERISTIC_UUID);
+
+    this.connection.isConnected = true;
+
+    // Guardar estado con ID y nombre del dispositivo
+    this.saveConnectionState(true, device.name, device.id);
+
+    // Listener para desconexión
+    device.removeEventListener('gattserverdisconnected', this.handleGattDisconnection);
+    device.addEventListener('gattserverdisconnected', this.handleGattDisconnection);
+
+    console.log('✅ Impresora conectada exitosamente a través de GATT:', device.name);
+    return true;
+  }
+
   async connectToPrinter(): Promise<boolean> {
     try {
       if (!await this.isBluetoothAvailable()) {
@@ -220,37 +256,7 @@ class BluetoothPrinterService {
         throw new Error('No se seleccionó ningún dispositivo');
       }
 
-      // Conectar al servidor GATT
-      if (!this.connection.device.gatt) {
-        throw new Error('GATT no disponible en el dispositivo');
-      }
-
-      this.connection.server = await this.connection.device.gatt.connect();
-
-      if (!this.connection.server) {
-        throw new Error('No se pudo conectar al servidor GATT');
-      }
-
-      // Obtener el servicio
-      this.connection.service = await this.connection.server.getPrimaryService(this.SERVICE_UUID);
-
-      // Obtener la característica
-      this.connection.characteristic = await this.connection.service.getCharacteristic(this.CHARACTERISTIC_UUID);
-
-      this.connection.isConnected = true;
-
-      // 🔧 MEJORADO: Guardar estado con ID y nombre del dispositivo
-      this.saveConnectionState(true, this.connection.device.name, this.connection.device.id);
-
-      // Listener para desconexión
-      this.connection.device.addEventListener('gattserverdisconnected', () => {
-        console.log('⚠️ Impresora desconectada (evento GATT)');
-        this.connection.isConnected = false;
-        this.saveConnectionState(false);
-      });
-
-      console.log('✅ Impresora conectada:', this.connection.device.name);
-      return true;
+      return await this.connectGattDevice(this.connection.device);
     } catch (error) {
       console.error('❌ Error conectando a impresora:', error);
       this.connection.isConnected = false;
@@ -262,31 +268,28 @@ class BluetoothPrinterService {
   // 🆕 NUEVO: Reconectar a la última impresora guardada
   async reconnectToPrinter(): Promise<boolean> {
     try {
-      // Si ya hay un dispositivo conectado, solo reconectar GATT
+      // 1. Si ya hay un dispositivo en memoria pero está desconectado, reconectarlo
       if (this.connection.device && !this.connection.isConnected) {
-        console.log('🔄 Intentando reconectar a:', this.connection.device.name);
-
-        if (!this.connection.device.gatt) {
-          throw new Error('GATT no disponible en el dispositivo');
-        }
-
-        this.connection.server = await this.connection.device.gatt.connect();
-
-        if (!this.connection.server) {
-          throw new Error('No se pudo conectar al servidor GATT');
-        }
-
-        this.connection.service = await this.connection.server.getPrimaryService(this.SERVICE_UUID);
-        this.connection.characteristic = await this.connection.service.getCharacteristic(this.CHARACTERISTIC_UUID);
-        this.connection.isConnected = true;
-
-        this.saveConnectionState(true, this.connection.device.name, this.connection.device.id);
-
-        console.log('✅ Impresora reconectada:', this.connection.device.name);
-        return true;
+        console.log('🔄 Intentando reconectar a dispositivo en memoria:', this.connection.device.name);
+        return await this.connectGattDevice(this.connection.device);
       }
 
-      // Si no hay dispositivo guardado, hacer conexión normal
+      // 2. Si no hay dispositivo en memoria, pero tenemos un ID guardado en localStorage, intentar buscarlo en dispositivos autorizados
+      const { deviceId } = this.loadConnectionState();
+      if (deviceId && 'bluetooth' in navigator && 'getDevices' in navigator.bluetooth) {
+        console.log('🔍 Buscando impresora previamente vinculada en los dispositivos autorizados...');
+        const devices = await navigator.bluetooth.getDevices();
+        const matchedDevice = devices.find(d => d.id === deviceId);
+        
+        if (matchedDevice) {
+          console.log('🎯 Dispositivo encontrado en navegador:', matchedDevice.name);
+          this.connection.device = matchedDevice;
+          return await this.connectGattDevice(matchedDevice);
+        }
+      }
+
+      // 3. Si no hay ID guardado o no se encontró en getDevices, solicitar selección normal
+      console.log('ℹ️ No se encontró impresora autorizada previa. Iniciando selección normal...');
       return await this.connectToPrinter();
 
     } catch (error) {

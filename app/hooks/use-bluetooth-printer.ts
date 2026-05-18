@@ -16,9 +16,12 @@ export function useBluetoothPrinter() {
   const [canReconnect, setCanReconnect] = useState(false);
 
   useEffect(() => {
-    checkBluetoothAvailability();
-    loadPreviousConnectionState();
-    updateConnectionStatus();
+    const init = async () => {
+      await checkBluetoothAvailability();
+      await loadPreviousConnectionState();
+      updateConnectionStatus();
+    };
+    init();
     
     // 🔧 Verificar estado cada 5 segundos
     const intervalId = setInterval(() => {
@@ -33,8 +36,8 @@ export function useBluetoothPrinter() {
     setIsBluetoothAvailable(available);
   };
 
-  // 🔧 Cargar estado previo de conexión
-  const loadPreviousConnectionState = () => {
+  // 🔧 Cargar estado previo de conexión y auto-reconectar de forma silenciosa
+  const loadPreviousConnectionState = async () => {
     const stored = bluetoothPrinter.getStoredConnectionInfo();
     const hasDevice = bluetoothPrinter.hasDeviceForReconnection();
     
@@ -42,13 +45,17 @@ export function useBluetoothPrinter() {
     setPreviousDeviceName(stored.deviceName);
     setCanReconnect(hasDevice);
     
-    if (!stored.wasConnected && stored.deviceName) {
-      console.log(`ℹ️ Impresora guardada: ${stored.deviceName}`);
-      console.log('💡 Puedes reconectar rápidamente');
-      toast.info(`Impresora guardada: ${stored.deviceName}`, {
-        description: 'Presiona "Reconectar" para conectar automáticamente',
-        duration: 5000,
-      });
+    if (stored.deviceId) {
+      console.log(`ℹ️ Intentando reconectar automáticamente a impresora guardada: ${stored.deviceName}`);
+      try {
+        const success = await bluetoothPrinter.reconnectToPrinter();
+        if (success) {
+          updateConnectionStatus();
+          toast.success(`Impresora reconectada automáticamente: ${stored.deviceName}`);
+        }
+      } catch (err) {
+        console.log('🔇 Auto-reconexión silenciosa falló (la impresora podría estar apagada o fuera de rango).');
+      }
     }
   };
 
