@@ -109,10 +109,19 @@ export async function POST(req: Request) {
         });
 
         if (existingTicket) {
+            // Buscar el pago y saldo nuevo para enriquecer la respuesta
+            const pagoAsociado = await prisma.pago.findFirst({
+                where: { ticketId: existingTicket.id }
+            });
+
             return NextResponse.json({
                 message: "Ticket ya existe",
                 ticketId: existingTicket.id,
-                ya_existe: true
+                pagoId: pagoAsociado?.id || null,
+                conciliado: existingTicket.conciliado,
+                saldoNuevo: pagoAsociado ? parseFloat(pagoAsociado.saldoNuevo.toString()) : parseFloat(cliente.saldoActual.toString()),
+                ya_existe: true,
+                mensaje: `⚠️ Este comprobante ya existe con ID ${existingTicket.id}.\n\n📌 *Detalles del Ticket*\n- 🆔 ID: ${existingTicket.id}\n- 📄 Contrato: ${codigoFinal}\n- 📅 Fecha: ${fecha || 'N/A'}\n- ⏰ Hora: ${hr || 'N/A'}\n- 💰 Monto: $${parseFloat(monto).toFixed(2)}\n- 🔢 Referencia: ${referencia !== 'null' ? referencia : 'N/A'}\n- 📝 Folio: ${folio !== 'null' ? folio : 'N/A'}\n- 📦 Clave de rastreo: ${claverastreo !== 'null' ? claverastreo : 'N/A'}\n\n⚡ *TICKET EN PROCESO DE CONCILIACION* ⚡`
             });
         }
 
@@ -128,8 +137,18 @@ export async function POST(req: Request) {
             }
         }
 
-        // 5. Crear Ticket y eliminar de pendientes si existe
+        // 5. Encontrar Cobrador o Admin para asociar al Pago
+        let cobradorId = cliente.cobradorAsignadoId;
+        if (!cobradorId) {
+            const firstAdmin = await prisma.user.findFirst({
+                where: { role: "admin" }
+            });
+            cobradorId = firstAdmin?.id || "system-admin-id";
+        }
+
+        // 6. Ejecutar Creación de Ticket, Pago, Ajuste de Saldo y Conciliación Bancaria en una sola transacción Prisma
         const result = await prisma.$transaction(async (tx) => {
+            // A. Crear Ticket
             const newTicket = await tx.ticket.create({
                 data: {
                     clienteId: cliente.id,
@@ -144,20 +163,95 @@ export async function POST(req: Request) {
                 }
             });
 
-            // Si fue una resolución, eliminamos el pendiente
+            // B. Intentar Conciliación Inteligente con Movimientos Bancarios
+            let movimientoBancario = null;
+            if (claverastreo && claverastreo !== 'null') {
+                movimientoBancario = await tx.movimientoBancario.findFirst({
+                    where: {
+                        claveRastreo: claverastreo,
+                        OR: [
+                            { ticketId: null },
+                            { ticketId: newTicket.id }
+                        ]
+                    }
+                });
+            }
+
+            // C. Si se encontró el movimiento bancario, marcar ticket como conciliado
+            if (movimientoBancario) {
+                await tx.ticket.update({
+                    where: { id: newTicket.id },
+                    data: { conciliado: true }
+                });
+            }
+
+            // D. Calcular saldos
+            const saldoAnterior = cliente.saldoActual;
+            const saldoNuevo = saldoAnterior.minus(parseFloat(monto));
+
+            // E. Crear Registro de Pago
+            const newPago = await tx.pago.create({
+                data: {
+                    clienteId: cliente.id,
+                    cobradorId: cobradorId!,
+                    ticketId: newTicket.id,
+                    monto: parseFloat(monto),
+                    interesMoratorio: 0,
+                    gastosCobranza: 0,
+                    concepto: movimientoBancario ? `TICKET ID: ${newTicket.id} / MOV. ID: ${movimientoBancario.id}` : `TICKET ID: ${newTicket.id} / PENDIENTE`,
+                    tipoPago: "abono",
+                    fechaPago: fechaTicket,
+                    saldoAnterior: saldoAnterior,
+                    saldoNuevo: saldoNuevo,
+                    metodoPago: "BANCARIO",
+                    sincronizado: true,
+                    banco: movimientoBancario?.bancoOrigen || "TRANSFERENCIA"
+                }
+            });
+
+            // F. Actualizar saldo del cliente
+            await tx.cliente.update({
+                where: { id: cliente.id },
+                data: {
+                    saldoActual: saldoNuevo
+                }
+            });
+
+            // G. Vincular el movimiento bancario
+            if (movimientoBancario) {
+                await tx.movimientoBancario.update({
+                    where: { id: movimientoBancario.id },
+                    data: {
+                        ticketId: newTicket.id,
+                        clienteId: cliente.id,
+                        fechaIdentificado: new Date()
+                    }
+                });
+            }
+
+            // H. Eliminar de pendientes si existe
             if (remitente) {
                 await tx.ticketPendiente.deleteMany({
                     where: { remitente }
                 });
             }
 
-            return newTicket;
+            return {
+                ticketId: newTicket.id,
+                pagoId: newPago.id,
+                conciliado: !!movimientoBancario,
+                saldoNuevo: saldoNuevo.toNumber()
+            };
         });
 
         return NextResponse.json({
-            message: "Ticket registrado correctamente",
-            ticketId: result.id,
-            ya_existe: false
+            message: "Ticket y Pago procesados correctamente",
+            ticketId: result.ticketId,
+            pagoId: result.pagoId,
+            conciliado: result.conciliado,
+            saldoNuevo: result.saldoNuevo,
+            ya_existe: false,
+            mensaje: `✅ ¡Comprobante EN PROCESO de VALIDACIÓN!\n\n📌 *Detalles del Ticket*\n- 🆔 ID: ${result.ticketId}\n- 📄 Contrato: ${codigoFinal}\n- 📅 Fecha: ${fecha || 'N/A'}\n- ⏰ Hora: ${hr || 'N/A'}\n- 💰 Monto: $${parseFloat(monto).toFixed(2)}\n- 🔢 Referencia: ${referencia !== 'null' ? referencia : 'N/A'}\n- 📝 Folio: ${folio !== 'null' ? folio : 'N/A'}\n- 📦 Clave de rastreo: ${claverastreo !== 'null' ? claverastreo : 'N/A'}\n\n⚡ *TICKET EN PROCESO DE CONCILIACION* ⚡`
         });
 
     } catch (error: any) {
