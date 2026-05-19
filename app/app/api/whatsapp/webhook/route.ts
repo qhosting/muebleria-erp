@@ -348,7 +348,8 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
     try {
         // Buscar el ID interno del cliente por su código
         const clienteRecord = await prisma.cliente.findUnique({
-            where: { codigoCliente: contractId }
+            where: { codigoCliente: contractId },
+            include: { cobradorAsignado: true }
         });
 
         if (!clienteRecord) {
@@ -409,14 +410,31 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
                 const montoPago = parseFloat(extracted.monto);
                 const saldoNuevo = Math.max(0, saldoAnterior - montoPago);
 
+                let cobradorId = clienteRecord.cobradorAsignadoId;
+                let tipoPagoStr = 'regular';
+
+                if (clienteRecord.cobradorAsignado) {
+                    if (clienteRecord.cobradorAsignado.codigoGestor === 'DQBOT') {
+                        tipoPagoStr = 'moratorio';
+                    } else {
+                        tipoPagoStr = 'regular';
+                    }
+                } else {
+                    const firstAdmin = await prisma.user.findFirst({
+                        where: { role: 'admin' }
+                    });
+                    cobradorId = firstAdmin?.id || 'system';
+                    tipoPagoStr = 'regular';
+                }
+
                 await tx.pago.create({
                     data: {
                         clienteId: clienteRecord.id,
-                        cobradorId: clienteRecord.cobradorAsignadoId || 'system', // O un ID de sistema
+                        cobradorId: cobradorId!,
                         ticketId: ticket.id,
                         monto: montoPago,
                         concepto: `TKT: ${ticket.id} / Ref: ${extracted.referencia || 'N/A'}`,
-                        tipoPago: 'regular',
+                        tipoPago: tipoPagoStr as any,
                         fechaPago: extracted.fecha ? new Date(extracted.fecha) : new Date(),
                         metodoPago: 'BANCOS BOT',
                         saldoAnterior,
