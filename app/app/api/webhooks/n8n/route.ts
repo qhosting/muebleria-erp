@@ -160,21 +160,13 @@ export async function POST(req: Request) {
 
         // 5. Encontrar Cobrador o Admin para asociar al Pago
         let cobradorId = cliente.cobradorAsignadoId;
-        let tipoPagoStr = "regular";
-
-        if (cliente.cobradorAsignado) {
-            if (cliente.cobradorAsignado.codigoGestor === "DQBOT") {
-                tipoPagoStr = "moratorio";
-            } else {
-                tipoPagoStr = "regular";
-            }
-        } else {
+        if (!cobradorId) {
             const firstAdmin = await prisma.user.findFirst({
                 where: { role: "admin" }
             });
             cobradorId = firstAdmin?.id || "system-admin-id";
-            tipoPagoStr = "regular";
         }
+        let tipoPagoStr = "regular";
 
         // 6. Ejecutar Creación de Ticket, Pago, Ajuste de Saldo y Conciliación Bancaria en una sola transacción Prisma
         const result = await prisma.$transaction(async (tx) => {

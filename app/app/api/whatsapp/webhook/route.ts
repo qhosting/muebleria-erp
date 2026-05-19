@@ -411,21 +411,13 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
                 const saldoNuevo = Math.max(0, saldoAnterior - montoPago);
 
                 let cobradorId = clienteRecord.cobradorAsignadoId;
-                let tipoPagoStr = 'regular';
-
-                if (clienteRecord.cobradorAsignado) {
-                    if (clienteRecord.cobradorAsignado.codigoGestor === 'DQBOT') {
-                        tipoPagoStr = 'moratorio';
-                    } else {
-                        tipoPagoStr = 'regular';
-                    }
-                } else {
+                if (!cobradorId) {
                     const firstAdmin = await prisma.user.findFirst({
                         where: { role: 'admin' }
                     });
                     cobradorId = firstAdmin?.id || 'system';
-                    tipoPagoStr = 'regular';
                 }
+                let tipoPagoStr = 'regular';
 
                 await tx.pago.create({
                     data: {
