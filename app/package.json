@@ -121,6 +121,7 @@
     "ioredis": "^5.10.1",
     "jotai": "2.6.0",
     "jsonwebtoken": "9.0.2",
+    "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "leaflet-defaulticon-compatibility": "^0.1.2",
     "lodash": "4.17.21",
