@@ -34,6 +34,16 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ status: 'ignored_status' });
         }
 
+        // Ignorar grupo específico solicitado por el usuario (ID: 521442691952-1613513646)
+        const isExcludedGroup = (payload.from || '').includes('521442691952-1613513646') ||
+                                (payload.chatId || '').includes('521442691952-1613513646') ||
+                                (payload.to || '').includes('521442691952-1613513646');
+        
+        if (isExcludedGroup) {
+            console.log(`🚫 [${session}] Mensaje del grupo excluido 521442691952-1613513646 ignorado por solicitud del usuario.`);
+            return NextResponse.json({ status: 'ignored_excluded_group' });
+        }
+
         // 1. DETECCIÓN DE HUMANO: Si el mensaje lo envió el dueño de la cuenta (móvil/web)
         // Pausamos el bot para este cliente específico por 30 minutos usando REDIS
         if (payload.fromMe === true) {

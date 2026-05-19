@@ -71,6 +71,7 @@ export default function LeadsPage() {
     const [createOpen, setCreateOpen] = useState(false);
     const [newLead, setNewLead] = useState({ nombre: '', telefono: '', interes: '', notas: '', origen: 'oficina' });
     const [saving, setSaving] = useState(false);
+    const [blacklist, setBlacklist] = useState<string[]>([]);
 
     const fetchLeads = useCallback(async () => {
         setLoading(true);
@@ -87,13 +88,55 @@ export default function LeadsPage() {
         }
     }, [filter]);
 
-    useEffect(() => { fetchLeads(); }, [fetchLeads]);
+    const fetchBlacklist = useCallback(async () => {
+        try {
+            const res = await fetch('/api/ventas/leads/blacklist');
+            if (res.ok) {
+                const data = await res.json();
+                setBlacklist(data.blacklist || []);
+            }
+        } catch (error) {
+            console.error('Error al cargar la lista negra:', error);
+        }
+    }, []);
+
+    useEffect(() => { 
+        fetchLeads(); 
+        fetchBlacklist();
+    }, [fetchLeads, fetchBlacklist]);
 
     useEffect(() => {
         fetch('/api/users').then(r => r.ok ? r.json() : []).then(users => {
             setVendedores(users.filter((u: any) => ['vendedor', 'jefe_ventas', 'admin', 'gestor_cobranza'].includes(u.role) && u.isActive));
         }).catch(() => {});
     }, []);
+
+    const toggleBlacklist = async (phone: string | null) => {
+        if (!phone) {
+            toast.error('El prospecto no tiene número de teléfono asignado');
+            return;
+        }
+        try {
+            const res = await fetch('/api/ventas/leads/blacklist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setBlacklist(data.blacklist || []);
+                if (data.blacklisted) {
+                    toast.success('IA desactivada para este contacto (Lista Negra)');
+                } else {
+                    toast.success('IA reactivada para este contacto');
+                }
+            } else {
+                toast.error('Error al actualizar la lista negra');
+            }
+        } catch {
+            toast.error('Error de red al actualizar la lista negra');
+        }
+    };
 
     // --- Actions ---
     const updateLeadState = async (leadId: string, estado: string) => {
@@ -365,10 +408,27 @@ export default function LeadsPage() {
                                     </div>
 
                                     {/* Actions */}
-                                    <div className="flex items-center gap-2 pt-3 border-t border-gray-50">
+                                    <div className="flex items-center gap-2 pt-3 border-t border-gray-50 flex-wrap">
                                         <Button variant="ghost" size="sm" className="text-blue-600 text-xs gap-1" onClick={() => openChat(lead)}>
                                             <Eye className="h-3.5 w-3.5" /> Ver Chat
                                         </Button>
+
+                                        {lead.telefono && (
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className={`text-xs gap-1 ${
+                                                    blacklist.includes(lead.telefono) 
+                                                        ? 'text-red-500 hover:text-red-600 hover:bg-red-50' 
+                                                        : 'text-slate-500 hover:text-slate-600 hover:bg-slate-50'
+                                                }`} 
+                                                onClick={() => toggleBlacklist(lead.telefono)}
+                                                title={blacklist.includes(lead.telefono) ? "Activar IA para este lead" : "Desactivar IA para este lead"}
+                                            >
+                                                <Bot className={`h-3.5 w-3.5 ${blacklist.includes(lead.telefono) ? 'text-red-500 animate-pulse' : 'text-slate-500'}`} />
+                                                {blacklist.includes(lead.telefono) ? 'IA Apagada' : 'IA Activa'}
+                                            </Button>
+                                        )}
 
                                         {lead.estado === 'nuevo' && (
                                             <Button variant="ghost" size="sm" className="text-yellow-600 text-xs gap-1" onClick={() => updateLeadState(lead.id, 'contactado')}>
