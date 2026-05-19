@@ -78,3 +78,34 @@ export async function GET(request: NextRequest) {
         );
     }
 }
+
+export async function PUT(request: NextRequest) {
+    try {
+        const session = await getServerSession(authOptions);
+
+        if (!session?.user) {
+            return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+        }
+
+        const body = await request.json();
+        const { id, status } = body;
+
+        if (!id || !status) {
+            return NextResponse.json({ error: 'ID y status son requeridos' }, { status: 400 });
+        }
+
+        const updated = await (prisma as any).convenioPago.update({
+            where: { id },
+            data: { status },
+        });
+
+        return NextResponse.json(updated);
+    } catch (error) {
+        console.error('Error al actualizar convenio:', error);
+        return NextResponse.json(
+            { error: 'Error interno del servidor' },
+            { status: 500 }
+        );
+    }
+}
+

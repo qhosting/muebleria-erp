@@ -9,12 +9,18 @@ import { Button } from "@/components/ui/button";
 import { FileText, Search, Calendar, Download, Handshake, Eye, MapPin } from "lucide-react";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+
 
 export default function ConveniosReportPage() {
     const [convenios, setConvenios] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
+    const [selectedConvenio, setSelectedConvenio] = useState<any>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [updatingStatus, setUpdatingStatus] = useState(false);
+
 
     const [fechaDesde, setFechaDesde] = useState(() => {
         const d = new Date(); d.setDate(d.getDate() - 30);
@@ -57,6 +63,37 @@ export default function ConveniosReportPage() {
             setLoading(false);
         }
     };
+
+    const handleUpdateStatus = async (status: string) => {
+        if (!selectedConvenio) return;
+        setUpdatingStatus(true);
+        try {
+            const res = await fetch("/api/reportes/convenios", {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    id: selectedConvenio.id,
+                    status: status
+                })
+            });
+
+            if (res.ok) {
+                toast.success(`Convenio marcado como ${status}`);
+                setSelectedConvenio((prev: any) => ({ ...prev, status }));
+                fetchConvenios();
+            } else {
+                toast.error("Error al actualizar status");
+            }
+        } catch (error) {
+            console.error("Error al actualizar status:", error);
+            toast.error("Error de servidor al actualizar status");
+        } finally {
+            setUpdatingStatus(false);
+        }
+    };
+
 
     const exportarExcel = () => {
         if (convenios.length === 0) return;
@@ -200,11 +237,19 @@ export default function ConveniosReportPage() {
                                                     </Badge>
                                                 </td>
                                                 <td className="px-6 py-5">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-lg font-black text-gray-900">{formatCurrency(c.monto)}</span>
-                                                        <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-widest">En negociación</span>
-                                                    </div>
-                                                </td>
+                                                     <div className="flex flex-col">
+                                                         <span className="text-lg font-black text-gray-900">{formatCurrency(c.monto)}</span>
+                                                         <span className={`text-[9px] font-extrabold uppercase tracking-widest ${
+                                                             c.status === "CUMPLIDO" 
+                                                                 ? "text-emerald-600" 
+                                                                 : c.status === "INCUMPLIDO"
+                                                                     ? "text-rose-600"
+                                                                     : "text-amber-600"
+                                                         }`}>
+                                                             {c.status || "PENDIENTE"}
+                                                         </span>
+                                                     </div>
+                                                 </td>
                                                 <td className="px-6 py-5">
                                                     <div className="flex items-center gap-3">
                                                         <div className="h-9 w-9 bg-gradient-to-br from-indigo-100 to-blue-100 rounded-xl flex items-center justify-center font-black text-indigo-700 shadow-sm border border-white">
@@ -214,10 +259,18 @@ export default function ConveniosReportPage() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-5 text-center">
-                                                    <Button variant="ghost" size="icon" className="hover:bg-blue-100 text-blue-600 rounded-xl shadow-sm hover:shadow-md transition-all">
-                                                        <Eye className="h-5 w-5" />
-                                                    </Button>
-                                                </td>
+                                                     <Button 
+                                                         variant="ghost" 
+                                                         size="icon" 
+                                                         onClick={() => {
+                                                             setSelectedConvenio(c);
+                                                             setIsModalOpen(true);
+                                                         }}
+                                                         className="hover:bg-blue-100 text-blue-600 rounded-xl shadow-sm hover:shadow-md transition-all"
+                                                     >
+                                                         <Eye className="h-5 w-5" />
+                                                     </Button>
+                                                 </td>
                                             </tr>
                                         ))
                                     )}
@@ -256,6 +309,152 @@ export default function ConveniosReportPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Modal de Detalles del Convenio */}
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                <DialogContent className="max-w-2xl bg-white rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
+                    <DialogHeader className="bg-gradient-to-r from-indigo-600 to-blue-700 text-white p-6 relative">
+                        <div className="absolute right-4 top-4 opacity-10">
+                            <Handshake className="h-24 w-24" />
+                        </div>
+                        <div className="flex items-center gap-3 mb-2">
+                            <Badge className="bg-white/20 text-white border-none font-bold uppercase text-[9px] tracking-wider py-1 px-3">
+                                {selectedConvenio?.tipoConvenio || "CONVENIO"}
+                            </Badge>
+                            <Badge className={`border-none font-bold uppercase text-[9px] tracking-wider py-1 px-3 ${
+                                selectedConvenio?.status === "CUMPLIDO" 
+                                    ? "bg-emerald-500/20 text-emerald-100" 
+                                    : selectedConvenio?.status === "INCUMPLIDO"
+                                        ? "bg-rose-500/20 text-rose-100"
+                                        : "bg-amber-500/20 text-amber-100"
+                            }`}>
+                                {selectedConvenio?.status || "PENDIENTE"}
+                            </Badge>
+                        </div>
+                        <DialogTitle className="text-2xl font-black tracking-tight">Detalles del Acuerdo de Pago</DialogTitle>
+                        <DialogDescription className="text-blue-100 text-sm mt-1 font-light">
+                            Convenio de pago registrado para el cliente {selectedConvenio?.cliente?.nombreCompleto || "Desconocido"}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="p-6 space-y-6">
+                        {/* Info General */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100/50">
+                                <h4 className="text-[10px] uppercase font-bold text-slate-400 mb-2">Información del Cliente</h4>
+                                <div className="space-y-1">
+                                    <p className="font-extrabold text-slate-800 uppercase">{selectedConvenio?.cliente?.nombreCompleto || "Desconocido"}</p>
+                                    <p className="text-xs text-slate-500 font-mono">Código: {selectedConvenio?.cliente?.codigoCliente || "-"}</p>
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100/50">
+                                <h4 className="text-[10px] uppercase font-bold text-slate-400 mb-2">Monto Acordado</h4>
+                                <div className="space-y-1">
+                                    <p className="text-2xl font-black text-slate-900">{formatCurrency(selectedConvenio?.monto)}</p>
+                                    <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Acuerdo para recuperación</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Fechas */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="flex items-start gap-3">
+                                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+                                    <Calendar className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h4 className="text-[10px] uppercase font-bold text-slate-400">Fecha de Registro</h4>
+                                    <p className="font-bold text-slate-800 text-sm">
+                                        {selectedConvenio?.fechaRegistro ? formatDate(selectedConvenio?.fechaRegistro) : "-"}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-start gap-3">
+                                <div className="p-2 bg-amber-50 rounded-lg text-amber-600">
+                                    <Calendar className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h4 className="text-[10px] uppercase font-bold text-slate-400">Fecha Límite de Pago</h4>
+                                    <p className="font-bold text-slate-800 text-sm">
+                                        {selectedConvenio?.fecha ? formatDate(selectedConvenio?.fecha) : "-"}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Comentario */}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100/50">
+                            <h4 className="text-[10px] uppercase font-bold text-slate-400 mb-2">Comentarios / Observaciones</h4>
+                            <p className="text-sm text-slate-600 italic bg-white p-3 rounded-lg border border-slate-100">
+                                {selectedConvenio?.comentario || "Sin comentarios registrados."}
+                            </p>
+                        </div>
+
+                        {/* Geocalización y Gestor */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pt-4 border-t border-slate-100">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 bg-indigo-50 rounded-xl flex items-center justify-center font-black text-indigo-700">
+                                    {selectedConvenio?.gestor?.name?.substring(0, 2).toUpperCase() || "C"}
+                                </div>
+                                <div>
+                                    <h4 className="text-[10px] uppercase font-bold text-slate-400">Gestor Responsable</h4>
+                                    <p className="font-bold text-slate-800 text-sm">{selectedConvenio?.gestor?.name || "Sin asignar"}</p>
+                                </div>
+                            </div>
+
+                            {selectedConvenio?.latitud && selectedConvenio?.longitud && (
+                                <a 
+                                    href={`https://www.google.com/maps/search/?api=1&query=${selectedConvenio.latitud},${selectedConvenio.longitud}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors py-2.5 px-4 rounded-xl border border-indigo-100"
+                                >
+                                    <MapPin className="h-4 w-4" /> Ver Ubicación de Registro
+                                </a>
+                            )}
+                        </div>
+                    </div>
+
+                    <DialogFooter className="bg-slate-50 p-6 flex flex-col sm:flex-row gap-3 border-t border-slate-100">
+                        <div className="flex gap-2 w-full justify-between items-center">
+                            <div className="flex gap-2">
+                                <Button
+                                    onClick={() => handleUpdateStatus("CUMPLIDO")}
+                                    disabled={updatingStatus}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase py-2 px-4 rounded-xl shadow-md transition-all animate-in fade-in zoom-in-95 duration-200"
+                                >
+                                    Marcar Cumplido
+                                </Button>
+                                <Button
+                                    onClick={() => handleUpdateStatus("INCUMPLIDO")}
+                                    disabled={updatingStatus}
+                                    className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs uppercase py-2 px-4 rounded-xl shadow-md transition-all animate-in fade-in zoom-in-95 duration-200"
+                                >
+                                    Marcar Incumplido
+                                </Button>
+                                <Button
+                                    onClick={() => handleUpdateStatus("PENDIENTE")}
+                                    disabled={updatingStatus}
+                                    variant="outline"
+                                    className="border-slate-200 text-slate-600 font-bold text-xs uppercase py-2 px-4 rounded-xl transition-all"
+                                >
+                                    Pendiente
+                                </Button>
+                            </div>
+                            <Button
+                                onClick={() => setIsModalOpen(false)}
+                                variant="ghost"
+                                className="font-bold text-xs uppercase py-2 px-4 rounded-xl text-slate-500 hover:bg-slate-200"
+                            >
+                                Cerrar
+                            </Button>
+                        </div>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </DashboardLayout>
     );
 }
+
