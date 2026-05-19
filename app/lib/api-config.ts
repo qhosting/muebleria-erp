@@ -50,5 +50,26 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
         options.credentials = 'include';
     }
 
-    return fetch(url, options);
+    // 🚀 MEJORA PARA MALA SEÑAL / OFFLINE:
+    // Si hay mala señal, una llamada fetch puede tardar minutos en fallar.
+    // Añadimos un AbortController con un timeout por defecto de 5 segundos
+    // para abortar rápido y permitir que el sistema use el modo offline.
+    const controller = new AbortController();
+    const timeoutVal = (options as any).timeout || 5000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutVal);
+
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            throw new Error('La conexión al servidor tardó demasiado. Fallback a modo offline.');
+        }
+        throw error;
+    }
 }

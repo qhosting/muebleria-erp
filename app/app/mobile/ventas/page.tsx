@@ -37,7 +37,10 @@ export default function SalesMobilePage() {
 
   const fetchSolicitudes = async () => {
     try {
-      const res = await fetch("/api/ventas/solicitudes");
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch("/api/ventas/solicitudes", { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (res.ok) {
         const json = await res.json();
         setSolicitudes(json);
@@ -49,7 +52,10 @@ export default function SalesMobilePage() {
 
   const fetchLeads = async () => {
     try {
-      const res = await fetch("/api/ventas/leads");
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch("/api/ventas/leads", { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (res.ok) {
         const json = await res.json();
         // Solo mostrar los que no han sido convertidos (estado !== 'convertido')
@@ -63,7 +69,10 @@ export default function SalesMobilePage() {
   const fetchMetrics = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/ventas/metrics");
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch("/api/ventas/metrics", { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (res.ok) {
         const json = await res.json();
         setData(json);

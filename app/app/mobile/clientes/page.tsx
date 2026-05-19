@@ -80,7 +80,14 @@ function MobileClientes() {
                 }
 
                 const currentPage = reset ? 1 : page;
-                const response = await fetch(`/api/mobile/clientes?q=${searchTerm}&page=${currentPage}&limit=30`);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout for poor signal
+                
+                const response = await fetch(`/api/mobile/clientes?q=${searchTerm}&page=${currentPage}&limit=30`, {
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
                 
                 if (response.ok) {
                     const result = await response.json();

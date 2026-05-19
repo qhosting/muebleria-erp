@@ -186,37 +186,50 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
         longitud: location.lng
       };
 
+      let onlineSuccess = false;
+
       if (isOnline) {
-        // Enviar un solo pago con todo el desglose
-        const response = await fetch('/api/pagos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(pagoData)
-        });
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout for poor signal
 
-        if (!response.ok) {
-          throw new Error(`Error al registrar el pago`);
-        }
+          const response = await fetch('/api/pagos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(pagoData),
+            signal: controller.signal
+          });
 
-        toast.success(`Pago registrado correctamente: ${formatCurrency(calculatedValues.montoTotal)}`);
+          clearTimeout(timeoutId);
 
-        // Imprimir ticket si está habilitado
-        if (imprimirTicket && isPrinterConnected) {
-          try {
-            const ticketData = createTicketData(pagoData.fechaPago, numeroRecibo || '');
-            await printTicket(ticketData);
-          } catch (error) {
-            console.error('Error imprimiendo ticket:', error);
-            toast.error('Pago registrado, pero error al imprimir ticket');
+          if (response.ok) {
+            onlineSuccess = true;
+            toast.success(`Pago registrado online: ${formatCurrency(calculatedValues.montoTotal)}`);
+
+            // Imprimir ticket si está habilitado
+            if (imprimirTicket && isPrinterConnected) {
+              try {
+                const ticketData = createTicketData(pagoData.fechaPago, numeroRecibo || '');
+                await printTicket(ticketData);
+              } catch (error) {
+                console.error('Error imprimiendo ticket:', error);
+                toast.error('Pago registrado, pero error al imprimir ticket');
+              }
+            }
+          } else {
+            console.warn('Fallo en respuesta de servidor, guardando pago en local/offline...');
           }
+        } catch (netError) {
+          console.warn('Fallo de red en registro de pago (baja señal o caída), guardando offline...', netError);
         }
+      }
 
-      } else {
+      if (!onlineSuccess) {
         // Guardar offline
         await syncService.addPagoOffline(pagoData as any);
 
-        toast.success(`Pago guardado offline`, {
-          description: 'Se sincronizará automáticamente'
+        toast.success(`Pago guardado offline (señal inestable)`, {
+          description: 'Se sincronizará automáticamente cuando mejore la señal'
         });
 
         if (imprimirTicket && isPrinterConnected) {

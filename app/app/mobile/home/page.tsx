@@ -31,7 +31,15 @@ export default function MobileHome() {
                 }
 
                 const endpoint = isVendedor ? '/api/mobile/vendedor/dashboard' : '/api/mobile/dashboard';
-                const response = await fetch(endpoint);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout for poor signal
+
+                const response = await fetch(endpoint, {
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
                 if (response.ok) {
                     const result = await response.json();
                     setData(result);
