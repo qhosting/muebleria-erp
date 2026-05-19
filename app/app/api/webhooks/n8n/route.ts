@@ -21,7 +21,7 @@ export async function POST(req: Request) {
         // }
 
         const body = await req.json();
-        const {
+        let {
             action, // 'create', 'pending', 'resolve'
             contrato,
             monto,
@@ -34,6 +34,18 @@ export async function POST(req: Request) {
             base64Data,
             tipoArchivo
         } = body;
+
+        // Limpieza defensiva de posibles signos '=' o espacios extras de las expresiones de n8n
+        if (typeof contrato === "string") contrato = contrato.replace(/^=/, "").trim();
+        if (typeof monto === "string") {
+            monto = monto.replace(/^=/, "").trim();
+        }
+        if (typeof referencia === "string") referencia = referencia.replace(/^=/, "").trim();
+        if (typeof folio === "string") folio = folio.replace(/^=/, "").trim();
+        if (typeof claverastreo === "string") claverastreo = claverastreo.replace(/^=/, "").trim();
+        if (typeof remitente === "string") remitente = remitente.replace(/^=/, "").trim();
+        if (typeof fecha === "string") fecha = fecha.replace(/^=/, "").trim();
+        if (typeof hr === "string") hr = hr.replace(/^=/, "").trim();
 
         // --- ACCIÓN: GUARDAR PENDIENTE ---
         if (action === "pending") {
