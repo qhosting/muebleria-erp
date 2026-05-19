@@ -20,9 +20,7 @@ import {
     Image as ImageIcon,
     Trash2,
     Home,
-    AlertCircle,
-    RefreshCw,
-    Loader2
+    AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,60 +32,6 @@ interface VerificacionModalProps {
     isOnline: boolean;
 }
 
-interface DocumentSlotProps {
-    label: string;
-    value: string | null;
-    inputRef: React.RefObject<HTMLInputElement>;
-    onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    onDelete: () => void;
-}
-
-function DocumentSlot({ label, value, inputRef, onFileChange, onDelete }: DocumentSlotProps) {
-    return (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-4">
-            <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-slate-300">{label}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">
-                    {value ? "✓ Capturado con éxito" : "⚠ Pendiente de capturar"}
-                </p>
-            </div>
-            {value ? (
-                <div className="flex items-center gap-2">
-                    <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-slate-700">
-                        <img src={value} className="w-full h-full object-cover" alt={label} />
-                    </div>
-                    <button 
-                        type="button"
-                        onClick={onDelete}
-                        className="bg-red-500/10 text-red-500 hover:bg-red-500/20 p-2.5 rounded-xl border border-red-500/20 transition-colors"
-                    >
-                        <Trash2 className="w-4 h-4" />
-                    </button>
-                </div>
-            ) : (
-                <div>
-                    <button 
-                        type="button"
-                        onClick={() => inputRef.current?.click()}
-                        className="bg-orange-600/10 text-orange-400 hover:bg-orange-600/20 px-4 py-2.5 rounded-xl border border-orange-500/20 font-bold text-xs uppercase transition-colors flex items-center gap-1.5"
-                    >
-                        <Camera className="w-4 h-4" />
-                        Capturar
-                    </button>
-                    <input 
-                        type="file" 
-                        ref={inputRef} 
-                        onChange={onFileChange} 
-                        accept="image/*" 
-                        capture="environment" 
-                        className="hidden" 
-                    />
-                </div>
-            )}
-        </div>
-    );
-}
-
 export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnline }: VerificacionModalProps) {
     const { data: session } = useSession();
     const [fecha, setFecha] = useState(() => new Date().toISOString().split("T")[0]);
@@ -96,77 +40,56 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
     const [viviendaConfirmada, setViviendaConfirmada] = useState(true);
     const [loading, setLoading] = useState(false);
     const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
-    const [fetchingGps, setFetchingGps] = useState(false);
-
-    // Slots obligatorios específicos
-    const [contratoFront, setContratoFront] = useState<string | null>(null);
-    const [contratoBack, setContratoBack] = useState<string | null>(null);
-    const [fachada, setFachada] = useState<string | null>(null);
-
-    const contratoFrontInputRef = useRef<HTMLInputElement>(null);
-    const contratoBackInputRef = useRef<HTMLInputElement>(null);
-    const fachadaInputRef = useRef<HTMLInputElement>(null);
-
-    const getUbicacion = async () => {
-        setFetchingGps(true);
-        try {
-            const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
-            const pos = (await obtenerUbicacionCobrador(true, 10000)) as any; // 10s timeout, alta precisión
-            setCoords({
-                lat: pos.lat,
-                lng: pos.lng
-            });
-            toast.success("Ubicación GPS capturada con éxito");
-        } catch (error) {
-            console.warn("Error de geolocalización en verificación:", error);
-            toast.error("No se pudo obtener la ubicación GPS precisa. Revisa los permisos.");
-        } finally {
-            setFetchingGps(false);
-        }
-    };
+    const [fotos, setFotos] = useState<string[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (isOpen) {
             setFecha(new Date().toISOString().split("T")[0]);
             setDetalles("");
             setColorCasa("");
-            setContratoFront(null);
-            setContratoBack(null);
-            setFachada(null);
-            setCoords(null);
+            setFotos([]);
             
-            // Intentar obtener ubicación GPS automáticamente al abrir
+            // Intentar obtener ubicación GPS con alta precisión
+            const getUbicacion = async () => {
+                try {
+                    const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
+                    const pos = (await obtenerUbicacionCobrador(true, 5000)) as any;
+                    setCoords({
+                        lat: pos.lat,
+                        lng: pos.lng
+                    });
+                } catch (error) {
+                    console.warn("Error de geolocalización en verificación:", error);
+                    toast.error("No se pudo obtener la ubicación GPS precisa.");
+                }
+            };
             getUbicacion();
         }
     }, [isOpen]);
 
-    const handleFileChange = (slot: 'front' | 'back' | 'fachada', e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64 = reader.result as string;
-                if (slot === 'front') setContratoFront(base64);
-                else if (slot === 'back') setContratoBack(base64);
-                else if (slot === 'fachada') setFachada(base64);
-            };
-            reader.readAsDataURL(file);
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (files) {
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setFotos(prev => [...prev, reader.result as string]);
+                };
+                reader.readAsDataURL(file);
+            });
         }
     };
 
-    const removeFoto = (slot: 'front' | 'back' | 'fachada') => {
-        if (slot === 'front') setContratoFront(null);
-        else if (slot === 'back') setContratoBack(null);
-        else if (slot === 'fachada') setFachada(null);
+    const removeFoto = (index: number) => {
+        setFotos(prev => prev.filter((_, i) => i !== index));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!contratoFront || !contratoBack || !fachada) {
-            toast.error("Faltan documentos obligatorios.", {
-                description: "Debes capturar Contrato Frontal, Contrato Atrás y Fachada de Domicilio."
-            });
+        if (fotos.length === 0) {
+            toast.error("Es obligatorio capturar al menos una foto de evidencia.");
             return;
         }
 
@@ -182,11 +105,9 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
                     viviendaConfirmada,
                     latitud: coords?.lat,
                     longitud: coords?.lng,
-                    contratoFrontal: contratoFront,
-                    contratoAtras: contratoBack,
-                    fachadaDomicilio: fachada,
-                    fotos: 3,
-                    evidencia: [contratoFront, contratoBack, fachada]
+                    fotos: fotos.length, // Enviamos el conteo, las fotos base64 irían a un storage aparte o en JSON si son pequeñas
+                    // Por ahora las incluimos en el JSON para el MVP
+                    evidencia: fotos 
                 }
             };
 
@@ -240,37 +161,40 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
                         </div>
                     </div>
 
-                    {/* CASILLAS OBLIGATORIAS DE DOCUMENTOS */}
+                    {/* CAPTURA DE FOTOS */}
                     <div className="space-y-3">
-                        <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">
-                            Documentación Requerida (Obligatoria)
-                        </Label>
-
-                        <div className="grid grid-cols-1 gap-3">
-                            <DocumentSlot 
-                                label="Contrato Frontal"
-                                value={contratoFront}
-                                inputRef={contratoFrontInputRef}
-                                onFileChange={(e) => handleFileChange('front', e)}
-                                onDelete={() => removeFoto('front')}
-                            />
-
-                            <DocumentSlot 
-                                label="Contrato Atrás"
-                                value={contratoBack}
-                                inputRef={contratoBackInputRef}
-                                onFileChange={(e) => handleFileChange('back', e)}
-                                onDelete={() => removeFoto('back')}
-                            />
-
-                            <DocumentSlot 
-                                label="Fachada Domicilio"
-                                value={fachada}
-                                inputRef={fachadaInputRef}
-                                onFileChange={(e) => handleFileChange('fachada', e)}
-                                onDelete={() => removeFoto('fachada')}
-                            />
+                        <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] ml-1">Evidencia Fotográfica</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {fotos.map((foto, idx) => (
+                                <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-800 group">
+                                    <img src={foto} className="w-full h-full object-cover" alt="Evidencia" />
+                                    <button 
+                                        type="button"
+                                        onClick={() => removeFoto(idx)}
+                                        className="absolute top-1 right-1 bg-red-500 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5 text-white" />
+                                    </button>
+                                </div>
+                            ))}
+                            <button 
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="aspect-square rounded-xl border-2 border-dashed border-slate-800 bg-slate-900/50 flex flex-col items-center justify-center gap-1 active:bg-slate-800 transition-colors"
+                            >
+                                <Camera className="w-6 h-6 text-orange-500" />
+                                <span className="text-[8px] font-bold text-slate-500 uppercase">Tomar Foto</span>
+                            </button>
                         </div>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={handleFileChange} 
+                            accept="image/*" 
+                            capture="environment" 
+                            multiple 
+                            className="hidden" 
+                        />
                     </div>
 
                     {/* CAMPOS DE VERIFICACIÓN */}
@@ -311,32 +235,14 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
                         />
                     </div>
 
-                    {/* GEOLOCALIZACIÓN Y BOTÓN GPS */}
-                    <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase text-slate-500 tracking-wider ml-1">Geolocalización</Label>
-                        <div className="flex gap-2">
-                            <div className={`flex-1 p-3 rounded-xl border flex items-center gap-3 transition-colors ${
-                                coords ? 'bg-blue-600/10 border-blue-600/20 text-blue-400' : 'bg-amber-600/10 border-amber-600/20 text-amber-500'
-                            }`}>
-                                <MapPin className={`w-4 h-4 ${fetchingGps ? 'animate-bounce' : ''}`} />
-                                <p className="text-[10px] font-bold uppercase tracking-tight">
-                                    {coords ? `GPS: ${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}` : "Sin Ubicación GPS"}
-                                </p>
-                            </div>
-                            <Button
-                                type="button"
-                                disabled={fetchingGps}
-                                onClick={getUbicacion}
-                                className="bg-sky-600 hover:bg-sky-500 text-white rounded-xl px-4 text-xs font-bold flex items-center gap-1.5 h-12"
-                            >
-                                {fetchingGps ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    <RefreshCw className="w-4 h-4" />
-                                )}
-                                GPS
-                            </Button>
-                        </div>
+                    {/* STATUS GPS */}
+                    <div className={`p-3 rounded-xl border flex items-center gap-3 ${
+                        coords ? 'bg-blue-600/10 border-blue-600/20 text-blue-400' : 'bg-amber-600/10 border-amber-600/20 text-amber-500'
+                    }`}>
+                        <MapPin className="w-4 h-4" />
+                        <p className="text-[10px] font-bold uppercase tracking-tight">
+                            {coords ? `Ubicación GPS fijada (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})` : "Obteniendo coordenadas GPS..."}
+                        </p>
                     </div>
 
                     <div className="flex flex-col gap-3 pt-2">

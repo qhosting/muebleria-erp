@@ -16,7 +16,9 @@ import {
     Eye,
     Clock,
     Trash2,
-    ShieldCheck
+    ShieldCheck,
+    MapPin,
+    Navigation
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
@@ -65,8 +67,72 @@ const TIPOS_DOCUMENTO = [
     { id: 'DOMICILIO', label: 'Comprobante de Domicilio' },
     { id: 'INGRESOS', label: 'Comprobante de Ingresos' },
     { id: 'PROPIEDAD', label: 'Comprobante de Propiedad' },
+    { id: 'CONTRATO_FRONT', label: 'Contrato Frontal' },
+    { id: 'CONTRATO_BACK', label: 'Contrato Atrás' },
+    { id: 'FACHADA', label: 'Fachada Domicilio' },
+    { id: 'GPS', label: 'Ubicación GPS' },
     { id: 'OTRO', label: 'Otro Documento' }
 ];
+
+function GpsPreview({ url }: { url: string }) {
+    const [gps, setGps] = useState<{ lat: number; lng: number; timestamp?: string } | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                setGps(data);
+                setLoading(false);
+            })
+            .catch(e => {
+                console.error("Error al cargar JSON GPS:", e);
+                setLoading(false);
+            });
+    }, [url]);
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center p-8 space-y-3">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                <p className="text-xs text-slate-400">Cargando coordenadas de mapa...</p>
+            </div>
+        );
+    }
+
+    if (!gps || !gps.lat || !gps.lng) {
+        return (
+            <div className="text-center p-8 space-y-2">
+                <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
+                <p className="text-xs text-slate-300 font-bold">Error de Ubicación</p>
+                <p className="text-[10px] text-slate-500">No se pudieron recuperar las coordenadas GPS.</p>
+            </div>
+        );
+    }
+
+    const { lat, lng } = gps;
+    const bbox = `${lng - 0.003},${lat - 0.003},${lng + 0.003},${lat + 0.003}`;
+
+    return (
+        <div className="w-full h-full flex flex-col">
+            <div className="flex-1 min-h-[300px] relative bg-slate-950">
+                <iframe 
+                    title="Ubicación GPS"
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${lat}%2C${lng}`}
+                    className="w-full h-full border-0 absolute inset-0"
+                />
+            </div>
+            <div className="p-4 bg-slate-900 border-t border-slate-800 text-left space-y-1">
+                <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Coordenadas Registradas</p>
+                <p className="text-xs text-slate-200 font-mono font-bold">Latitud: {lat.toFixed(6)}</p>
+                <p className="text-xs text-slate-200 font-mono font-bold">Longitud: {lng.toFixed(6)}</p>
+                {gps.timestamp && (
+                    <p className="text-[9px] text-slate-500">Fecha de captura: {new Date(gps.timestamp).toLocaleString()}</p>
+                )}
+            </div>
+        </div>
+    );
+}
 
 export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: DigitalizadorModalProps) {
     const [documentos, setDocumentos] = useState<Documento[]>([]);
@@ -75,6 +141,7 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
     const [selectedDoc, setSelectedDoc] = useState<Documento | null>(null);
     const [motivoRechazo, setMotivoRechazo] = useState('');
     const [validatingAi, setValidatingAi] = useState<string | null>(null);
+    const [capturingGps, setCapturingGps] = useState(false);
 
     useEffect(() => {
         if (open) {
@@ -129,6 +196,30 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
             toast.error("Error de conexión");
         } finally {
             setUploading(null);
+        }
+    };
+
+    const handleGPSCapture = async () => {
+        setCapturingGps(true);
+        try {
+            const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
+            const pos = (await obtenerUbicacionCobrador(true, 10000)) as any; // Alta precisión, 10s timeout
+            
+            const gpsData = {
+                lat: pos.lat,
+                lng: pos.lng,
+                accuracy: pos.accuracy,
+                timestamp: new Date().toISOString()
+            };
+            
+            const fileContent = JSON.stringify(gpsData);
+            const file = new File([fileContent], 'gps.json', { type: 'application/json' });
+            await handleFileUpload('GPS', file);
+        } catch (error) {
+            console.error("Error al capturar ubicación GPS:", error);
+            toast.error("No se pudo obtener la ubicación GPS precisa. Revisa los permisos.");
+        } finally {
+            setCapturingGps(false);
         }
     };
 
@@ -247,6 +338,8 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                             className="w-full h-full border-0"
                                             title="PDF Preview"
                                         />
+                                    ) : selectedDoc.url.toLowerCase().endsWith('.json') ? (
+                                        <GpsPreview url={selectedDoc.url} />
                                     ) : (
                                         <img 
                                             src={selectedDoc.url} 
@@ -350,7 +443,13 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                                                {doc ? <Check className="w-5 h-5" /> : <ImageIcon className="w-4 h-4" />}
+                                                {doc ? (
+                                                    <Check className="w-5 h-5" />
+                                                ) : tipo.id === 'GPS' ? (
+                                                    <MapPin className="w-4 h-4 text-slate-400" />
+                                                ) : (
+                                                    <ImageIcon className="w-4 h-4" />
+                                                )}
                                             </div>
                                             <div>
                                                 <p className="text-sm font-bold text-slate-900">{tipo.label}</p>
@@ -382,21 +481,37 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                                     <Eye className="w-4 h-4" />
                                                 </Button>
                                             )}
-                                            <label className={`cursor-pointer ${uploading === tipo.id ? 'opacity-50 pointer-events-none' : ''}`}>
-                                                <input 
-                                                    type="file" 
-                                                    className="hidden" 
-                                                    accept="image/*,application/pdf"
-                                                    capture="environment"
-                                                    onChange={(e) => {
-                                                        const file = e.target.files?.[0];
-                                                        if (file) handleFileUpload(tipo.id, file);
-                                                    }}
-                                                />
-                                                <div className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors">
-                                                    {uploading === tipo.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                                                </div>
-                                            </label>
+                                            {tipo.id === 'GPS' ? (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    disabled={capturingGps || uploading === 'GPS'}
+                                                    onClick={handleGPSCapture}
+                                                    className="h-8 w-8 text-emerald-600 hover:text-emerald-500 rounded-full hover:bg-slate-100 transition-colors"
+                                                >
+                                                    {capturingGps || uploading === 'GPS' ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                                                    ) : (
+                                                        <MapPin className="w-4 h-4 text-emerald-600" />
+                                                    )}
+                                                </Button>
+                                            ) : (
+                                                <label className={`cursor-pointer ${uploading === tipo.id ? 'opacity-50 pointer-events-none' : ''}`}>
+                                                    <input 
+                                                        type="file" 
+                                                        className="hidden" 
+                                                        accept="image/*,application/pdf"
+                                                        capture="environment"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) handleFileUpload(tipo.id, file);
+                                                        }}
+                                                    />
+                                                    <div className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors">
+                                                        {uploading === tipo.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                                    </div>
+                                                </label>
+                                            )}
                                         </div>
                                     </div>
                                 );
