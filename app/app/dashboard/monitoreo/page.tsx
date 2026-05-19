@@ -45,7 +45,8 @@ export default function MonitoreoPage() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const today = new Date().toISOString().split('T')[0];
+            const d = new Date();
+            const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             const response = await fetch(`/api/pagos?fechaDesde=${today}`);
             const data = await response.json();
             
@@ -54,7 +55,7 @@ export default function MonitoreoPage() {
                 
                 // Calcular estadísticas rápidas
                 const total = data.pagos?.length || 0;
-                const monto = data.pagos?.reduce((sum: number, p: any) => sum + parseFloat(p.monto), 0) || 0;
+                const monto = data.pagos?.reduce((sum: number, p: any) => sum + (parseFloat(p.monto) || 0), 0) || 0;
                 const uniqueCobradores = new Set(data.pagos?.map((p: any) => p.cobradorId)).size;
                 
                 setStats({
