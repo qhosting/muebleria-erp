@@ -147,6 +147,10 @@ export async function POST(request: NextRequest) {
                            (process.env.WAHA_SESSION_TESORERIA && session === process.env.WAHA_SESSION_TESORERIA);
 
         if (isTesoreria) {
+            if (process.env.DISABLE_TESORERIA_BOT === 'true') {
+                console.log(`ℹ️ [${session}] Bot de Tesorería ignorado (desactivado mediante la variable de entorno DISABLE_TESORERIA_BOT).`);
+                return NextResponse.json({ status: 'ignored_tesoreria_disabled' });
+            }
             return await handleTesoreria(from, payload, session, notif.tesoreriaAgentName || 'Asistente de Tesorería');
         }
 
