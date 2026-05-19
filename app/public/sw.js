@@ -47,8 +47,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Ignorar APIs y HMR
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/_next/')) return;
+  // Ignorar APIs, HMR y archivos subidos (cargas/bóveda)
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/_next/') || url.pathname.startsWith('/uploads/')) return;
 
   event.respondWith(
     fetch(event.request)
