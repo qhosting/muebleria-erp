@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import crypto from "crypto";
 
+export async function GET(req: Request) {
+    return NextResponse.json({ 
+        error: "Method Not Allowed",
+        message: "El webhook de n8n funciona mediante solicitudes POST. Si ves este mensaje en n8n, asegúrate de que el método en el nodo HTTP Request esté configurado como POST y de que la URL comience exactamente con 'https://' (con 's') y no termine con una diagonal '/' al final."
+    }, { status: 405 });
+}
+
 /**
  * Webhook para recibir datos de tickets procesados por n8n (WhatsApp / IA)
  */
