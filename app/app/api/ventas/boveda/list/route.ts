@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
                         curp: doc.clienteCurp,
                         codigoCliente: doc.codigoCliente,
                         folioContrato: doc.folioContrato,
+                        telefono: doc.telefono,
                         recent: true // Marca para UI
                     });
                 }
@@ -92,6 +93,7 @@ export async function GET(request: NextRequest) {
                         curp: doc.clienteCurp,
                         codigoCliente: doc.codigoCliente,
                         folioContrato: doc.folioContrato,
+                        telefono: doc.telefono,
                     });
                 }
             });

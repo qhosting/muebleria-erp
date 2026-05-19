@@ -54,6 +54,7 @@ interface DigitalizadorModalProps {
         curp?: string;
         codigoCliente?: string;
         numContrato?: string;
+        telefono?: string;
     };
     isAdmin?: boolean;
 }
@@ -109,6 +110,7 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
         if (cliente.curp) formData.append('clienteCurp', cliente.curp);
         if (cliente.codigoCliente) formData.append('codigoCliente', cliente.codigoCliente);
         if (cliente.numContrato) formData.append('folioContrato', cliente.numContrato);
+        if ((cliente as any).telefono) formData.append('telefono', (cliente as any).telefono);
         formData.append('nombreCliente', cliente.nombreCompleto);
 
         try {

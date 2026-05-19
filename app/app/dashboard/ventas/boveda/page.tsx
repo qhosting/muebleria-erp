@@ -15,7 +15,9 @@ import {
     Clock,
     Plus,
     Edit3,
-    Trash2
+    Trash2,
+    ChevronLeft,
+    Phone
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -56,13 +58,17 @@ export default function BovedaDigitalPage() {
         nombre: '',
         curp: '',
         codigo: '',
-        contrato: ''
+        contrato: '',
+        telefono: ''
     });
 
-    // Edición de CURP
+    // Edición de CURP y Datos
     const [isEditingCurp, setIsEditingCurp] = useState(false);
     const [curpToEdit, setCurpToEdit] = useState<any>(null);
     const [newCurpVal, setNewCurpVal] = useState('');
+    const [newCodigoVal, setNewCodigoVal] = useState('');
+    const [newContratoVal, setNewContratoVal] = useState('');
+    const [newTelefonoVal, setNewTelefonoVal] = useState('');
     const [updatingCurp, setUpdatingCurp] = useState(false);
 
     useEffect(() => {
@@ -114,7 +120,8 @@ export default function BovedaDigitalPage() {
             nombreCompleto: newClient.nombre.toUpperCase(),
             curp: newClient.curp.toUpperCase(),
             codigoCliente: newClient.codigo.toUpperCase(),
-            numContrato: newClient.contrato.toUpperCase()
+            numContrato: newClient.contrato.toUpperCase(),
+            telefono: newClient.telefono
         });
         setIsCreating(false);
         setShowDigitalizador(true);
@@ -147,11 +154,6 @@ export default function BovedaDigitalPage() {
     };
 
     const handleUpdateCurp = async () => {
-        if (!newCurpVal || newCurpVal.length < 18) {
-            toast.error("CURP inválido");
-            return;
-        }
-
         setUpdatingCurp(true);
         try {
             const response = await fetch('/api/ventas/boveda/update-curp', {
@@ -160,19 +162,25 @@ export default function BovedaDigitalPage() {
                 body: JSON.stringify({
                     currentCurp: curpToEdit.curp,
                     currentNombre: curpToEdit.nombreCompleto,
-                    newCurp: newCurpVal
+                    newCurp: newCurpVal,
+                    newCodigo: newCodigoVal,
+                    newContrato: newContratoVal,
+                    newTelefono: newTelefonoVal
                 })
             });
 
             if (response.ok) {
-                toast.success("CURP actualizado correctamente");
+                toast.success("Expediente actualizado correctamente");
                 setIsEditingCurp(false);
                 setNewCurpVal('');
+                setNewCodigoVal('');
+                setNewContratoVal('');
+                setNewTelefonoVal('');
                 // Refrescar resultados
                 if (searchTerm) handleSearch();
                 else fetchRecent();
             } else {
-                toast.error("Error al actualizar CURP");
+                toast.error("Error al actualizar expediente");
             }
         } catch (error) {
             toast.error("Error de conexión");
@@ -214,7 +222,8 @@ export default function BovedaDigitalPage() {
             nombreCompleto: cliente.nombreCompleto || 'Cliente Sin Nombre',
             curp: cliente.curp,
             codigoCliente: cliente.codigoCliente,
-            numContrato: cliente.folioContrato
+            numContrato: cliente.folioContrato,
+            telefono: cliente.telefono
         });
         setShowDigitalizador(true);
     };
@@ -322,6 +331,9 @@ export default function BovedaDigitalPage() {
                                                             e.stopPropagation();
                                                             setCurpToEdit(res);
                                                             setNewCurpVal(res.curp || '');
+                                                            setNewCodigoVal(res.codigoCliente || '');
+                                                            setNewContratoVal(res.folioContrato || '');
+                                                            setNewTelefonoVal(res.telefono || '');
                                                             setIsEditingCurp(true);
                                                         }}
                                                     >
@@ -349,10 +361,22 @@ export default function BovedaDigitalPage() {
                                                 <ShieldCheck className="h-4 w-4" />
                                                 <span className="font-mono">{res.curp || 'SIN CURP'}</span>
                                             </div>
+                                            {res.codigoCliente && (
+                                                <div className="flex items-center gap-2 text-sm text-slate-500">
+                                                    <Fingerprint className="h-4 w-4" />
+                                                    <span>Código: {res.codigoCliente}</span>
+                                                </div>
+                                            )}
                                             <div className="flex items-center gap-2 text-sm text-slate-500">
                                                 <User className="h-4 w-4" />
                                                 <span>Folio: {res.folioContrato || 'N/A'}</span>
                                             </div>
+                                            {res.telefono && (
+                                                <div className="flex items-center gap-2 text-sm text-slate-500">
+                                                    <Phone className="h-4 w-4" />
+                                                    <span>Tel: {res.telefono}</span>
+                                                </div>
+                                            )}
                                         </div>
                                         <Button 
                                             className="w-full bg-slate-900 hover:bg-black text-white rounded-xl py-6 flex items-center justify-center gap-2"
@@ -441,6 +465,19 @@ export default function BovedaDigitalPage() {
                                 </div>
                             </div>
                             <div className="grid gap-2">
+                                <Label htmlFor="telefono">Teléfono (10 dígitos)</Label>
+                                <Input 
+                                    id="telefono" 
+                                    placeholder="Ej. 3312345678" 
+                                    maxLength={10}
+                                    value={newClient.telefono}
+                                    onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, ''); // Solo dígitos
+                                        setNewClient({...newClient, telefono: val});
+                                    }}
+                                />
+                            </div>
+                            <div className="grid gap-2">
                                 <Label htmlFor="curp">CURP (Opcional)</Label>
                                 <Input 
                                     id="curp" 
@@ -459,13 +496,13 @@ export default function BovedaDigitalPage() {
                     </DialogContent>
                 </Dialog>
 
-                {/* DIALOG DE EDICIÓN DE CURP */}
+                {/* DIALOG DE EDICIÓN DE EXPEDIENTE */}
                 <Dialog open={isEditingCurp} onOpenChange={setIsEditingCurp}>
                     <DialogContent className="sm:max-w-[425px]">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
                                 <Edit3 className="h-5 w-5 text-blue-600" />
-                                Actualizar CURP del Expediente
+                                Actualizar Datos del Expediente
                             </DialogTitle>
                         </DialogHeader>
                         <div className="py-4 space-y-4">
@@ -474,18 +511,48 @@ export default function BovedaDigitalPage() {
                                 <p className="text-sm font-bold text-slate-700 uppercase">{curpToEdit?.nombreCompleto}</p>
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="new-curp">Nuevo CURP</Label>
+                                <Label htmlFor="new-curp">CURP (Opcional)</Label>
                                 <Input 
                                     id="new-curp" 
-                                    className="uppercase font-mono text-lg tracking-widest h-12"
+                                    className="uppercase font-mono tracking-wide"
                                     placeholder="ABCD123456HDF..." 
                                     maxLength={18}
                                     value={newCurpVal}
                                     onChange={(e) => setNewCurpVal(e.target.value.toUpperCase())}
                                 />
-                                <p className="text-[10px] text-slate-400 italic">
-                                    Esto actualizará todos los documentos asociados a este nombre y CURP previo.
-                                </p>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="new-codigo">Vincular Código Cliente</Label>
+                                <Input 
+                                    id="new-codigo" 
+                                    className="uppercase"
+                                    placeholder="Ej. C-1234" 
+                                    value={newCodigoVal}
+                                    onChange={(e) => setNewCodigoVal(e.target.value.toUpperCase())}
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="new-contrato">Folio Contrato</Label>
+                                <Input 
+                                    id="new-contrato" 
+                                    className="uppercase"
+                                    placeholder="Ej. 12345" 
+                                    value={newContratoVal}
+                                    onChange={(e) => setNewContratoVal(e.target.value.toUpperCase())}
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="new-telefono">Teléfono (10 dígitos)</Label>
+                                <Input 
+                                    id="new-telefono" 
+                                    placeholder="Ej. 3312345678" 
+                                    maxLength={10}
+                                    value={newTelefonoVal}
+                                    onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, ''); // Solo números
+                                        setNewTelefonoVal(val);
+                                    }}
+                                />
                             </div>
                         </div>
                         <DialogFooter>
@@ -494,7 +561,7 @@ export default function BovedaDigitalPage() {
                                 onClick={handleUpdateCurp}
                                 disabled={updatingCurp}
                             >
-                                {updatingCurp ? <Loader2 className="h-5 w-5 animate-spin" /> : 'ACTUALIZAR CURP'}
+                                {updatingCurp ? <Loader2 className="h-5 w-5 animate-spin" /> : 'ACTUALIZAR EXPEDIENTE'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

@@ -911,6 +911,7 @@ model DocumentoBoveda {
   codigoCliente   String?  // Código de cliente vinculado
   folioContrato   String?  // Folio de contrato vinculado
   nombreCliente   String?
+  telefono        String?  // Teléfono del cliente
   tipoDocumento   String   // INE_FRONT, INE_BACK, DOMICILIO, INGRESOS, PROPIEDAD, OTRO
   url             String
   status          String   @default("PENDIENTE") // PENDIENTE, VALIDADO, RECHAZADO

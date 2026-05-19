@@ -19,13 +19,16 @@ export async function PATCH(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { currentCurp, currentNombre, newCurp } = body;
-
-        if (!newCurp) {
-            return NextResponse.json({ error: 'Nuevo CURP requerido' }, { status: 400 });
-        }
+        const { currentCurp, currentNombre, newCurp, newCodigo, newContrato, newTelefono } = body;
 
         const db = prisma as any;
+
+        // Armamos el objeto de actualización con los datos proveídos
+        const updateData: any = {};
+        if (newCurp !== undefined && newCurp !== '') updateData.clienteCurp = newCurp.toUpperCase();
+        if (newCodigo !== undefined) updateData.codigoCliente = newCodigo.toUpperCase();
+        if (newContrato !== undefined) updateData.folioContrato = newContrato.toUpperCase();
+        if (newTelefono !== undefined) updateData.telefono = newTelefono;
 
         // Actualizamos todos los registros que coincidan con el cliente actual
         const result = await db.documentoBoveda.updateMany({
@@ -33,9 +36,7 @@ export async function PATCH(request: NextRequest) {
                 nombreCliente: currentNombre,
                 clienteCurp: currentCurp || null
             },
-            data: {
-                clienteCurp: newCurp.toUpperCase()
-            }
+            data: updateData
         });
 
         return NextResponse.json({ 

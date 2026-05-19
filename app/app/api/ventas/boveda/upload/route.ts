@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
         const codigoCliente = formData.get('codigoCliente') as string;
         const folioContrato = formData.get('folioContrato') as string;
         const nombreCliente = formData.get('nombreCliente') as string;
+        const telefono = formData.get('telefono') as string;
 
         if (!file || !tipoDocumento) {
             return NextResponse.json({ error: 'Faltan datos obligatorios' }, { status: 400 });
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
                 codigoCliente,
                 folioContrato,
                 nombreCliente,
+                telefono,
                 tipoDocumento,
                 url: publicUrl,
                 status: 'PENDIENTE',

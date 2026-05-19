@@ -46,7 +46,8 @@ export default function MobileBovedaPage() {
         nombre: '',
         curp: '',
         codigo: '',
-        contrato: ''
+        contrato: '',
+        telefono: ''
     });
 
     useEffect(() => {
@@ -77,7 +78,8 @@ export default function MobileBovedaPage() {
             nombreCompleto: newClient.nombre.toUpperCase(),
             curp: newClient.curp.toUpperCase(),
             codigoCliente: newClient.codigo.toUpperCase(),
-            numContrato: newClient.contrato.toUpperCase()
+            numContrato: newClient.contrato.toUpperCase(),
+            telefono: newClient.telefono
         });
         setIsCreating(false);
         setShowDigitalizador(true);
@@ -278,6 +280,19 @@ export default function MobileBovedaPage() {
                                     />
                                 </div>
                             )}
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Teléfono (10 dígitos)</label>
+                            <Input 
+                                className="bg-slate-900 border-slate-800 text-white h-12 rounded-xl"
+                                placeholder="Teléfono"
+                                maxLength={10}
+                                value={newClient.telefono}
+                                onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, ''); // Solo números
+                                    setNewClient({...newClient, telefono: val});
+                                }}
+                            />
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">CURP (Opcional)</label>
