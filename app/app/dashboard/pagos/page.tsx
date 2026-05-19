@@ -73,6 +73,16 @@ export default function PagosPage() {
   }, []);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const search = urlParams.get('search');
+      if (search) {
+        setSearchTerm(search);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     fetchPagos();
   }, [selectedTipo, selectedCobrador, selectedFecha]);
 

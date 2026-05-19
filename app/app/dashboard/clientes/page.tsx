@@ -26,7 +26,8 @@ import {
   Filter,
   Upload,
   MoreVertical,
-  Smartphone
+  Smartphone,
+  Receipt
 } from 'lucide-react';
 import { formatCurrency, formatDate, getDayName, getPeriodicidadLabel } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -442,10 +443,16 @@ export default function ClientesPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           {userRole === 'cobrador' ? (
-                            <DropdownMenuItem onClick={() => handleViewClienteDetails(cliente)}>
-                              <Users className="h-4 w-4 mr-2" />
-                              Ver Detalles
-                            </DropdownMenuItem>
+                            <>
+                              <DropdownMenuItem onClick={() => handleViewClienteDetails(cliente)}>
+                                <Users className="h-4 w-4 mr-2" />
+                                Ver Detalles
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => window.location.href = `/dashboard/pagos?search=${cliente.codigoCliente}`}>
+                                <Receipt className="h-4 w-4 mr-2" />
+                                Ver Pagos
+                              </DropdownMenuItem>
+                            </>
                           ) : (
                             <>
                               <DropdownMenuItem onClick={() => handleEditCliente(cliente)}>
@@ -455,6 +462,10 @@ export default function ClientesPage() {
                               <DropdownMenuItem onClick={() => handleCobrar(cliente)}>
                                 <DollarSign className="h-4 w-4 mr-2" />
                                 Registrar Pago
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => window.location.href = `/dashboard/pagos?search=${cliente.codigoCliente}`}>
+                                <Receipt className="h-4 w-4 mr-2" />
+                                Ver Pagos
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleDeleteCliente(cliente)}
