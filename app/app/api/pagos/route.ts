@@ -209,6 +209,7 @@ export async function POST(request: NextRequest) {
           fechaPago: finalFechaPago,
           metodoPago: metodoPago || 'efectivo',
           numeroRecibo: numeroRecibo || null,
+          localId: localId || null,
           saldoAnterior,
           saldoNuevo,
           sincronizado: true,

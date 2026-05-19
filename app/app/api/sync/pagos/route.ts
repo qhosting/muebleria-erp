@@ -28,13 +28,21 @@ export async function POST(request: NextRequest) {
 
     for (const pagoData of pagos) {
       try {
-        // Verificar si el pago ya existe
+        // Verificar si el pago ya existe por localId o por combinación de datos
+        const duplicateConditions: any[] = [];
+        if (pagoData.localId) {
+          duplicateConditions.push({ localId: pagoData.localId });
+        }
+        duplicateConditions.push({
+          clienteId: pagoData.clienteId,
+          cobradorId: pagoData.cobradorId,
+          monto: parseFloat(pagoData.monto),
+          fechaPago: new Date(pagoData.fechaPago),
+        });
+
         const pagoExistente = await prisma.pago.findFirst({
           where: {
-            clienteId: pagoData.clienteId,
-            cobradorId: pagoData.cobradorId,
-            monto: parseFloat(pagoData.monto),
-            fechaPago: new Date(pagoData.fechaPago),
+            OR: duplicateConditions
           },
         });
 
@@ -86,6 +94,7 @@ export async function POST(request: NextRequest) {
               latitud: pagoData.latitud ? pagoData.latitud.toString() : null,
               longitud: pagoData.longitud ? pagoData.longitud.toString() : null,
               numeroRecibo: pagoData.numeroRecibo || null,
+              localId: pagoData.localId || null,
               saldoAnterior,
               saldoNuevo,
               ticketImpreso: pagoData.ticketImpreso || false,
