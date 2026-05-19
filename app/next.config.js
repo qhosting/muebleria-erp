@@ -24,6 +24,30 @@ const nextConfig = {
 
   images: { unoptimized: true },
 
+  webpack: (config) => {
+    if (Array.isArray(config.externals)) {
+      config.externals.push({
+        canvg: 'canvg',
+        html2canvas: 'html2canvas',
+        dompurify: 'dompurify',
+      });
+    } else if (config.externals && typeof config.externals === 'object') {
+      config.externals = {
+        ...config.externals,
+        canvg: 'canvg',
+        html2canvas: 'html2canvas',
+        dompurify: 'dompurify',
+      };
+    } else {
+      config.externals = [{
+        canvg: 'canvg',
+        html2canvas: 'html2canvas',
+        dompurify: 'dompurify',
+      }];
+    }
+    return config;
+  },
+
   async headers() {
     return [
       {
