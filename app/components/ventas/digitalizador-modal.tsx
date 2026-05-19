@@ -27,7 +27,8 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogFooter
+    DialogFooter,
+    DialogDescription
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -145,6 +146,11 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
     const [capturingGps, setCapturingGps] = useState(false);
     const [syncingDrive, setSyncingDrive] = useState(false);
 
+    // Estados para la terminal de sincronización real con Google Drive
+    const [syncProgress, setSyncProgress] = useState(0);
+    const [syncLogList, setSyncLogList] = useState<{ text: string; status: 'info' | 'success' | 'warning' | 'error' | 'working' }[]>([]);
+    const [showSyncTerminal, setShowSyncTerminal] = useState(false);
+
     useEffect(() => {
         if (open) {
             fetchDocumentos();
@@ -225,6 +231,278 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
         }
     };
 
+    const generatePdfDocument = async (): Promise<any> => {
+        const { jsPDF } = await import('jspdf');
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+
+        // 1. PORTADA DOSSIER PREMIUM
+        doc.setFillColor(15, 23, 42); // slate-900 color
+        doc.rect(0, 0, pageWidth, pageHeight, 'F');
+
+        // marcos de líneas finas geométricas
+        doc.setDrawColor(51, 65, 85); // slate-700
+        doc.setLineWidth(0.3);
+        doc.rect(8, 8, pageWidth - 16, pageHeight - 16, 'D');
+        doc.rect(10, 10, pageWidth - 20, pageHeight - 20, 'D');
+
+        // elegante franja de acento en azul cielo
+        doc.setFillColor(56, 189, 248); // sky-400
+        doc.rect(12, 12, 4, pageHeight - 24, 'F');
+
+        // elegante card panel central en color gris carbón oscuro (slate-800)
+        doc.setFillColor(30, 41, 59); // slate-800
+        doc.setDrawColor(56, 189, 248); // sky-400
+        doc.setLineWidth(0.5);
+        doc.rect(25, 60, pageWidth - 50, 120, 'FD');
+
+        // Ornamentos geométricos en la portada
+        doc.setDrawColor(71, 85, 105); // slate-600
+        doc.setLineWidth(0.2);
+        // Pequeñas cruces en las esquinas del panel card
+        const crossSize = 3;
+        const coords = [
+            { x: 25, y: 60 },
+            { x: pageWidth - 25, y: 60 },
+            { x: 25, y: 180 },
+            { x: pageWidth - 25, y: 180 }
+        ];
+        coords.forEach(c => {
+            doc.line(c.x - crossSize, c.y, c.x + crossSize, c.y);
+            doc.line(c.x, c.y - crossSize, c.x, c.y + crossSize);
+        });
+
+        // Títulos de la portada
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(22);
+        doc.text("EXPEDIENTE DIGITAL DE CLIENTE", pageWidth / 2, 85, { align: 'center' });
+
+        doc.setFontSize(10);
+        doc.setTextColor(56, 189, 248); // sky-400
+        doc.text("SISTEMA DE ARCHIVADO Y CONTROL DIGITAL (VERTEX ERP)", pageWidth / 2, 95, { align: 'center' });
+
+        // Decorador
+        doc.setDrawColor(56, 189, 248); // sky-400
+        doc.setLineWidth(1);
+        doc.line(45, 103, pageWidth - 45, 103);
+
+        // Información del Cliente
+        doc.setFontSize(11);
+        doc.setTextColor(203, 213, 225); // slate-300
+        doc.setFont('helvetica', 'normal');
+        
+        let yPos = 120;
+        const printText = (label: string, value: string) => {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(148, 163, 184); // slate-400
+            doc.text(`${label}:`, 35, yPos);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(255, 255, 255);
+            doc.text(value, 80, yPos);
+            yPos += 10;
+        };
+
+        printText("Nombre Completo", cliente.nombreCompleto || 'Sin Nombre');
+        if (cliente.codigoCliente) printText("Código de Cliente", cliente.codigoCliente);
+        if (cliente.curp) printText("CURP", cliente.curp);
+        if (cliente.numContrato) printText("Folio de Contrato", cliente.numContrato);
+        if (cliente.telefono) printText("Teléfono", cliente.telefono);
+
+        // Pie de página de la portada
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139); // slate-500
+        doc.text("Generado automáticamente por VertexERP Digital Vault", pageWidth / 2, pageHeight - 20, { align: 'center' });
+        doc.text(`Fecha de exportación: ${new Date().toLocaleString()}`, pageWidth / 2, pageHeight - 15, { align: 'center' });
+
+        // Helper para convertir imagen a base64
+        const loadImageAsBase64 = (url: string): Promise<string> => {
+            return new Promise((resolve, reject) => {
+                const img = new window.Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(img, 0, 0);
+                        resolve(canvas.toDataURL('image/jpeg', 0.8));
+                    } else {
+                        reject(new Error("No se pudo obtener el contexto 2d del canvas"));
+                    }
+                };
+                img.onerror = () => reject(new Error(`Fallo al cargar la imagen: ${url}`));
+                img.src = url;
+            });
+        };
+
+        // 2. Para cada documento, descargar y agregar al PDF
+        for (const d of documentos) {
+            const tipoLabel = TIPOS_DOCUMENTO.find(t => t.id === d.tipoDocumento)?.label || d.tipoDocumento;
+            
+            doc.addPage();
+
+            // Encabezado de página
+            doc.setFillColor(30, 41, 59); // slate-800
+            doc.rect(0, 0, pageWidth, 25, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            doc.text(`${cliente.nombreCompleto || 'Cliente'} - ${cliente.codigoCliente || 'Sin Código'}`, 15, 12);
+            doc.setFontSize(12);
+            doc.setTextColor(56, 189, 248); // sky-400
+            doc.text(tipoLabel.toUpperCase(), pageWidth - 15, 15, { align: 'right' });
+
+            // Línea divisora
+            doc.setDrawColor(226, 232, 240); // slate-200
+            doc.setLineWidth(0.5);
+            doc.line(15, 25, pageWidth - 15, 25);
+
+            // Si es un JSON (GPS)
+            if (d.url.toLowerCase().endsWith('.json')) {
+                try {
+                    const response = await fetch(d.url);
+                    const gpsData = await response.json();
+                    
+                    doc.setTextColor(15, 23, 42); // slate-900
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(14);
+                    doc.text("REPORTE TÉCNICO DE GEORREFERENCIACIÓN GPS", 15, 40);
+
+                    // Rejilla tipo blueprint para GPS (de fondo en el panel)
+                    const panelY = 95;
+                    const panelHeight = 110;
+                    doc.setFillColor(15, 23, 42); // slate-900 (fondo oscuro para blueprint)
+                    doc.rect(15, panelY, pageWidth - 30, panelHeight, 'F');
+
+                    // Dibujar rejilla técnica azul
+                    doc.setDrawColor(30, 58, 138); // azul marino oscuro
+                    doc.setLineWidth(0.15);
+                    for (let x = 25; x < pageWidth - 15; x += 10) {
+                        doc.line(x, panelY, x, panelY + panelHeight);
+                    }
+                    for (let y = panelY + 5; y < panelY + panelHeight; y += 10) {
+                        doc.line(15, y, pageWidth - 15, y);
+                    }
+
+                    // Compás vectorizado estilizado (Brújula de agrimensura)
+                    const cx = pageWidth / 2;
+                    const cy = panelY + (panelHeight / 2);
+                    doc.setDrawColor(56, 189, 248); // sky-400
+                    doc.setLineWidth(0.25);
+                    
+                    // Círculos concéntricos
+                    doc.circle(cx, cy, 8, 'D');
+                    doc.circle(cx, cy, 20, 'D');
+                    doc.circle(cx, cy, 32, 'D');
+
+                    // Ejes direccionales
+                    doc.setDrawColor(71, 85, 105); // slate-600
+                    doc.line(cx - 45, cy, cx + 45, cy);
+                    doc.line(cx, cy - 45, cx, cy + 45);
+
+                    // Letras de brújula
+                    doc.setTextColor(56, 189, 248); // sky-400
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(8);
+                    doc.text("N", cx, cy - 36, { align: 'center' });
+                    doc.text("S", cx, cy + 39, { align: 'center' });
+                    doc.text("W", cx - 39, cy + 2, { align: 'center' });
+                    doc.text("E", cx + 37, cy + 2, { align: 'center' });
+
+                    // Aguja de la brújula apuntando al norte (triángulos rellenos)
+                    doc.setFillColor(244, 63, 94); // rose-500 para el Norte
+                    doc.triangle(cx, cy, cx - 3, cy, cx, cy - 25, 'FD');
+                    doc.setFillColor(226, 232, 240); // slate-200 para el Sur
+                    doc.triangle(cx, cy, cx + 3, cy, cx, cy + 25, 'FD');
+
+                    // Pequeña decoración central
+                    doc.setFillColor(15, 23, 42); // slate-900
+                    doc.circle(cx, cy, 2, 'F');
+                    doc.setDrawColor(56, 189, 248);
+                    doc.circle(cx, cy, 2, 'D');
+
+                    // Cuadro técnico de telemetría (Tabla técnica)
+                    doc.setFillColor(248, 250, 252); // slate-50 (fondo claro para tabla)
+                    doc.rect(15, 50, pageWidth - 30, 38, 'F');
+                    doc.setDrawColor(203, 213, 225); // slate-300
+                    doc.setLineWidth(0.3);
+                    doc.rect(15, 50, pageWidth - 30, 38, 'D');
+
+                    // Línea horizontal divisora interna de la tabla
+                    doc.line(15, 62, pageWidth - 15, 62);
+                    doc.line(15, 74, pageWidth - 15, 74);
+                    doc.line(pageWidth / 2, 50, pageWidth / 2, 88); // línea vertical en el centro
+
+                    const drawTableCell = (label: string, val: string, x: number, y: number) => {
+                        doc.setFont('helvetica', 'bold');
+                        doc.setFontSize(8);
+                        doc.setTextColor(100, 116, 139); // slate-500
+                        doc.text(label.toUpperCase(), x, y);
+                        doc.setFont('helvetica', 'normal');
+                        doc.setFontSize(10);
+                        doc.setTextColor(15, 23, 42); // slate-900
+                        doc.text(val, x, y + 5);
+                    };
+
+                    drawTableCell("Latitud GPS", `${gpsData.lat.toFixed(7)}°`, 20, 54);
+                    drawTableCell("Longitud GPS", `${gpsData.lng.toFixed(7)}°`, pageWidth / 2 + 5, 54);
+                    drawTableCell("Precisión de Señal", gpsData.accuracy ? `± ${gpsData.accuracy.toFixed(1)} metros` : "N/D", 20, 66);
+                    drawTableCell("Fecha y Hora", gpsData.timestamp ? new Date(gpsData.timestamp).toLocaleString() : "N/D", pageWidth / 2 + 5, 66);
+                    drawTableCell("Proveedor de Geodatos", "OpenStreetMap Contributors", 20, 78);
+                    drawTableCell("Sistema de Referencia", "WGS 84 (Estándar Global)", pageWidth / 2 + 5, 78);
+
+                    // Nota al pie técnica
+                    doc.setFontSize(8);
+                    doc.setTextColor(148, 163, 184); // slate-400
+                    doc.text("Nota: Este documento certifica la ubicación exacta del domicilio mediante captura satelital.", 15, panelY + panelHeight + 6);
+
+                } catch (e) {
+                    doc.setTextColor(239, 68, 68);
+                    doc.text("Error al cargar coordenadas de ubicación", 20, 50);
+                }
+            } 
+            // Si es una imagen
+            else if (!d.url.toLowerCase().endsWith('.pdf')) {
+                try {
+                    const img = await loadImageAsBase64(d.url);
+                    // Para que la imagen encaje bien con margen, calculamos ancho y alto
+                    const targetWidth = pageWidth - 30;
+                    const targetHeight = pageHeight - 55;
+                    doc.addImage(img, 'JPEG', 15, 35, targetWidth, targetHeight);
+                } catch (err) {
+                    console.error("Error al renderizar imagen en PDF:", err);
+                    doc.setTextColor(239, 68, 68);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text("Error al cargar la imagen digitalizada", 20, 50);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(d.url, 20, 60);
+                }
+            } 
+            // Si es un PDF
+            else {
+                doc.setTextColor(71, 85, 105);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(12);
+                doc.text("Documento digital cargado en formato PDF", 20, 50);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(10);
+                doc.text("Puedes descargarlo directamente desde el enlace principal:", 20, 65);
+                doc.setTextColor(59, 130, 246);
+                doc.text(d.url, 20, 75);
+            }
+        }
+
+        return doc;
+    };
+
     const handleGeneratePDF = async () => {
         if (documentos.length === 0) {
             toast.error("No hay documentos subidos para este cliente.");
@@ -232,170 +510,13 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
         }
 
         setLoading(true);
-        toast.info("Generando expediente PDF...");
+        toast.info("Generando expediente PDF de alta fidelidad...");
 
         try {
-            const { jsPDF } = await import('jspdf');
-            const doc = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: 'a4'
-            });
-
-            // 1. Añadir una página de portada súper premium
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const pageHeight = doc.internal.pageSize.getHeight();
-
-            doc.setFillColor(15, 23, 42); // slate-900 color
-            doc.rect(0, 0, pageWidth, pageHeight, 'F');
-
-            // Título de la portada
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(22);
-            doc.text("EXPEDIENTE DIGITAL DE CLIENTE", pageWidth / 2, 45, { align: 'center' });
-
-            // Decorador
-            doc.setDrawColor(56, 189, 248); // sky-400
-            doc.setLineWidth(1.5);
-            doc.line(30, 55, pageWidth - 30, 55);
-
-            // Información del Cliente
-            doc.setFontSize(12);
-            doc.setTextColor(203, 213, 225); // slate-300
-            
-            let yPos = 80;
-            doc.text(`Nombre Completo: ${cliente.nombreCompleto || 'Sin Nombre'}`, 30, yPos);
-            yPos += 12;
-            if (cliente.codigoCliente) {
-                doc.text(`Código de Cliente: ${cliente.codigoCliente}`, 30, yPos);
-                yPos += 12;
-            }
-            if (cliente.curp) {
-                doc.text(`CURP: ${cliente.curp}`, 30, yPos);
-                yPos += 12;
-            }
-            if (cliente.numContrato) {
-                doc.text(`Folio de Contrato: ${cliente.numContrato}`, 30, yPos);
-                yPos += 12;
-            }
-            if (cliente.telefono) {
-                doc.text(`Teléfono (10 dígitos): ${cliente.telefono}`, 30, yPos);
-                yPos += 12;
-            }
-
-            // Pie de página de la portada
-            doc.setFontSize(8);
-            doc.setTextColor(100, 116, 139); // slate-500
-            doc.text("Generado automáticamente por VertexERP Digital Vault", pageWidth / 2, pageHeight - 20, { align: 'center' });
-            doc.text(`Fecha de exportación: ${new Date().toLocaleString()}`, pageWidth / 2, pageHeight - 15, { align: 'center' });
-
-            // Helper para convertir imagen a base64
-            const loadImageAsBase64 = (url: string): Promise<string> => {
-                return new Promise((resolve, reject) => {
-                    const img = new window.Image();
-                    img.crossOrigin = 'anonymous';
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = img.naturalWidth;
-                        canvas.height = img.naturalHeight;
-                        const ctx = canvas.getContext('2d');
-                        if (ctx) {
-                            ctx.drawImage(img, 0, 0);
-                            resolve(canvas.toDataURL('image/jpeg', 0.8));
-                        } else {
-                            reject(new Error("No se pudo obtener el contexto 2d del canvas"));
-                        }
-                    };
-                    img.onerror = () => reject(new Error(`Fallo al cargar la imagen: ${url}`));
-                    img.src = url;
-                });
-            };
-
-            // 2. Para cada documento, descargar y agregar al PDF
-            for (const d of documentos) {
-                const tipoLabel = TIPOS_DOCUMENTO.find(t => t.id === d.tipoDocumento)?.label || d.tipoDocumento;
-                
-                doc.addPage();
-
-                // Encabezado de página
-                doc.setFillColor(30, 41, 59); // slate-800
-                doc.rect(0, 0, pageWidth, 25, 'F');
-                doc.setTextColor(255, 255, 255);
-                doc.setFontSize(10);
-                doc.text(`${cliente.nombreCompleto || 'Cliente'} - ${cliente.codigoCliente || 'Sin Código'}`, 15, 12);
-                doc.setFontSize(12);
-                doc.text(tipoLabel.toUpperCase(), pageWidth - 15, 15, { align: 'right' });
-
-                // Línea divisora
-                doc.setDrawColor(226, 232, 240); // slate-200
-                doc.setLineWidth(0.5);
-                doc.line(15, 25, pageWidth - 15, 25);
-
-                // Si es un JSON (GPS)
-                if (d.url.toLowerCase().endsWith('.json')) {
-                    try {
-                        const response = await fetch(d.url);
-                        const gpsData = await response.json();
-                        
-                        doc.setTextColor(15, 23, 42); // slate-900
-                        doc.setFontSize(14);
-                        doc.text("REGISTRO DE EVIDENCIA DE UBICACIÓN GPS", 15, 45);
-                        
-                        doc.setFontSize(10);
-                        doc.text(`Latitud: ${gpsData.lat}`, 20, 60);
-                        doc.text(`Longitud: ${gpsData.lng}`, 20, 70);
-                        if (gpsData.accuracy) {
-                            doc.text(`Precisión: ${gpsData.accuracy} metros`, 20, 80);
-                        }
-                        if (gpsData.timestamp) {
-                            doc.text(`Fecha y Hora de Captura: ${new Date(gpsData.timestamp).toLocaleString()}`, 20, 90);
-                        }
-
-                        // Recuadro GPS
-                        doc.setFillColor(241, 245, 249); // slate-100
-                        doc.rect(15, 110, pageWidth - 30, 80, 'F');
-                        doc.setDrawColor(203, 213, 225);
-                        doc.rect(15, 110, pageWidth - 30, 80, 'D');
-                        
-                        doc.setTextColor(71, 85, 105);
-                        doc.setFontSize(11);
-                        doc.text("Mapa Georreferenciado Registrado", pageWidth / 2, 130, { align: 'center' });
-                        doc.setFontSize(9);
-                        doc.text(`https://www.openstreetmap.org/?mlat=${gpsData.lat}&mlon=${gpsData.lng}#map=17/${gpsData.lat}/${gpsData.lng}`, pageWidth / 2, 150, { align: 'center' });
-                    } catch (e) {
-                        doc.setTextColor(239, 68, 68);
-                        doc.text("Error al cargar coordenadas de ubicación", 20, 50);
-                    }
-                } 
-                // Si es una imagen (JPEG, PNG, etc.)
-                else if (!d.url.toLowerCase().endsWith('.pdf')) {
-                    try {
-                        const img = await loadImageAsBase64(d.url);
-                        doc.addImage(img, 'JPEG', 15, 35, pageWidth - 30, pageHeight - 55);
-                    } catch (err) {
-                        console.error("Error al renderizar imagen en PDF:", err);
-                        doc.setTextColor(239, 68, 68);
-                        doc.text("Error al cargar la imagen digitalizada", 20, 50);
-                        doc.text(d.url, 20, 60);
-                    }
-                } 
-                // Si es un PDF
-                else {
-                    doc.setTextColor(71, 85, 105);
-                    doc.setFontSize(12);
-                    doc.text("Documento digital cargado en formato PDF", 20, 50);
-                    doc.setFontSize(10);
-                    doc.text(`Puedes descargarlo directamente desde el enlace principal:`, 20, 65);
-                    doc.setTextColor(59, 130, 246);
-                    doc.text(d.url, 20, 75);
-                }
-            }
-
-            // Guardar PDF con el código de cliente como nombre
+            const doc = await generatePdfDocument();
             const pdfName = `${cliente.codigoCliente || 'expediente'}.pdf`;
             doc.save(pdfName);
             toast.success(`Expediente PDF generado con éxito: ${pdfName}`);
-
         } catch (error) {
             console.error("Error generating PDF:", error);
             toast.error("Error al generar el documento PDF");
@@ -411,31 +532,126 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
         }
 
         setSyncingDrive(true);
-        
-        const steps = [
-            "Estableciendo conexión con la API de Google Drive...",
-            "Autenticando cuenta corporativa: daso.muebles@gmail.com...",
-            "Creando o verificando carpeta principal 'EXPEDIENTES_DIGITALES'...",
-            `Creando subcarpeta del cliente: [${cliente.codigoCliente || 'C_CODE'}] ${cliente.nombreCompleto}...`,
-            "Compilando expediente consolidado en PDF...",
-            `Subiendo expediente consolidado: ${cliente.codigoCliente || 'expediente'}.pdf...`,
-            "Sincronizando archivos individuales de soporte...",
-            "Verificando integridad y permisos del expediente...",
-            "¡Sincronización manual en Google Drive completada exitosamente!"
-        ];
+        setShowSyncTerminal(true);
+        setSyncProgress(5);
+        setSyncLogList([
+            { text: "Iniciando protocolo de sincronización Vertex v1.0.4...", status: 'info' }
+        ]);
+
+        const addLog = (text: string, status: 'info' | 'working' | 'success' | 'warning' | 'error') => {
+            setSyncLogList(prev => [...prev, { text, status }]);
+        };
 
         try {
-            for (let i = 0; i < steps.length; i++) {
-                const duration = i === steps.length - 1 ? 1500 : 700 + Math.random() * 600;
-                if (i === steps.length - 1) {
-                    toast.success(steps[i]);
-                } else {
-                    toast.info(steps[i]);
-                }
-                await new Promise(resolve => setTimeout(resolve, duration));
+            // Paso 1: Autenticación
+            addLog("Solicitando token de acceso seguro a Google API...", 'working');
+            const authRes = await fetch('/api/ventas/boveda/sync-drive', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'auth' })
+            });
+            const authData = await authRes.json();
+
+            if (!authRes.ok || !authData.success) {
+                throw new Error(authData.error || "Fallo en la autenticación del servidor.");
             }
-        } catch (e) {
-            toast.error("Error inesperado en sincronización a Google Drive");
+
+            const accessToken = authData.accessToken;
+            addLog("[Google OAuth2] Conexión establecida. Token generado.", 'success');
+            setSyncProgress(20);
+
+            // Paso 2: Crear/detectar carpeta
+            addLog(`Verificando o creando carpeta corporativa para: ${cliente.nombreCompleto}...`, 'working');
+            const folderRes = await fetch('/api/ventas/boveda/sync-drive', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'create-folder',
+                    accessToken,
+                    nombreCliente: cliente.nombreCompleto,
+                    codigoCliente: cliente.codigoCliente
+                })
+            });
+            const folderData = await folderRes.json();
+
+            if (!folderRes.ok || !folderData.success) {
+                throw new Error(folderData.error || "No se pudo crear la carpeta del cliente en Drive.");
+            }
+
+            const folderId = folderData.folderId;
+            addLog(`[Google Drive] Carpeta de cliente confirmada con ID: ${folderId.substring(0, 16)}...`, 'success');
+            setSyncProgress(40);
+
+            // Paso 3: Sincronizar archivos individuales
+            addLog(`Sincronizando ${documentos.length} archivo(s) individual(es) de soporte...`, 'info');
+            
+            let uploadedCount = 0;
+            for (const d of documentos) {
+                const tipoLabel = TIPOS_DOCUMENTO.find(t => t.id === d.tipoDocumento)?.label || d.tipoDocumento;
+                addLog(`Enviando ${tipoLabel}...`, 'working');
+
+                const uploadFileRes = await fetch('/api/ventas/boveda/sync-drive', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'upload-file',
+                        accessToken,
+                        folderId,
+                        documentId: d.id,
+                        codigoCliente: cliente.codigoCliente
+                    })
+                });
+                const uploadFileData = await uploadFileRes.json();
+
+                if (!uploadFileRes.ok || !uploadFileData.success) {
+                    addLog(`Error al subir ${tipoLabel}: ${uploadFileData.error || 'Fallo desconocido'}`, 'warning');
+                } else {
+                    uploadedCount++;
+                    addLog(`Sincronizado: ${tipoLabel} -> Enlace: ${uploadFileData.driveUrl.substring(0, 40)}...`, 'success');
+                }
+
+                // Incrementar progreso dinámicamente
+                const progressStep = 40 + Math.floor((uploadedCount / documentos.length) * 35);
+                setSyncProgress(progressStep);
+            }
+
+            // Paso 4: Generar y subir PDF consolidado
+            addLog("Compilando expediente consolidado en PDF...", 'working');
+            const pdfDoc = await generatePdfDocument();
+            const pdfBase64 = pdfDoc.output('datauristring').split(',')[1];
+            addLog(`Dossier PDF compilado en memoria (${(pdfBase64.length * 0.75 / 1024).toFixed(1)} KB).`, 'success');
+            setSyncProgress(85);
+
+            addLog(`Subiendo expediente consolidado: EXPEDIENTE_${cliente.codigoCliente || 'CLIENTE'}.PDF...`, 'working');
+            const uploadPdfRes = await fetch('/api/ventas/boveda/sync-drive', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'upload-pdf',
+                    accessToken,
+                    folderId,
+                    pdfBase64,
+                    codigoCliente: cliente.codigoCliente
+                })
+            });
+            const uploadPdfData = await uploadPdfRes.json();
+
+            if (!uploadPdfRes.ok || !uploadPdfData.success) {
+                throw new Error(uploadPdfData.error || "No se pudo cargar el expediente consolidado en PDF.");
+            }
+
+            addLog(`Expediente PDF consolidado cargado exitosamente en Google Drive.`, 'success');
+            setSyncProgress(100);
+            addLog("PROCESO COMPLETADO: Todos los archivos se han sincronizado con Google Drive.", 'success');
+            toast.success("¡Sincronización con Google Drive completada!");
+
+            // Recargar documentos para mostrar estado sincronizado
+            fetchDocumentos();
+
+        } catch (e: any) {
+            console.error("Error sincronizando a Google Drive:", e);
+            addLog(`ERROR CRÍTICO: ${e.message || 'Error inesperado'}`, 'error');
+            toast.error(e.message || "Fallo en la sincronización a Google Drive");
         } finally {
             setSyncingDrive(false);
         }
@@ -532,6 +748,9 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                         <FileText className="w-5 h-5 text-sky-600" />
                         Digitalizador de Documentos: <span className="text-slate-500 font-normal">{cliente.nombreCompleto}</span>
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Digitaliza, valida y sincroniza los documentos de soporte de {cliente.nombreCompleto}.
+                    </DialogDescription>
                     <div className="flex items-center gap-2 self-start md:self-auto">
                         <Button 
                             variant="outline" 
@@ -773,6 +992,79 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                 <DialogFooter className="p-4 border-t bg-slate-50">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Cerrar</Button>
                 </DialogFooter>
+
+                {showSyncTerminal && (
+                    <div className="absolute inset-0 bg-slate-950 z-[60] flex flex-col font-mono text-emerald-400 p-6 select-none animate-in fade-in zoom-in-95 duration-200">
+                        {/* Terminal Header */}
+                        <div className="flex items-center justify-between border-b border-emerald-950 pb-4 mb-4">
+                            <div className="flex items-center gap-2">
+                                <span className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" />
+                                <span className="w-3 h-3 rounded-full bg-amber-500" />
+                                <span className="w-3 h-3 rounded-full bg-emerald-500" />
+                                <span className="text-xs text-emerald-500/80 font-bold ml-2 tracking-wider">VERTEX SYNC SHELL v1.0.4</span>
+                            </div>
+                            <div className="text-[10px] text-emerald-600 tracking-widest font-bold">
+                                CONSOLA SEGURA // EXPORTANDO EXPEDIENTES
+                            </div>
+                        </div>
+
+                        {/* Console logs */}
+                        <div className="flex-1 overflow-y-auto space-y-2 p-4 bg-slate-900/50 border border-emerald-950/50 rounded-lg min-h-[300px]">
+                            {syncLogList.map((log, index) => {
+                                let prefix = ">>";
+                                let colorClass = "text-emerald-400";
+                                if (log.status === 'working') {
+                                    prefix = "⟳";
+                                    colorClass = "text-sky-400 animate-pulse";
+                                } else if (log.status === 'success') {
+                                    prefix = "✓";
+                                    colorClass = "text-emerald-400 font-bold";
+                                } else if (log.status === 'warning') {
+                                    prefix = "⚠";
+                                    colorClass = "text-amber-400 font-bold";
+                                } else if (log.status === 'error') {
+                                    prefix = "✗";
+                                    colorClass = "text-rose-500 font-bold animate-pulse";
+                                } else if (log.status === 'info') {
+                                    prefix = "i";
+                                    colorClass = "text-slate-400";
+                                }
+                                return (
+                                    <div key={index} className={`text-xs flex items-start gap-2 ${colorClass}`}>
+                                        <span className="select-none text-emerald-700">{prefix}</span>
+                                        <span className="flex-1 whitespace-pre-wrap">{log.text}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Progress bar */}
+                        <div className="mt-6 space-y-2">
+                            <div className="flex justify-between text-xs text-emerald-500/80">
+                                <span className="font-bold uppercase tracking-widest">Estado de Transferencia:</span>
+                                <span className="font-mono font-bold">{syncProgress}%</span>
+                            </div>
+                            <div className="h-3 w-full bg-slate-900 border border-emerald-950/80 rounded-full overflow-hidden p-0.5">
+                                <div 
+                                    className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-500 rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(52,211,153,0.5)]" 
+                                    style={{ width: `${syncProgress}%` }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Terminal Footer Actions */}
+                        <div className="mt-6 border-t border-emerald-950 pt-4 flex justify-between items-center">
+                            <span className="text-[10px] text-emerald-700">SESIÓN ENCRIPTADA DE EXPORTACIÓN</span>
+                            <Button 
+                                onClick={() => setShowSyncTerminal(false)}
+                                className="bg-emerald-950 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-900 hover:text-emerald-300 font-bold text-xs"
+                                disabled={syncingDrive}
+                            >
+                                Regresar al Digitalizador
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </DialogContent>
         </Dialog>
     );

@@ -919,6 +919,8 @@ model DocumentoBoveda {
   vendedorId      String?
   validadoPorId   String?
   fechaValidacion DateTime?
+  driveFileId     String?  // ID de archivo en Google Drive
+  driveUrl        String?  // Enlace web de Google Drive
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
