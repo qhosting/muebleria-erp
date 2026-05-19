@@ -168,9 +168,12 @@ export async function POST(req: Request) {
 
         // 6. Ejecutar Creación de Ticket, Pago, Ajuste de Saldo y Conciliación Bancaria en una sola transacción Prisma
         const result = await prisma.$transaction(async (tx) => {
+            const shortTicketId = Math.random().toString(36).substring(2, 10).toUpperCase();
+
             // A. Crear Ticket
             const newTicket = await tx.ticket.create({
                 data: {
+                    id: shortTicketId,
                     clienteId: cliente.id,
                     monto: parseFloat(monto),
                     referencia: referencia !== 'null' ? referencia : null,
@@ -218,12 +221,12 @@ export async function POST(req: Request) {
                     monto: parseFloat(monto),
                     interesMoratorio: 0,
                     gastosCobranza: 0,
-                    concepto: movimientoBancario ? `TICKET ID: ${newTicket.id} / MOV. ID: ${movimientoBancario.id}` : `TICKET ID: ${newTicket.id} / PENDIENTE`,
-                    tipoPago: "abono",
+                    concepto: movimientoBancario ? `TKT: ${newTicket.id} / MOV: ${movimientoBancario.id.slice(-8)}` : `TKT: ${newTicket.id} / PENDIENTE`,
+                    tipoPago: "regular",
                     fechaPago: fechaTicket,
                     saldoAnterior: saldoAnterior,
                     saldoNuevo: saldoNuevo,
-                    metodoPago: "BANCARIO",
+                    metodoPago: "BANCOS BOT",
                     sincronizado: true,
                     banco: movimientoBancario?.bancoOrigen || "TRANSFERENCIA"
                 }

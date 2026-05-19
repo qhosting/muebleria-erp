@@ -346,9 +346,11 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
             return NextResponse.json({ status: 'client_not_found' });
         }
 
-        // Crear el Ticket en la base de datos
+        // Generar el Ticket ID corto y Crear en la base de datos
+        const shortTicketId = Math.random().toString(36).substring(2, 10).toUpperCase();
         const ticket = await prisma.ticket.create({
             data: {
+                id: shortTicketId,
                 clienteId: clienteRecord.id,
                 monto: parseFloat(extracted.monto) || 0,
                 referencia: extracted.referencia,
@@ -403,10 +405,10 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
                         cobradorId: clienteRecord.cobradorAsignadoId || 'system', // O un ID de sistema
                         ticketId: ticket.id,
                         monto: montoPago,
-                        concepto: `PAGO AUTOMÁTICO BOT (WHATSAPP) - Ref: ${extracted.referencia || 'N/A'}`,
+                        concepto: `TKT: ${ticket.id} / Ref: ${extracted.referencia || 'N/A'}`,
                         tipoPago: 'regular',
                         fechaPago: extracted.fecha ? new Date(extracted.fecha) : new Date(),
-                        metodoPago: 'bancario_bot',
+                        metodoPago: 'BANCOS BOT',
                         saldoAnterior,
                         saldoNuevo,
                         sincronizado: true
