@@ -17,10 +17,36 @@ export default function MobileHome() {
     const { isNative } = usePlatform();
     const [data, setData] = useState<any>(null);
     const [isOffline, setIsOffline] = useState(false);
+    const [preferOffline, setPreferOffline] = useState(true); // 🚀 Por defecto en modo offline preferido
+
+    useEffect(() => {
+        const loadSettings = async () => {
+            if (session?.user) {
+                const userId = (session.user as any).id;
+                const settings = await db.settings.get(userId);
+                if (settings) {
+                    setPreferOffline(!!settings.preferOffline);
+                } else {
+                    // Si no existen settings, inicializar con preferOffline: true por defecto
+                    const defaultSettings = {
+                        cobradorId: userId,
+                        syncEnabled: true,
+                        autoSync: true,
+                        preferOffline: true, // 🚀 MODO OFFLINE PREFERIDO POR DEFECTO
+                        offlineMode: false,
+                        printFormat: 'thermal' as const
+                    };
+                    await db.settings.put(defaultSettings);
+                    setPreferOffline(true);
+                }
+            }
+        };
+        loadSettings();
+    }, [session]);
 
     useEffect(() => {
         const fetchDashboardData = async () => {
-            const isActuallyOffline = !navigator.onLine;
+            const isActuallyOffline = !navigator.onLine || preferOffline;
             setIsOffline(isActuallyOffline);
 
             try {
@@ -95,7 +121,7 @@ export default function MobileHome() {
         };
 
         fetchDashboardData();
-    }, []);
+    }, [preferOffline, session, isVendedor]);
 
     if (loading) {
         return (

@@ -544,7 +544,7 @@ export default function ClientesPage() {
                   )}
 
                   {!cliente.isGrouped && (
-                    <div className="text-xs text-gray-500">Registrado: {formatDate(cliente.createdAt)}</div>
+                    <div className="text-xs text-gray-500">Fecha de Venta: {formatDate(cliente.fechaVenta)}</div>
                   )}
                 </CardContent>
               </Card>

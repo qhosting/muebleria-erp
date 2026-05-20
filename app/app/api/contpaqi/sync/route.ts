@@ -84,10 +84,59 @@ export async function GET(request: NextRequest) {
                     console.warn(`No se pudo actualizar saldo real para ${codigo}:`, (e as Error).message);
                 }
 
+                // 🚀 OBTENER FECHA DE VENTA (Documentos del cliente)
+                let fechaVentaCalculada = new Date();
+                try {
+                    const documentos = await service.getClientDocumentos(codigo);
+                    if (Array.isArray(documentos) && documentos.length > 0) {
+                        // Filtrar por conceptos de factura conocidos (ej: "100", "4", "5", etc.)
+                        const facturas = documentos.filter((doc: any) => {
+                            const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || '').trim();
+                            return ['100', '4', '5'].includes(conceptoDoc);
+                        });
+
+                        if (facturas.length > 0) {
+                            // Tomamos la factura de fecha más antigua (compra original)
+                            const sortedFacturas = facturas.map((doc: any) => ({
+                                ...doc,
+                                parsedDate: new Date(doc.fecha || doc.Fecha)
+                            })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
+                            
+                            fechaVentaCalculada = sortedFacturas[0].parsedDate;
+                        } else {
+                            // Filtrar excluyendo notas de crédito y cobranzas
+                            const noCobros = documentos.filter((doc: any) => {
+                                const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || '').trim();
+                                return !['16', '17', '18', '101', '102'].includes(conceptoDoc);
+                            });
+
+                            if (noCobros.length > 0) {
+                                const sortedNoCobros = noCobros.map((doc: any) => ({
+                                    ...doc,
+                                    parsedDate: new Date(doc.fecha || doc.Fecha)
+                                })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
+                                
+                                fechaVentaCalculada = sortedNoCobros[0].parsedDate;
+                            } else {
+                                // Fallback a la fecha del documento más antiguo en general
+                                const sortedAll = documentos.map((doc: any) => ({
+                                    ...doc,
+                                    parsedDate: new Date(doc.fecha || doc.Fecha)
+                                })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
+                                
+                                fechaVentaCalculada = sortedAll[0].parsedDate;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`No se pudo actualizar fecha de venta para ${codigo}:`, (e as Error).message);
+                }
+
                 await prisma.cliente.upsert({
                     where: { codigoCliente: codigo },
                     update: {
                         nombreCompleto: c[m.nombreCompleto] || c.nombre || c.razonSocial,
+                        fechaVenta: fechaVentaCalculada,
                         numContrato: c[m.numContrato] ? String(c[m.numContrato]) : null,
                         saldoActual: saldoReal,
                         calle: c[m.calle],
@@ -117,7 +166,7 @@ export async function GET(request: NextRequest) {
                         codigoCliente: codigo,
                         numContrato: c[m.numContrato] ? String(c[m.numContrato]) : null,
                         nombreCompleto: c[m.nombreCompleto] || c.nombre || c.razonSocial,
-                        fechaVenta: new Date(),
+                        fechaVenta: fechaVentaCalculada,
                         calle: c[m.calle],
                         numeroExterior: c[m.numeroExterior],
                         numeroInterior: c[m.numeroInterior],

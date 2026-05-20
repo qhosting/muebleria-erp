@@ -319,6 +319,10 @@ export class ContpaqiService {
 
     // --- DOCUMENTOS ---
 
+    async getClientDocumentos(codigo: string) {
+        return await this.request(`/api/Documentos/cliente/${encodeURIComponent(codigo)}`);
+    }
+
     async createDocumento(data: any) {
         return await this.request('/api/documentos', 'POST', data);
     }
