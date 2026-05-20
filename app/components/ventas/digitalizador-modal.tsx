@@ -388,55 +388,71 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                     // Rejilla tipo blueprint para GPS (de fondo en el panel)
                     const panelY = 95;
                     const panelHeight = 110;
-                    doc.setFillColor(15, 23, 42); // slate-900 (fondo oscuro para blueprint)
-                    doc.rect(15, panelY, pageWidth - 30, panelHeight, 'F');
 
-                    // Dibujar rejilla técnica azul
-                    doc.setDrawColor(30, 58, 138); // azul marino oscuro
-                    doc.setLineWidth(0.15);
-                    for (let x = 25; x < pageWidth - 15; x += 10) {
-                        doc.line(x, panelY, x, panelY + panelHeight);
+                    let mapLoaded = false;
+                    try {
+                        // Cargar el mapa estático de Yandex con un pin rojo y centrado en las coordenadas del GPS a través del proxy local (evita CORS)
+                        const mapImg = await loadImageAsBase64(`/api/ventas/boveda/map-proxy?lng=${gpsData.lng}&lat=${gpsData.lat}`);
+                        doc.addImage(mapImg, 'JPEG', 15, panelY, pageWidth - 30, panelHeight);
+                        doc.setDrawColor(15, 23, 42); // slate-900 para borde elegante
+                        doc.setLineWidth(0.5);
+                        doc.rect(15, panelY, pageWidth - 30, panelHeight, 'D');
+                        mapLoaded = true;
+                    } catch (mapErr) {
+                        console.warn("Fallo al cargar mapa estático, usando brújula blueprint:", mapErr);
                     }
-                    for (let y = panelY + 5; y < panelY + panelHeight; y += 10) {
-                        doc.line(15, y, pageWidth - 15, y);
+
+                    if (!mapLoaded) {
+                        doc.setFillColor(15, 23, 42); // slate-900 (fondo oscuro para blueprint)
+                        doc.rect(15, panelY, pageWidth - 30, panelHeight, 'F');
+
+                        // Dibujar rejilla técnica azul
+                        doc.setDrawColor(30, 58, 138); // azul marino oscuro
+                        doc.setLineWidth(0.15);
+                        for (let x = 25; x < pageWidth - 15; x += 10) {
+                            doc.line(x, panelY, x, panelY + panelHeight);
+                        }
+                        for (let y = panelY + 5; y < panelY + panelHeight; y += 10) {
+                            doc.line(15, y, pageWidth - 15, y);
+                        }
+
+                        // Compás vectorizado estilizado (Brújula de agrimensura)
+                        const cx = pageWidth / 2;
+                        const cy = panelY + (panelHeight / 2);
+                        doc.setDrawColor(56, 189, 248); // sky-400
+                        doc.setLineWidth(0.25);
+                        
+                        // Círculos concéntricos
+                        doc.circle(cx, cy, 8, 'D');
+                        doc.circle(cx, cy, 20, 'D');
+                        doc.circle(cx, cy, 32, 'D');
+
+                        // Ejes direccionales
+                        doc.setDrawColor(71, 85, 105); // slate-600
+                        doc.line(cx - 45, cy, cx + 45, cy);
+                        doc.line(cx, cy - 45, cx, cy + 45);
+
+                        // Letras de brújula
+                        doc.setTextColor(56, 189, 248); // sky-400
+                        doc.setFont('helvetica', 'bold');
+                        doc.setFontSize(8);
+                        doc.text("N", cx, cy - 36, { align: 'center' });
+                        doc.text("S", cx, cy + 39, { align: 'center' });
+                        doc.text("W", cx - 39, cy + 2, { align: 'center' });
+                        doc.text("E", cx + 37, cy + 2, { align: 'center' });
+
+                        // Aguja de la brújula apuntando al norte (triángulos rellenos)
+                        doc.setFillColor(244, 63, 94); // rose-500 para el Norte
+                        doc.triangle(cx, cy, cx - 3, cy, cx, cy - 25, 'FD');
+                        doc.setFillColor(226, 232, 240); // slate-200 para el Sur
+                        doc.triangle(cx, cy, cx + 3, cy, cx, cy + 25, 'FD');
+
+                        // Pequeña decoración central
+                        doc.setFillColor(15, 23, 42); // slate-900
+                        doc.circle(cx, cy, 2, 'F');
+                        doc.setDrawColor(56, 189, 248);
+                        doc.circle(cx, cy, 2, 'D');
                     }
-
-                    // Compás vectorizado estilizado (Brújula de agrimensura)
-                    const cx = pageWidth / 2;
-                    const cy = panelY + (panelHeight / 2);
-                    doc.setDrawColor(56, 189, 248); // sky-400
-                    doc.setLineWidth(0.25);
-                    
-                    // Círculos concéntricos
-                    doc.circle(cx, cy, 8, 'D');
-                    doc.circle(cx, cy, 20, 'D');
-                    doc.circle(cx, cy, 32, 'D');
-
-                    // Ejes direccionales
-                    doc.setDrawColor(71, 85, 105); // slate-600
-                    doc.line(cx - 45, cy, cx + 45, cy);
-                    doc.line(cx, cy - 45, cx, cy + 45);
-
-                    // Letras de brújula
-                    doc.setTextColor(56, 189, 248); // sky-400
-                    doc.setFont('helvetica', 'bold');
-                    doc.setFontSize(8);
-                    doc.text("N", cx, cy - 36, { align: 'center' });
-                    doc.text("S", cx, cy + 39, { align: 'center' });
-                    doc.text("W", cx - 39, cy + 2, { align: 'center' });
-                    doc.text("E", cx + 37, cy + 2, { align: 'center' });
-
-                    // Aguja de la brújula apuntando al norte (triángulos rellenos)
-                    doc.setFillColor(244, 63, 94); // rose-500 para el Norte
-                    doc.triangle(cx, cy, cx - 3, cy, cx, cy - 25, 'FD');
-                    doc.setFillColor(226, 232, 240); // slate-200 para el Sur
-                    doc.triangle(cx, cy, cx + 3, cy, cx, cy + 25, 'FD');
-
-                    // Pequeña decoración central
-                    doc.setFillColor(15, 23, 42); // slate-900
-                    doc.circle(cx, cy, 2, 'F');
-                    doc.setDrawColor(56, 189, 248);
-                    doc.circle(cx, cy, 2, 'D');
 
                     // Cuadro técnico de telemetría (Tabla técnica)
                     doc.setFillColor(248, 250, 252); // slate-50 (fondo claro para tabla)
