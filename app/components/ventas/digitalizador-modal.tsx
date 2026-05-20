@@ -151,9 +151,32 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
     const [syncLogList, setSyncLogList] = useState<{ text: string; status: 'info' | 'success' | 'warning' | 'error' | 'working' }[]>([]);
     const [showSyncTerminal, setShowSyncTerminal] = useState(false);
 
+    // Estados para el historial de cuentas vinculadas por CURP
+    const [historialCuentas, setHistorialCuentas] = useState<any[]>([]);
+    const [loadingHistorial, setLoadingHistorial] = useState(false);
+
+    const fetchHistorialCuentas = async () => {
+        if (!cliente.curp) return;
+        setLoadingHistorial(true);
+        try {
+            const response = await fetch(`/api/ventas/boveda/cliente-historial?curp=${cliente.curp}`);
+            if (response.ok) {
+                const data = await response.json();
+                setHistorialCuentas(data);
+            }
+        } catch (error) {
+            console.error("Error al cargar historial de cuentas:", error);
+        } finally {
+            setLoadingHistorial(false);
+        }
+    };
+
     useEffect(() => {
         if (open) {
             fetchDocumentos();
+            fetchHistorialCuentas();
+        } else {
+            setHistorialCuentas([]);
         }
     }, [open, cliente]);
 
@@ -1004,11 +1027,108 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                     </div>
 
                     {!selectedDoc && (
-                        <div className="bg-slate-50 rounded-2xl border border-dashed border-slate-300 p-8 flex flex-col items-center justify-center text-center space-y-4">
-                            <ImageIcon className="w-12 h-12 text-slate-300" />
-                            <div>
-                                <p className="text-sm font-bold text-slate-400 uppercase">Sin selección</p>
-                                <p className="text-xs text-slate-400">Pulsa en el icono del ojo para visualizar un documento ya subido.</p>
+                        <div className="flex flex-col space-y-6">
+                            {/* Card de selección */}
+                            <div className="bg-slate-50 rounded-2xl border border-dashed border-slate-300 p-6 flex flex-col items-center justify-center text-center space-y-2">
+                                <ImageIcon className="w-8 h-8 text-slate-400" />
+                                <div>
+                                    <p className="text-xs font-bold text-slate-500 uppercase">Sin selección de documento</p>
+                                    <p className="text-[11px] text-slate-400">Pulsa en el icono del ojo (<Eye className="w-3.5 h-3.5 inline text-sky-600 mx-0.5" />) para visualizar o validar un archivo.</p>
+                                </div>
+                            </div>
+
+                            {/* Sección Premium: Historial de Cuentas Asociadas */}
+                            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-left flex flex-col space-y-4 shadow-xl">
+                                <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-white text-xs font-bold uppercase tracking-wider">Historial de Créditos del Cliente</h4>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">Búsqueda vinculada por CURP: <span className="font-mono text-slate-300 font-bold">{cliente.curp || 'Sin CURP'}</span></p>
+                                    </div>
+                                    <Badge variant="outline" className="bg-slate-950 text-sky-400 border-sky-500/20 text-[10px] uppercase font-bold tracking-tight">
+                                        Vertex Ledger
+                                    </Badge>
+                                </div>
+
+                                {loadingHistorial ? (
+                                    <div className="flex flex-col items-center justify-center py-8 space-y-2">
+                                        <Loader2 className="w-5 h-5 animate-spin text-sky-500" />
+                                        <p className="text-[10px] text-slate-500">Consultando base de datos en tiempo real...</p>
+                                    </div>
+                                ) : !cliente.curp ? (
+                                    <div className="text-center py-6">
+                                        <AlertTriangle className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                                        <p className="text-xs text-slate-400 font-bold">CURP no registrada</p>
+                                        <p className="text-[10px] text-slate-500 mt-1 max-w-[250px] mx-auto">Registre la CURP del cliente en su perfil para indexar su historial de cuentas.</p>
+                                    </div>
+                                ) : historialCuentas.length === 0 ? (
+                                    <p className="text-xs text-slate-500 text-center py-6">No se encontraron otras cuentas para esta CURP.</p>
+                                ) : (
+                                    <div className="space-y-3 overflow-y-auto max-h-[350px] pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+                                        {historialCuentas.map((cta) => {
+                                            const esActual = cta.codigoCliente === cliente.codigoCliente || cta.numContrato === cliente.numContrato;
+                                            return (
+                                                <div 
+                                                    key={cta.id} 
+                                                    className={`p-3.5 rounded-xl border transition-all ${
+                                                        esActual 
+                                                            ? 'bg-sky-950/20 border-sky-500/30 ring-1 ring-sky-500/10 shadow-inner' 
+                                                            : 'bg-slate-950 border-slate-800/80 hover:border-slate-700'
+                                                    }`}
+                                                >
+                                                    <div className="flex justify-between items-start gap-2 mb-2">
+                                                        <div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="text-xs font-bold text-white font-mono">{cta.codigoCliente}</span>
+                                                                {cta.numContrato && (
+                                                                    <span className="text-[10px] text-slate-500 font-mono">({cta.numContrato})</span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-tight">{cta.descripcionProducto || 'Sin descripción'}</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            {esActual && (
+                                                                <Badge className="bg-sky-500/15 text-sky-400 border border-sky-400/20 text-[9px] uppercase font-black px-1.5 py-0">Actual</Badge>
+                                                            )}
+                                                            <Badge className={`text-[9px] uppercase font-bold px-1.5 py-0 ${
+                                                                cta.statusCuenta === 'activo' 
+                                                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                                                                    : 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+                                                            }`}>
+                                                                {cta.statusCuenta === 'activo' ? 'Activo' : 'Inactivo'}
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-3 gap-2 border-t border-slate-800/60 pt-2.5 text-[10px]">
+                                                        <div>
+                                                            <p className="text-slate-500 uppercase tracking-wider text-[8px] font-bold">Saldo Actual</p>
+                                                            <p className="text-white font-bold font-mono mt-0.5">${parseFloat(cta.saldoActual).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-slate-500 uppercase tracking-wider text-[8px] font-bold">Monto Pago</p>
+                                                            <p className="text-slate-200 font-mono mt-0.5">${parseFloat(cta.montoPago).toLocaleString('es-MX', { minimumFractionDigits: 2 })} <span className="text-[8px] text-slate-500 lowercase">{cta.periodicidad}</span></p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-slate-500 uppercase tracking-wider text-[8px] font-bold">Atraso / Días</p>
+                                                            {cta.diasVencidos > 0 ? (
+                                                                <p className="text-rose-400 font-bold font-mono mt-0.5">${parseFloat(cta.saldoVencido).toLocaleString('es-MX', { minimumFractionDigits: 2 })} <span className="text-[8px] font-bold">({cta.diasVencidos}d)</span></p>
+                                                            ) : (
+                                                                <p className="text-emerald-400 font-bold mt-0.5">Al Corriente</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex justify-between items-center mt-2.5 pt-2 border-t border-slate-800/40 text-[9px] text-slate-500">
+                                                        <span>Venta: {new Date(cta.fechaVenta).toLocaleDateString()}</span>
+                                                        {cta.createdAt && (
+                                                            <span>Ingreso: {new Date(cta.createdAt).toLocaleDateString()}</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
