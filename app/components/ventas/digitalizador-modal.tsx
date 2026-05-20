@@ -179,8 +179,17 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
 
     const handleFileUpload = async (tipo: string, file: File) => {
         setUploading(tipo);
+        
+        let fileToUpload = file;
+        try {
+            const { compressImage } = await import("@/lib/image-compressor");
+            fileToUpload = await compressImage(file);
+        } catch (err) {
+            console.error("Error al comprimir imagen, subiendo original:", err);
+        }
+
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', fileToUpload);
         formData.append('tipoDocumento', tipo);
         if (cliente.curp) formData.append('clienteCurp', cliente.curp);
         if (cliente.codigoCliente) formData.append('codigoCliente', cliente.codigoCliente);
@@ -368,7 +377,7 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
             // Si es un JSON (GPS)
             if (d.url.toLowerCase().endsWith('.json')) {
                 try {
-                    const response = await fetch(d.url);
+                    const response = await fetch(`/api/ventas/boveda/view?id=${d.id}`);
                     const gpsData = await response.json();
                     
                     doc.setTextColor(15, 23, 42); // slate-900
@@ -472,7 +481,7 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
             // Si es una imagen
             else if (!d.url.toLowerCase().endsWith('.pdf')) {
                 try {
-                    const img = await loadImageAsBase64(d.url);
+                    const img = await loadImageAsBase64(`/api/ventas/boveda/view?id=${d.id}`);
                     // Para que la imagen encaje bien con margen, calculamos ancho y alto
                     const targetWidth = pageWidth - 30;
                     const targetHeight = pageHeight - 55;
@@ -793,15 +802,15 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                 <div className="relative flex-1 bg-black rounded-xl overflow-hidden border border-slate-700 min-h-[500px] flex items-center justify-center">
                                     {selectedDoc.url.toLowerCase().endsWith('.pdf') ? (
                                         <iframe 
-                                            src={selectedDoc.url} 
+                                            src={`/api/ventas/boveda/view?id=${selectedDoc.id}`} 
                                             className="w-full h-full border-0"
                                             title="PDF Preview"
                                         />
                                     ) : selectedDoc.url.toLowerCase().endsWith('.json') ? (
-                                        <GpsPreview url={selectedDoc.url} />
+                                        <GpsPreview url={`/api/ventas/boveda/view?id=${selectedDoc.id}`} />
                                     ) : (
                                         <img 
-                                            src={selectedDoc.url} 
+                                            src={`/api/ventas/boveda/view?id=${selectedDoc.id}`} 
                                             alt="Documento" 
                                             className="max-w-full max-h-full object-contain"
                                             onError={(e) => {
@@ -819,7 +828,7 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                             <span className="text-white text-xs font-bold uppercase">{selectedDoc.status}</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <a href={selectedDoc.url} target="_blank" rel="noopener noreferrer">
+                                            <a href={`/api/ventas/boveda/view?id=${selectedDoc.id}`} target="_blank" rel="noopener noreferrer">
                                                 <Button variant="outline" size="sm" className="h-8 gap-2 bg-slate-800 border-slate-700 text-white text-xs">
                                                     <Download className="w-3 h-3" />
                                                     Descargar

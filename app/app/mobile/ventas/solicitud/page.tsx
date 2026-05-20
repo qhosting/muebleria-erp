@@ -129,15 +129,28 @@ export default function VendedorSolicitudPage() {
         const isOffline = !navigator.onLine;
 
         try {
+            // Comprimir todos los archivos en el cliente antes de procesarlos
+            const { compressImage } = await import("@/lib/image-compressor");
+            const compressedFiles: { [key: string]: File } = {};
+            
+            for (const [key, file] of Object.entries(files)) {
+                if (file) {
+                    try {
+                        compressedFiles[key] = await compressImage(file);
+                    } catch (err) {
+                        console.error(`Error al comprimir ${key}:`, err);
+                        compressedFiles[key] = file;
+                    }
+                }
+            }
+
             if (isOffline) {
                 toast.info("Sin conexión. Guardando en cola de sincronización...");
                 
-                // Convertir todos los archivos a Base64 para guardarlos en IndexedDB
+                // Convertir todos los archivos comprimidos a Base64 para guardarlos en IndexedDB
                 const base64Files: {[key: string]: string} = {};
-                for (const [key, file] of Object.entries(files)) {
-                    if (file) {
-                        base64Files[key] = await fileToBase64(file as File);
-                    }
+                for (const [key, file] of Object.entries(compressedFiles)) {
+                    base64Files[key] = await fileToBase64(file);
                 }
 
                 const localId = `sol_${Date.now()}`;
@@ -166,8 +179,8 @@ export default function VendedorSolicitudPage() {
             Object.entries(formData).forEach(([key, value]) => {
                 if (value !== null && value !== undefined) body.append(key, value.toString());
             });
-            Object.entries(files).forEach(([key, value]) => {
-                if (value) body.append(key, value);
+            Object.entries(compressedFiles).forEach(([key, value]) => {
+                body.append(key, value);
             });
 
             const res = await fetch("/api/ventas/solicitudes/crear", {
