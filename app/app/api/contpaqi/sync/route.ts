@@ -60,6 +60,151 @@ export async function GET(request: NextRequest) {
             }
         };
 
+        if (target === 'cliente') {
+            const codigo = searchParams.get('codigo');
+            if (!codigo) {
+                return NextResponse.json({ error: 'Falta el código del cliente ("codigo")' }, { status: 400 });
+            }
+
+            // 1. Obtener cliente de Contpaqi
+            const c = await service.getCliente(codigo);
+            if (!c) {
+                return NextResponse.json({ error: 'No se encontró el cliente en la API de Contpaqi' }, { status: 404 });
+            }
+
+            const m = mapping.clientes;
+            
+            // 2. Obtener saldo real (Estado de cuenta)
+            let saldoReal = parseFloat(c[m.saldoActual]) || 0;
+            try {
+                const empresaAlias = empresaConfig?.baseDatos || searchParams.get('empresa');
+                const estadoCuenta = await service.getClienteEstadoCuenta(codigo, empresaAlias);
+                if (estadoCuenta && (estadoCuenta.saldoActual !== undefined || estadoCuenta.SaldoActual !== undefined)) {
+                    saldoReal = parseFloat(estadoCuenta.saldoActual || estadoCuenta.SaldoActual);
+                }
+            } catch (e) {
+                console.warn(`No se pudo actualizar saldo real para ${codigo}:`, (e as Error).message);
+            }
+
+            // 3. Obtener fecha de venta (Documentos del cliente)
+            let fechaVentaCalculada = new Date();
+            try {
+                const documentos = await service.getClientDocumentos(codigo);
+                if (Array.isArray(documentos) && documentos.length > 0) {
+                    // Filtrar por conceptos de factura conocidos (ej: "100", "4", "5", etc.)
+                    const facturas = documentos.filter((doc: any) => {
+                        const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || '').trim();
+                        return ['100', '4', '5'].includes(conceptoDoc);
+                    });
+
+                    if (facturas.length > 0) {
+                        // Tomamos la factura de fecha más antigua (compra original)
+                        const sortedFacturas = facturas.map((doc: any) => ({
+                            ...doc,
+                            parsedDate: new Date(doc.fecha || doc.Fecha)
+                        })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
+                        
+                        fechaVentaCalculada = sortedFacturas[0].parsedDate;
+                    } else {
+                        // Filtrar excluyendo notas de crédito y cobranzas
+                        const noCobros = documentos.filter((doc: any) => {
+                            const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || '').trim();
+                            return !['16', '17', '18', '101', '102'].includes(conceptoDoc);
+                        });
+
+                        if (noCobros.length > 0) {
+                            const sortedNoCobros = noCobros.map((doc: any) => ({
+                                ...doc,
+                                parsedDate: new Date(doc.fecha || doc.Fecha)
+                            })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
+                            
+                            fechaVentaCalculada = sortedNoCobros[0].parsedDate;
+                        } else {
+                            // Fallback a la fecha del documento más antiguo en general
+                            const sortedAll = documentos.map((doc: any) => ({
+                                ...doc,
+                                parsedDate: new Date(doc.fecha || doc.Fecha)
+                            })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
+                            
+                            fechaVentaCalculada = sortedAll[0].parsedDate;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn(`No se pudo actualizar fecha de venta para ${codigo}:`, (e as Error).message);
+            }
+
+            const updatedCliente = await prisma.cliente.upsert({
+                where: { codigoCliente: codigo },
+                update: {
+                    nombreCompleto: c[m.nombreCompleto] || c.nombre || c.razonSocial,
+                    fechaVenta: fechaVentaCalculada,
+                    numContrato: c[m.numContrato] ? String(c[m.numContrato]) : null,
+                    saldoActual: saldoReal,
+                    calle: c[m.calle],
+                    numeroExterior: c[m.numeroExterior],
+                    numeroInterior: c[m.numeroInterior],
+                    colonia: c[m.colonia],
+                    ciudad: c[m.ciudad],
+                    estado: c[m.estado],
+                    codigoPostal: c[m.codigoPostal],
+                    vendedor: c[m.vendedor],
+                    diaPago: String(c[m.diaPago] || '1'),
+                    direccionCompleta: [c[m.calle], c[m.numeroExterior], c[m.colonia], c[m.ciudad], c[m.estado]].filter(Boolean).join(', ') || 'Sin dirección',
+                    periodicidad: (function() {
+                        const p = String(c[m.periodicidad] || '').toLowerCase();
+                        if (p.includes('quin')) return 'quincenal';
+                        if (p.includes('sem')) return 'semanal';
+                        return 'mensual';
+                    })() as any,
+                    observaciones: `Ref 1: ${c[m.referencia1] || ''}\nRef 2: ${c[m.referencia2] || ''}\nAval: ${c[m.aval] || ''}\nCuenta Mensajería: ${c[m.cCuentaMensajeria] || ''}`,
+                    referencias: {
+                        ref1: c[m.referencia1],
+                        ref2: c[m.referencia2],
+                        aval: c[m.aval]
+                    }
+                },
+                create: {
+                    codigoCliente: codigo,
+                    numContrato: c[m.numContrato] ? String(c[m.numContrato]) : null,
+                    nombreCompleto: c[m.nombreCompleto] || c.nombre || c.razonSocial,
+                    fechaVenta: fechaVentaCalculada,
+                    calle: c[m.calle],
+                    numeroExterior: c[m.numeroExterior],
+                    numeroInterior: c[m.numeroInterior],
+                    colonia: c[m.colonia],
+                    ciudad: c[m.ciudad],
+                    estado: c[m.estado],
+                    codigoPostal: c[m.codigoPostal],
+                    vendedor: c[m.vendedor],
+                    diaPago: String(c[m.diaPago] || '1'),
+                    direccionCompleta: [c[m.calle], c[m.numeroExterior], c[m.colonia], c[m.ciudad], c[m.estado]].filter(Boolean).join(', ') || 'Sin dirección',
+                    descripcionProducto: 'Importado de Contpaqi',
+                    periodicidad: (function() {
+                        const p = String(c[m.periodicidad] || '').toLowerCase();
+                        if (p.includes('quin')) return 'quincenal';
+                        if (p.includes('sem')) return 'semanal';
+                        return 'mensual';
+                    })() as any,
+                    montoPago: parseFloat(c[m.montoPago]) || 0,
+                    saldoActual: saldoReal,
+                    statusCuenta: 'activo',
+                    observaciones: `Ref 1: ${c[m.referencia1] || ''}\nRef 2: ${c[m.referencia2] || ''}\nAval: ${c[m.aval] || ''}\nCuenta Mensajería: ${c[m.cCuentaMensajeria] || ''}`,
+                    referencias: {
+                        ref1: c[m.referencia1],
+                        ref2: c[m.referencia2],
+                        aval: c[m.aval]
+                    }
+                }
+            });
+
+            return NextResponse.json({
+                success: true,
+                message: `Sincronización del cliente ${codigo} completada exitosamente`,
+                cliente: updatedCliente
+            });
+        }
+
         if (target === 'all' || target === 'clientes') {
             const clientes = await service.getClientes(1, { clasificacion, ruta });
             results.clientesCount = clientes.length;

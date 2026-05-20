@@ -27,7 +27,8 @@ import {
   Upload,
   MoreVertical,
   Smartphone,
-  Receipt
+  Receipt,
+  RefreshCw
 } from 'lucide-react';
 import { formatCurrency, formatDate, getDayName, getPeriodicidadLabel } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -69,6 +70,7 @@ export default function ClientesPage() {
   });
 
   // Modal states
+  const [syncingClients, setSyncingClients] = useState<Record<string, boolean>>({});
   const [clienteModalOpen, setClienteModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importSaldosOpen, setImportSaldosOpen] = useState(false);
@@ -221,6 +223,36 @@ export default function ClientesPage() {
     } catch (error) {
       console.error('Error:', error);
       toast.error(error instanceof Error ? error.message : 'Error al desactivar cliente');
+    }
+  };
+
+  const handleSyncCliente = async (cliente: Cliente) => {
+    if (!cliente.codigoCliente) {
+      toast.error('El cliente no tiene un código de Contpaqi asignado.');
+      return;
+    }
+
+    setSyncingClients(prev => ({ ...prev, [cliente.id]: true }));
+    const loadingToast = toast.loading(`Sincronizando cliente ${cliente.nombreCompleto} con Contpaqi...`);
+
+    try {
+      const response = await fetch(`/api/contpaqi/sync?target=cliente&codigo=${encodeURIComponent(cliente.codigoCliente)}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        toast.dismiss(loadingToast);
+        toast.success(`Cliente ${cliente.nombreCompleto} sincronizado con éxito`);
+        fetchClientes();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error en la sincronización');
+      }
+    } catch (error: any) {
+      console.error('Error al sincronizar cliente:', error);
+      toast.dismiss(loadingToast);
+      toast.error(`No se pudo sincronizar con Contpaqi: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setSyncingClients(prev => ({ ...prev, [cliente.id]: false }));
     }
   };
 
@@ -459,6 +491,12 @@ export default function ClientesPage() {
                                 <Edit className="h-4 w-4 mr-2" />
                                 Editar Cliente
                               </DropdownMenuItem>
+                              {userRole === 'admin' && (
+                                <DropdownMenuItem onClick={() => handleSyncCliente(cliente)} disabled={syncingClients[cliente.id]}>
+                                  <RefreshCw className={`h-4 w-4 mr-2 ${syncingClients[cliente.id] ? 'animate-spin' : ''}`} />
+                                  Sincronizar Contpaqi
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem onClick={() => handleCobrar(cliente)}>
                                 <DollarSign className="h-4 w-4 mr-2" />
                                 Registrar Pago
@@ -544,7 +582,26 @@ export default function ClientesPage() {
                   )}
 
                   {!cliente.isGrouped && (
-                    <div className="text-xs text-gray-500">Fecha de Venta: {formatDate(cliente.fechaVenta)}</div>
+                    <div className="flex items-center justify-between text-xs text-gray-500 border-t border-gray-50 pt-2 mt-1">
+                      <span>Fecha de Venta: {formatDate(cliente.fechaVenta)}</span>
+                      {userRole === 'admin' && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 hover:bg-slate-100 text-blue-600 hover:text-blue-700 rounded-full"
+                          title="Sincronizar cliente con Contpaqi"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleSyncCliente(cliente);
+                          }}
+                          disabled={syncingClients[cliente.id]}
+                        >
+                          <RefreshCw className={`h-3 w-3 ${syncingClients[cliente.id] ? 'animate-spin' : ''}`} />
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </CardContent>
               </Card>
