@@ -27,16 +27,20 @@ export async function GET() {
       return NextResponse.json({ error: 'ID de usuario no encontrado en sesión' }, { status: 400 });
     }
 
-    // Lógica de ciclo semanal: Sábado a Viernes
-    const hoy = new Date();
-    const inicioHoy = new Date(hoy);
-    inicioHoy.setHours(0, 0, 0, 0);
+    // Lógica de ciclo semanal: Sábado a Viernes en horario de México (UTC-6)
+    const nowUtc = new Date();
+    const offsetMexico = -6 * 60 * 60 * 1000; // -6 horas en milisegundos
+    const nowMexico = new Date(nowUtc.getTime() + offsetMexico);
 
-    const dayOfWeek = hoy.getDay(); // 0: Dom, 1: Lun, ..., 6: Sab
-    const diffToSaturday = (dayOfWeek + 1) % 7; 
-    const inicioCiclo = new Date(hoy);
-    inicioCiclo.setDate(hoy.getDate() - diffToSaturday);
-    inicioCiclo.setHours(0, 0, 0, 0);
+    const inicioHoyMexico = new Date(nowMexico);
+    inicioHoyMexico.setUTCHours(0, 0, 0, 0);
+    const inicioHoy = new Date(inicioHoyMexico.getTime() - offsetMexico);
+
+    const dayOfWeekMexico = nowMexico.getUTCDay(); // 0: Dom, 1: Lun, ..., 6: Sab
+    const diffToSaturday = (dayOfWeekMexico + 1) % 7; 
+    const inicioCicloMexico = new Date(inicioHoyMexico);
+    inicioCicloMexico.setUTCDate(inicioCicloMexico.getUTCDate() - diffToSaturday);
+    const inicioCiclo = new Date(inicioCicloMexico.getTime() - offsetMexico);
 
     try {
       const [hoyResult, clientesPendientesCount, proximosClientes] = await Promise.all([

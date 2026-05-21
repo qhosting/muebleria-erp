@@ -29,13 +29,19 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
 
-    // Lógica de ciclo semanal: Sábado a Viernes
-    const hoy = new Date();
-    const dayOfWeek = hoy.getDay(); // 0: Dom, 1: Lun, ..., 6: Sab
-    const diffToSaturday = (dayOfWeek + 1) % 7; 
-    const inicioCiclo = new Date(hoy);
-    inicioCiclo.setDate(hoy.getDate() - diffToSaturday);
-    inicioCiclo.setHours(0, 0, 0, 0);
+    // Lógica de ciclo semanal: Sábado a Viernes en horario de México (UTC-6)
+    const nowUtc = new Date();
+    const offsetMexico = -6 * 60 * 60 * 1000; // -6 horas en milisegundos
+    const nowMexico = new Date(nowUtc.getTime() + offsetMexico);
+
+    const inicioHoyMexico = new Date(nowMexico);
+    inicioHoyMexico.setUTCHours(0, 0, 0, 0);
+
+    const dayOfWeekMexico = nowMexico.getUTCDay(); // 0: Dom, 1: Lun, ..., 6: Sab
+    const diffToSaturday = (dayOfWeekMexico + 1) % 7; 
+    const inicioCicloMexico = new Date(inicioHoyMexico);
+    inicioCicloMexico.setUTCDate(inicioCicloMexico.getUTCDate() - diffToSaturday);
+    const inicioCiclo = new Date(inicioCicloMexico.getTime() - offsetMexico);
 
     const where: any = {
       cobradorAsignadoId: isAdminOrSupervisor ? undefined : userId,

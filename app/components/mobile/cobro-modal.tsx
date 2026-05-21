@@ -26,11 +26,10 @@ import {
   Printer,
   Settings
 } from 'lucide-react';
-import { OfflineCliente } from '@/lib/offline-db';
+import { db, OfflineCliente, OfflinePago, generateLocalId } from '@/lib/offline-db';
 import { syncService } from '@/lib/sync-service';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
-import { generateLocalId } from '@/lib/offline-db';
 import { useBluetoothPrinter } from '@/hooks/use-bluetooth-printer';
 import { TicketData } from '@/lib/bluetooth-printer';
 import { PrinterConfigModal } from './printer-config-modal';
@@ -170,6 +169,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
         // pero por ahora solo logueamos y enviamos vacío si falla.
       }
 
+      const localId = generateLocalId();
       const pagoData = {
         clienteId: cliente.id,
         cobradorId: userId,
@@ -181,7 +181,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
         fechaPago: new Date().toISOString(),
         metodoPago,
         numeroRecibo: numeroRecibo || undefined,
-        localId: generateLocalId(),
+        localId,
         latitud: location.lat,
         longitud: location.lng
       };
@@ -205,6 +205,28 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
           if (response.ok) {
             onlineSuccess = true;
             toast.success(`Pago registrado online: ${formatCurrency(calculatedValues.montoTotal)}`);
+
+            // Guardar localmente en Dexie como ya sincronizado
+            const localPago: OfflinePago = {
+              clienteId: pagoData.clienteId,
+              monto: Number(pagoData.monto),
+              tipoPago: pagoData.tipoPago as any,
+              concepto: pagoData.concepto,
+              fechaPago: pagoData.fechaPago,
+              cobradorId: pagoData.cobradorId,
+              metodoPago: (pagoData.metodoPago?.toLowerCase()?.includes('banco') ? 'bancario' : 'gestor') as any,
+              numeroRecibo: pagoData.numeroRecibo,
+              interesMoratorio: Number(pagoData.interesMoratorio || 0),
+              gastosCobranza: Number(pagoData.gastosCobranza || 0),
+              latitud: pagoData.latitud,
+              longitud: pagoData.longitud,
+              localId: pagoData.localId,
+              syncStatus: 'synced',
+              createdOffline: false,
+              printStatus: (imprimirTicket && isPrinterConnected) ? 'printed' : 'pending',
+              lastSync: Date.now()
+            };
+            await db.pagos.add(localPago);
 
             // Imprimir ticket si está habilitado
             if (imprimirTicket && isPrinterConnected) {
@@ -240,6 +262,20 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
             console.error('Error imprimiendo ticket:', error);
           }
         }
+      }
+
+      // Actualizar el saldo del cliente en la DB local (Dexie) para que se refleje inmediatamente en el dashboard
+      const clienteLocal = await db.clientes.get(cliente.id);
+      if (clienteLocal) {
+        let nuevoSaldo = Number(clienteLocal.saldoPendiente || clienteLocal.saldo || 0);
+        if (tipoPago === 'regular') {
+          nuevoSaldo = Math.max(0, nuevoSaldo - calculatedValues.montoAbono);
+        }
+        await db.clientes.update(cliente.id, {
+          saldoPendiente: nuevoSaldo,
+          fechaUltimoPago: pagoData.fechaPago,
+          syncStatus: onlineSuccess ? 'synced' : 'pending'
+        });
       }
 
       onSuccess();

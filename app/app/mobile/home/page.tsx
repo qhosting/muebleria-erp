@@ -90,22 +90,59 @@ export default function MobileHome() {
                 const totalCobrado = pagosHoy.reduce((acc, p) => acc + Number(p.monto), 0);
                 const cuentasCobradas = pagosHoy.length;
 
-                // 2. Clientes pendientes (Simplificado para offline)
-                const clientesActivos = await db.clientes.where('statusCuenta').equals('activo').toArray();
-                const clientesPendientes = clientesActivos.length; // En offline asumimos activos como pendientes si no hay sync complejo
+                // 2. Clientes pendientes (Cálculo real en offline)
+                const hoyLocal = new Date();
+                const dayOfWeekLocal = hoyLocal.getDay(); // 0: Dom, 1: Lun, ..., 6: Sab
+                const diffToSaturdayLocal = (dayOfWeekLocal + 1) % 7;
+                const inicioCicloLocal = new Date(hoyLocal);
+                inicioCicloLocal.setDate(hoyLocal.getDate() - diffToSaturdayLocal);
+                inicioCicloLocal.setHours(0, 0, 0, 0);
 
-                // 3. Próximos clientes (Top 10 por saldo vencido)
-                const proximos = await db.clientes
-                    .where('statusCuenta').equals('activo')
-                    .reverse()
-                    .sortBy('saldoVencido');
+                const clientesActivos = await db.clientes.where('statusCuenta').equals('activo').toArray();
+                
+                // Obtener todos los pagos registrados localmente en este ciclo para verificar cuáles clientes ya pagaron
+                const pagosCiclo = await db.pagos
+                    .where('fechaPago')
+                    .aboveOrEqual(inicioCicloLocal.toISOString())
+                    .toArray();
+
+                // IDs de clientes que ya pagaron en este ciclo (localmente)
+                const clientesQuePagaronLocal = new Set(
+                    pagosCiclo
+                        .filter(p => p.tipoPago === 'regular')
+                        .map(p => p.clienteId)
+                );
+
+                // Filtrar clientes pendientes
+                const clientesPendientesLista = clientesActivos.filter(c => {
+                    // Ya pagó localmente en este ciclo
+                    if (clientesQuePagaronLocal.has(c.id)) {
+                        return false;
+                    }
+                    // Ya pagó según la fecha del último pago sincronizada del servidor
+                    if (c.fechaUltimoPago) {
+                        const fechaUltimo = new Date(c.fechaUltimoPago);
+                        if (fechaUltimo >= inicioCicloLocal) {
+                            return false;
+                        }
+                    }
+                    return true;
+                });
+
+                const clientesPendientes = clientesPendientesLista.length;
+
+                // 3. Próximos clientes (Top 10 por saldo vencido que siguen pendientes)
+                const proximos = clientesPendientesLista
+                    .sort((a, b) => (b.saldoVencido || 0) - (a.saldoVencido || 0));
 
                 setData({
                     stats: {
                         totalCobrado,
                         cuentasCobradas,
                         clientesPendientes,
-                        efectividad: clientesActivos.length > 0 ? Math.round((cuentasCobradas / (cuentasCobradas + clientesPendientes)) * 100) : 100
+                        efectividad: (cuentasCobradas + clientesPendientes) > 0 
+                            ? Math.round((cuentasCobradas / (cuentasCobradas + clientesPendientes)) * 100) 
+                            : 100
                     },
                     proximosClientes: proximos.slice(0, 10).map(c => ({
                         id: c.id,
