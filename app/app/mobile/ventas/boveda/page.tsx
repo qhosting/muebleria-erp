@@ -12,7 +12,8 @@ import {
     Fingerprint, 
     UserPlus,
     ChevronLeft,
-    Clock
+    Clock,
+    Phone
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -113,7 +114,8 @@ export default function MobileBovedaPage() {
             nombreCompleto: cliente.nombreCompleto || 'Cliente Sin Nombre',
             curp: cliente.curp,
             codigoCliente: cliente.codigoCliente,
-            numContrato: cliente.folioContrato
+            numContrato: cliente.folioContrato,
+            telefono: cliente.telefono
         });
         setShowDigitalizador(true);
     };
@@ -150,7 +152,7 @@ export default function MobileBovedaPage() {
                 <form onSubmit={handleSearch} className="relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
                     <Input 
-                        placeholder="Nombre, CURP o Código..." 
+                        placeholder="Nombre, CURP, Código o Teléfono..." 
                         className="pl-12 h-14 bg-slate-900 border-slate-800 rounded-2xl text-lg focus:ring-blue-500"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -200,6 +202,12 @@ export default function MobileBovedaPage() {
                                                 <User className="h-3.5 w-3.5" />
                                                 <span>Contrato: {res.folioContrato || 'N/A'}</span>
                                             </div>
+                                            {res.telefono && (
+                                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                    <Phone className="h-3.5 w-3.5 text-blue-400" />
+                                                    <span>Teléfono: {res.telefono}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 

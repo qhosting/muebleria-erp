@@ -240,7 +240,7 @@ export default function BovedaDigitalPage() {
                             Buscar en el Archivo Digital
                         </CardTitle>
                         <CardDescription>
-                            Busca por Nombre, CURP o Código de Cliente para acceder a su expediente.
+                            Busca por Nombre, CURP, Código de Cliente o Teléfono para acceder a su expediente.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -248,7 +248,7 @@ export default function BovedaDigitalPage() {
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                                 <Input 
-                                    placeholder="Ej: MARIO PEREZ o CURP..." 
+                                    placeholder="Ej: MARIO PEREZ, CURP o Teléfono..." 
                                     className="pl-10 h-12 text-lg border-slate-200 focus:ring-blue-500 rounded-xl"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}

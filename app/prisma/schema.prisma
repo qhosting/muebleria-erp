@@ -236,7 +236,7 @@ model Cliente {
   avalId              String?
   ingresosNetos       Decimal?         @db.Decimal(10, 2)
   medidorLuz          String?
-  medidorAgua          String?
+  medidorAgua         String?
   documentosChecklist Json?            // Estado de entrega de documentos
   statusAprobacion    StatusAprobacion @default(PENDIENTE)
   justificacionExcepcion String?

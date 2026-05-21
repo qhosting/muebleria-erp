@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from 'sonner';
 import Image from 'next/image';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Documento {
     id: string;
@@ -73,7 +74,14 @@ const TIPOS_DOCUMENTO = [
     { id: 'CONTRATO_BACK', label: 'Contrato Atrás' },
     { id: 'FACHADA', label: 'Fachada Domicilio' },
     { id: 'GPS', label: 'Ubicación GPS' },
-    { id: 'OTRO', label: 'Otro Documento' }
+    { id: 'OTRO', label: 'Otro Documento' },
+    // Documentos del Aval
+    { id: 'AVAL_INE_FRONT', label: 'Aval - INE Frontal' },
+    { id: 'AVAL_INE_BACK', label: 'Aval - INE Trasera' },
+    { id: 'AVAL_DOMICILIO', label: 'Aval - Comprobante de Domicilio' },
+    { id: 'AVAL_INGRESOS', label: 'Aval - Comprobante de Ingresos' },
+    { id: 'AVAL_PROPIEDAD', label: 'Aval - Comprobante de Propiedad' },
+    { id: 'AVAL_OTRO', label: 'Aval - Otro Documento' }
 ];
 
 function GpsPreview({ url }: { url: string }) {
@@ -375,8 +383,52 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
             });
         };
 
+        // Ordenar documentos para que primero aparezcan los del cliente y luego los del aval
+        const docsCliente = documentos.filter(d => !d.tipoDocumento.startsWith('AVAL_'));
+        const docsAval = documentos.filter(d => d.tipoDocumento.startsWith('AVAL_'));
+        const sortedDocs = [...docsCliente, ...docsAval];
+
+        let isFirstAval = true;
+
         // 2. Para cada documento, descargar y agregar al PDF
-        for (const d of documentos) {
+        for (const d of sortedDocs) {
+            const isAval = d.tipoDocumento.startsWith('AVAL_');
+            if (isAval && isFirstAval) {
+                isFirstAval = false;
+                doc.addPage();
+
+                // PÁGINA DIVISORA AVAL PREMIUM
+                doc.setFillColor(15, 23, 42); // slate-900 color
+                doc.rect(0, 0, pageWidth, pageHeight, 'F');
+
+                doc.setDrawColor(51, 65, 85); // slate-700
+                doc.setLineWidth(0.3);
+                doc.rect(8, 8, pageWidth - 16, pageHeight - 16, 'D');
+                doc.rect(10, 10, pageWidth - 20, pageHeight - 20, 'D');
+
+                doc.setFillColor(56, 189, 248); // sky-400
+                doc.rect(12, 12, 4, pageHeight - 24, 'F');
+
+                // elegante card panel central
+                doc.setFillColor(30, 41, 59); // slate-800
+                doc.setDrawColor(56, 189, 248); // sky-400
+                doc.setLineWidth(0.5);
+                doc.rect(25, 80, pageWidth - 50, 80, 'FD');
+
+                doc.setTextColor(255, 255, 255);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(20);
+                doc.text("DOCUMENTACIÓN DEL AVAL", pageWidth / 2, 115, { align: 'center' });
+
+                doc.setFontSize(10);
+                doc.setTextColor(56, 189, 248); // sky-400
+                doc.text("RESPALDOS DIGITALES Y COMPROBANTES VINCULADOS", pageWidth / 2, 125, { align: 'center' });
+
+                doc.setDrawColor(56, 189, 248); // sky-400
+                doc.setLineWidth(1);
+                doc.line(45, 133, pageWidth - 45, 133);
+            }
+
             const tipoLabel = TIPOS_DOCUMENTO.find(t => t.id === d.tipoDocumento)?.label || d.tipoDocumento;
             
             doc.addPage();
@@ -938,71 +990,152 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                     {/* Lista de Tipos Requeridos */}
                     <div className={`space-y-4 ${selectedDoc ? 'hidden md:block' : ''}`}>
                         <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider px-1">Documentación Requerida</h3>
-                        <div className="space-y-2">
-                            {TIPOS_DOCUMENTO.map((tipo) => {
-                                const doc = documentos.find(d => d.tipoDocumento === tipo.id);
-                                return (
-                                    <div 
-                                        key={tipo.id} 
-                                        className={`p-4 rounded-xl border transition-all flex items-center justify-between ${
-                                            doc ? 'bg-slate-50 border-slate-200' : 'bg-white border-dashed border-slate-300 hover:border-sky-400'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                                                {doc ? (
-                                                    <Check className="w-5 h-5" />
-                                                ) : tipo.id === 'GPS' ? (
-                                                    <MapPin className="w-4 h-4 text-slate-400" />
-                                                ) : (
-                                                    <ImageIcon className="w-4 h-4" />
-                                                )}
+                        
+                        <Tabs defaultValue="cliente" className="w-full">
+                            <TabsList className="grid grid-cols-2 mb-4 bg-slate-100 p-1 rounded-xl">
+                                <TabsTrigger value="cliente" className="font-bold text-xs py-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm">
+                                    Documentos Cliente
+                                </TabsTrigger>
+                                <TabsTrigger value="aval" className="font-bold text-xs py-2 rounded-lg data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm">
+                                    Documentos Aval
+                                </TabsTrigger>
+                            </TabsList>
+
+                            <TabsContent value="cliente" className="space-y-2 focus-visible:outline-none focus-visible:ring-0">
+                                {TIPOS_DOCUMENTO.filter(t => !t.id.startsWith('AVAL_')).map((tipo) => {
+                                    const doc = documentos.find(d => d.tipoDocumento === tipo.id);
+                                    return (
+                                        <div 
+                                            key={tipo.id} 
+                                            className={`p-4 rounded-xl border transition-all flex items-center justify-between ${
+                                                doc ? 'bg-slate-50 border-slate-200' : 'bg-white border-dashed border-slate-300 hover:border-sky-400'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                    {doc ? (
+                                                        <Check className="w-5 h-5" />
+                                                    ) : tipo.id === 'GPS' ? (
+                                                        <MapPin className="w-4 h-4 text-slate-400" />
+                                                    ) : (
+                                                        <ImageIcon className="w-4 h-4" />
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-slate-900">{tipo.label}</p>
+                                                    {doc ? (
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            {getStatusBadge(doc.status)}
+                                                            <span className="text-[10px] text-slate-400">{new Date(doc.createdAt).toLocaleDateString()}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Pendiente de subir</p>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-sm font-bold text-slate-900">{tipo.label}</p>
-                                                {doc ? (
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                        {getStatusBadge(doc.status)}
-                                                        <span className="text-[10px] text-slate-400">{new Date(doc.createdAt).toLocaleDateString()}</span>
-                                                    </div>
+
+                                            <div className="flex gap-1">
+                                                {doc && (
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        className="h-8 w-8 text-sky-600"
+                                                        onClick={() => {
+                                                            setSelectedDoc(doc);
+                                                            // En móvil, hacer scroll hacia arriba para ver el visualizador
+                                                            if (window.innerWidth < 768) {
+                                                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                    </Button>
+                                                )}
+                                                {tipo.id === 'GPS' ? (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        disabled={capturingGps || uploading === 'GPS'}
+                                                        onClick={handleGPSCapture}
+                                                        className="h-8 w-8 text-emerald-600 hover:text-emerald-500 rounded-full hover:bg-slate-100 transition-colors"
+                                                    >
+                                                        {capturingGps || uploading === 'GPS' ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                                                        ) : (
+                                                            <MapPin className="w-4 h-4 text-emerald-600" />
+                                                        )}
+                                                    </Button>
                                                 ) : (
-                                                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Pendiente de subir</p>
+                                                    <label className={`cursor-pointer ${uploading === tipo.id ? 'opacity-50 pointer-events-none' : ''}`}>
+                                                        <input 
+                                                            type="file" 
+                                                            className="hidden" 
+                                                            accept="image/*,application/pdf"
+                                                            capture="environment"
+                                                            onChange={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) handleFileUpload(tipo.id, file);
+                                                            }}
+                                                        />
+                                                        <div className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors">
+                                                            {uploading === tipo.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                                        </div>
+                                                    </label>
                                                 )}
                                             </div>
                                         </div>
+                                    );
+                                })}
+                            </TabsContent>
 
-                                        <div className="flex gap-1">
-                                            {doc && (
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="icon" 
-                                                    className="h-8 w-8 text-sky-600"
-                                                    onClick={() => {
-                                                        setSelectedDoc(doc);
-                                                        // En móvil, hacer scroll hacia arriba para ver el visualizador
-                                                        if (window.innerWidth < 768) {
-                                                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                        }
-                                                    }}
-                                                >
-                                                    <Eye className="w-4 h-4" />
-                                                </Button>
-                                            )}
-                                            {tipo.id === 'GPS' ? (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    disabled={capturingGps || uploading === 'GPS'}
-                                                    onClick={handleGPSCapture}
-                                                    className="h-8 w-8 text-emerald-600 hover:text-emerald-500 rounded-full hover:bg-slate-100 transition-colors"
-                                                >
-                                                    {capturingGps || uploading === 'GPS' ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                            <TabsContent value="aval" className="space-y-2 focus-visible:outline-none focus-visible:ring-0">
+                                {TIPOS_DOCUMENTO.filter(t => t.id.startsWith('AVAL_')).map((tipo) => {
+                                    const doc = documentos.find(d => d.tipoDocumento === tipo.id);
+                                    return (
+                                        <div 
+                                            key={tipo.id} 
+                                            className={`p-4 rounded-xl border transition-all flex items-center justify-between ${
+                                                doc ? 'bg-slate-50 border-slate-200' : 'bg-white border-dashed border-slate-300 hover:border-sky-400'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                    {doc ? (
+                                                        <Check className="w-5 h-5" />
                                                     ) : (
-                                                        <MapPin className="w-4 h-4 text-emerald-600" />
+                                                        <ImageIcon className="w-4 h-4" />
                                                     )}
-                                                </Button>
-                                            ) : (
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-slate-900">{tipo.label}</p>
+                                                    {doc ? (
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            {getStatusBadge(doc.status)}
+                                                            <span className="text-[10px] text-slate-400">{new Date(doc.createdAt).toLocaleDateString()}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Pendiente de subir</p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-1">
+                                                {doc && (
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        className="h-8 w-8 text-sky-600"
+                                                        onClick={() => {
+                                                            setSelectedDoc(doc);
+                                                            // En móvil, hacer scroll hacia arriba para ver el visualizador
+                                                            if (window.innerWidth < 768) {
+                                                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                    </Button>
+                                                )}
                                                 <label className={`cursor-pointer ${uploading === tipo.id ? 'opacity-50 pointer-events-none' : ''}`}>
                                                     <input 
                                                         type="file" 
@@ -1018,12 +1151,12 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                                         {uploading === tipo.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                                                     </div>
                                                 </label>
-                                            )}
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                    );
+                                })}
+                            </TabsContent>
+                        </Tabs>
                     </div>
 
                     {!selectedDoc && (

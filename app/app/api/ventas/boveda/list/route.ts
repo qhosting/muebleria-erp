@@ -71,7 +71,8 @@ export async function GET(request: NextRequest) {
                                 { nombreCliente: { contains: search, mode: 'insensitive' } },
                                 { clienteCurp: { contains: search, mode: 'insensitive' } },
                                 { codigoCliente: { contains: search, mode: 'insensitive' } },
-                                { folioContrato: { contains: search, mode: 'insensitive' } }
+                                { folioContrato: { contains: search, mode: 'insensitive' } },
+                                { telefono: { contains: search, mode: 'insensitive' } }
                             ]
                         },
                         status ? { status } : {}
