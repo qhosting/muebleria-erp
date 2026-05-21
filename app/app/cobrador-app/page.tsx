@@ -10,7 +10,7 @@ import { obtenerDatoCobrador } from '@/lib/native/storage';
 export default function CobradorAppPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
-    const { isNative } = usePlatform();
+    const { isNative, isMobileMode } = usePlatform();
     const [message, setMessage] = useState('Iniciando...');
 
     useEffect(() => {
@@ -45,17 +45,21 @@ export default function CobradorAppPage() {
                 setMessage('Sincronizando datos...');
 
                 setTimeout(() => {
-                    if (isNative) {
+                    if (isMobileMode) {
                         router.push('/mobile/home');
                     } else {
-                        router.push('/dashboard/cobranza-mobile');
+                        if (userRole === 'cobrador') {
+                            router.push('/dashboard/cobranza-mobile');
+                        } else {
+                            router.push('/dashboard');
+                        }
                     }
                 }, 1000);
             }
         };
 
         checkAuth();
-    }, [session, status, isNative, router]);
+    }, [session, status, isNative, isMobileMode, router]);
 
     return (
         <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-4">

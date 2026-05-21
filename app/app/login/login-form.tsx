@@ -257,9 +257,29 @@ export default function LoginForm() {
     }
     
     let redirectUrl = '/dashboard';
-    if (userRole === 'cobrador') redirectUrl = '/mobile/home';
-    else if (['vendedor', 'jefe_ventas'].includes(userRole)) redirectUrl = '/mobile/ventas';
-    else if (userRole === 'gestor_cobranza') redirectUrl = '/dashboard/clientes';
+    
+    // Detectar modo móvil/PWA en el cliente
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    const isMobileBrowser = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(window.navigator.userAgent) || window.innerWidth < 768;
+    const isMobileMode = Capacitor.isNativePlatform() || isPWA || isMobileBrowser;
+
+    if (isMobileMode) {
+      if (['cobrador', 'vendedor', 'jefe_ventas', 'admin'].includes(userRole)) {
+        redirectUrl = '/mobile/home';
+      } else {
+        redirectUrl = '/dashboard';
+      }
+    } else {
+      if (userRole === 'cobrador') {
+        redirectUrl = '/dashboard/cobranza-mobile';
+      } else if (['vendedor', 'jefe_ventas'].includes(userRole)) {
+        redirectUrl = '/dashboard';
+      } else if (userRole === 'gestor_cobranza') {
+        redirectUrl = '/dashboard/clientes';
+      } else {
+        redirectUrl = '/dashboard';
+      }
+    }
 
     window.location.href = redirectUrl;
   };

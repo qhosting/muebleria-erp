@@ -47,6 +47,23 @@ export function DashboardClient({ session: initialSession }: DashboardClientProp
   useEffect(() => {
     if (!userRole || hasRedirected.current) return;
 
+    // Detectar modo móvil/PWA en el cliente
+    const isPWA = typeof window !== 'undefined' && (
+      window.matchMedia('(display-mode: standalone)').matches || 
+      (window.navigator as any).standalone === true
+    );
+    const isMobileBrowser = typeof window !== 'undefined' && (
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(window.navigator.userAgent) ||
+      window.innerWidth < 768
+    );
+    const isMobileMode = isPWA || isMobileBrowser;
+
+    if (isMobileMode && ['cobrador', 'vendedor', 'jefe_ventas', 'admin'].includes(userRole)) {
+      hasRedirected.current = true;
+      router.replace('/mobile/home');
+      return;
+    }
+
     const roleRedirects: Record<string, string> = {
       'gestor_cobranza': '/dashboard/clientes',
       'reporte_cobranza': '/dashboard/reportes',
