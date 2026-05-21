@@ -161,29 +161,62 @@ function MobileClientes() {
                 }
 
                 const allOffline = await query.toArray();
+
+                // 🚀 Calcular rango de ciclo actual localmente (Sábado a Viernes)
+                const hoyLocal = new Date();
+                const dayOfWeekLocal = hoyLocal.getDay(); // 0: Dom, 1: Lun, ..., 6: Sab
+                const diffToSaturdayLocal = (dayOfWeekLocal + 1) % 7;
+                const inicioCicloLocal = new Date(hoyLocal);
+                inicioCicloLocal.setDate(hoyLocal.getDate() - diffToSaturdayLocal);
+                inicioCicloLocal.setHours(0, 0, 0, 0);
+
+                // Obtener todos los pagos registrados localmente en este ciclo
+                const pagosCiclo = await db.pagos
+                    .where('fechaPago')
+                    .aboveOrEqual(inicioCicloLocal.toISOString())
+                    .toArray();
+
+                // IDs de clientes que ya pagaron en este ciclo (localmente)
+                const clientesQuePagaronLocal = new Set(
+                    pagosCiclo
+                        .filter(p => p.tipoPago === 'regular')
+                        .map(p => p.clienteId)
+                );
                 
                 // Mapear al formato que espera la UI si es necesario
-                const mapped = allOffline.map(c => ({
-                    id: c.id,
-                    nombre: c.nombreCompleto,
-                    direccion: c.direccion,
-                    diaPago: c.diaPago,
-                    estatus: c.statusCuenta === 'activo' ? 'aldia' : c.statusCuenta,
-                    saldo: Number(c.saldoPendiente || 0),
-                    saldoVencido: Number(c.saldoVencido || 0),
-                    pagoSemanal: Number(c.montoAcordado || 0),
-                    telefono: c.telefono,
-                    yaPagoEstaSemana: false,
-                    // Campos extendidos para perfil
-                    descripcionProducto: c.descripcionProducto,
-                    vendedorNombre: c.vendedorNombre,
-                    empleado: c.empleado,
-                    aval: c.aval,
-                    montoCredito: c.montoCredito,
-                    vendidoEn: c.vendidoEn,
-                    precios: c.precios || { contado: 0, p6: 0, p12: 0 },
-                    diasVencidos: c.diasVencidos || 0
-                }));
+                const mapped = allOffline.map(c => {
+                    let yaPago = false;
+                    if (clientesQuePagaronLocal.has(c.id)) {
+                        yaPago = true;
+                    } else if (c.fechaUltimoPago) {
+                        const fechaUltimo = new Date(c.fechaUltimoPago);
+                        if (fechaUltimo >= inicioCicloLocal) {
+                            yaPago = true;
+                        }
+                    }
+
+                    return {
+                        id: c.id,
+                        nombre: c.nombreCompleto,
+                        direccion: c.direccion,
+                        diaPago: c.diaPago,
+                        estatus: c.statusCuenta === 'activo' ? 'aldia' : c.statusCuenta,
+                        saldo: Number(c.saldoPendiente || 0),
+                        saldoVencido: Number(c.saldoVencido || 0),
+                        pagoSemanal: Number(c.montoAcordado || 0),
+                        telefono: c.telefono,
+                        yaPagoEstaSemana: yaPago,
+                        // Campos extendidos para perfil
+                        descripcionProducto: c.descripcionProducto,
+                        vendedorNombre: c.vendedorNombre,
+                        empleado: c.empleado,
+                        aval: c.aval,
+                        montoCredito: c.montoCredito,
+                        vendidoEn: c.vendidoEn,
+                        precios: c.precios || { contado: 0, p6: 0, p12: 0 },
+                        diasVencidos: c.diasVencidos || 0
+                    };
+                });
 
                 setClientes(mapped);
                 setHasMore(false); 
@@ -293,9 +326,9 @@ function MobileClientes() {
         // Intentar obtener ubicación GPS
         try {
             const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
-            const pos = await obtenerUbicacionCobrador(true, 0);
-            latitud = pos.lat.toString();
-            longitud = pos.lng.toString();
+            const pos = await obtenerUbicacionCobrador(true, 0) as any;
+            latitud = pos?.lat?.toString() || null;
+            longitud = pos?.lng?.toString() || null;
         } catch (error) {
             console.warn("No se pudo obtener ubicación GPS para el cobro:", error);
         }
@@ -485,8 +518,8 @@ Fecha: ${new Date().toLocaleDateString()}.
         } else if (filtroCobro === "nocobrados") {
             matchesCobro = !c.yaPagoEstaSemana;
         } else {
-            // Si es "todos", respetamos el filtro original de "mostrarTodos/Pendientes"
-            matchesCobro = mostrarTodos || !c.yaPagoEstaSemana;
+            // "todos" (Todo Cobro) - mostrar clientes sin importar cobrado o no cobrado!
+            matchesCobro = true;
         }
 
         return matchesSearch && matchesDia && matchesLento && matchesCobro;
@@ -538,7 +571,11 @@ Fecha: ${new Date().toLocaleDateString()}.
                     <div className="flex items-center justify-between px-1">
                         <div className="flex gap-2">
                             <button 
-                                onClick={() => setMostrarTodos(!mostrarTodos)}
+                                onClick={() => {
+                                    const nextMostrarTodos = !mostrarTodos;
+                                    setMostrarTodos(nextMostrarTodos);
+                                    setFiltroCobro(nextMostrarTodos ? "todos" : "nocobrados");
+                                }}
                                 className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase transition-colors ${
                                     mostrarTodos 
                                     ? 'bg-slate-800 text-slate-400' 
@@ -560,8 +597,15 @@ Fecha: ${new Date().toLocaleDateString()}.
                             <button 
                                 onClick={() => {
                                     setFiltroCobro(prev => {
-                                        if (prev === "todos") return "cobrados";
-                                        if (prev === "cobrados") return "nocobrados";
+                                        if (prev === "todos") {
+                                            setMostrarTodos(false);
+                                            return "cobrados";
+                                        }
+                                        if (prev === "cobrados") {
+                                            setMostrarTodos(false);
+                                            return "nocobrados";
+                                        }
+                                        setMostrarTodos(true);
                                         return "todos";
                                     });
                                 }}
