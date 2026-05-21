@@ -97,7 +97,7 @@ export async function GET(request: Request) {
 
     const pagosBancarioBot = pagos.filter(p => {
       const m = normalize(p.metodoPago);
-      return m === 'bancario_bot' || m === 'bot' || m === 'whatsapp';
+      return m === 'bancario_bot' || m === 'bot' || m === 'whatsapp' || m === 'bancos bot' || m === 'bancos_bot';
     });
     const bancarioBot = pagosBancarioBot.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
     const cuentasBancarioBot = new Set(pagosBancarioBot.map(p => p.clienteId)).size;

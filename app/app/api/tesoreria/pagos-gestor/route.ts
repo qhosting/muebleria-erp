@@ -90,8 +90,12 @@ export async function GET(request: NextRequest) {
                 resumenMap[cobradorId].totalMora += monto;
             }
 
-            // Clasificación Bancario vs Gestor (basado en metodoPago: 'bancario' o 'gestor')
-            if (pago.metodoPago.toLowerCase() === 'bancario') {
+            // Clasificación Bancario vs Gestor (basado en metodoPago conteniendo 'banc', 'bot', 'transf', o 'depo')
+            const isBancario = (() => {
+                const m = (pago.metodoPago || '').toLowerCase();
+                return m.includes('banc') || m.includes('bot') || m.includes('transf') || m.includes('depo');
+            })();
+            if (isBancario) {
                 resumenMap[cobradorId].bancario += monto;
             } else {
                 resumenMap[cobradorId].gestorMonto += monto;
