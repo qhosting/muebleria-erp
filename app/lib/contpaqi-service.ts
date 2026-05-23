@@ -83,7 +83,14 @@ export class ContpaqiService {
     }
 
     async getCliente(codigo: string) {
-        return await this.request(`/api/clientes/${codigo}`);
+        try {
+            return await this.request(`/api/clientes/${codigo}`);
+        } catch (error: any) {
+            if (error.message?.includes('404')) {
+                return null;
+            }
+            throw error;
+        }
     }
 
     async getProductos(busqueda?: string) {
@@ -92,7 +99,14 @@ export class ContpaqiService {
     }
 
     async getProducto(codigo: string) {
-        return await this.request(`/api/productos/${codigo}`);
+        try {
+            return await this.request(`/api/productos/${codigo}`);
+        } catch (error: any) {
+            if (error.message?.includes('404')) {
+                return null;
+            }
+            throw error;
+        }
     }
 
     async getAgentes() {

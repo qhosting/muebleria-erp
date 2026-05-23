@@ -27,6 +27,7 @@ interface RecompraLead {
     notas: string | null;
     createdAt: string;
     clienteId: string | null;
+    codigoCliente?: string | null;
 }
 
 interface Prediccion {
@@ -198,8 +199,15 @@ export default function RecomprasPage() {
                                             <CardTitle className="text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
                                                 {lead.nombre}
                                             </CardTitle>
-                                            <CardDescription className="flex items-center gap-1.5 font-medium">
-                                                <Phone className="h-3 w-3" /> {lead.telefono || 'Sin teléfono'}
+                                            <CardDescription className="flex flex-wrap items-center gap-x-3 gap-y-1 font-medium">
+                                                <span className="flex items-center gap-1.5">
+                                                    <Phone className="h-3 w-3" /> {lead.telefono || 'Sin teléfono'}
+                                                </span>
+                                                {lead.codigoCliente && (
+                                                    <Badge variant="outline" className="text-[10px] font-bold border-indigo-100 bg-indigo-50/30 text-indigo-600 rounded-md px-1.5 py-0.5">
+                                                        Código: {lead.codigoCliente}
+                                                    </Badge>
+                                                )}
                                             </CardDescription>
                                         </CardHeader>
                                         <CardContent>

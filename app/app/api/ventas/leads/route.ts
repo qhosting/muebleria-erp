@@ -44,7 +44,30 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(leads);
+    // Encontrar los clienteIds no nulos
+    const clienteIds = leads.map(l => l.clienteId).filter(Boolean) as string[];
+
+    // Buscar los clientes correspondientes para obtener su codigoCliente
+    const clientes = await prisma.cliente.findMany({
+      where: {
+        id: { in: clienteIds }
+      },
+      select: {
+        id: true,
+        codigoCliente: true
+      }
+    });
+
+    // Mapear los clientes a un diccionario para búsqueda rápida
+    const clienteMap = new Map(clientes.map(c => [c.id, c.codigoCliente]));
+
+    // Adjuntar codigoCliente a cada lead en la respuesta
+    const leadsWithCodigo = leads.map(lead => ({
+      ...lead,
+      codigoCliente: lead.clienteId ? clienteMap.get(lead.clienteId) || null : null
+    }));
+
+    return NextResponse.json(leadsWithCodigo);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
