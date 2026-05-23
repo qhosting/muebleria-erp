@@ -405,8 +405,16 @@ export async function getContpaqiService(prisma?: any, empresaId?: string): Prom
                     }
                     console.log(`🏢 Usando nombre estándar de empresa: ${empresaContext}`);
                     return new ContpaqiService({ apiUrl, apiKey, empresa: empresaContext });
-                } else if (targetEmpresaId !== 'default') {
-                    console.warn(`⚠️ No se encontró la empresa con ID: ${targetEmpresaId}, usando configuración base.`);
+                } else {
+                    // Si el targetEmpresaId es un alias directo conocido (como DP o DQ), lo usamos directamente
+                    if (['DP', 'DQ'].includes(targetEmpresaId.toUpperCase())) {
+                        console.log(`🏢 Usando alias de empresa directo: ${targetEmpresaId}`);
+                        return new ContpaqiService({ apiUrl, apiKey, empresa: targetEmpresaId.toUpperCase() });
+                    }
+
+                    if (targetEmpresaId !== 'default') {
+                        console.warn(`⚠️ No se encontró la empresa con ID: ${targetEmpresaId}, usando configuración base.`);
+                    }
                 }
             }
         }

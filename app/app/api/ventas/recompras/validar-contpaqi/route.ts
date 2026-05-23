@@ -35,7 +35,31 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Cliente no tiene código de Contpaqi' }, { status: 404 });
         }
 
-        const service = await getContpaqiService(prisma, cliente.sucursalId || undefined);
+        // --- DETECTAR EMPRESA POR PREFIJO DE CÓDIGO ---
+        let empresaId = cliente.sucursalId || undefined;
+        
+        // Si el código de cliente tiene un prefijo identificador como 'DQ' o 'DP', lo usamos con prioridad
+        if (cliente.codigoCliente) {
+            const prefix = cliente.codigoCliente.match(/^[a-zA-Z]+/)?.[0]?.toUpperCase();
+            if (prefix && ['DP', 'DQ'].includes(prefix)) {
+                // Buscamos si hay una empresa configurada cuyo nombre o baseDatos coincida o empiece con ese prefijo
+                const configRaw = await prisma.configuracionSistema.findUnique({ where: { clave: 'sistema' } });
+                const empresas = (configRaw as any)?.contpaqi?.empresas || [];
+                const matchedEmpresa = empresas.find((e: any) => 
+                    e.nombre?.toUpperCase().startsWith(prefix) || 
+                    e.baseDatos?.toUpperCase().startsWith(prefix) ||
+                    e.id?.toUpperCase() === prefix
+                );
+                if (matchedEmpresa) {
+                    empresaId = matchedEmpresa.id;
+                } else {
+                    // Si no está configurada explícitamente en la DB, forzamos el prefijo como alias directo
+                    empresaId = prefix;
+                }
+            }
+        }
+
+        const service = await getContpaqiService(prisma, empresaId);
         const contpaqiCliente = await service.getCliente(cliente.codigoCliente);
 
         if (!contpaqiCliente) {
