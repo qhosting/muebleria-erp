@@ -387,9 +387,15 @@ export async function getContpaqiService(prisma?: any, empresaId?: string): Prom
             if (c.apiUrl) apiUrl = c.apiUrl;
             if (c.apiKey) apiKey = c.apiKey;
 
-            // Prioridad 2: Si se proporciona un empresaId, buscar credenciales específicas
-            if (empresaId && c.empresas && Array.isArray(c.empresas)) {
-                const empresa = c.empresas.find((e: any) => e.id === empresaId);
+            // Si no se proporciona empresaId pero hay empresas configuradas, usar la primera por defecto
+            let targetEmpresaId = empresaId;
+            if (!targetEmpresaId && c.empresas && Array.isArray(c.empresas) && c.empresas.length > 0) {
+                targetEmpresaId = c.empresas[0].id;
+            }
+
+            // Prioridad 2: Si se proporciona un empresaId (o por fallback), buscar credenciales específicas
+            if (targetEmpresaId && c.empresas && Array.isArray(c.empresas)) {
+                const empresa = c.empresas.find((e: any) => e.id === targetEmpresaId);
                 if (empresa) {
                     apiUrl = empresa.apiUrl || apiUrl;
                     apiKey = empresa.apiKey || apiKey;
@@ -399,8 +405,8 @@ export async function getContpaqiService(prisma?: any, empresaId?: string): Prom
                     }
                     console.log(`🏢 Usando nombre estándar de empresa: ${empresaContext}`);
                     return new ContpaqiService({ apiUrl, apiKey, empresa: empresaContext });
-                } else if (empresaId !== 'default') {
-                    console.warn(`⚠️ No se encontró la empresa con ID: ${empresaId}, usando configuración base.`);
+                } else if (targetEmpresaId !== 'default') {
+                    console.warn(`⚠️ No se encontró la empresa con ID: ${targetEmpresaId}, usando configuración base.`);
                 }
             }
         }

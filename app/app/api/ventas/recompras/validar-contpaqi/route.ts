@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Cliente no tiene código de Contpaqi' }, { status: 404 });
         }
 
-        const service = await getContpaqiService(prisma);
+        const service = await getContpaqiService(prisma, cliente.sucursalId || undefined);
         const contpaqiCliente = await service.getCliente(cliente.codigoCliente);
 
         if (!contpaqiCliente) {
