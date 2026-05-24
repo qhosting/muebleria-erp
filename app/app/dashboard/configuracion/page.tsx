@@ -29,7 +29,8 @@ import {
   Image as ImageIcon,
   Type,
   Upload,
-  Plus
+  Plus,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -180,6 +181,7 @@ export default function ConfiguracionPage() {
   const [loadingTest, setLoadingTest] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [syncingFechas, setSyncingFechas] = useState(false);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -320,6 +322,27 @@ export default function ConfiguracionPage() {
       toast.error(error.message || 'Error al resetear la base de datos');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSyncAllFechasVenta = async () => {
+    setSyncingFechas(true);
+    const loadingToast = toast.loading('Iniciando sincronización masiva de fechas de venta...');
+    try {
+      const response = await fetch('/api/contpaqi/sync?target=clientes', { cache: 'no-store' });
+      if (response.ok) {
+        toast.dismiss(loadingToast);
+        toast.success('Se han sincronizado las fechas de venta de todos los clientes con éxito.');
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error en la sincronización masiva');
+      }
+    } catch (error: any) {
+      console.error('Error al sincronizar fechas masivamente:', error);
+      toast.dismiss(loadingToast);
+      toast.error(`No se pudo sincronizar de forma masiva: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setSyncingFechas(false);
     }
   };
 
@@ -940,6 +963,34 @@ export default function ConfiguracionPage() {
           </TabsContent>
 
           <TabsContent value="avanzado" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5 text-indigo-600" />
+                  Mantenimiento de Catálogos
+                </CardTitle>
+                <CardDescription>
+                  Herramientas para forzar actualizaciones manuales masivas de la base de datos local.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-800">Sincronización Masiva de Fechas de Venta</h4>
+                  <p className="text-xs text-slate-500 mb-3">
+                    Consulta en vivo todos los documentos de facturación en Contpaqi para cada cliente de la base de datos local y recalcula su Fecha de Venta real.
+                  </p>
+                  <Button 
+                    onClick={handleSyncAllFechasVenta} 
+                    disabled={syncingFechas} 
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${syncingFechas ? 'animate-spin' : ''}`} />
+                    {syncingFechas ? 'Sincronizando...' : 'Sincronizar Fechas de Venta de Todos los Clientes'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="border-red-200 bg-red-50/50">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-red-700">
