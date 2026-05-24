@@ -19,6 +19,77 @@ interface EstadoCuentaModalProps {
     clienteNombre: string | null;
 }
 
+// Helper para obtener el nombre del concepto del documento de forma ultra-robusta
+const getDocConceptName = (doc: any): string => {
+    if (!doc) return 'Venta / Cargo';
+    
+    // 1. Si doc.concepto es un objeto, buscar propiedades dentro
+    if (doc.concepto && typeof doc.concepto === 'object') {
+        const nested = doc.concepto;
+        const name = nested.nombre || nested.Nombre || nested.cNombre || 
+                     nested.cNombreConcepto || nested.CNOMBRECONCEPTO || 
+                     nested.nombreConcepto || nested.NombreConcepto || 
+                     nested.cNombreClasificacion || nested.codigo || 
+                     nested.cCodigoConcepto || nested.codigoConcepto ||
+                     nested.cnombreconcepto;
+        if (name) return String(name);
+    }
+    
+    // 2. Buscar propiedades directas de nombre en todas sus variantes
+    const directName = doc.CNOMBRECONCEPTO || 
+                       doc.cNombreConcepto || 
+                       doc.cnombreconcepto || 
+                       doc.nombreConcepto || 
+                       doc.NombreConcepto || 
+                       doc.cNombreClasificacion || 
+                       doc.conceptoNombre || 
+                       doc.ConceptoNombre || 
+                       doc.cNombre || 
+                       doc.Nombre || 
+                       doc.nombre;
+                       
+    if (directName) return String(directName);
+    
+    // 3. Buscar códigos de conceptos y resolver a nombres amigables si es posible
+    const code = doc.codigoConcepto || 
+                 doc.cCodigoConcepto || 
+                 doc.cCodigo || 
+                 doc.codigo || 
+                 (typeof doc.concepto === 'string' || typeof doc.concepto === 'number' ? doc.concepto : null) || 
+                 doc.Concepto ||
+                 doc.CCODIGOCONCEPTO ||
+                 doc.CIDCONCEPTO;
+                 
+    if (code) {
+        const codeStr = String(code).trim().toUpperCase();
+        
+        // Mapeo de códigos de conceptos comunes en el ERP (Queretaro, Lerma, etc.)
+        const codeMap: Record<string, string> = {
+            '4': 'FACTURA QUERETARO',
+            '5': 'FACTURA LERMA',
+            '100': 'FACTURA GENERAL',
+            '16': 'ABONO CLIENTE',
+            '17': 'RECIBO DE PAGO',
+            '18': 'NOTA DE CRÉDITO',
+            '101': 'PAGO REGULAR',
+            '102': 'PAGO MORATORIO'
+        };
+        
+        if (codeMap[codeStr]) {
+            return codeMap[codeStr];
+        }
+        
+        // Si ya es una cadena larga de texto descriptivo, retornarla
+        if (codeStr.length > 3 && isNaN(Number(codeStr))) {
+            return String(code);
+        }
+        
+        return `Concepto ${codeStr}`;
+    }
+    
+    return 'Venta / Cargo';
+};
+
 export function EstadoCuentaModal({
     open,
     onOpenChange,
@@ -220,13 +291,13 @@ export function EstadoCuentaModal({
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 text-gray-700 font-medium">
                                             {documentos.map((doc: any, i: number) => {
-                                                // Safely parse properties with different possible formats (CamelCase or UPPERCASE)
-                                                const date = doc.cFecha || doc.cfecha || doc.fecha || '';
-                                                const series = doc.cSerie || doc.cserie || doc.serie || '';
-                                                const folio = doc.cFolio || doc.cfolio || doc.folio || '';
-                                                const docConcept = doc.cNombreConcepto || doc.cnombreconcepto || doc.concepto || doc.conceptoNombre || 'Venta / Cargo';
-                                                const total = Number(doc.cTotal || doc.ctotal || doc.total || doc.importe || 0);
-                                                const pending = Number(doc.cSaldo || doc.csaldo || doc.saldo || doc.pendiente || doc.cPendiente || 0);
+                                                // Safely parse properties with different possible formats (CamelCase, snake_case or UPPERCASE from SQL)
+                                                const date = doc.cFecha || doc.cfecha || doc.fecha || doc.CFECHA || '';
+                                                const series = doc.cSerie || doc.cserie || doc.serie || doc.CSERIE || doc.CSERIEDOCUMENTO || '';
+                                                const folio = doc.cFolio || doc.cfolio || doc.folio || doc.CFOLIO || doc.CFOLIOPRODUCTO || '';
+                                                const docConcept = getDocConceptName(doc);
+                                                const total = Number(doc.cTotal || doc.ctotal || doc.total || doc.importe || doc.CTOTAL || 0);
+                                                const pending = Number(doc.cSaldo || doc.csaldo || doc.saldo || doc.pendiente || doc.cPendiente || doc.CSALDO || doc.CPENDIENTE || 0);
                                                 
                                                 // Determine if payment (abono) or charge (cargo)
                                                 const isPayment = docConcept.toUpperCase().includes('PAGO') || 
