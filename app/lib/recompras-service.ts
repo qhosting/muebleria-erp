@@ -38,7 +38,8 @@ export class RecomprasService {
                 estado: 'nuevo',
                 clienteId: cliente.id,
                 vendedorId: cliente.vendedorId,
-                notas: `Cliente liquidó cuenta. ${motivo}. Buen historial de pago sugerido.`
+                notas: `Cliente liquidó cuenta. ${motivo}. Buen historial de pago sugerido. Código: ${cliente.codigoCliente}`,
+                datosExtraidos: { codigoCliente: cliente.codigoCliente } as any
             }
         });
     }

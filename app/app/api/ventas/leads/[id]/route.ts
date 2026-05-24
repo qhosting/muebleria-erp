@@ -93,8 +93,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || (session.user as any).role !== 'admin') {
+    const userRole = (session?.user as any)?.role;
+    if (!session?.user || (userRole !== 'admin' && userRole !== 'gestor_cobranza')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 

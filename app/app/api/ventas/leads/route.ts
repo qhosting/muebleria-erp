@@ -61,11 +61,42 @@ export async function GET(request: NextRequest) {
     // Mapear los clientes a un diccionario para búsqueda rápida
     const clienteMap = new Map(clientes.map(c => [c.id, c.codigoCliente]));
 
-    // Adjuntar codigoCliente a cada lead en la respuesta
-    const leadsWithCodigo = leads.map(lead => ({
-      ...lead,
-      codigoCliente: lead.clienteId ? clienteMap.get(lead.clienteId) || null : null
-    }));
+    // Adjuntar codigoCliente a cada lead en la respuesta (desvinculación de catálogo local)
+    const leadsWithCodigo = leads.map(lead => {
+      let codigoCliente = (lead.datosExtraidos as any)?.codigoCliente || null;
+
+      // 1. Si no tiene en datosExtraidos, pero el cliente existe localmente, lo guardamos para el histórico
+      if (!codigoCliente && lead.clienteId) {
+        const dbCode = clienteMap.get(lead.clienteId);
+        if (dbCode) {
+          codigoCliente = dbCode;
+          // Auto-sanar en segundo plano (persistir de forma permanente)
+          const currentDatos = typeof lead.datosExtraidos === 'object' && lead.datosExtraidos ? lead.datosExtraidos : {};
+          prisma.lead.update({
+            where: { id: lead.id },
+            data: {
+              datosExtraidos: {
+                ...currentDatos,
+                codigoCliente
+              }
+            }
+          }).catch(err => console.error('Error auto-saving client code in lead:', err));
+        }
+      }
+
+      // 2. Si aún no hay código de cliente, intentar extraer del texto de las notas
+      if (!codigoCliente && lead.notas) {
+        const match = lead.notas.match(/(DQ|DP)\d+/i);
+        if (match) {
+          codigoCliente = match[0].toUpperCase();
+        }
+      }
+
+      return {
+        ...lead,
+        codigoCliente
+      };
+    });
 
     return NextResponse.json(leadsWithCodigo);
   } catch (error: any) {

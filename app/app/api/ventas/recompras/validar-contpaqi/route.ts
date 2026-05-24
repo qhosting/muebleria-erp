@@ -23,24 +23,43 @@ export async function POST(request: NextRequest) {
             where: { id: leadId }
         });
 
-        if (!lead || !lead.clienteId) {
-            return NextResponse.json({ error: 'Lead no válido o sin cliente asociado' }, { status: 404 });
+        if (!lead) {
+            return NextResponse.json({ error: 'Lead no válido' }, { status: 404 });
         }
 
-        const cliente = await prisma.cliente.findUnique({
-            where: { id: lead.clienteId }
-        });
+        // Obtener el código de cliente sin consultar obligatoriamente el catálogo local
+        let codigoCliente = (lead.datosExtraidos as any)?.codigoCliente || null;
+        let sucursalId = undefined;
 
-        if (!cliente || !cliente.codigoCliente) {
-            return NextResponse.json({ error: 'Cliente no tiene código de Contpaqi' }, { status: 404 });
+        if (!codigoCliente && lead.clienteId) {
+            // Fallback: Si no está en datosExtraidos pero hay clienteId, buscamos en catálogo local
+            const cliente = await prisma.cliente.findUnique({
+                where: { id: lead.clienteId }
+            });
+            if (cliente) {
+                codigoCliente = cliente.codigoCliente;
+                sucursalId = cliente.sucursalId || undefined;
+            }
+        }
+
+        // Si aún no se encuentra, buscar por expresión regular en las notas
+        if (!codigoCliente && lead.notas) {
+            const match = lead.notas.match(/(DQ|DP)\d+/i);
+            if (match) {
+                codigoCliente = match[0].toUpperCase();
+            }
+        }
+
+        if (!codigoCliente) {
+            return NextResponse.json({ error: 'No se pudo determinar el código de cliente de Contpaqi' }, { status: 400 });
         }
 
         // --- DETECTAR EMPRESA POR PREFIJO DE CÓDIGO ---
-        let empresaId = cliente.sucursalId || undefined;
+        let empresaId = sucursalId;
         
         // Si el código de cliente tiene un prefijo identificador como 'DQ' o 'DP', lo usamos con prioridad
-        if (cliente.codigoCliente) {
-            const prefix = cliente.codigoCliente.match(/^[a-zA-Z]+/)?.[0]?.toUpperCase();
+        if (codigoCliente) {
+            const prefix = codigoCliente.match(/^[a-zA-Z]+/)?.[0]?.toUpperCase();
             if (prefix && ['DP', 'DQ'].includes(prefix)) {
                 // Buscamos si hay una empresa configurada cuyo nombre o baseDatos coincida o empiece con ese prefijo
                 const configRaw = await prisma.configuracionSistema.findUnique({ where: { clave: 'sistema' } });
@@ -60,7 +79,7 @@ export async function POST(request: NextRequest) {
         }
 
         const service = await getContpaqiService(prisma, empresaId);
-        const contpaqiCliente = await service.getCliente(cliente.codigoCliente);
+        const contpaqiCliente = await service.getCliente(codigoCliente);
 
         if (!contpaqiCliente) {
             return NextResponse.json({ error: 'No se encontró el cliente en Contpaqi' }, { status: 404 });

@@ -13,7 +13,7 @@ import {
     Users, Zap, Search, Clock, CheckCircle2, 
     Bot, Phone, MessageSquare, ArrowUpRight,
     Star, ShoppingBag, Calendar, Sparkles,
-    RefreshCw, ChevronRight, Gift
+    RefreshCw, ChevronRight, Gift, Trash2
 } from 'lucide-react';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -172,6 +172,28 @@ export default function RecomprasPage() {
             toast.error('Error de conexión con el servidor');
         } finally {
             setValidatingId(null);
+        }
+    };
+
+    const eliminarLead = async (leadId: string) => {
+        if (!confirm('¿Está seguro de que desea eliminar este cliente de recompras?')) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/ventas/leads/${leadId}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                toast.success('Cliente eliminado de recompras');
+                setLeads(prev => prev.filter(l => l.id !== leadId));
+            } else {
+                const error = await res.json();
+                toast.error(error.error || 'Error al eliminar');
+            }
+        } catch (error) {
+            toast.error('Error de conexión al eliminar');
         }
     };
 
@@ -412,6 +434,14 @@ export default function RecomprasPage() {
                                                         }}
                                                     >
                                                         <ChevronRight className="h-4 w-4 text-indigo-600" />
+                                                    </Button>
+                                                    <Button 
+                                                        variant="outline" 
+                                                        className="rounded-xl border-red-100 hover:bg-red-50" 
+                                                        size="icon"
+                                                        onClick={() => eliminarLead(lead.id)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4 text-red-500" />
                                                     </Button>
                                                 </div>
                                             </CardContent>
