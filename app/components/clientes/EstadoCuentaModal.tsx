@@ -303,8 +303,10 @@ export function EstadoCuentaModal({
                                                 const isPayment = docConcept.toUpperCase().includes('PAGO') || 
                                                                   docConcept.toUpperCase().includes('ABONO') || 
                                                                   docConcept.toUpperCase().includes('RECIBO') || 
+                                                                  docConcept.toUpperCase().startsWith('PC') || 
+                                                                  docConcept.toUpperCase().includes('PC ') || 
                                                                   total < 0 || 
-                                                                  (total > 0 && pending === 0 && docConcept.toLowerCase().includes('recibo'));
+                                                                  (total > 0 && pending === 0 && (docConcept.toLowerCase().includes('recibo') || docConcept.toUpperCase().startsWith('PC')));
 
                                                 return (
                                                     <tr key={i} className="hover:bg-slate-50/50 transition-colors">
