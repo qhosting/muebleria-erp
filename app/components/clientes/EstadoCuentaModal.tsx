@@ -462,85 +462,95 @@ export function EstadoCuentaModal({
                                                         <th className="px-4 py-3 text-right">Cuota</th>
                                                         <th className="px-4 py-3 text-right">Abonado</th>
                                                         <th className="px-4 py-3 text-right">Pendiente</th>
+                                                        <th className="px-4 py-3 text-right">Deuda Restante</th>
                                                         <th className="px-4 py-3 text-center">Estado</th>
                                                         <th className="px-4 py-3 text-center">Cobranza</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100 text-gray-700 font-medium">
-                                                    {cAmort.map((cuota: any, idx: number) => {
-                                                        const isSaldado = cuota.status === 'saldado';
-                                                        const isParcial = cuota.status === 'parcial';
-                                                        
-                                                        let statusBadge = (
-                                                            <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100 border-none rounded-lg text-[9px] font-bold px-2 py-0.5">
-                                                                Pendiente
-                                                            </Badge>
-                                                        );
-                                                        if (isSaldado) {
-                                                            statusBadge = (
-                                                                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5">
-                                                                    Saldado
+                                                    {(() => {
+                                                        let runningBalance = deudaFinanciada;
+                                                        return cAmort.map((cuota: any, idx: number) => {
+                                                            const isSaldado = cuota.status === 'saldado';
+                                                            const isParcial = cuota.status === 'parcial';
+                                                            
+                                                            runningBalance = Math.max(0, runningBalance - cuota.monto);
+                                                            const displayBalance = cuota.saldoRestante !== undefined ? cuota.saldoRestante : runningBalance;
+                                                            
+                                                            let statusBadge = (
+                                                                <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100 border-none rounded-lg text-[9px] font-bold px-2 py-0.5">
+                                                                    Pendiente
                                                                 </Badge>
                                                             );
-                                                        } else if (isParcial) {
-                                                            statusBadge = (
-                                                                <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5">
-                                                                    Abonado {formatCurrency(cuota.pagado)}
-                                                                </Badge>
-                                                            );
-                                                        }
+                                                            if (isSaldado) {
+                                                                statusBadge = (
+                                                                    <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5">
+                                                                        Saldado
+                                                                    </Badge>
+                                                                );
+                                                            } else if (isParcial) {
+                                                                statusBadge = (
+                                                                    <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5">
+                                                                        Abonado {formatCurrency(cuota.pagado)}
+                                                                    </Badge>
+                                                                );
+                                                            }
 
-                                                        let cobranzaBadge = (
-                                                            <Badge className="bg-slate-50 text-slate-500 hover:bg-slate-50 border-none rounded-lg text-[9px] font-semibold px-2 py-0.5">
-                                                                A futuro
-                                                            </Badge>
-                                                        );
-                                                        if (cuota.tipoVencimiento === 'vencido') {
-                                                            cobranzaBadge = (
-                                                                <Badge className="bg-red-50 text-red-700 hover:bg-red-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5 flex items-center gap-1 justify-center max-w-[90px] mx-auto">
-                                                                    <AlertCircle className="h-2.5 w-2.5" /> Atrasado
+                                                            let cobranzaBadge = (
+                                                                <Badge className="bg-slate-50 text-slate-500 hover:bg-slate-50 border-none rounded-lg text-[9px] font-semibold px-2 py-0.5">
+                                                                    A futuro
                                                                 </Badge>
                                                             );
-                                                        } else if (cuota.tipoVencimiento === 'adelantado') {
-                                                            cobranzaBadge = (
-                                                                <Badge className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5 flex items-center gap-1 justify-center max-w-[90px] mx-auto">
-                                                                    <ArrowUpRight className="h-2.5 w-2.5" /> Adelantado
-                                                                </Badge>
-                                                            );
-                                                        } else if (cuota.tipoVencimiento === 'al_corriente') {
-                                                            cobranzaBadge = (
-                                                                <Badge className="bg-teal-50 text-teal-700 hover:bg-teal-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5 flex items-center gap-1 justify-center max-w-[90px] mx-auto">
-                                                                    Al Corriente
-                                                                </Badge>
-                                                            );
-                                                        }
+                                                            if (cuota.tipoVencimiento === 'vencido') {
+                                                                cobranzaBadge = (
+                                                                    <Badge className="bg-red-50 text-red-700 hover:bg-red-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5 flex items-center gap-1 justify-center max-w-[90px] mx-auto">
+                                                                        <AlertCircle className="h-2.5 w-2.5" /> Atrasado
+                                                                    </Badge>
+                                                                );
+                                                            } else if (cuota.tipoVencimiento === 'adelantado') {
+                                                                cobranzaBadge = (
+                                                                    <Badge className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5 flex items-center gap-1 justify-center max-w-[90px] mx-auto">
+                                                                        <ArrowUpRight className="h-2.5 w-2.5" /> Adelantado
+                                                                    </Badge>
+                                                                );
+                                                            } else if (cuota.tipoVencimiento === 'al_corriente') {
+                                                                cobranzaBadge = (
+                                                                    <Badge className="bg-teal-50 text-teal-700 hover:bg-teal-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5 flex items-center gap-1 justify-center max-w-[90px] mx-auto">
+                                                                        Al Corriente
+                                                                    </Badge>
+                                                                );
+                                                            }
 
-                                                        return (
-                                                            <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                                                <td className="px-4 py-2.5 text-xs font-bold text-slate-600">
-                                                                    Pago {cuota.numPago} de {cAmort.length}
-                                                                </td>
-                                                                <td className="px-4 py-2.5 text-slate-500 text-xs">
-                                                                    {formatDate(cuota.fechaVencimiento)}
-                                                                </td>
-                                                                <td className="px-4 py-2.5 text-right text-xs font-bold text-gray-900">
-                                                                    {formatCurrency(cuota.monto)}
-                                                                </td>
-                                                                <td className="px-4 py-2.5 text-right text-xs font-bold text-emerald-600">
-                                                                    {formatCurrency(cuota.pagado)}
-                                                                </td>
-                                                                <td className={`px-4 py-2.5 text-right text-xs font-black ${cuota.pendiente > 0 && cuota.tipoVencimiento === 'vencido' ? 'text-red-600' : 'text-slate-800'}`}>
-                                                                    {formatCurrency(cuota.pendiente)}
-                                                                </td>
-                                                                <td className="px-4 py-2.5 text-center">
-                                                                    {statusBadge}
-                                                                </td>
-                                                                <td className="px-4 py-2.5 text-center">
-                                                                    {cobranzaBadge}
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
+                                                            return (
+                                                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                                                    <td className="px-4 py-2.5 text-xs font-bold text-slate-600">
+                                                                        Pago {cuota.numPago} de {cAmort.length}
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5 text-slate-500 text-xs">
+                                                                        {formatDate(cuota.fechaVencimiento)}
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5 text-right text-xs font-bold text-gray-900">
+                                                                        {formatCurrency(cuota.monto)}
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5 text-right text-xs font-bold text-emerald-600">
+                                                                        {formatCurrency(cuota.pagado)}
+                                                                    </td>
+                                                                    <td className={`px-4 py-2.5 text-right text-xs font-black ${cuota.pendiente > 0 && cuota.tipoVencimiento === 'vencido' ? 'text-red-600' : 'text-slate-800'}`}>
+                                                                        {formatCurrency(cuota.pendiente)}
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5 text-right text-xs font-bold text-slate-500">
+                                                                        {formatCurrency(displayBalance)}
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5 text-center">
+                                                                        {statusBadge}
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5 text-center">
+                                                                        {cobranzaBadge}
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        });
+                                                    })()}
                                                 </tbody>
                                             </table>
                                         </div>

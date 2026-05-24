@@ -303,7 +303,8 @@ export async function GET(
         pagado,
         pendiente: cuotaMonto - pagado,
         status,
-        tipoVencimiento
+        tipoVencimiento,
+        saldoRestante
       });
     }
 
