@@ -3,6 +3,50 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getContpaqiService } from '@/lib/contpaqi-service';
 
+function parseLocalDate(dateStr: string): Date {
+    if (!dateStr) return new Date();
+    
+    const cleanStr = String(dateStr).trim();
+    
+    // Si viene en formato DD/MM/YYYY o similar con barra
+    if (cleanStr.includes('/')) {
+        const parts = cleanStr.split('/');
+        if (parts.length === 3) {
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1; // 0-indexed en JS
+            const year = parseInt(parts[2], 10);
+            const parsed = new Date(year, month, day);
+            if (!isNaN(parsed.getTime())) return parsed;
+        }
+    }
+    
+    // Si viene en formato YYYY-MM-DD o similar con guión
+    if (cleanStr.includes('-')) {
+        const parts = cleanStr.split('-');
+        if (parts.length === 3) {
+            // Podría ser YYYY-MM-DD o DD-MM-YYYY
+            if (parts[0].length === 4) {
+                const year = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1;
+                const day = parseInt(parts[2], 10);
+                const parsed = new Date(year, month, day);
+                if (!isNaN(parsed.getTime())) return parsed;
+            } else if (parts[2].length === 4) {
+                const day = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1;
+                const year = parseInt(parts[2], 10);
+                const parsed = new Date(year, month, day);
+                if (!isNaN(parsed.getTime())) return parsed;
+            }
+        }
+        const parsed = new Date(cleanStr);
+        if (!isNaN(parsed.getTime())) return parsed;
+    }
+    
+    const parsed = new Date(cleanStr);
+    return !isNaN(parsed.getTime()) ? parsed : new Date();
+}
+
 /**
  * Endpoint para disparar sincronización manual de catálogos desde Contpaqi
  */
@@ -101,7 +145,7 @@ export async function GET(request: NextRequest) {
                         // Tomamos la factura de fecha más antigua (compra original)
                         const sortedFacturas = facturas.map((doc: any) => ({
                             ...doc,
-                            parsedDate: new Date(doc.fecha || doc.Fecha)
+                            parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha)
                         })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
                         
                         fechaVentaCalculada = sortedFacturas[0].parsedDate;
@@ -115,7 +159,7 @@ export async function GET(request: NextRequest) {
                         if (noCobros.length > 0) {
                             const sortedNoCobros = noCobros.map((doc: any) => ({
                                 ...doc,
-                                parsedDate: new Date(doc.fecha || doc.Fecha)
+                                parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha)
                             })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
                             
                             fechaVentaCalculada = sortedNoCobros[0].parsedDate;
@@ -123,7 +167,7 @@ export async function GET(request: NextRequest) {
                             // Fallback a la fecha del documento más antiguo en general
                             const sortedAll = documentos.map((doc: any) => ({
                                 ...doc,
-                                parsedDate: new Date(doc.fecha || doc.Fecha)
+                                parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha)
                             })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
                             
                             fechaVentaCalculada = sortedAll[0].parsedDate;
@@ -244,7 +288,7 @@ export async function GET(request: NextRequest) {
                             // Tomamos la factura de fecha más antigua (compra original)
                             const sortedFacturas = facturas.map((doc: any) => ({
                                 ...doc,
-                                parsedDate: new Date(doc.fecha || doc.Fecha)
+                                parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha)
                             })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
                             
                             fechaVentaCalculada = sortedFacturas[0].parsedDate;
@@ -258,7 +302,7 @@ export async function GET(request: NextRequest) {
                             if (noCobros.length > 0) {
                                 const sortedNoCobros = noCobros.map((doc: any) => ({
                                     ...doc,
-                                    parsedDate: new Date(doc.fecha || doc.Fecha)
+                                    parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha)
                                 })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
                                 
                                 fechaVentaCalculada = sortedNoCobros[0].parsedDate;
@@ -266,7 +310,7 @@ export async function GET(request: NextRequest) {
                                 // Fallback a la fecha del documento más antiguo en general
                                 const sortedAll = documentos.map((doc: any) => ({
                                     ...doc,
-                                    parsedDate: new Date(doc.fecha || doc.Fecha)
+                                    parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha)
                                 })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
                                 
                                 fechaVentaCalculada = sortedAll[0].parsedDate;
