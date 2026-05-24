@@ -45,10 +45,20 @@ export async function GET(
     }
 
     const service = await getContpaqiService(prisma, empresaId);
+    
+    // 1. Obtener saldos generales (Estado de cuenta)
     const estadoCuenta = await service.getClienteEstadoCuenta(cliente.codigoCliente);
 
     if (!estadoCuenta) {
       return NextResponse.json({ error: 'No se pudo obtener el estado de cuenta de Contpaqi. Verifique la conexión con el servidor.' }, { status: 404 });
+    }
+
+    // 2. Obtener movimientos/documentos en detalle
+    let documentos = [];
+    try {
+      documentos = await service.getClientDocumentos(cliente.codigoCliente);
+    } catch (docError) {
+      console.warn(`No se pudieron obtener documentos detallados para cliente ${cliente.codigoCliente}:`, docError);
     }
 
     return NextResponse.json({
@@ -57,7 +67,10 @@ export async function GET(
         nombre: cliente.nombreCompleto,
         saldoLocal: Number(cliente.saldoActual || 0)
       },
-      estadoCuenta
+      estadoCuenta: {
+        ...estadoCuenta,
+        documentos: Array.isArray(documentos) ? documentos : []
+      }
     });
   } catch (error: any) {
     console.error('Error al obtener estado de cuenta de Contpaqi:', error);
