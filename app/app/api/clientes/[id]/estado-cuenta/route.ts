@@ -125,6 +125,13 @@ export async function GET(
     const parsedDocs = Array.isArray(documentos) ? documentos : [];
     parsedDocs.forEach((doc: any) => {
       const conceptName = getConceptNameLocal(doc);
+      
+      // Excluir "Abono por Letras" (concepto 17) ya que es una contra-partida técnica del sistema y no un abono real
+      const conceptCode = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || '').trim();
+      if (conceptCode === '17' || conceptName.toUpperCase().includes('LETRAS')) {
+        return;
+      }
+
       if (isAbonoDoc(doc, conceptName)) {
         abonos.push(doc);
       } else {
