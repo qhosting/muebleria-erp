@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ClienteModal } from '@/components/clientes/ClienteModal';
 import { ImportarClientesModal } from '@/components/clientes/ImportarClientesModal';
 import { ImportarSaldosModal } from '@/components/clientes/ImportarSaldosModal';
+import { EstadoCuentaModal } from '@/components/clientes/EstadoCuentaModal';
 import { ExportButton } from '@/components/export-button';
 import {
   Users,
@@ -28,7 +29,8 @@ import {
   MoreVertical,
   Smartphone,
   Receipt,
-  RefreshCw
+  RefreshCw,
+  FileText
 } from 'lucide-react';
 import { formatCurrency, formatDate, getDayName, getPeriodicidadLabel } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -80,6 +82,9 @@ export default function ClientesPage() {
   const [isConsolidated, setIsConsolidated] = useState(false);
   const [cobranzaModalOpen, setCobranzaModalOpen] = useState(false);
   const [clienteParaCobrar, setClienteParaCobrar] = useState<Cliente | null>(null);
+  const [estadoCuentaOpen, setEstadoCuentaOpen] = useState(false);
+  const [estadoCuentaClienteId, setEstadoCuentaClienteId] = useState<string | null>(null);
+  const [estadoCuentaClienteNombre, setEstadoCuentaClienteNombre] = useState<string | null>(null);
 
   const userRole = (session?.user as any)?.role;
 
@@ -495,6 +500,14 @@ export default function ClientesPage() {
                                 <Receipt className="h-4 w-4 mr-2" />
                                 Ver Pagos
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {
+                                setEstadoCuentaClienteId(cliente.id);
+                                setEstadoCuentaClienteNombre(cliente.nombreCompleto);
+                                setEstadoCuentaOpen(true);
+                              }}>
+                                <FileText className="h-4 w-4 mr-2" />
+                                Estado de Cuenta
+                              </DropdownMenuItem>
                             </>
                           ) : (
                             <>
@@ -515,6 +528,14 @@ export default function ClientesPage() {
                               <DropdownMenuItem onClick={() => window.location.href = `/dashboard/pagos?search=${cliente.codigoCliente}`}>
                                 <Receipt className="h-4 w-4 mr-2" />
                                 Ver Pagos
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {
+                                setEstadoCuentaClienteId(cliente.id);
+                                setEstadoCuentaClienteNombre(cliente.nombreCompleto);
+                                setEstadoCuentaOpen(true);
+                              }}>
+                                <FileText className="h-4 w-4 mr-2" />
+                                Estado de Cuenta
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleDeleteCliente(cliente)}
@@ -702,6 +723,13 @@ export default function ClientesPage() {
           onSuccess={handleCobranzaSuccess}
         />
       )}
+
+      <EstadoCuentaModal
+        open={estadoCuentaOpen}
+        onOpenChange={setEstadoCuentaOpen}
+        clienteId={estadoCuentaClienteId}
+        clienteNombre={estadoCuentaClienteNombre}
+      />
     </DashboardLayout>
   );
 }
