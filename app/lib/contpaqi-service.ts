@@ -41,10 +41,16 @@ export class ContpaqiService {
         }
 
         const finalUrl = url.toString();
+        const cleanedEmpresa = this.config.empresa ? this.cleanEmpresaName(this.config.empresa) : '';
         const headers: any = {
             'Content-Type': 'application/json',
             'X-API-Key': this.config.apiKey.trim()
         };
+
+        if (cleanedEmpresa) {
+            headers['X-Company-Id'] = cleanedEmpresa;
+            headers['X-Contpaqi-Empresa'] = cleanedEmpresa;
+        }
 
         // Log masking API Key for security but allowing debugging of its presence
         const maskedKey = this.config.apiKey ? 
