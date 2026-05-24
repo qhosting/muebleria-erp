@@ -131,13 +131,13 @@ export async function GET(request: NextRequest) {
             }
 
             // 3. Obtener fecha de venta (Documentos del cliente)
-            let fechaVentaCalculada = new Date();
+            let fechaVentaCalculada = parseLocalDate(c.cFechaAlta || c.cfechaalta || c.CFECHAALTA || c.fechaAlta || c.FechaAlta || '');
             try {
                 const documentos = await service.getClientDocumentos(codigo);
                 if (Array.isArray(documentos) && documentos.length > 0) {
                     // Filtrar por conceptos de factura conocidos (ej: "100", "4", "5", etc.)
                     const facturas = documentos.filter((doc: any) => {
-                        const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || '').trim();
+                        const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
                         return ['100', '4', '5'].includes(conceptoDoc);
                     });
 
@@ -145,21 +145,21 @@ export async function GET(request: NextRequest) {
                         // Tomamos la factura de fecha más antigua (compra original)
                         const sortedFacturas = facturas.map((doc: any) => ({
                             ...doc,
-                            parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha)
+                            parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha || doc.CFECHA)
                         })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
                         
                         fechaVentaCalculada = sortedFacturas[0].parsedDate;
                     } else {
                         // Filtrar excluyendo notas de crédito y cobranzas
                         const noCobros = documentos.filter((doc: any) => {
-                            const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || '').trim();
+                            const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
                             return !['16', '17', '18', '101', '102'].includes(conceptoDoc);
                         });
 
                         if (noCobros.length > 0) {
                             const sortedNoCobros = noCobros.map((doc: any) => ({
                                 ...doc,
-                                parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha)
+                                parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha || doc.CFECHA)
                             })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
                             
                             fechaVentaCalculada = sortedNoCobros[0].parsedDate;
@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
                             // Fallback a la fecha del documento más antiguo en general
                             const sortedAll = documentos.map((doc: any) => ({
                                 ...doc,
-                                parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha)
+                                parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha || doc.CFECHA)
                             })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
                             
                             fechaVentaCalculada = sortedAll[0].parsedDate;
@@ -274,13 +274,13 @@ export async function GET(request: NextRequest) {
                 }
 
                 // 🚀 OBTENER FECHA DE VENTA (Documentos del cliente)
-                let fechaVentaCalculada = new Date();
+                let fechaVentaCalculada = parseLocalDate(c.cFechaAlta || c.cfechaalta || c.CFECHAALTA || c.fechaAlta || c.FechaAlta || '');
                 try {
                     const documentos = await service.getClientDocumentos(codigo);
                     if (Array.isArray(documentos) && documentos.length > 0) {
                         // Filtrar por conceptos de factura conocidos (ej: "100", "4", "5", etc.)
                         const facturas = documentos.filter((doc: any) => {
-                            const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || '').trim();
+                            const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
                             return ['100', '4', '5'].includes(conceptoDoc);
                         });
 
@@ -288,21 +288,21 @@ export async function GET(request: NextRequest) {
                             // Tomamos la factura de fecha más antigua (compra original)
                             const sortedFacturas = facturas.map((doc: any) => ({
                                 ...doc,
-                                parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha)
+                                parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha || doc.CFECHA)
                             })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
                             
                             fechaVentaCalculada = sortedFacturas[0].parsedDate;
                         } else {
                             // Filtrar excluyendo notas de crédito y cobranzas
                             const noCobros = documentos.filter((doc: any) => {
-                                const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || '').trim();
+                                const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
                                 return !['16', '17', '18', '101', '102'].includes(conceptoDoc);
                             });
 
                             if (noCobros.length > 0) {
                                 const sortedNoCobros = noCobros.map((doc: any) => ({
                                     ...doc,
-                                    parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha)
+                                    parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha || doc.CFECHA)
                                 })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
                                 
                                 fechaVentaCalculada = sortedNoCobros[0].parsedDate;
@@ -310,7 +310,7 @@ export async function GET(request: NextRequest) {
                                 // Fallback a la fecha del documento más antiguo en general
                                 const sortedAll = documentos.map((doc: any) => ({
                                     ...doc,
-                                    parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha)
+                                    parsedDate: parseLocalDate(doc.fecha || doc.Fecha || doc.cFecha || doc.cfecha || doc.CFECHA)
                                 })).sort((a: any, b: any) => a.parsedDate.getTime() - b.parsedDate.getTime());
                                 
                                 fechaVentaCalculada = sortedAll[0].parsedDate;
