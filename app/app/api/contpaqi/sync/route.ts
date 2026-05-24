@@ -123,8 +123,11 @@ export async function GET(request: NextRequest) {
             try {
                 const empresaAlias = empresaConfig?.baseDatos || searchParams.get('empresa');
                 const estadoCuenta = await service.getClienteEstadoCuenta(codigo, empresaAlias);
-                if (estadoCuenta && (estadoCuenta.saldoActual !== undefined || estadoCuenta.SaldoActual !== undefined)) {
-                    saldoReal = parseFloat(estadoCuenta.saldoActual || estadoCuenta.SaldoActual);
+                if (estadoCuenta && (estadoCuenta.saldoActual !== undefined || estadoCuenta.SaldoActual !== undefined || estadoCuenta.cSaldoActual !== undefined)) {
+                    const parsedVal = parseFloat(estadoCuenta.saldoActual || estadoCuenta.SaldoActual || estadoCuenta.cSaldoActual);
+                    if (!isNaN(parsedVal)) {
+                        saldoReal = parsedVal;
+                    }
                 }
             } catch (e) {
                 console.warn(`No se pudo actualizar saldo real para ${codigo}:`, (e as Error).message);
@@ -266,8 +269,11 @@ export async function GET(request: NextRequest) {
                 try {
                     const empresaAlias = empresaConfig?.baseDatos || searchParams.get('empresa');
                     const estadoCuenta = await service.getClienteEstadoCuenta(codigo, empresaAlias);
-                    if (estadoCuenta && (estadoCuenta.saldoActual !== undefined || estadoCuenta.SaldoActual !== undefined)) {
-                        saldoReal = parseFloat(estadoCuenta.saldoActual || estadoCuenta.SaldoActual);
+                    if (estadoCuenta && (estadoCuenta.saldoActual !== undefined || estadoCuenta.SaldoActual !== undefined || estadoCuenta.cSaldoActual !== undefined)) {
+                        const parsedVal = parseFloat(estadoCuenta.saldoActual || estadoCuenta.SaldoActual || estadoCuenta.cSaldoActual);
+                        if (!isNaN(parsedVal)) {
+                            saldoReal = parsedVal;
+                        }
                     }
                 } catch (e) {
                     console.warn(`No se pudo actualizar saldo real para ${codigo}:`, (e as Error).message);
