@@ -312,6 +312,7 @@ export async function GET(
       cliente: {
         codigo: cliente.codigoCliente,
         nombre: cliente.nombreCompleto,
+        telefono: cliente.telefono,
         saldoLocal: Number(cliente.saldoActual || 0),
         periodicidad: cliente.periodicidad,
         montoPago: Number(cliente.montoPago || 0),

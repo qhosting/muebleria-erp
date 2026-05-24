@@ -133,6 +133,67 @@ export function EstadoCuentaModal({
         window.print();
     };
 
+    const handleShareWhatsApp = () => {
+        if (!data?.cliente) {
+            toast.error('No hay datos disponibles para compartir');
+            return;
+        }
+
+        const cli = data.cliente;
+        const res = getResumen();
+        const cAmort = cli.tablaAmortizacion || [];
+        const cuotasVencidas = cAmort.filter((c: any) => c.tipoVencimiento === 'vencido');
+        
+        let estatusCobro = 'Al Corriente';
+        if (cuotasVencidas.length > 0) {
+            const periodicidadLabel = cli.periodicidad === 'semanal' ? 'Semana(s)' : 
+                                      cli.periodicidad === 'catorcenal' ? 'Catorcena(s)' :
+                                      cli.periodicidad === 'quincenal' ? 'Quincena(s)' : 'Mes(es)';
+            estatusCobro = `${cuotasVencidas.length} ${periodicidadLabel} de Atraso`;
+        }
+
+        const formatC = (value: number) => {
+            return new Intl.NumberFormat('es-MX', {
+                style: 'currency',
+                currency: 'MXN'
+            }).format(value);
+        };
+
+        const totalAbonosSubsecuentes = Number(cli.totalAbonosSubsecuentes || 0);
+        const deudaFinanciada = Number(cli.deudaFinanciada || 0);
+        const porcentajePagado = deudaFinanciada > 0 ? Math.min(100, Math.round((totalAbonosSubsecuentes / deudaFinanciada) * 100)) : 0;
+        
+        const messageText = 
+`*MUEBLES DASO - ESTADO DE CUENTA* 📋
+------------------------------------------
+Hola, *${cli.nombre}*.
+Te compartimos el resumen actual de tu cuenta:
+
+💵 *Saldo Pendiente:* ${formatC(res.balance)}
+🔴 *Saldo Vencido:* ${formatC(res.vencido)}
+📊 *Estatus de Cobro:* ${estatusCobro}
+
+*Detalles de Financiamiento:*
+📉 *Deuda Financiada:* ${formatC(deudaFinanciada)}
+✅ *Abonado:* ${formatC(totalAbonosSubsecuentes)}
+⏳ *Restante:* ${formatC(Math.max(0, deudaFinanciada - totalAbonosSubsecuentes))}
+📈 *Progreso:* ${porcentajePagado}% pagado
+
+------------------------------------------
+*¡Gracias por tu preferencia y puntualidad!* 🙌`;
+
+        const encodedText = encodeURIComponent(messageText);
+        let phone = cli.telefono ? cli.telefono.replace(/\D/g, '') : '';
+        
+        if (phone && phone.length === 10) {
+            phone = '52' + phone;
+        }
+
+        const whatsappUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`;
+        window.open(whatsappUrl, '_blank');
+        toast.success('Abriendo WhatsApp para compartir...');
+    };
+
     // Helper to safely extract documents list
     const getDocumentos = () => {
         if (!data?.estadoCuenta) return [];
@@ -221,12 +282,18 @@ export function EstadoCuentaModal({
                                         <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Estado de cuenta en vivo</span>
                                     </div>
                                 </div>
-                                <div className="flex gap-2 print:hidden">
-                                    <Button variant="secondary" size="icon" onClick={() => fetchEstadoCuenta(true)} className="h-10 w-10 rounded-xl bg-white/10 hover:bg-white/20 text-white border-none">
+                                <div className="flex flex-wrap gap-2 print:hidden">
+                                    <Button variant="secondary" size="icon" onClick={() => fetchEstadoCuenta(true)} className="h-10 w-10 rounded-xl bg-white/10 hover:bg-white/20 text-white border-none" title="Recargar datos">
                                         <RefreshCw className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="secondary" onClick={handlePrint} className="rounded-xl gap-2 bg-indigo-600 hover:bg-indigo-700 text-white border-none shadow-md font-bold text-xs uppercase px-4 h-10">
-                                        <Printer className="h-4 w-4" /> Imprimir
+                                    <Button variant="secondary" onClick={handlePrint} className="rounded-xl gap-2 bg-rose-600 hover:bg-rose-700 text-white border-none shadow-md font-bold text-xs uppercase px-4 h-10">
+                                        <FileText className="h-4 w-4" /> PDF / Imprimir
+                                    </Button>
+                                    <Button variant="secondary" onClick={handleShareWhatsApp} className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-md font-bold text-xs uppercase px-4 h-10">
+                                        <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.725 1.45 5.534 0 10.04-4.501 10.044-10.036.002-2.68-1.038-5.198-2.93-7.091C16.54 1.584 14.03.543 11.37.543c-5.535 0-10.04 4.502-10.044 10.038-.001 1.815.49 3.593 1.42 5.148l-1.008 3.68 3.777-.99c1.517.828 3.027 1.258 4.542 1.259zm11.386-7.855c-.324-.162-1.917-.946-2.213-1.054-.297-.109-.514-.162-.73.162-.217.324-.838 1.054-1.027 1.27-.19.216-.379.243-.703.08-.324-.162-1.372-.507-2.613-1.614-.966-.862-1.617-1.927-1.806-2.25-.19-.324-.02-.499.14-.66.147-.144.325-.378.487-.568.162-.189.216-.324.324-.54.108-.216.054-.405-.027-.567-.08-.162-.73-1.758-1.001-2.407-.263-.632-.53-.547-.73-.557-.189-.01-.405-.012-.622-.012-.216 0-.568.08-.865.405-.297.324-1.135 1.108-1.135 2.703 0 1.594 1.162 3.135 1.324 3.35.162.217 2.287 3.493 5.54 4.896.774.333 1.379.533 1.85.683.778.247 1.487.213 2.047.129.624-.093 1.917-.783 2.189-1.54.27-.757.27-1.406.189-1.54-.08-.135-.297-.216-.621-.378z"/>
+                                        </svg>
+                                        WhatsApp
                                     </Button>
                                 </div>
                             </div>
