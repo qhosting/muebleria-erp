@@ -157,12 +157,47 @@ export async function GET(
     let foundPagoInicial = false;
     for (const abono of abonos) {
       const conceptName = getConceptNameLocal(abono).toUpperCase();
-      const codeAgente = String(abono.cCodigoAgente || abono.cCodigoCobrador || abono.agente || abono.cNombreAgente || '').toUpperCase();
+      
+      // Combinar códigos y nombres de agente para una búsqueda exhaustiva y segura
+      const codeAgente = String(
+        abono.codigoAgente || 
+        abono.CodigoAgente || 
+        abono.nombreAgente || 
+        abono.NombreAgente || 
+        abono.cCodigoAgente || 
+        abono.cCodigoCobrador || 
+        abono.agente || 
+        abono.cNombreAgente || 
+        ''
+      ).toUpperCase();
+      
       const textExtra = String(abono.cTextoExtra1 || abono.cObservaciones || abono.observaciones || '').toUpperCase();
       const dateStr = abono.cFecha || abono.cfecha || abono.fecha || abono.CFECHA || '';
       
-      const isPIByAgent = codeAgente.includes('DQPI1') || codeAgente.includes('DQPI') || codeAgente.includes('DPI1') || codeAgente.includes('PI1') || codeAgente.includes('PI');
-      const isPIByText = textExtra.includes('PAGO INICIAL') || textExtra.includes('ENGANCHE') || textExtra.includes('DQPI1');
+      // Detección por agente: códigos específicos de Pago Inicial/Enganche, o nombres que contengan "PAGO INICIAL" o "ENGANCHE"
+      const isPIByAgent = 
+        codeAgente.includes('PAGO INICIAL') || 
+        codeAgente.includes('ENGANCHE') || 
+        codeAgente.includes('DQPI1') || 
+        codeAgente.includes('DQPI2') || 
+        codeAgente.includes('DQPI') || 
+        codeAgente.includes('DPPI') || 
+        codeAgente.includes('DQPIA') || 
+        codeAgente.includes('DQBFINI') || 
+        codeAgente === 'PI' || 
+        codeAgente === 'PI1' || 
+        codeAgente === 'PI2';
+        
+      const isPIByText = 
+        textExtra.includes('PAGO INICIAL') || 
+        textExtra.includes('ENGANCHE') || 
+        textExtra.includes('DQPI1') || 
+        textExtra.includes('DQPI2') || 
+        textExtra.includes('DQPI') || 
+        textExtra.includes('DPPI') || 
+        textExtra.includes('DQPIA') || 
+        textExtra.includes('DQBFINI');
+        
       const isPIByConcept = conceptName.includes('INICIAL') || conceptName.includes('ENGANCHE');
       
       const abonoDate = new Date(dateStr);
