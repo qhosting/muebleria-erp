@@ -84,6 +84,7 @@ export class RecomprasService {
             return {
                 clienteId: cliente.id,
                 nombre: cliente.nombreCompleto,
+                telefono: cliente.telefono,
                 saldoActual: saldo,
                 pagosRestantes,
                 fechaEstimada,

@@ -33,6 +33,7 @@ interface RecompraLead {
 interface Prediccion {
     clienteId: string;
     nombre: string;
+    telefono: string | null;
     saldoActual: number;
     pagosRestantes: number;
     fechaEstimada: string;
@@ -476,6 +477,9 @@ export default function RecomprasPage() {
                                                 </Badge>
                                             </div>
                                             <CardTitle className="text-lg font-bold">{pred.nombre}</CardTitle>
+                                            <div className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5 mb-1.5 font-medium">
+                                                <Phone className="h-3 w-3" /> {pred.telefono || 'Sin teléfono'}
+                                            </div>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <div className="flex -space-x-1">
                                                     {[...Array(5)].map((_, i) => (
@@ -506,10 +510,7 @@ export default function RecomprasPage() {
                                             
                                             <Button 
                                                 className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-md gap-2"
-                                                onClick={() => {
-                                                    // Buscamos el teléfono si lo tuviéramos o simplemente enviamos a la vista de cliente
-                                                    toast.info('Abriendo opciones de oferta anticipada...');
-                                                }}
+                                                onClick={() => sendWhatsApp(pred.telefono, pred.nombre, 'oferta')}
                                             >
                                                 <Zap className="h-4 w-4" /> Oferta Anticipada
                                             </Button>
