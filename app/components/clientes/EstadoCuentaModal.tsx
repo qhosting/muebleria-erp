@@ -28,11 +28,12 @@ export function EstadoCuentaModal({
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<any>(null);
 
-    const fetchEstadoCuenta = async () => {
+    const fetchEstadoCuenta = async (force = false) => {
         if (!clienteId) return;
         setLoading(true);
         try {
-            const res = await fetch(`/api/clientes/${clienteId}/estado-cuenta`, { cache: 'no-store' });
+            const url = `/api/clientes/${clienteId}/estado-cuenta${force ? '?refresh=true' : ''}`;
+            const res = await fetch(url, { cache: 'no-store' });
             if (res.ok) {
                 const responseData = await res.json();
                 setData(responseData);
@@ -124,7 +125,7 @@ export function EstadoCuentaModal({
                     <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
                         <AlertCircle className="h-12 w-12 text-slate-300 mx-auto mb-3" />
                         <p className="text-gray-500 font-medium">No se pudieron cargar los datos de Contpaqi.</p>
-                        <Button variant="outline" size="sm" onClick={fetchEstadoCuenta} className="mt-4 rounded-xl border-slate-200">
+                        <Button variant="outline" size="sm" onClick={() => fetchEstadoCuenta(true)} className="mt-4 rounded-xl border-slate-200">
                             <RefreshCw className="h-4 w-4 mr-2" /> Reintentar
                         </Button>
                     </div>
@@ -148,7 +149,7 @@ export function EstadoCuentaModal({
                                     </div>
                                 </div>
                                 <div className="flex gap-2 print:hidden">
-                                    <Button variant="secondary" size="icon" onClick={fetchEstadoCuenta} className="h-10 w-10 rounded-xl bg-white/10 hover:bg-white/20 text-white border-none">
+                                    <Button variant="secondary" size="icon" onClick={() => fetchEstadoCuenta(true)} className="h-10 w-10 rounded-xl bg-white/10 hover:bg-white/20 text-white border-none">
                                         <RefreshCw className="h-4 w-4" />
                                     </Button>
                                     <Button variant="secondary" onClick={handlePrint} className="rounded-xl gap-2 bg-indigo-600 hover:bg-indigo-700 text-white border-none shadow-md font-bold text-xs uppercase px-4 h-10">

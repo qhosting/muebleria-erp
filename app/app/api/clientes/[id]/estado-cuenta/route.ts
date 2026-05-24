@@ -44,16 +44,31 @@ export async function GET(
       }
     }
 
+    const { searchParams } = new URL(request.url);
+    const forceRefresh = searchParams.get('refresh') === 'true';
+
+    // 1. Verificar si hay caché válida en la base de datos (tiempo de expiración: 15 minutos)
+    const cache = cliente.estadoCuentaCache as any;
+    if (!forceRefresh && cache && cache.cachedAt) {
+      const cachedTime = new Date(cache.cachedAt).getTime();
+      const now = Date.now();
+      const maxAge = 15 * 60 * 1000; // 15 minutos en milisegundos
+      if (now - cachedTime < maxAge) {
+        console.log(`⚡ [Cache DB] Usando estado de cuenta en caché para cliente ${cliente.codigoCliente}`);
+        return NextResponse.json(cache.data);
+      }
+    }
+
     const service = await getContpaqiService(prisma, empresaId);
     
-    // 1. Obtener saldos generales (Estado de cuenta)
+    // 2. Obtener saldos generales (Estado de cuenta) en vivo
     const estadoCuenta = await service.getClienteEstadoCuenta(cliente.codigoCliente);
 
     if (!estadoCuenta) {
       return NextResponse.json({ error: 'No se pudo obtener el estado de cuenta de Contpaqi. Verifique la conexión con el servidor.' }, { status: 404 });
     }
 
-    // 2. Obtener movimientos/documentos en detalle
+    // 3. Obtener movimientos/documentos en detalle en vivo
     let documentos = [];
     try {
       documentos = await service.getClientDocumentos(cliente.codigoCliente);
@@ -61,7 +76,7 @@ export async function GET(
       console.warn(`No se pudieron obtener documentos detallados para cliente ${cliente.codigoCliente}:`, docError);
     }
 
-    return NextResponse.json({
+    const resultData = {
       cliente: {
         codigo: cliente.codigoCliente,
         nombre: cliente.nombreCompleto,
@@ -71,7 +86,24 @@ export async function GET(
         ...estadoCuenta,
         documentos: Array.isArray(documentos) ? documentos : []
       }
-    });
+    };
+
+    // 4. Guardar en base de datos de forma persistente (caché)
+    try {
+      await prisma.cliente.update({
+        where: { id: cliente.id },
+        data: {
+          estadoCuentaCache: {
+            cachedAt: new Date().toISOString(),
+            data: resultData
+          }
+        }
+      });
+    } catch (cacheErr) {
+      console.error('Error al guardar caché de estado de cuenta en DB:', cacheErr);
+    }
+
+    return NextResponse.json(resultData);
   } catch (error: any) {
     console.error('Error al obtener estado de cuenta de Contpaqi:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
