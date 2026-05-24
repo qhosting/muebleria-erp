@@ -106,7 +106,7 @@ export class RecomprasService {
                 // Solo nos interesan los que SI sincronizamos usualmente (tienen código)
                 codigoCliente: { not: '' }
             },
-            select: { id: true, codigoCliente: true, nombreCompleto: true }
+            select: { id: true, codigoCliente: true, nombreCompleto: true, observaciones: true }
         });
 
         const missingInErp = vertexActiveClients.filter(
@@ -114,15 +114,17 @@ export class RecomprasService {
         );
 
         for (const cliente of missingInErp) {
+            const oldObs = cliente.observaciones || '';
+            const appendObs = `Detectado como LIQUIDADO en sincronización API - ${new Date().toLocaleDateString()}`;
+            const newObs = oldObs ? `${oldObs}\n${appendObs}` : appendObs;
+
             // Marcar como liquidado en Vertex
             await prisma.cliente.update({
                 where: { id: cliente.id },
                 data: { 
                     statusCuenta: 'inactivo',
                     fechaInactivacion: new Date(),
-                    observaciones: {
-                        push: `Detectado como LIQUIDADO en sincronización API - ${new Date().toLocaleDateString()}`
-                    } as any
+                    observaciones: newObs
                 }
             });
 
