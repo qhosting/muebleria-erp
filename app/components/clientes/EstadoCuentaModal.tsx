@@ -98,6 +98,7 @@ export function EstadoCuentaModal({
 }: EstadoCuentaModalProps) {
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<any>(null);
+    const [activeTab, setActiveTab] = useState<'movimientos' | 'amortizacion'>('movimientos');
 
     const fetchEstadoCuenta = async (force = false) => {
         if (!clienteId) return;
@@ -124,6 +125,7 @@ export function EstadoCuentaModal({
             fetchEstadoCuenta();
         } else {
             setData(null);
+            setActiveTab('movimientos');
         }
     }, [open, clienteId]);
 
@@ -266,8 +268,36 @@ export function EstadoCuentaModal({
                             </div>
                         </div>
 
-                        {/* Documents Table */}
-                        <div className="bg-white border border-slate-100 p-4 md:p-6 rounded-3xl shadow-sm">
+                        {/* Tabs Navigation */}
+                        <div className="flex border-b border-slate-100 mb-6 print:hidden">
+                            <button
+                                onClick={() => setActiveTab('movimientos')}
+                                className={`px-5 py-3 text-sm font-bold border-b-2 transition-all duration-300 ${
+                                    activeTab === 'movimientos'
+                                        ? 'border-indigo-600 text-indigo-600'
+                                        : 'border-transparent text-slate-400 hover:text-slate-600'
+                                }`}
+                            >
+                                <span className="flex items-center gap-2">
+                                    <FileText className="h-4 w-4" /> Historial de Movimientos
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('amortizacion')}
+                                className={`px-5 py-3 text-sm font-bold border-b-2 transition-all duration-300 ${
+                                    activeTab === 'amortizacion'
+                                        ? 'border-indigo-600 text-indigo-600'
+                                        : 'border-transparent text-slate-400 hover:text-slate-600'
+                                }`}
+                            >
+                                <span className="flex items-center gap-2">
+                                    <Calendar className="h-4 w-4" /> Tabla de Amortización
+                                </span>
+                            </button>
+                        </div>
+
+                        {/* Documents Table Tab */}
+                        <div className={`${activeTab === 'movimientos' ? 'block' : 'hidden'} print:block bg-white border border-slate-100 p-4 md:p-6 rounded-3xl shadow-sm`}>
                             <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                                 <FileText className="h-5 w-5 text-indigo-500" /> Historial de Documentos y Movimientos
                             </h4>
@@ -291,7 +321,6 @@ export function EstadoCuentaModal({
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 text-gray-700 font-medium">
                                             {documentos.map((doc: any, i: number) => {
-                                                // Safely parse properties with different possible formats (CamelCase, snake_case or UPPERCASE from SQL)
                                                 const date = doc.cFecha || doc.cfecha || doc.fecha || doc.CFECHA || '';
                                                 const series = doc.cSerie || doc.cserie || doc.serie || doc.CSERIE || doc.CSERIEDOCUMENTO || '';
                                                 const folio = doc.cFolio || doc.cfolio || doc.folio || doc.CFOLIO || doc.CFOLIOPRODUCTO || '';
@@ -299,7 +328,6 @@ export function EstadoCuentaModal({
                                                 const total = Number(doc.cTotal || doc.ctotal || doc.total || doc.importe || doc.CTOTAL || 0);
                                                 const pending = Number(doc.cSaldo || doc.csaldo || doc.saldo || doc.pendiente || doc.cPendiente || doc.CSALDO || doc.CPENDIENTE || 0);
                                                 
-                                                // Determine if payment (abono) or charge (cargo)
                                                 const isPayment = docConcept.toUpperCase().includes('PAGO') || 
                                                                   docConcept.toUpperCase().includes('ABONO') || 
                                                                   docConcept.toUpperCase().includes('RECIBO') || 
@@ -340,6 +368,186 @@ export function EstadoCuentaModal({
                                 </div>
                             )}
                         </div>
+
+                        {/* Amortization Table Tab */}
+                        {(() => {
+                            const cAmort = data?.cliente?.tablaAmortizacion || [];
+                            const cuotasVencidas = cAmort.filter((c: any) => c.tipoVencimiento === 'vencido');
+                            const cuotasAdelantadas = cAmort.filter((c: any) => c.tipoVencimiento === 'adelantado');
+                            const totalAtraso = cuotasVencidas.reduce((sum: number, c: any) => sum + c.pendiente, 0);
+                            const totalAdelantado = cuotasAdelantadas.reduce((sum: number, c: any) => sum + c.pagado, 0);
+                            
+                            let estatusCobro = 'Al Corriente';
+                            let estatusColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                            
+                            if (cuotasVencidas.length > 0) {
+                                const periodicidadLabel = data?.cliente?.periodicidad === 'semanal' ? 'Semana(s)' : 
+                                                          data?.cliente?.periodicidad === 'catorcenal' ? 'Catorcena(s)' :
+                                                          data?.cliente?.periodicidad === 'quincenal' ? 'Quincena(s)' : 'Mes(es)';
+                                estatusCobro = `${cuotasVencidas.length} ${periodicidadLabel} de Atraso`;
+                                estatusColor = 'bg-red-50 text-red-700 border-red-200';
+                            } else if (totalAdelantado > 0) {
+                                estatusCobro = 'Adelantado / Al Día';
+                                estatusColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+                            }
+
+                            const deudaFinanciada = Number(data?.cliente?.deudaFinanciada || 0);
+                            const totalAbonosSubsecuentes = Number(data?.cliente?.totalAbonosSubsecuentes || 0);
+                            const porcentajePagado = deudaFinanciada > 0 ? Math.min(100, Math.round((totalAbonosSubsecuentes / deudaFinanciada) * 100)) : 0;
+
+                            return (
+                                <div className={`${activeTab === 'amortizacion' ? 'block' : 'hidden'} print:block bg-white border border-slate-100 p-4 md:p-6 rounded-3xl shadow-sm space-y-6`}>
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                                        <div>
+                                            <h4 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                                <Calendar className="h-5 w-5 text-indigo-500" /> Tabla de Amortización y Plan de Pagos
+                                            </h4>
+                                            <p className="text-xs text-slate-400 font-medium mt-0.5">Conciliación de pagos distribuidos de forma secuencial por fecha de vencimiento</p>
+                                        </div>
+                                        <Badge className={`rounded-xl border font-bold text-xs uppercase px-3 py-1 flex items-center gap-1.5 self-start md:self-auto ${estatusColor}`}>
+                                            <AlertCircle className="h-3.5 w-3.5" /> {estatusCobro}
+                                        </Badge>
+                                    </div>
+
+                                    {/* Amortization Metrics Summary */}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100/50">
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Monto Facturado</span>
+                                            <span className="text-base font-black text-slate-800">{formatCurrency(data?.cliente?.montoFactura || 0)}</span>
+                                        </div>
+                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100/50">
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Enganche / Pago Inicial</span>
+                                            <span className="text-base font-black text-emerald-600">{formatCurrency(data?.cliente?.pagoInicial || 0)}</span>
+                                        </div>
+                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100/50">
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Deuda Financiada</span>
+                                            <span className="text-base font-black text-slate-800">{formatCurrency(deudaFinanciada)}</span>
+                                        </div>
+                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100/50">
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Vencimiento Real (Atraso)</span>
+                                            <span className={`text-base font-black ${totalAtraso > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(totalAtraso)}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Progress bar */}
+                                    <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
+                                        <div className="flex justify-between text-xs text-slate-600 font-bold mb-1.5">
+                                            <span>Progreso de Financiamiento</span>
+                                            <span>{porcentajePagado}% Pagado</span>
+                                        </div>
+                                        <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden mb-2 shadow-inner">
+                                            <div 
+                                                className="bg-indigo-600 h-3 rounded-full transition-all duration-1000 ease-out" 
+                                                style={{ width: `${porcentajePagado}%` }} 
+                                            />
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-slate-400 font-bold">
+                                            <span>PAGADO SUBSECUENTE: {formatCurrency(totalAbonosSubsecuentes)}</span>
+                                            <span>RESTANTE FINANCIADO: {formatCurrency(Math.max(0, deudaFinanciada - totalAbonosSubsecuentes))}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Installments Table */}
+                                    {cAmort.length === 0 ? (
+                                        <div className="text-center py-10 bg-slate-50 rounded-2xl text-gray-500 font-medium">
+                                            No se pudo generar el plan de pagos amortizado. Verifique la fecha de venta y el monto de pago del cliente.
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                                            <table className="w-full text-left text-sm">
+                                                <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100">
+                                                    <tr>
+                                                        <th className="px-4 py-3"># Pago</th>
+                                                        <th className="px-4 py-3">Vencimiento</th>
+                                                        <th className="px-4 py-3 text-right">Cuota</th>
+                                                        <th className="px-4 py-3 text-right">Abonado</th>
+                                                        <th className="px-4 py-3 text-right">Pendiente</th>
+                                                        <th className="px-4 py-3 text-center">Estado</th>
+                                                        <th className="px-4 py-3 text-center">Cobranza</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 text-gray-700 font-medium">
+                                                    {cAmort.map((cuota: any, idx: number) => {
+                                                        const isSaldado = cuota.status === 'saldado';
+                                                        const isParcial = cuota.status === 'parcial';
+                                                        
+                                                        let statusBadge = (
+                                                            <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100 border-none rounded-lg text-[9px] font-bold px-2 py-0.5">
+                                                                Pendiente
+                                                            </Badge>
+                                                        );
+                                                        if (isSaldado) {
+                                                            statusBadge = (
+                                                                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5">
+                                                                    Saldado
+                                                                </Badge>
+                                                            );
+                                                        } else if (isParcial) {
+                                                            statusBadge = (
+                                                                <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5">
+                                                                    Abonado {formatCurrency(cuota.pagado)}
+                                                                </Badge>
+                                                            );
+                                                        }
+
+                                                        let cobranzaBadge = (
+                                                            <Badge className="bg-slate-50 text-slate-500 hover:bg-slate-50 border-none rounded-lg text-[9px] font-semibold px-2 py-0.5">
+                                                                A futuro
+                                                            </Badge>
+                                                        );
+                                                        if (cuota.tipoVencimiento === 'vencido') {
+                                                            cobranzaBadge = (
+                                                                <Badge className="bg-red-50 text-red-700 hover:bg-red-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5 flex items-center gap-1 justify-center max-w-[90px] mx-auto">
+                                                                    <AlertCircle className="h-2.5 w-2.5" /> Atrasado
+                                                                </Badge>
+                                                            );
+                                                        } else if (cuota.tipoVencimiento === 'adelantado') {
+                                                            cobranzaBadge = (
+                                                                <Badge className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5 flex items-center gap-1 justify-center max-w-[90px] mx-auto">
+                                                                    <ArrowUpRight className="h-2.5 w-2.5" /> Adelantado
+                                                                </Badge>
+                                                            );
+                                                        } else if (cuota.tipoVencimiento === 'al_corriente') {
+                                                            cobranzaBadge = (
+                                                                <Badge className="bg-teal-50 text-teal-700 hover:bg-teal-50 border-none rounded-lg text-[9px] font-bold px-2 py-0.5 flex items-center gap-1 justify-center max-w-[90px] mx-auto">
+                                                                    Al Corriente
+                                                                </Badge>
+                                                            );
+                                                        }
+
+                                                        return (
+                                                            <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                                                <td className="px-4 py-2.5 text-xs font-bold text-slate-600">
+                                                                    Pago {cuota.numPago} de {cAmort.length}
+                                                                </td>
+                                                                <td className="px-4 py-2.5 text-slate-500 text-xs">
+                                                                    {formatDate(cuota.fechaVencimiento)}
+                                                                </td>
+                                                                <td className="px-4 py-2.5 text-right text-xs font-bold text-gray-900">
+                                                                    {formatCurrency(cuota.monto)}
+                                                                </td>
+                                                                <td className="px-4 py-2.5 text-right text-xs font-bold text-emerald-600">
+                                                                    {formatCurrency(cuota.pagado)}
+                                                                </td>
+                                                                <td className={`px-4 py-2.5 text-right text-xs font-black ${cuota.pendiente > 0 && cuota.tipoVencimiento === 'vencido' ? 'text-red-600' : 'text-slate-800'}`}>
+                                                                    {formatCurrency(cuota.pendiente)}
+                                                                </td>
+                                                                <td className="px-4 py-2.5 text-center">
+                                                                    {statusBadge}
+                                                                </td>
+                                                                <td className="px-4 py-2.5 text-center">
+                                                                    {cobranzaBadge}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
 
                         {/* Print Footer Only */}
                         <div className="hidden print:block text-center text-[10px] text-gray-400 mt-8 border-t pt-4">
