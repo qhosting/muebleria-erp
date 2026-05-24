@@ -71,6 +71,69 @@ export default function RecomprasPage() {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    const obtenerClasificacionYStatus = (validationData: any) => {
+        if (!validationData || !validationData.clasificaciones) {
+            return { rating: 'Sin clasificar', status: 'N/A' };
+        }
+
+        const clasifValues = Object.values(validationData.clasificaciones)
+            .map((v: any) => v?.toString().trim())
+            .filter((v: any) => v && v !== 'N/A' && v !== '') || [];
+
+        const ratings = ['EXCELENTE', 'BUENO', 'REGULAR', 'MALO'];
+        const statuses = ['PAGADO', 'CANCELADO', 'COBRANZA NORMAL', 'COBRANZA', 'MORA', 'ATRASADO', 'DEMANDADO', 'JURIDICO'];
+
+        // Buscar rating en las clasificaciones
+        let rating = clasifValues.find(v => ratings.some(r => v.toUpperCase().includes(r)));
+        if (!rating) {
+            const c1 = validationData.clasificaciones.cNombreClasificacion1;
+            if (c1 && c1 !== 'N/A' && c1 !== '') {
+                rating = c1;
+            }
+        }
+
+        // Buscar status en las clasificaciones
+        let status = clasifValues.find(v => statuses.some(s => v.toUpperCase().includes(s)));
+        if (!status) {
+            const c2 = validationData.clasificaciones.cNombreClasificacion2;
+            if (c2 && c2 !== 'N/A' && c2 !== '') {
+                status = c2;
+            }
+        }
+
+        return {
+            rating: rating || 'Sin clasificar',
+            status: status || 'Normal'
+        };
+    };
+
+    const validarClienteSilent = async (leadId: string) => {
+        try {
+            const res = await fetch('/api/ventas/recompras/validar-contpaqi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ leadId })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setValidaciones(prev => ({ ...prev, [leadId]: data }));
+            }
+        } catch (error) {
+            console.error('Error in silent validation:', error);
+        }
+    };
+
+    // Auto-validación en segundo plano al cargar leads
+    useEffect(() => {
+        if (leads.length > 0) {
+            leads.forEach(lead => {
+                if (lead.codigoCliente && !validaciones[lead.id]) {
+                    validarClienteSilent(lead.id);
+                }
+            });
+        }
+    }, [leads]);
+
     const sendWhatsApp = (telefono: string | null, nombre: string, tipo: 'felicitacion' | 'oferta') => {
         if (!telefono) {
             toast.error('El cliente no tiene teléfono registrado');
@@ -185,121 +248,176 @@ export default function RecomprasPage() {
                                     <p className="text-gray-500 mt-2">Los clientes que terminen su cuenta aparecerán aquí automáticamente.</p>
                                 </div>
                             ) : (
-                                filteredLeads.map(lead => (
-                                    <Card key={lead.id} className="border-none shadow-sm hover:shadow-xl transition-all duration-300 rounded-3xl bg-white overflow-hidden group">
-                                        <CardHeader className="pb-2">
-                                            <div className="flex justify-between items-start">
-                                                <div className="h-14 w-14 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg mb-4">
-                                                    {lead.nombre.charAt(0)}
-                                                </div>
-                                                <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none rounded-lg px-3 py-1">
-                                                    PAGADO ✨
-                                                </Badge>
-                                            </div>
-                                            <CardTitle className="text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                                                {lead.nombre}
-                                            </CardTitle>
-                                            <CardDescription className="flex flex-wrap items-center gap-x-3 gap-y-1 font-medium">
-                                                <span className="flex items-center gap-1.5">
-                                                    <Phone className="h-3 w-3" /> {lead.telefono || 'Sin teléfono'}
-                                                </span>
-                                                {lead.codigoCliente && (
-                                                    <Badge variant="outline" className="text-[10px] font-bold border-indigo-100 bg-indigo-50/30 text-indigo-600 rounded-md px-1.5 py-0.5">
-                                                        Código: {lead.codigoCliente}
-                                                    </Badge>
-                                                )}
-                                            </CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <div className="bg-indigo-50/50 p-4 rounded-2xl mb-4 border border-indigo-100/50">
-                                                <p className="text-sm text-indigo-900 font-medium line-clamp-2">
-                                                    {lead.interes}
-                                                </p>
-                                                <div className="flex items-center gap-2 mt-2 text-[10px] text-indigo-400 font-bold uppercase tracking-wider">
-                                                    <Calendar className="h-3 w-3" /> Liquidado el {formatDate(lead.createdAt)}
-                                                </div>
-                                            </div>
-                                            
-                                            {validaciones[lead.id] && (
-                                                <div className="space-y-3 mb-4">
-                                                    {/* Alerta de Recompra Ya Realizada */}
-                                                    {validaciones[lead.id].recompraActiva && (
-                                                        <div className="bg-green-50 p-3 rounded-2xl border border-green-100 flex items-start gap-3">
-                                                            <div className="bg-green-500 p-1.5 rounded-lg">
-                                                                <ShoppingBag className="h-3 w-3 text-white" />
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[10px] font-black text-green-600 uppercase tracking-wider">Ya tiene nueva cuenta</p>
-                                                                <p className="text-xs font-bold text-green-900 leading-tight">
-                                                                    {validaciones[lead.id].recompraActiva.descripcionProducto}
-                                                                </p>
-                                                                <p className="text-[9px] text-green-500 font-medium mt-0.5">
-                                                                    Sincronizado: {validaciones[lead.id].recompraActiva.codigoCliente}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                filteredLeads.map(lead => {
+                                    const validation = validaciones[lead.id];
+                                    const hasValidation = !!validation;
+                                    const info = obtenerClasificacionYStatus(validation);
 
-                                                    <div className="bg-indigo-50/30 p-3 rounded-2xl border border-dashed border-indigo-200">
-                                                        <div className="flex items-center gap-1.5 mb-2">
-                                                            <Sparkles className="h-3 w-3 text-indigo-500" />
-                                                            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-tight">Status Contpaqi</span>
-                                                        </div>
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {Object.values(validaciones[lead.id].clasificaciones)
-                                                                .filter(v => v !== 'N/A' && v !== '')
-                                                                .map((val: any, i) => {
-                                                                    const isRating = ['BUENO', 'REGULAR', 'EXCELENTE'].some(r => val.toString().toUpperCase().includes(r));
-                                                                    const isPayment = ['PAGADO', 'PAGAGO'].some(p => val.toString().toUpperCase().includes(p));
-                                                                    
-                                                                    return (
-                                                                        <div 
-                                                                            key={i} 
-                                                                            className={`px-2 py-1 rounded-lg text-[10px] font-bold shadow-sm ${
-                                                                                isRating ? 'bg-purple-100 text-purple-700' : 
-                                                                                isPayment ? 'bg-blue-100 text-blue-700' : 
-                                                                                'bg-white text-gray-500'
-                                                                            }`}
-                                                                        >
-                                                                            {val}
-                                                                        </div>
-                                                                    );
-                                                                })
-                                                            }
-                                                            {Object.values(validaciones[lead.id].clasificaciones).every(v => v === 'N/A' || v === '') && (
-                                                                <span className="text-[10px] text-gray-400 italic">Sin clasificaciones asignadas</span>
-                                                            )}
-                                                        </div>
+                                    // Determinar color de badge de calificación
+                                    const ratingUpper = info.rating.toUpperCase();
+                                    let ratingColorClass = 'bg-indigo-100 text-indigo-800'; // Default
+                                    if (ratingUpper.includes('EXCELENTE')) ratingColorClass = 'bg-emerald-100 text-emerald-800 font-bold';
+                                    else if (ratingUpper.includes('BUENO')) ratingColorClass = 'bg-green-100 text-green-800';
+                                    else if (ratingUpper.includes('REGULAR')) ratingColorClass = 'bg-amber-100 text-amber-800';
+                                    else if (ratingUpper.includes('MALO')) ratingColorClass = 'bg-red-100 text-red-800';
+
+                                    // Determinar color de badge de estatus
+                                    const statusUpper = info.status.toUpperCase();
+                                    let statusColorClass = 'bg-slate-100 text-slate-800';
+                                    if (statusUpper.includes('PAGADO')) statusColorClass = 'bg-blue-100 text-blue-800';
+                                    else if (statusUpper.includes('COBRANZA NORMAL') || statusUpper.includes('COBRANZA')) statusColorClass = 'bg-sky-100 text-sky-800';
+                                    else if (statusUpper.includes('CANCELADO')) statusColorClass = 'bg-gray-100 text-gray-800';
+                                    else if (statusUpper.includes('ATRASADO') || statusUpper.includes('MORA')) statusColorClass = 'bg-orange-100 text-orange-800';
+                                    else if (statusUpper.includes('DEMANDADO') || statusUpper.includes('JURIDICO')) statusColorClass = 'bg-rose-100 text-rose-800';
+
+                                    return (
+                                        <Card key={lead.id} className="border-none shadow-sm hover:shadow-xl transition-all duration-300 rounded-3xl bg-white overflow-hidden group">
+                                            <CardHeader className="pb-2">
+                                                <div className="flex justify-between items-start">
+                                                    <div className="h-14 w-14 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg mb-4">
+                                                        {lead.nombre.charAt(0)}
+                                                    </div>
+                                                    {hasValidation ? (
+                                                        <Badge className={`${ratingColorClass} hover:bg-opacity-80 border-none rounded-lg px-3 py-1`}>
+                                                            {info.rating}
+                                                        </Badge>
+                                                    ) : validatingId === lead.id ? (
+                                                        <Badge className="bg-gray-100 text-gray-400 border-none rounded-lg px-3 py-1 animate-pulse">
+                                                            Validando...
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge className="bg-gray-100 text-gray-500 hover:bg-gray-100 border-none rounded-lg px-3 py-1">
+                                                            Pendiente ⏳
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <CardTitle className="text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                                                    {lead.nombre}
+                                                </CardTitle>
+                                                <CardDescription className="flex flex-wrap items-center gap-x-3 gap-y-1 font-medium">
+                                                    <span className="flex items-center gap-1.5">
+                                                        <Phone className="h-3 w-3" /> {lead.telefono || 'Sin teléfono'}
+                                                    </span>
+                                                    {lead.codigoCliente && (
+                                                        <Badge variant="outline" className="text-[10px] font-bold border-indigo-100 bg-indigo-50/30 text-indigo-600 rounded-md px-1.5 py-0.5">
+                                                            Código: {lead.codigoCliente}
+                                                        </Badge>
+                                                    )}
+                                                </CardDescription>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="bg-indigo-50/50 p-4 rounded-2xl mb-3 border border-indigo-100/50">
+                                                    <p className="text-sm text-indigo-900 font-medium line-clamp-2">
+                                                        {lead.interes}
+                                                    </p>
+                                                    <div className="flex items-center gap-2 mt-2 text-[10px] text-indigo-400 font-bold uppercase tracking-wider">
+                                                        <Calendar className="h-3 w-3" /> Liquidado el {formatDate(lead.createdAt)}
                                                     </div>
                                                 </div>
-                                            )}
-                                            
-                                            <div className="flex gap-2">
-                                                <Button 
-                                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md gap-2"
-                                                    onClick={() => sendWhatsApp(lead.telefono, lead.nombre, 'felicitacion')}
-                                                >
-                                                    <MessageSquare className="h-4 w-4" /> Felicitar
-                                                </Button>
-                                                <Button 
-                                                    variant="outline" 
-                                                    className="rounded-xl border-indigo-100 hover:bg-indigo-50 px-3 h-10"
-                                                    onClick={() => validarCliente(lead.id)}
-                                                    disabled={validatingId === lead.id}
-                                                >
-                                                    {validatingId === lead.id ? (
-                                                        <RefreshCw className="h-4 w-4 animate-spin text-indigo-600" />
+
+                                                {/* Estatus Actual de Contpaqi */}
+                                                <div className="flex items-center justify-between py-2 px-1 border-t border-gray-50 mb-3 mt-1">
+                                                    <span className="text-xs text-gray-500 font-medium">Estatus Actual:</span>
+                                                    {hasValidation ? (
+                                                        <Badge className={`${statusColorClass} border-none rounded-lg px-2.5 py-0.5 text-xs font-bold`}>
+                                                            {info.status}
+                                                        </Badge>
+                                                    ) : validatingId === lead.id ? (
+                                                        <span className="text-xs text-gray-400 animate-pulse">Consultando Contpaqi...</span>
                                                     ) : (
-                                                        <span className="text-indigo-600 font-bold text-xs uppercase">Validar</span>
+                                                        <span className="text-xs text-gray-400 italic">No validado</span>
                                                     )}
-                                                </Button>
-                                                <Button variant="outline" className="rounded-xl border-indigo-100 hover:bg-indigo-50" size="icon">
-                                                    <ChevronRight className="h-4 w-4 text-indigo-600" />
-                                                </Button>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))
+                                                </div>
+                                                
+                                                {validation && (
+                                                    <div className="space-y-3 mb-4">
+                                                        {/* Alerta de Recompra Ya Realizada */}
+                                                        {validation.recompraActiva && (
+                                                            <div className="bg-green-50 p-3 rounded-2xl border border-green-100 flex items-start gap-3">
+                                                                <div className="bg-green-500 p-1.5 rounded-lg">
+                                                                    <ShoppingBag className="h-3 w-3 text-white" />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[10px] font-black text-green-600 uppercase tracking-wider">Ya tiene nueva cuenta</p>
+                                                                    <p className="text-xs font-bold text-green-900 leading-tight">
+                                                                        {validation.recompraActiva.descripcionProducto}
+                                                                    </p>
+                                                                    <p className="text-[9px] text-green-500 font-medium mt-0.5">
+                                                                        Sincronizado: {validation.recompraActiva.codigoCliente}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="bg-indigo-50/30 p-3 rounded-2xl border border-dashed border-indigo-200">
+                                                            <div className="flex items-center gap-1.5 mb-2">
+                                                                <Sparkles className="h-3 w-3 text-indigo-500" />
+                                                                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-tight">Status Contpaqi</span>
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {Object.values(validation.clasificaciones)
+                                                                    .filter(v => v !== 'N/A' && v !== '')
+                                                                    .map((val: any, i) => {
+                                                                        const isRating = ['BUENO', 'REGULAR', 'EXCELENTE'].some(r => val.toString().toUpperCase().includes(r));
+                                                                        const isPayment = ['PAGADO', 'PAGAGO'].some(p => val.toString().toUpperCase().includes(p));
+                                                                        
+                                                                        return (
+                                                                            <div 
+                                                                                key={i} 
+                                                                                className={`px-2 py-1 rounded-lg text-[10px] font-bold shadow-sm ${
+                                                                                    isRating ? 'bg-purple-100 text-purple-700' : 
+                                                                                    isPayment ? 'bg-blue-100 text-blue-700' : 
+                                                                                    'bg-white text-gray-500'
+                                                                                }`}
+                                                                            >
+                                                                                {val}
+                                                                            </div>
+                                                                        );
+                                                                    })
+                                                                }
+                                                                {Object.values(validation.clasificaciones).every(v => v === 'N/A' || v === '') && (
+                                                                    <span className="text-[10px] text-gray-400 italic">Sin clasificaciones asignadas</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                
+                                                <div className="flex gap-2">
+                                                    <Button 
+                                                        className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md gap-2"
+                                                        onClick={() => sendWhatsApp(lead.telefono, lead.nombre, 'felicitacion')}
+                                                    >
+                                                        <MessageSquare className="h-4 w-4" /> Felicitar
+                                                    </Button>
+                                                    <Button 
+                                                        variant="outline" 
+                                                        className="rounded-xl border-indigo-100 hover:bg-indigo-50 px-3 h-10"
+                                                        onClick={() => validarCliente(lead.id)}
+                                                        disabled={validatingId === lead.id}
+                                                    >
+                                                        {validatingId === lead.id ? (
+                                                            <RefreshCw className="h-4 w-4 animate-spin text-indigo-600" />
+                                                        ) : (
+                                                            <span className="text-indigo-600 font-bold text-xs uppercase">Validar</span>
+                                                        )}
+                                                    </Button>
+                                                    <Button 
+                                                        variant="outline" 
+                                                        className="rounded-xl border-indigo-100 hover:bg-indigo-50" 
+                                                        size="icon"
+                                                        onClick={() => {
+                                                            const query = lead.codigoCliente || lead.nombre;
+                                                            window.location.href = `/dashboard/clientes?search=${encodeURIComponent(query)}`;
+                                                        }}
+                                                    >
+                                                        <ChevronRight className="h-4 w-4 text-indigo-600" />
+                                                    </Button>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })
                             )}
                         </div>
                     </TabsContent>

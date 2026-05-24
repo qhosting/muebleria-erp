@@ -83,6 +83,17 @@ export default function ClientesPage() {
 
   const userRole = (session?.user as any)?.role;
 
+  // Cargar parámetro de búsqueda desde la URL al iniciar
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const search = params.get('search');
+      if (search) {
+        setSearchTerm(decodeURIComponent(search));
+      }
+    }
+  }, []);
+
   // Resetear a página 1 cuando cambian los filtros
   useEffect(() => {
     setCurrentPage(1);
