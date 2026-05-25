@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Encontrar los clienteIds no nulos
-    const clienteIds = leads.map(l => l.clienteId).filter(Boolean) as string[];
+    const clienteIds = leads.map((l: any) => l.clienteId).filter(Boolean) as string[];
 
     // Buscar los clientes correspondientes para obtener su codigoCliente
     const clientes = await prisma.cliente.findMany({
@@ -59,10 +59,10 @@ export async function GET(request: NextRequest) {
     });
 
     // Mapear los clientes a un diccionario para búsqueda rápida
-    const clienteMap = new Map(clientes.map(c => [c.id, c.codigoCliente]));
+    const clienteMap = new Map(clientes.map((c: any) => [c.id, c.codigoCliente]));
 
     // Adjuntar codigoCliente a cada lead en la respuesta (desvinculación de catálogo local)
-    const leadsWithCodigo = leads.map(lead => {
+    const leadsWithCodigo = leads.map((lead: any) => {
       let codigoCliente = (lead.datosExtraidos as any)?.codigoCliente || null;
 
       // 1. Si no tiene en datosExtraidos, pero el cliente existe localmente, lo guardamos para el histórico
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
                 codigoCliente
               }
             }
-          }).catch(err => console.error('Error auto-saving client code in lead:', err));
+          }).catch((err: any) => console.error('Error auto-saving client code in lead:', err));
         }
       }
 
