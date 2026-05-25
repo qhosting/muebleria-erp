@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
       // Agrupar por teléfono (si existe) o nombre
       const groupedMap: Map<string, any> = new Map();
       
-      clientesSerializados.forEach(cliente => {
+      clientesSerializados.forEach((cliente: any) => {
         const key = (cliente.telefono?.trim() || cliente.nombreCompleto.trim()).toLowerCase();
         if (!groupedMap.has(key)) {
           groupedMap.set(key, {
