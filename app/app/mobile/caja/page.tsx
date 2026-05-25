@@ -296,7 +296,7 @@ Te confirmamos la recepción exitosa de tu abono:
                                 <Input 
                                     type="datetime-local" 
                                     value={dateFrom}
-                                    onChange={(e) => setDateFrom(e.target.value)}
+                                    onChange={(e: any) => setDateFrom(e.target.value)}
                                     className="bg-slate-950 border-slate-800 text-xs text-white h-10 rounded-xl"
                                 />
                             </div>
@@ -305,7 +305,7 @@ Te confirmamos la recepción exitosa de tu abono:
                                 <Input 
                                     type="datetime-local" 
                                     value={dateTo}
-                                    onChange={(e) => setDateTo(e.target.value)}
+                                    onChange={(e: any) => setDateTo(e.target.value)}
                                     className="bg-slate-950 border-slate-800 text-xs text-white h-10 rounded-xl"
                                 />
                             </div>
@@ -386,7 +386,7 @@ Te confirmamos la recepción exitosa de tu abono:
                     <div className="absolute left-4 top-0 bottom-0 w-px bg-slate-800 pointer-events-none"></div>
 
                     <div className="space-y-6 pl-0">
-                        {pagos.map((pago) => (
+                        {pagos.map((pago: any) => (
                             <div key={pago.id} className="relative flex items-start pl-10 group">
                                 <div className="absolute left-[11px] top-4 w-2.5 h-2.5 rounded-full bg-slate-700 border-2 border-slate-900 group-hover:bg-emerald-500 transition-colors z-10"></div>
 
@@ -441,7 +441,7 @@ Te confirmamos la recepción exitosa de tu abono:
                                         </div>
                                         
                                         <button 
-                                            onClick={(e) => {
+                                            onClick={(e: any) => {
                                                 e.stopPropagation();
                                                 handleReprintTicket(pago.id);
                                             }}
