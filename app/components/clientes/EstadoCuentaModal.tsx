@@ -483,9 +483,16 @@ Te compartimos el resumen actual de tu cuenta:
 
                                     {/* Amortization Metrics Summary */}
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100/50">
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Monto Facturado</span>
-                                            <span className="text-base font-black text-slate-800">{formatCurrency(data?.cliente?.montoFactura || 0)}</span>
+                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100/50 flex flex-col justify-between">
+                                            <div>
+                                                {data?.cliente?.fechaVenta && (
+                                                    <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg inline-block uppercase tracking-wider mb-1.5">
+                                                        Fecha Factura: {formatDate(data.cliente.fechaVenta)}
+                                                    </span>
+                                                )}
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase block">Monto Facturado</span>
+                                            </div>
+                                            <span className="text-base font-black text-slate-800 mt-1">{formatCurrency(data?.cliente?.montoFactura || 0)}</span>
                                         </div>
                                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100/50">
                                             <span className="text-[10px] text-slate-400 font-bold uppercase block">Enganche / Pago Inicial</span>
