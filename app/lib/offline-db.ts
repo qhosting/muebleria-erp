@@ -39,6 +39,43 @@ export interface OfflineCliente {
   // Metadatos offline
   lastSync: number;
   syncStatus: 'synced' | 'pending' | 'conflict';
+  
+  // Estatus de verificación y número de contrato
+  numContrato?: string;
+  vdStatus?: 'PENDIENTE' | 'REALIZADA';
+}
+
+export interface OfflineVerificacion {
+  localId: string;
+  clienteId: string;
+  gestorId: string;
+  fecha: string;
+  detallesExtra: {
+    contrato?: string;
+    refCalles?: string;
+    municipio?: string;
+    tipoCasa?: string;
+    servicios?: string[];
+    estructuras?: string[];
+    mobiliario?: string[];
+    computadora?: boolean;
+    refrigerador?: boolean;
+    estufa?: boolean;
+    dvd?: boolean;
+    infoVecinos?: string;
+    observacion?: string;
+    enganche?: string;
+    plazo?: string;
+    abono?: string;
+    diaPago?: string;
+    codigoGestor?: string;
+    latitud?: number;
+    longitud?: number;
+    evidencia?: string[]; // Base64 de las fotos
+  };
+  syncStatus: 'pending' | 'syncing' | 'synced' | 'failed';
+  createdOffline: boolean;
+  lastSync?: number;
 }
 
 export interface OfflinePago {
@@ -118,6 +155,7 @@ export class OfflineDatabase extends Dexie {
   syncQueue!: Table<SyncQueue>;
   settings!: Table<AppSettings>;
   solicitudes!: Table<OfflineSolicitud>;
+  verificaciones!: Table<OfflineVerificacion>;
 
   constructor() {
     super('MuebleriaCobranzaDB');
@@ -129,6 +167,16 @@ export class OfflineDatabase extends Dexie {
       syncQueue: '++id, type, localId, status, attempts, lastAttempt',
       settings: 'cobradorId',
       solicitudes: 'localId, syncStatus'
+    });
+
+    this.version(3).stores({
+      clientes: 'id, nombreCompleto, cobradorAsignadoId, diaPago, statusCuenta, lastSync, syncStatus',
+      pagos: '++id, localId, clienteId, cobradorId, fechaPago, syncStatus, createdOffline, printStatus',
+      motararios: '++id, localId, clienteId, cobradorId, fecha, syncStatus, createdOffline',
+      syncQueue: '++id, type, localId, status, attempts, lastAttempt',
+      settings: 'cobradorId',
+      solicitudes: 'localId, syncStatus',
+      verificaciones: 'localId, clienteId, gestorId, fecha, syncStatus'
     });
   }
 }

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -13,10 +12,19 @@ import {
     Users, Zap, Search, Clock, CheckCircle2, 
     Bot, Phone, MessageSquare, ArrowUpRight,
     Star, ShoppingBag, Calendar, Sparkles,
-    RefreshCw, ChevronRight, Gift, Trash2
+    RefreshCw, ChevronRight, Gift, Trash2,
+    MoreVertical,
+    FileText
 } from 'lucide-react';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
+import { EstadoCuentaModal } from '@/components/clientes/EstadoCuentaModal';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface RecompraLead {
     id: string;
@@ -24,6 +32,7 @@ interface RecompraLead {
     telefono: string | null;
     interes: string | null;
     estado: string;
+    notes?: string | null; // Optional
     notas: string | null;
     createdAt: string;
     clienteId: string | null;
@@ -38,6 +47,7 @@ interface Prediccion {
     pagosRestantes: number;
     fechaEstimada: string;
     productoActual: string;
+    rating?: string;
 }
 
 export default function RecomprasPage() {
@@ -48,6 +58,12 @@ export default function RecomprasPage() {
     const [activeTab, setActiveTab] = useState('liquidados');
     const [validaciones, setValidaciones] = useState<Record<string, any>>({});
     const [validatingId, setValidatingId] = useState<string | null>(null);
+
+    // Estado Cuenta Modal Trigger states
+    const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null);
+    const [selectedClienteNombre, setSelectedClienteNombre] = useState<string | null>(null);
+    const [isEstadoCuentaOpen, setIsEstadoCuentaOpen] = useState(false);
+    const [estadoCuentaTab, setEstadoCuentaTab] = useState<'movimientos' | 'amortizacion'>('movimientos');
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -85,7 +101,7 @@ export default function RecomprasPage() {
         const statuses = ['PAGADO', 'CANCELADO', 'COBRANZA NORMAL', 'COBRANZA', 'MORA', 'ATRASADO', 'DEMANDADO', 'JURIDICO'];
 
         // Buscar rating en las clasificaciones
-        let rating = clasifValues.find(v => ratings.some(r => v.toUpperCase().includes(r)));
+        let rating = clasifValues.find((v: any) => ratings.some(r => v.toUpperCase().includes(r)));
         if (!rating) {
             const c1 = validationData.clasificaciones.cNombreClasificacion1;
             if (c1 && c1 !== 'N/A' && c1 !== '') {
@@ -94,7 +110,7 @@ export default function RecomprasPage() {
         }
 
         // Buscar status en las clasificaciones
-        let status = clasifValues.find(v => statuses.some(s => v.toUpperCase().includes(s)));
+        let status = clasifValues.find((v: any) => statuses.some(s => v.toUpperCase().includes(s)));
         if (!status) {
             const c2 = validationData.clasificaciones.cNombreClasificacion2;
             if (c2 && c2 !== 'N/A' && c2 !== '') {
@@ -117,7 +133,7 @@ export default function RecomprasPage() {
             });
             if (res.ok) {
                 const data = await res.json();
-                setValidaciones(prev => ({ ...prev, [leadId]: data }));
+                setValidaciones((prev: Record<string, any>) => ({ ...prev, [leadId]: data }));
             }
         } catch (error) {
             console.error('Error in silent validation:', error);
@@ -127,7 +143,7 @@ export default function RecomprasPage() {
     // Auto-validación en segundo plano al cargar leads
     useEffect(() => {
         if (leads.length > 0) {
-            leads.forEach(lead => {
+            leads.forEach((lead: any) => {
                 if (lead.codigoCliente && !validaciones[lead.id]) {
                     validarClienteSilent(lead.id);
                 }
@@ -163,7 +179,7 @@ export default function RecomprasPage() {
             
             if (res.ok) {
                 const data = await res.json();
-                setValidaciones(prev => ({ ...prev, [leadId]: data }));
+                 setValidaciones((prev: Record<string, any>) => ({ ...prev, [leadId]: data }));
                 toast.success('Clasificaciones obtenidas de Contpaqi');
             } else {
                 const error = await res.json();
@@ -188,7 +204,7 @@ export default function RecomprasPage() {
 
             if (res.ok) {
                 toast.success('Cliente eliminado de recompras');
-                setLeads(prev => prev.filter(l => l.id !== leadId));
+                 setLeads((prev: RecompraLead[]) => prev.filter((l: RecompraLead) => l.id !== leadId));
             } else {
                 const error = await res.json();
                 toast.error(error.error || 'Error al eliminar');
@@ -198,12 +214,12 @@ export default function RecomprasPage() {
         }
     };
 
-    const filteredLeads = leads.filter(l => 
+    const filteredLeads = leads.filter((l: any) => 
         l.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (l.telefono && l.telefono.includes(searchTerm))
     );
 
-    const filteredPreds = predicciones.filter(p => 
+    const filteredPreds = predicciones.filter((p: any) => 
         p.nombre.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -230,7 +246,7 @@ export default function RecomprasPage() {
                 </div>
 
                 {/* Main Content */}
-                <Tabs defaultValue="liquidados" className="w-full" onValueChange={setActiveTab}>
+                <Tabs defaultValue="liquidados" className="w-full" onValueChange={(val: any) => setActiveTab(val)}>
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                         <TabsList className="bg-white p-1 rounded-2xl shadow-sm border border-gray-100 h-auto">
                             <TabsTrigger value="liquidados" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
@@ -248,7 +264,7 @@ export default function RecomprasPage() {
                                     placeholder="Buscar cliente..." 
                                     className="pl-10 bg-white border-none shadow-sm rounded-xl h-11"
                                     value={searchTerm}
-                                    onChange={e => setSearchTerm(e.target.value)}
+                                    onChange={(e: any) => setSearchTerm(e.target.value)}
                                 />
                             </div>
                             <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl bg-white shadow-sm border-none" onClick={fetchData}>
@@ -271,7 +287,7 @@ export default function RecomprasPage() {
                                     <p className="text-gray-500 mt-2">Los clientes que terminen su cuenta aparecerán aquí automáticamente.</p>
                                 </div>
                             ) : (
-                                filteredLeads.map(lead => {
+                                filteredLeads.map((lead: any) => {
                                     const validation = validaciones[lead.id];
                                     const hasValidation = !!validation;
                                     const info = obtenerClasificacionYStatus(validation);
@@ -300,19 +316,56 @@ export default function RecomprasPage() {
                                                     <div className="h-14 w-14 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg mb-4">
                                                         {lead.nombre.charAt(0)}
                                                     </div>
-                                                    {hasValidation ? (
-                                                        <Badge className={`${ratingColorClass} hover:bg-opacity-80 border-none rounded-lg px-3 py-1`}>
-                                                            {info.rating}
-                                                        </Badge>
-                                                    ) : validatingId === lead.id ? (
-                                                        <Badge className="bg-gray-100 text-gray-400 border-none rounded-lg px-3 py-1 animate-pulse">
-                                                            Validando...
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge className="bg-gray-100 text-gray-500 hover:bg-gray-100 border-none rounded-lg px-3 py-1">
-                                                            Pendiente ⏳
-                                                        </Badge>
-                                                    )}
+                                                    
+                                                    <div className="flex items-center gap-2">
+                                                        {hasValidation ? (
+                                                            <Badge className={`${ratingColorClass} hover:bg-opacity-80 border-none rounded-lg px-3 py-1`}>
+                                                                {info.rating}
+                                                            </Badge>
+                                                        ) : validatingId === lead.id ? (
+                                                            <Badge className="bg-gray-100 text-gray-400 border-none rounded-lg px-3 py-1 animate-pulse">
+                                                                Validando...
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge className="bg-gray-100 text-gray-500 hover:bg-gray-100 border-none rounded-lg px-3 py-1">
+                                                                Pendiente ⏳
+                                                            </Badge>
+                                                        )}
+
+                                                        {lead.clienteId && (
+                                                            <DropdownMenu>
+                                                                <DropdownMenuTrigger asChild>
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                                                                        <MoreVertical className="h-4.5 w-4.5" />
+                                                                    </Button>
+                                                                </DropdownMenuTrigger>
+                                                                <DropdownMenuContent align="end" className="bg-white border border-slate-100 rounded-xl shadow-md p-1 min-w-[170px] z-20">
+                                                                    <DropdownMenuItem 
+                                                                        onClick={() => {
+                                                                            setSelectedClienteId(lead.clienteId);
+                                                                            setSelectedClienteNombre(lead.nombre);
+                                                                            setEstadoCuentaTab('movimientos');
+                                                                            setIsEstadoCuentaOpen(true);
+                                                                        }}
+                                                                        className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer rounded-lg transition-colors"
+                                                                    >
+                                                                        <FileText className="h-4 w-4 text-blue-500" /> Estado de Cuenta
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuItem 
+                                                                        onClick={() => {
+                                                                            setSelectedClienteId(lead.clienteId);
+                                                                            setSelectedClienteNombre(lead.nombre);
+                                                                            setEstadoCuentaTab('amortizacion');
+                                                                            setIsEstadoCuentaOpen(true);
+                                                                        }}
+                                                                        className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer rounded-lg transition-colors"
+                                                                    >
+                                                                        <Calendar className="h-4 w-4 text-indigo-500" /> Tabla de Amortización
+                                                                    </DropdownMenuItem>
+                                                                </DropdownMenuContent>
+                                                            </DropdownMenu>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <CardTitle className="text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
                                                     {lead.nombre}
@@ -357,18 +410,18 @@ export default function RecomprasPage() {
                                                         {/* Alerta de Recompra Ya Realizada */}
                                                         {validation.recompraActiva && (
                                                             <div className="bg-green-50 p-3 rounded-2xl border border-green-100 flex items-start gap-3">
-                                                                <div className="bg-green-500 p-1.5 rounded-lg">
-                                                                    <ShoppingBag className="h-3 w-3 text-white" />
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-[10px] font-black text-green-600 uppercase tracking-wider">Ya tiene nueva cuenta</p>
-                                                                    <p className="text-xs font-bold text-green-900 leading-tight">
-                                                                        {validation.recompraActiva.descripcionProducto}
-                                                                    </p>
-                                                                    <p className="text-[9px] text-green-500 font-medium mt-0.5">
-                                                                        Sincronizado: {validation.recompraActiva.codigoCliente}
-                                                                    </p>
-                                                                </div>
+                                                                 <div className="bg-green-500 p-1.5 rounded-lg">
+                                                                     <ShoppingBag className="h-3 w-3 text-white" />
+                                                                 </div>
+                                                                 <div>
+                                                                     <p className="text-[10px] font-black text-green-600 uppercase tracking-wider">Ya tiene nueva cuenta</p>
+                                                                     <p className="text-xs font-bold text-green-900 leading-tight">
+                                                                         {validation.recompraActiva.descripcionProducto}
+                                                                     </p>
+                                                                     <p className="text-[9px] text-green-500 font-medium mt-0.5">
+                                                                         Sincronizado: {validation.recompraActiva.codigoCliente}
+                                                                     </p>
+                                                                 </div>
                                                             </div>
                                                         )}
 
@@ -379,8 +432,8 @@ export default function RecomprasPage() {
                                                             </div>
                                                             <div className="flex flex-wrap gap-2">
                                                                 {Object.values(validation.clasificaciones)
-                                                                    .filter(v => v !== 'N/A' && v !== '')
-                                                                    .map((val: any, i) => {
+                                                                    .filter((v: any) => v !== 'N/A' && v !== '')
+                                                                    .map((val: any, i: number) => {
                                                                         const isRating = ['BUENO', 'REGULAR', 'EXCELENTE'].some(r => val.toString().toUpperCase().includes(r));
                                                                         const isPayment = ['PAGADO', 'PAGAGO'].some(p => val.toString().toUpperCase().includes(p));
                                                                         
@@ -398,7 +451,7 @@ export default function RecomprasPage() {
                                                                         );
                                                                     })
                                                                 }
-                                                                {Object.values(validation.clasificaciones).every(v => v === 'N/A' || v === '') && (
+                                                                {Object.values(validation.clasificaciones).every((v: any) => v === 'N/A' || v === '') && (
                                                                     <span className="text-[10px] text-gray-400 italic">Sin clasificaciones asignadas</span>
                                                                 )}
                                                             </div>
@@ -465,16 +518,53 @@ export default function RecomprasPage() {
                                     <p className="text-gray-500 mt-2">La IA no detecta clientes liquidando en el corto plazo.</p>
                                 </div>
                             ) : (
-                                filteredPreds.map(pred => (
+                                filteredPreds.map((pred: any) => (
                                     <Card key={pred.clienteId} className="border-none shadow-sm hover:shadow-xl transition-all duration-300 rounded-3xl bg-white overflow-hidden border-l-4 border-l-purple-500">
                                         <CardHeader className="pb-2">
                                             <div className="flex justify-between items-start">
                                                 <div className="h-12 w-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg mb-2">
                                                     {pred.nombre.charAt(0)}
                                                 </div>
-                                                <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-none rounded-lg">
-                                                    {pred.pagosRestantes} pagos restantes
-                                                </Badge>
+                                                
+                                                <div className="flex items-center gap-2">
+                                                    <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-none rounded-lg font-bold">
+                                                        {pred.pagosRestantes} pagos restantes
+                                                    </Badge>
+
+                                                    {pred.clienteId && (
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                                                                    <MoreVertical className="h-4.5 w-4.5" />
+                                                                </Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end" className="bg-white border border-slate-100 rounded-xl shadow-md p-1 min-w-[170px] z-20">
+                                                                <DropdownMenuItem 
+                                                                    onClick={() => {
+                                                                        setSelectedClienteId(pred.clienteId);
+                                                                        setSelectedClienteNombre(pred.nombre);
+                                                                        setEstadoCuentaTab('movimientos');
+                                                                        setIsEstadoCuentaOpen(true);
+                                                                    }}
+                                                                    className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer rounded-lg transition-colors"
+                                                                >
+                                                                    <FileText className="h-4 w-4 text-blue-500" /> Estado de Cuenta
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem 
+                                                                    onClick={() => {
+                                                                        setSelectedClienteId(pred.clienteId);
+                                                                        setSelectedClienteNombre(pred.nombre);
+                                                                        setEstadoCuentaTab('amortizacion');
+                                                                        setIsEstadoCuentaOpen(true);
+                                                                    }}
+                                                                    className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer rounded-lg transition-colors"
+                                                                >
+                                                                    <Calendar className="h-4 w-4 text-indigo-500" /> Tabla de Amortización
+                                                                </DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    )}
+                                                </div>
                                             </div>
                                             <CardTitle className="text-lg font-bold">{pred.nombre}</CardTitle>
                                             <div className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5 mb-1.5 font-medium">
@@ -482,11 +572,35 @@ export default function RecomprasPage() {
                                             </div>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <div className="flex -space-x-1">
-                                                    {[...Array(5)].map((_, i) => (
-                                                        <Star key={i} className={`h-3 w-3 ${i < 4 ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} />
-                                                    ))}
+                                                    {(() => {
+                                                        const rating = pred.rating?.toUpperCase() || '';
+                                                        let stars = 4;
+                                                        let label = 'Excelente Pagador';
+                                                        
+                                                        if (rating.includes('EXCELENTE')) {
+                                                            stars = 5;
+                                                            label = 'Excelente Pagador';
+                                                        } else if (rating.includes('BUENO')) {
+                                                            stars = 4;
+                                                            label = 'Buen Pagador';
+                                                        } else if (rating.includes('REGULAR')) {
+                                                            stars = 3;
+                                                            label = 'Pagador Regular';
+                                                        } else if (rating.includes('MALO')) {
+                                                            stars = 2;
+                                                            label = 'Pagador con Atrasos';
+                                                        }
+                                                        
+                                                        return (
+                                                            <>
+                                                                {[...Array(5)].map((_, i) => (
+                                                                    <Star key={i} className={`h-3 w-3 ${i < stars ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} />
+                                                                ))}
+                                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter ml-1.5">{label}</span>
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </div>
-                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Excelente Pagador</span>
                                             </div>
                                         </CardHeader>
                                         <CardContent>
@@ -517,11 +631,20 @@ export default function RecomprasPage() {
                                         </CardContent>
                                     </Card>
                                 ))
-                            )}
+                             )}
                         </div>
                     </TabsContent>
                 </Tabs>
             </div>
+
+            {/* Modal de Estado de Cuenta Compartido y Amortización */}
+            <EstadoCuentaModal 
+                open={isEstadoCuentaOpen} 
+                onOpenChange={setIsEstadoCuentaOpen} 
+                clienteId={selectedClienteId} 
+                clienteNombre={selectedClienteNombre} 
+                initialTab={estadoCuentaTab}
+            />
         </DashboardLayout>
     );
 }

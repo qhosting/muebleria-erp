@@ -17,6 +17,7 @@ interface EstadoCuentaModalProps {
     onOpenChange: (open: boolean) => void;
     clienteId: string | null;
     clienteNombre: string | null;
+    initialTab?: 'movimientos' | 'amortizacion';
 }
 
 // Helper para obtener el nombre del concepto del documento de forma ultra-robusta
@@ -94,7 +95,8 @@ export function EstadoCuentaModal({
     open,
     onOpenChange,
     clienteId,
-    clienteNombre
+    clienteNombre,
+    initialTab
 }: EstadoCuentaModalProps) {
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<any>(null);
@@ -123,11 +125,14 @@ export function EstadoCuentaModal({
     useEffect(() => {
         if (open && clienteId) {
             fetchEstadoCuenta();
+            if (initialTab) {
+                setActiveTab(initialTab);
+            }
         } else {
             setData(null);
             setActiveTab('movimientos');
         }
-    }, [open, clienteId]);
+    }, [open, clienteId, initialTab]);
 
     const handlePrint = () => {
         window.print();

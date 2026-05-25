@@ -125,17 +125,34 @@ export function ClientCard({
             <h3 className="font-bold text-lg leading-tight truncate">
               {cliente.nombreCompleto}
             </h3>
-            <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1 font-medium">
+            <p className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1.5 font-medium">
               <Calendar className="w-4 h-4" />
-              {getDayName(cliente.diaPago)} - {formatCurrency(cliente.montoAcordado)}
+              <span>{getDayName(cliente.diaPago)} - {formatCurrency(cliente.montoAcordado)}</span>
+              {cliente.numContrato && (
+                <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                  Contrato: {cliente.numContrato}
+                </span>
+              )}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {getStatusBadge()}
+          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5">
+            <div className="flex items-center gap-1.5">
+              {cliente.vdStatus === 'REALIZADA' ? (
+                <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white font-bold border-none text-[9px] py-0.5 px-1.5">
+                  VD Realizada
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="border-orange-500 text-orange-600 font-bold text-[9px] py-0.5 px-1.5">
+                  VD Pendiente
+                </Badge>
+              )}
+
+              {getStatusBadge()}
+            </div>
 
             {showSyncStatus && (
-              <div className="flex items-center">
+              <div className="flex items-center self-end sm:self-auto">
                 {cliente.syncStatus === 'synced' ? (
                   <CheckCircle className="w-4 h-4 text-green-500" />
                 ) : cliente.syncStatus === 'pending' ? (

@@ -79,6 +79,12 @@ export async function GET(
         importe4: true,
         saldoVencido: true,
         diasVencidos: true,
+        numContrato: true,
+        verificaciones: {
+          select: {
+            id: true
+          }
+        },
         pagos: {
           select: {
             fechaPago: true,
@@ -149,7 +155,9 @@ export async function GET(
           contado: cliente.importe1 ? Number(cliente.importe1) : 0,
           p6: cliente.importe3 ? Number(cliente.importe3) : 0,
           p12: cliente.importe4 ? Number(cliente.importe4) : 0
-        }
+        },
+        numContrato: cliente.numContrato || '',
+        vdStatus: cliente.verificaciones && cliente.verificaciones.length > 0 ? 'REALIZADA' : 'PENDIENTE'
       };
     });
 

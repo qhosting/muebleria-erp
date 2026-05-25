@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
         };
 
         return NextResponse.json({ 
-            codigoCliente: cliente.codigoCliente,
+            codigoCliente: codigoCliente,
             nombre: contpaqiCliente.cNombreCliente || contpaqiCliente.cnombrecliente,
             clasificaciones,
             recompraActiva: cuentasActivas.length > 0 ? cuentasActivas[0] : null

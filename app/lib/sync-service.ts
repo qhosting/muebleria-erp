@@ -1,6 +1,6 @@
 
 // Servicio de sincronización para PWA de cobranza móvil
-import { db, OfflineCliente, OfflinePago, OfflineMotarario, SyncQueue, generateLocalId } from './offline-db';
+import { db, OfflineCliente, OfflinePago, OfflineMotarario, SyncQueue, generateLocalId, OfflineVerificacion } from './offline-db';
 import { toast } from 'sonner';
 import { apiFetch } from './api-config';
 
@@ -97,6 +97,9 @@ export class SyncService {
 
       // 3. Subir motararios pendientes (si existen)
       await this.uploadMotararios(cobradorId);
+
+      // 3.5 Subir verificaciones pendientes (si existen)
+      await this.uploadVerificaciones(cobradorId);
 
       // 4. Actualizar timestamp de sincronización
       await this.updateLastSync(cobradorId);
@@ -266,6 +269,55 @@ export class SyncService {
     }
   }
 
+  // Subir verificaciones domiciliarias pendientes al servidor
+  private async uploadVerificaciones(cobradorId: string) {
+    if (!(db as any).verificaciones) return;
+
+    const verificacionesPendientes = await (db as any).verificaciones
+      .where('syncStatus').equals('pending')
+      .and((v: any) => v.gestorId === cobradorId)
+      .toArray();
+
+    console.log(`Verificaciones pendientes para sincronizar: ${verificacionesPendientes.length}`);
+
+    for (const v of verificacionesPendientes) {
+      try {
+        console.log(`Sincronizando verificación ${v.localId}`);
+        await (db as any).verificaciones.where('localId').equals(v.localId).modify({ syncStatus: 'syncing' });
+
+        const response = await apiFetch('/api/clientes/verificaciones', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clienteId: v.clienteId,
+            fecha: v.fecha,
+            detallesExtra: v.detallesExtra,
+            localId: v.localId
+          })
+        });
+
+        if (response.ok) {
+          const vServidor = await response.json();
+          console.log(`Verificación ${v.localId} sincronizada exitosamente con ID: ${vServidor.id}`);
+
+          await (db as any).verificaciones.where('localId').equals(v.localId).modify({
+            id: vServidor.id,
+            syncStatus: 'synced',
+            lastSync: Date.now()
+          });
+
+          await db.syncQueue.where('localId').equals(v.localId).modify({ status: 'completed' });
+        } else {
+          console.error(`Error al sincronizar verificación ${v.localId}: ${response.status}`);
+          await (db as any).verificaciones.where('localId').equals(v.localId).modify({ syncStatus: 'failed' });
+        }
+      } catch (error) {
+        console.error('Error subiendo verificación:', error);
+        await (db as any).verificaciones.where('localId').equals(v.localId).modify({ syncStatus: 'failed' });
+      }
+    }
+  }
+
   // Actualizar timestamp de última sincronización
   private async updateLastSync(cobradorId: string) {
     const existing = await db.settings.get(cobradorId);
@@ -335,12 +387,45 @@ export class SyncService {
     return localId;
   }
 
+  // Agregar verificación domiciliaria offline
+  public async addVerificacionOffline(vData: Omit<OfflineVerificacion, 'localId' | 'syncStatus' | 'createdOffline'>) {
+    const localId = generateLocalId();
+
+    const verificacion: OfflineVerificacion = {
+      ...vData,
+      localId,
+      syncStatus: 'pending',
+      createdOffline: true
+    };
+
+    if ((db as any).verificaciones) {
+      await (db as any).verificaciones.add(verificacion);
+    }
+
+    // Agregar a la cola de sincronización
+    await db.syncQueue.add({
+      type: 'verificacion' as any,
+      data: verificacion,
+      localId,
+      attempts: 0,
+      status: 'pending'
+    });
+
+    // Actualizar de inmediato el estatus del cliente localmente
+    await db.clientes.where('id').equals(vData.clienteId).modify({
+      vdStatus: 'REALIZADA'
+    });
+
+    return localId;
+  }
+
   // Obtener estado de sincronización
   public async getSyncStatus(cobradorId: string) {
-    const [settings, pendingPagos, pendingMotararios, failedItems] = await Promise.all([
+    const [settings, pendingPagos, pendingMotararios, pendingVerificaciones, failedItems] = await Promise.all([
       db.settings.get(cobradorId),
       db.pagos.where('syncStatus').equals('pending').and(p => p.cobradorId === cobradorId).count(),
       db.motararios.where('syncStatus').equals('pending').and(m => m.cobradorId === cobradorId).count(),
+      (db as any).verificaciones ? (db as any).verificaciones.where('syncStatus').equals('pending').and((v: any) => v.gestorId === cobradorId).count() : Promise.resolve(0),
       db.syncQueue.where('status').equals('failed').count()
     ]);
 
@@ -348,6 +433,7 @@ export class SyncService {
       lastSync: settings?.lastFullSync,
       pendingPagos,
       pendingMotararios,
+      pendingVerificaciones,
       failedItems,
       isOnline: navigator.onLine,
       syncInProgress: this.syncInProgress,
