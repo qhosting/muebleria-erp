@@ -199,6 +199,46 @@ export default function MobileCaja() {
         }
     };
 
+    const handleShareWhatsApp = (pago: any) => {
+        if (!pago) return;
+
+        const cli = pago.cliente;
+        const total = Number(pago.monto || 0) + Number(pago.interesMoratorio || 0) + Number(pago.gastosCobranza || 0);
+        
+        const messageText = 
+`*MUEBLES DASO - COMPROBANTE DE PAGO* 📄
+------------------------------------------
+¡Hola, *${cli.nombreCompleto}*! 👋
+
+Te confirmamos la recepción exitosa de tu abono:
+
+📄 *Recibo:* ${pago.numeroRecibo || 'N/A'}
+💵 *Monto del Pago:* ${formatCurrency(pago.monto)}
+🟠 *Interés Moratorio:* ${formatCurrency(pago.interesMoratorio || 0)}
+🔵 *Gastos Cobranza:* ${formatCurrency(pago.gastosCobranza || 0)}
+💰 *Total Recibido:* ${formatCurrency(total)}
+💳 *Método de Pago:* ${pago.metodoPago || 'Efectivo'}
+
+📊 *Resumen de tu Cuenta:*
+📉 *Saldo Anterior:* ${formatCurrency(pago.saldoAnterior)}
+📉 *Saldo Nuevo:* ${formatCurrency(pago.saldoNuevo)}
+🗓️ *Fecha:* ${new Date(pago.fechaPago).toLocaleString()}
+
+------------------------------------------
+*¡Gracias por tu pago y preferencia!* 🙌`;
+
+        const encodedText = encodeURIComponent(messageText);
+        let phone = cli.telefono ? cli.telefono.replace(/\D/g, '') : '';
+        
+        if (phone && phone.length === 10) {
+            phone = '52' + phone;
+        }
+
+        const whatsappUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`;
+        window.open(whatsappUrl, '_blank');
+        toast.success('Abriendo WhatsApp para compartir comprobante...');
+    };
+
     const handlePrintArqueo = async (arqueo: any) => {
         try {
             // Guardar en base de datos primero
@@ -526,17 +566,27 @@ export default function MobileCaja() {
                                 </div>
                             </div>
 
-                            <div className="pt-4 flex gap-2">
-                                <button 
-                                    onClick={() => handleReprintTicket(selectedPago.id)}
-                                    className="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 rounded-xl flex items-center justify-center space-x-2 transition-all"
-                                >
-                                    <Printer className="w-4 h-4" />
-                                    <span>Reimprimir</span>
-                                </button>
+                            <div className="pt-4 space-y-2">
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => handleReprintTicket(selectedPago.id)}
+                                        className="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-bold py-3 rounded-xl flex items-center justify-center space-x-2 transition-all text-xs"
+                                    >
+                                        <Printer className="w-4 h-4" />
+                                        <span>Reimprimir</span>
+                                    </button>
+                                    <button 
+                                        onClick={() => handleShareWhatsApp(selectedPago)}
+                                        className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl flex items-center justify-center space-x-2 transition-all text-xs"
+                                    >
+                                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.725 1.45 5.534 0 10.04-4.501 10.044-10.036.002-2.68-1.038-5.198-2.93-7.091C16.54 1.584 14.03.543 11.37.543c-5.535 0-10.04 4.502-10.044 10.038-.001 1.815.49 3.593 1.42 5.148l-1.008 3.68 3.777-.99c1.517.828 3.027 1.258 4.542 1.259zm11.386-7.855c-.324-.162-1.917-.946-2.213-1.054-.297-.109-.514-.162-.73.162-.217.324-.838 1.054-1.027 1.27-.19.216-.379.243-.703.08-.324-.162-1.372-.507-2.613-1.614-.966-.862-1.617-1.927-1.806-2.25-.19-.324-.02-.499.14-.66.147-.144.325-.378.487-.568.162-.189.216-.324.324-.54.108-.216.054-.405-.027-.567-.08-.162-.73-1.758-1.001-2.407-.263-.632-.53-.547-.73-.557-.189-.01-.405-.012-.622-.012-.216 0-.568.08-.865.405-.297.324-1.135 1.108-1.135 2.703 0 1.594 1.162 3.135 1.324 3.35.162.217 2.287 3.493 5.54 4.896.774.333 1.379.533 1.85.683.778.247 1.487.213 2.047.129.624-.093 1.917-.783 2.189-1.54.27-.757.27-1.406.189-1.54-.08-.135-.297-.216-.621-.378z"/>
+                                        <span>Compartir</span>
+                                    </button>
+                                </div>
                                 <button 
                                     onClick={() => setSelectedPago(null)}
-                                    className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl transition-all"
+                                    className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl transition-all text-xs"
                                 >
                                     Cerrar
                                 </button>
