@@ -10,7 +10,7 @@ import { useSession } from "next-auth/react";
 
 export default function MobileHome() {
     const { data: session } = useSession();
-    const userRole = (session?.user as any)?.role;
+    const userRole = (session?.user as any)?.role || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_role') : null);
     const isVendedor = userRole === 'vendedor' || userRole === 'jefe_ventas';
 
     const [loading, setLoading] = useState(true);
@@ -21,8 +21,14 @@ export default function MobileHome() {
 
     useEffect(() => {
         const loadSettings = async () => {
-            if (session?.user) {
-                const userId = (session.user as any).id;
+            const userId = (session?.user as any)?.id || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_id') : null);
+            if (userId) {
+                if (session?.user) {
+                    localStorage.setItem('last_cobrador_id', userId);
+                    if (session.user.name) localStorage.setItem('last_cobrador_name', session.user.name);
+                    if (session.user.email) localStorage.setItem('last_cobrador_email', session.user.email);
+                    if (userRole) localStorage.setItem('last_cobrador_role', userRole);
+                }
                 const settings = await db.settings.get(userId);
                 if (settings) {
                     setPreferOffline(!!settings.preferOffline);
@@ -42,7 +48,7 @@ export default function MobileHome() {
             }
         };
         loadSettings();
-    }, [session]);
+    }, [session, userRole]);
 
     useEffect(() => {
         const fetchDashboardData = async () => {

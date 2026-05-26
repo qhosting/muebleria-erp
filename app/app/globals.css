@@ -291,3 +291,147 @@
     display: none !important;
   }
 }
+
+/* ☀️ MODO SOL - MODO CLARO DE ALTO CONTRASATE PARA TRABAJO DE CAMPO EN CALLE */
+body.modo-sol {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+body.modo-sol .bg-slate-950,
+body.modo-sol .bg-slate-950\/50,
+body.modo-sol .bg-slate-900,
+body.modo-sol .bg-slate-900\/50,
+body.modo-sol .bg-slate-900\/30,
+body.modo-sol .bg-slate-800,
+body.modo-sol .bg-slate-800\/50,
+body.modo-sol .bg-slate-800\/30,
+body.modo-sol .bg-slate-950\/30,
+body.modo-sol .bg-slate-900\/80,
+body.modo-sol .bg-slate-800\/80,
+body.modo-sol .bg-slate-950\/80 {
+  background-color: #ffffff !important;
+  border-color: #94a3b8 !important; /* Más visible en sol */
+}
+
+body.modo-sol .bg-slate-950\/50,
+body.modo-sol .bg-slate-900\/50,
+body.modo-sol .bg-slate-800\/50,
+body.modo-sol .bg-slate-850,
+body.modo-sol .bg-slate-800\/10 {
+  background-color: #f1f5f9 !important;
+}
+
+body.modo-sol .text-slate-100,
+body.modo-sol .text-slate-200,
+body.modo-sol .text-slate-300,
+body.modo-sol .text-white,
+body.modo-sol h1,
+body.modo-sol h2,
+body.modo-sol h3,
+body.modo-sol h4,
+body.modo-sol h5,
+body.modo-sol h6,
+body.modo-sol p,
+body.modo-sol span:not(.text-emerald-400):not(.text-emerald-500):not(.text-red-600):not(.text-amber-500) {
+  color: #0f172a !important; /* Alto contraste */
+}
+
+body.modo-sol .text-slate-400,
+body.modo-sol .text-slate-500,
+body.modo-sol .text-slate-600,
+body.modo-sol .text-muted-foreground {
+  color: #334155 !important; /* Más oscuro para contrastar en sol */
+}
+
+body.modo-sol .border-slate-800,
+body.modo-sol .border-slate-700,
+body.modo-sol .border-slate-900 {
+  border-color: #cbd5e1 !important;
+}
+
+/* Inputs, selects y textareas */
+body.modo-sol input,
+body.modo-sol select,
+body.modo-sol textarea {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #475569 !important; /* Borde muy contrastado */
+}
+
+body.modo-sol input::placeholder,
+body.modo-sol textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Badges y estados con colores más oscuros */
+body.modo-sol .bg-emerald-500\/10,
+body.modo-sol .bg-emerald-600\/10 {
+  background-color: #dcfce7 !important;
+  color: #166534 !important;
+  border-color: #166534 !important;
+}
+
+body.modo-sol .text-emerald-400,
+body.modo-sol .text-emerald-500 {
+  color: #15803d !important;
+}
+
+body.modo-sol .text-sky-400,
+body.modo-sol .text-sky-500 {
+  color: #0369a1 !important;
+}
+
+body.modo-sol .bg-sky-400\/10,
+body.modo-sol .bg-sky-500\/10 {
+  background-color: #e0f2fe !important;
+  color: #0369a1 !important;
+  border-color: #0369a1 !important;
+}
+
+body.modo-sol .text-amber-400,
+body.modo-sol .text-amber-500 {
+  color: #9a3412 !important;
+}
+
+body.modo-sol .bg-amber-500\/10,
+body.modo-sol .bg-amber-500\/20 {
+  background-color: #ffedd5 !important;
+  color: #9a3412 !important;
+  border-color: #9a3412 !important;
+}
+
+body.modo-sol .text-rose-400,
+body.modo-sol .text-rose-500 {
+  color: #991b1b !important;
+}
+
+body.modo-sol .bg-rose-500\/10 {
+  background-color: #fee2e2 !important;
+  color: #991b1b !important;
+  border-color: #991b1b !important;
+}
+
+/* Sobrescribir fondos oscuros en tarjetas de clientes */
+body.modo-sol .active\:scale-\[0\.99\],
+body.modo-sol .group-active\:scale-95,
+body.modo-sol .active\:scale-95 {
+  background-color: #f8fafc !important;
+}
+
+/* Modales móviles */
+body.modo-sol .fixed .bg-slate-900 {
+  background-color: #ffffff !important;
+  border: 2px solid #94a3b8 !important;
+  color: #000000 !important;
+}
+
+body.modo-sol .fixed .bg-slate-950 {
+  background-color: #ffffff !important;
+}
+
+body.modo-sol .fixed .border-slate-800,
+body.modo-sol .fixed .border-slate-700 {
+  border-color: #94a3b8 !important;
+}
+

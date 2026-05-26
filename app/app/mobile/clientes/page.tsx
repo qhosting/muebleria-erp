@@ -69,8 +69,14 @@ function MobileClientes() {
 
     useEffect(() => {
         const loadSettings = async () => {
-            if (session?.user) {
-                const userId = (session.user as any).id;
+            const userId = (session?.user as any)?.id || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_id') : null);
+            if (userId) {
+                if (session?.user) {
+                    localStorage.setItem('last_cobrador_id', userId);
+                    if (session.user.name) localStorage.setItem('last_cobrador_name', session.user.name);
+                    if (session.user.email) localStorage.setItem('last_cobrador_email', session.user.email);
+                    if ((session.user as any).role) localStorage.setItem('last_cobrador_role', (session.user as any).role);
+                }
                 const settings = await db.settings.get(userId);
                 if (settings) {
                     setPreferOffline(!!settings.preferOffline);
@@ -334,7 +340,7 @@ function MobileClientes() {
         }
 
         const { syncService } = await import("@/lib/sync-service");
-        const cobradorId = (session?.user as any)?.id;
+        const cobradorId = (session?.user as any)?.id || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_id') : null);
 
         if (!cobradorId) {
             toast.error("Error de sesión", { description: "Por favor vuelve a iniciar sesión." });
@@ -412,8 +418,8 @@ function MobileClientes() {
                     telefono: selectedCliente.telefono
                 },
                 cobrador: {
-                    nombre: session?.user?.name || "COBRADOR",
-                    id: (session?.user as any)?.id || "N/A"
+                    nombre: session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || "COBRADOR",
+                    id: (session?.user as any)?.id || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_id') : '') || "N/A"
                 },
                 pago: {
                     monto: parseFloat(montoCobrar),
@@ -441,21 +447,73 @@ function MobileClientes() {
         }
     };
 
-    const enviarWhatsApp = () => {
+    const compartirReciboPDF = async () => {
         if (!selectedCliente) return;
 
-        const mensaje = `Hola ${selectedCliente.nombre}, recibimos tu pago de $${montoCobrar}.
-Saldo restante: $${selectedCliente.saldo}.
-Fecha: ${new Date().toLocaleDateString()}.
-¡Gracias por tu pago!`;
+        try {
+            const ticketData = {
+                numeroRecibo: `REC-${Date.now().toString().slice(-6)}`,
+                cliente: {
+                    nombreCompleto: selectedCliente.nombre,
+                    direccion: selectedCliente.direccion,
+                    diaPago: selectedCliente.diaPago,
+                    telefono: selectedCliente.telefono
+                },
+                cobrador: {
+                    nombre: session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || "COBRADOR",
+                    id: (session?.user as any)?.id || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_id') : '') || "N/A"
+                },
+                pago: {
+                    monto: parseFloat(montoCobrar) + parseFloat(interesMoratorio) + parseFloat(gastosCobranza),
+                    montoAbono: parseFloat(montoCobrar),
+                    interesMoratorio: parseFloat(interesMoratorio),
+                    gastosCobranza: parseFloat(gastosCobranza),
+                    tipoPago,
+                    metodoPago,
+                    concepto: concepto || "Pago de cuota",
+                    fechaPago: new Date().toISOString()
+                },
+                saldos: {
+                    anterior: selectedCliente.saldo,
+                    nuevo: selectedCliente.saldo - parseFloat(montoCobrar)
+                },
+                empresa: {
+                    nombre: "VERTEX ERP - MUEBLERIA",
+                    direccion: "CENTRO DE OPERACIONES"
+                }
+            };
 
-        const telefono = formatWhatsAppNumber(selectedCliente.telefono);
-        const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+            const { generateReceiptPdf } = await import("@/lib/receipt-pdf");
+            const doc = await generateReceiptPdf(ticketData);
+            
+            const pdfName = `Recibo_${selectedCliente.nombre.replace(/\s+/g, '_')}_${ticketData.numeroRecibo}.pdf`;
+            doc.save(pdfName);
+            toast.success("PDF descargado en el dispositivo.");
 
-        if (isNative) {
-            window.open(url, '_system');
-        } else {
-            window.open(url, '_blank');
+            const totalPago = parseFloat(montoCobrar) + parseFloat(interesMoratorio) + parseFloat(gastosCobranza);
+            const mensaje = `*COMPROBANTE DE PAGO DIGITAL* 📄
+Hola *${selectedCliente.nombre}*, hemos registrado tu pago con éxito.
+
+*Detalle del Pago:*
+• Abono a Saldo: $${parseFloat(montoCobrar).toFixed(2)}
+${parseFloat(interesMoratorio) > 0 ? `• Interés Moratorio: $${parseFloat(interesMoratorio).toFixed(2)}\n` : ''}${parseFloat(gastosCobranza) > 0 ? `• Gastos de Cobro: $${parseFloat(gastosCobranza).toFixed(2)}\n` : ''}• *Total Recibido: $${totalPago.toFixed(2)}*
+
+*Estado de Cuenta:*
+• Saldo Restante: $${(selectedCliente.saldo - parseFloat(montoCobrar)).toFixed(2)}
+
+Se ha descargado el comprobante oficial en formato PDF en el dispositivo para que lo envíes a continuación. ¡Muchas gracias por tu pago!`;
+
+            const telefono = formatWhatsAppNumber(selectedCliente.telefono);
+            const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+
+            if (isNative) {
+                window.open(url, '_system');
+            } else {
+                window.open(url, '_blank');
+            }
+        } catch (error) {
+            console.error("Error generando PDF para WhatsApp:", error);
+            toast.error("Error al generar el PDF del recibo");
         }
     };
 
@@ -944,11 +1002,11 @@ Fecha: ${new Date().toLocaleDateString()}.
 
                                     <div className="grid grid-cols-2 gap-3">
                                         <button
-                                            onClick={enviarWhatsApp}
+                                            onClick={compartirReciboPDF}
                                             className="bg-[#25D366] hover:bg-[#20bd5a] text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 shadow-lg active:scale-95 transition-transform"
                                         >
                                             <Send className="w-4 h-4" />
-                                            <span>WhatsApp</span>
+                                            <span>WhatsApp PDF</span>
                                         </button>
 
                                         <button 

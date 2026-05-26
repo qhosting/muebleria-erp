@@ -20,8 +20,36 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
     const [isOnline, setIsOnline] = useState(true);
 
     const { data: session } = useSession();
-    const userRole = (session?.user as any)?.role;
+    const userRole = (session?.user as any)?.role || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_role') : null);
     const isVendedor = userRole === 'vendedor' || userRole === 'jefe_ventas';
+
+    const [modoSol, setModoSol] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const active = localStorage.getItem('modo_sol') === 'true';
+            setModoSol(active);
+            if (active) {
+                document.body.classList.add('modo-sol');
+            } else {
+                document.body.classList.remove('modo-sol');
+            }
+        }
+    }, []);
+
+    const toggleModoSol = () => {
+        const next = !modoSol;
+        setModoSol(next);
+        if (typeof window !== 'undefined') {
+            if (next) {
+                document.body.classList.add('modo-sol');
+                localStorage.setItem('modo_sol', 'true');
+            } else {
+                document.body.classList.remove('modo-sol');
+                localStorage.setItem('modo_sol', 'false');
+            }
+        }
+    };
 
     useEffect(() => {
         setIsOnline(navigator.onLine);
@@ -64,7 +92,7 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
 
                 // Importar dinámicamente para evitar problemas de SSR / Capacitor
                 const { obtenerUbicacionCobrador } = await import('@/lib/native/location');
-                const pos = await obtenerUbicacionCobrador(false, 300000); // Baja precisión, caché de 5 minutos
+                const pos = (await obtenerUbicacionCobrador(false, 300000)) as any; // Baja precisión, caché de 5 minutos
 
                 await fetch('/api/mobile/dispositivos/heartbeat', {
                     method: 'POST',
@@ -101,6 +129,15 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
                         </p>
                     </div>
                     <div className="flex items-center space-x-3">
+                        {/* Botón de Modo Sol (Alto Contraste) */}
+                        <button 
+                            onClick={toggleModoSol} 
+                            className={`p-2 rounded-xl border transition-all ${modoSol ? 'bg-amber-100 text-amber-600 border-amber-300' : 'bg-slate-800 text-amber-400 border-slate-700'}`}
+                            title="Modo Sol (Alto Contraste)"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                        </button>
+
                         {/* Indicadores de Estado Dinámicos */}
                         <div className="flex items-center space-x-1">
                             <span className={`w-2 h-2 rounded-full animate-pulse ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]'}`}></span>

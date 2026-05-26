@@ -17,7 +17,7 @@ import Link from "next/link";
 
 export default function MobileMenu() {
     const { data: session } = useSession();
-    const userRole = (session?.user as any)?.role;
+    const userRole = (session?.user as any)?.role || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_role') : null);
     const isVendedor = userRole === 'vendedor' || userRole === 'jefe_ventas';
 
     const menuItems = [
@@ -45,10 +45,10 @@ export default function MobileMenu() {
             {/* PERFIL RESUMEN */}
             <div className="flex items-center space-x-4 px-2">
                 <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-emerald-500 flex items-center justify-center text-2xl font-bold text-white shadow-lg">
-                    {session?.user?.name?.charAt(0) || "U"}
+                    {(session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : ''))?.charAt(0) || "U"}
                 </div>
                 <div>
-                    <h2 className="text-xl font-bold text-slate-100">{session?.user?.name || "Usuario"}</h2>
+                    <h2 className="text-xl font-bold text-slate-100">{session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || "Usuario"}</h2>
                     <p className="text-sm text-slate-500 uppercase tracking-wider font-medium">
                         {(session?.user as any)?.role === 'vendedor' ? 'Vendedor Autorizado' : 'Cobrador Autorizado'}
                     </p>

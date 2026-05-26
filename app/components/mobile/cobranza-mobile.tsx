@@ -78,8 +78,8 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
   const [clientesOffline, setClientesOffline] = useState<OfflineCliente[]>([]);
   const { isConnected, printCollectionNotice, connectToPrinter } = useBluetoothPrinter();
 
-  const userRole = (session?.user as any)?.role;
-  const userId = (session?.user as any)?.id;
+  const userRole = (session?.user as any)?.role || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_role') : null);
+  const userId = (session?.user as any)?.id || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_id') : null);
 
   const diasSemana = [
     { value: '1', label: 'LUNES' },
@@ -328,8 +328,17 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
   useEffect(() => {
     if (userId) {
       localStorage.setItem('last_cobrador_id', userId);
+      if (session?.user?.name) {
+        localStorage.setItem('last_cobrador_name', session.user.name);
+      }
+      if (session?.user?.email) {
+        localStorage.setItem('last_cobrador_email', session.user.email);
+      }
+      if (userRole) {
+        localStorage.setItem('last_cobrador_role', userRole);
+      }
     }
-  }, [userId]);
+  }, [userId, userRole, session]);
 
   const clientStats = useMemo(() => {
     const totalSaldoPendiente = filteredClientes.reduce((sum, c) => sum + c.saldoPendiente, 0);

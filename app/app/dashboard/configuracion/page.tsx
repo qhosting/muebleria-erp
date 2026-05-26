@@ -78,6 +78,7 @@ interface ConfiguracionSistema {
     backupAutomatico: boolean;
   };
   impresion: {
+    nombreImpresora?: string;
     anchoPapel: number;
     cortarPapel: boolean;
   };

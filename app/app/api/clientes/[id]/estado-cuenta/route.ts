@@ -110,7 +110,7 @@ export async function GET(
       const code = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || '').trim();
       
       // Códigos numéricos de conceptos conocidos que representan abonos/pagos/devoluciones del cliente
-      const abonoCodes = ['101', '102', '103', '112', '122', '130', '135', '6', '8', '13', '15', '16', '18', '45'];
+      const abonoCodes = ['101', '102', '103', '112', '122', '130', '135', '6', '8', '13', '15', '45'];
       
       const total = Number(doc.cTotal || doc.ctotal || doc.total || doc.importe || doc.CTOTAL || 0);
       const pending = Number(doc.cSaldo || doc.csaldo || doc.saldo || doc.pendiente || doc.cPendiente || doc.CSALDO || doc.CPENDIENTE || 0);

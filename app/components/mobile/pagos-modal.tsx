@@ -32,11 +32,12 @@ import {
   WifiOff,
   AlertCircle,
   CheckCircle,
-  Clock
+  Clock,
+  Send
 } from 'lucide-react';
 import { OfflineCliente } from '@/lib/offline-db';
 import { Pago } from '@/lib/types';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, formatWhatsAppNumber } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -257,6 +258,40 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
       toast.error('Error al reimprimir el ticket');
     } finally {
       setPrintingRecibo(null);
+    }
+  };
+
+  const handleCompartirPagoPDF = async (pago: Pago) => {
+    try {
+      const ticketData = createReimpresionTicketData(pago);
+      
+      const { generateReceiptPdf } = await import("@/lib/receipt-pdf");
+      const doc = await generateReceiptPdf(ticketData);
+      
+      const pdfName = `Recibo_${cliente.nombreCompleto?.replace(/\s+/g, '_')}_${ticketData.numeroRecibo}.pdf`;
+      doc.save(pdfName);
+      toast.success("PDF del recibo descargado.");
+
+      const totalPago = pago.monto;
+      const mensaje = `*COMPROBANTE DE PAGO DIGITAL* 📄
+Hola *${cliente.nombreCompleto}*, te compartimos tu comprobante de pago.
+
+*Detalle del Pago:*
+• Abono a Saldo: $${pago.monto.toFixed(2)}
+• *Total Recibido: $${totalPago.toFixed(2)}*
+
+*Estado de Cuenta:*
+• Saldo Restante: $${pago.saldoNuevo.toFixed(2)}
+
+Se ha descargado el comprobante oficial en formato PDF en el dispositivo para que lo envíes a continuación. ¡Muchas gracias!`;
+
+      const telefono = formatWhatsAppNumber(cliente.telefono);
+      const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+
+      window.open(url, '_blank');
+    } catch (error) {
+      console.error("Error al generar PDF:", error);
+      toast.error("Error al generar PDF del recibo");
     }
   };
 
@@ -571,6 +606,16 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
                                       <Printer className="w-3 h-3 mr-1" />
                                     )}
                                     {printingRecibo === pago.id ? 'Imprimiendo...' : 'Reimprimir'}
+                                  </Button>
+
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleCompartirPagoPDF(pago)}
+                                    className="flex-1 h-7 text-xs bg-[#25D366] hover:bg-[#20bd5a] hover:text-white border-transparent text-white font-bold"
+                                  >
+                                    <Send className="w-3.5 h-3.5 mr-1" />
+                                    WhatsApp PDF
                                   </Button>
 
                                   <Button

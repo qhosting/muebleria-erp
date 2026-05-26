@@ -62,7 +62,7 @@ export function ConvenioModal({ cliente, isOpen, onClose, onSuccess, isOnline }:
             const getUbicacion = async () => {
                 try {
                     const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
-                    const pos = await obtenerUbicacionCobrador(true, 60000);
+                    const pos = (await obtenerUbicacionCobrador(true, 60000)) as any;
                     setCoords({
                         lat: pos.lat,
                         lng: pos.lng
@@ -89,7 +89,7 @@ export function ConvenioModal({ cliente, isOpen, onClose, onSuccess, isOnline }:
                     codigoCliente: cliente.codigoCliente
                 },
                 gestor: {
-                    name: session?.user?.name
+                    name: session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || 'Cobrador'
                 }
             });
         } catch (error) {

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { signOut, useSession } from 'next-auth/react';
-import { Settings, Printer, LogOut, RefreshCw, Bell, BellOff, WifiOff, Globe } from 'lucide-react';
+import { Settings, Printer, LogOut, RefreshCw, Bell, BellOff, WifiOff, Globe, Sun } from 'lucide-react';
 import { db } from '@/lib/offline-db';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -15,6 +15,7 @@ export default function MobilePerfilPage() {
     const [pendingCount, setPendingCount] = useState(0);
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [preferOffline, setPreferOffline] = useState(false);
+    const [modoSol, setModoSol] = useState(false);
 
     useEffect(() => {
         const loadPending = async () => {
@@ -31,7 +32,7 @@ export default function MobilePerfilPage() {
             setNotificationsEnabled(Notification.permission === 'granted');
         }
 
-        // Cargar ajustes offline
+        // Cargar ajustes offline e iluminación
         const loadSettings = async () => {
             if (session?.user) {
                 const userId = (session.user as any).id;
@@ -39,6 +40,9 @@ export default function MobilePerfilPage() {
                 if (settings) {
                     setPreferOffline(!!settings.preferOffline);
                 }
+            }
+            if (typeof window !== 'undefined') {
+                setModoSol(localStorage.getItem('modo_sol') === 'true');
             }
         };
         loadSettings();
@@ -132,6 +136,35 @@ export default function MobilePerfilPage() {
                     </div>
                     <div className={`w-10 h-5 rounded-full relative transition-colors ${preferOffline ? 'bg-amber-600' : 'bg-slate-700'}`}>
                         <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${preferOffline ? 'right-1' : 'left-1'}`}></div>
+                    </div>
+                </Button>
+
+                <Button
+                    onClick={() => {
+                        const newValue = !modoSol;
+                        setModoSol(newValue);
+                        if (typeof window !== 'undefined') {
+                            if (newValue) {
+                                document.body.classList.add('modo-sol');
+                                localStorage.setItem('modo_sol', 'true');
+                            } else {
+                                document.body.classList.remove('modo-sol');
+                                localStorage.setItem('modo_sol', 'false');
+                            }
+                        }
+                    }}
+                    className={`w-full bg-slate-900 border border-slate-800 hover:bg-slate-800 text-white justify-between h-14 ${modoSol ? 'border-amber-400/40 shadow-[0_0_15px_rgba(245,158,11,0.1)]' : ''}`}
+                    variant="outline"
+                >
+                    <div className="flex items-center">
+                        <Sun className={`w-5 h-5 mr-3 ${modoSol ? 'text-amber-500' : 'text-slate-400'}`} />
+                        <div className="text-left">
+                            <p className="text-sm">Modo Sol (Alto Contraste)</p>
+                            <p className="text-[10px] text-slate-500">{modoSol ? 'Optimizado para luz solar en la calle' : 'Tema oscuro estándar'}</p>
+                        </div>
+                    </div>
+                    <div className={`w-10 h-5 rounded-full relative transition-colors ${modoSol ? 'bg-amber-500' : 'bg-slate-700'}`}>
+                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${modoSol ? 'right-1' : 'left-1'}`}></div>
                     </div>
                 </Button>
 

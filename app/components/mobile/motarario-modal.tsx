@@ -50,7 +50,7 @@ export function MotararioModal({ cliente, isOpen, onClose, onSuccess, isOnline }
   const [proximaVisita, setProximaVisita] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const userId = (session?.user as any)?.id;
+  const userId = (session?.user as any)?.id || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_id') : null);
 
   // Reset form cuando se abre el modal
   useEffect(() => {

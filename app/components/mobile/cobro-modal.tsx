@@ -64,7 +64,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
     gastosCobranza: 0
   });
 
-  const userId = (session?.user as any)?.id;
+  const userId = (session?.user as any)?.id || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_id') : null);
   const { isConnected: isPrinterConnected, printTicket } = useBluetoothPrinter();
 
   // Reset form cuando se abre el modal
@@ -117,7 +117,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
         diaPago: cliente.diaPago
       },
       cobrador: {
-        nombre: (session?.user as any)?.name || 'Cobrador',
+        nombre: (session?.user as any)?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || 'Cobrador',
         id: userId || ""
       },
       pago: {
