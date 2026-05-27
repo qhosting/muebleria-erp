@@ -6,14 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Ticket as TicketIcon, Search, CheckCircle2, AlertCircle, Eye, Download, Clock } from "lucide-react";
+import { Ticket as TicketIcon, Search, CheckCircle2, AlertCircle, Eye, Download, Clock, DollarSign, Loader2 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { toast } from "sonner";
 
 export default function TicketsPage() {
     const [tickets, setTickets] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
+    const [applyingId, setApplyingId] = useState<string | null>(null);
     const [pagination, setPagination] = useState({
         total: 0,
         pages: 0,
@@ -42,8 +44,40 @@ export default function TicketsPage() {
             }
         } catch (error) {
             console.error("Error al obtener tickets", error);
+            toast.error("Error al obtener la lista de tickets");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleAplicarPago = async (ticketId: string) => {
+        const confirmAction = window.confirm(
+            "¿Estás seguro de aplicar este pago manualmente al cliente?\n\nEsto registrará un abono, descontará el monto del saldo pendiente del cliente y marcará el ticket como conciliado."
+        );
+        if (!confirmAction) return;
+
+        setApplyingId(ticketId);
+        try {
+            const res = await fetch("/api/tesoreria/tickets", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ ticketId }),
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                toast.success("¡Pago aplicado y registrado exitosamente al cliente!");
+                fetchTickets();
+            } else {
+                toast.error(data.error || "Error al aplicar el pago");
+            }
+        } catch (error) {
+            console.error("Error al aplicar pago:", error);
+            toast.error("Error de conexión con el servidor");
+        } finally {
+            setApplyingId(null);
         }
     };
 
@@ -51,7 +85,7 @@ export default function TicketsPage() {
         if (tickets.length === 0) return;
 
         const csvContent = [
-            ["Fecha", "Folio/Ref", "Codigo Cliente", "Nombre Cliente", "Gestor", "Monto", "Estado"],
+            ["Fecha", "Folio/Ref", "Codigo Cliente", "Nombre Cliente", "Gestor", "Monto", "Conciliacion", "Pago Cliente"],
             ...tickets.map(t => [
                 (t.fecha || t.creadoEn).split("T")[0],
                 `"${t.folio || t.referencia || t.legacyId || "-"}"`,
@@ -59,7 +93,8 @@ export default function TicketsPage() {
                 `"${t.cliente?.nombreCompleto || "-"}"`,
                 `"${t.gestor?.codigoGestor || t.cliente?.cobradorAsignado?.codigoGestor || "-"}"`,
                 t.monto,
-                t.conciliado ? "CONCILIADO" : "PENDIENTE"
+                t.conciliado ? "CONCILIADO" : "PENDIENTE",
+                (t.pagos && t.pagos.length > 0) ? "APLICADO" : "SIN APLICAR"
             ])
         ].map(e => e.join(",")).join("\n");
 
@@ -116,70 +151,105 @@ export default function TicketsPage() {
                                         <th scope="col" className="px-4 py-3">Cliente</th>
                                         <th scope="col" className="px-4 py-3">Gestor</th>
                                         <th scope="col" className="px-4 py-3 text-right">Monto</th>
-                                        <th scope="col" className="px-4 py-3 text-center">Estado</th>
+                                        <th scope="col" className="px-4 py-3 text-center">Conciliación</th>
+                                        <th scope="col" className="px-4 py-3 text-center">Pago Cliente</th>
                                         <th scope="col" className="px-4 py-3 text-center">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {loading ? (
                                         <tr>
-                                            <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                                            <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                                                 Cargando tickets...
                                             </td>
                                         </tr>
                                     ) : tickets.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="px-4 py-12 text-center">
+                                            <td colSpan={8} className="px-4 py-12 text-center">
                                                 <TicketIcon className="h-10 w-10 text-gray-300 mx-auto mb-3" />
                                                 <p className="text-gray-500 font-medium">No se encontraron tickets</p>
                                                 <p className="text-sm text-gray-400 mt-1">Intenta con otros términos de búsqueda.</p>
                                             </td>
                                         </tr>
                                     ) : (
-                                        tickets.map((ticket) => (
-                                            <tr key={ticket.id} className="hover:bg-gray-50/50 transition-colors">
-                                                <td className="px-4 py-3 whitespace-nowrap">
-                                                    {formatDate(ticket.fecha || ticket.creadoEn).split(' ')[0]}
-                                                </td>
-                                                <td className="px-4 py-3 font-mono text-sm text-gray-900">
-                                                    {ticket.folio || ticket.referencia || `#${ticket.legacyId}`}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <p className="font-medium text-gray-900 truncate max-w-[180px]">
-                                                        {ticket.cliente?.nombreCompleto || "Cliente Desconocido"}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500 font-mono">
-                                                        {ticket.cliente?.codigoCliente}
-                                                    </p>
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                                        {ticket.gestor?.codigoGestor || ticket.cliente?.cobradorAsignado?.codigoGestor || "Sin Gestor"}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-right font-medium text-gray-900">
-                                                    {formatCurrency(ticket.monto)}
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    {ticket.conciliado ? (
-                                                        <Badge variant="success" className="bg-green-50 text-green-700 border-green-200">
-                                                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                                                            Conciliado
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge variant="warning" className="bg-amber-50 text-amber-700 border-amber-200">
-                                                            <AlertCircle className="w-3 h-3 mr-1" />
-                                                            Pendiente
-                                                        </Badge>
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-blue-600">
-                                                        <Eye className="h-4 w-4" />
-                                                    </Button>
-                                                </td>
-                                            </tr>
-                                        ))
+                                        tickets.map((ticket) => {
+                                            const tienePago = ticket.pagos && ticket.pagos.length > 0;
+                                            return (
+                                                <tr key={ticket.id} className="hover:bg-gray-50/50 transition-colors">
+                                                    <td className="px-4 py-3 whitespace-nowrap">
+                                                        {formatDate(ticket.fecha || ticket.creadoEn).split(' ')[0]}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-mono text-sm text-gray-900">
+                                                        {ticket.folio || ticket.referencia || `#${ticket.legacyId}`}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <p className="font-medium text-gray-900 truncate max-w-[180px]">
+                                                            {ticket.cliente?.nombreCompleto || "Cliente Desconocido"}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500 font-mono">
+                                                            {ticket.cliente?.codigoCliente}
+                                                        </p>
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                            {ticket.gestor?.codigoGestor || ticket.cliente?.cobradorAsignado?.codigoGestor || "Sin Gestor"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-medium text-gray-900">
+                                                        {formatCurrency(ticket.monto)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                                                        {ticket.conciliado ? (
+                                                            <Badge variant="success" className="bg-green-50 text-green-700 border-green-200">
+                                                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                                                Conciliado
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="warning" className="bg-amber-50 text-amber-700 border-amber-200">
+                                                                <AlertCircle className="w-3 h-3 mr-1" />
+                                                                Pendiente
+                                                            </Badge>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                                                        {tienePago ? (
+                                                            <Badge variant="success" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                                                Aplicado
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="destructive" className="bg-red-50 text-red-700 border-red-200">
+                                                                <AlertCircle className="w-3 h-3 mr-1" />
+                                                                Sin Aplicar
+                                                            </Badge>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-blue-600">
+                                                                <Eye className="h-4 w-4" />
+                                                            </Button>
+                                                            {!tienePago && ticket.clienteId && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    disabled={applyingId === ticket.id}
+                                                                    onClick={() => handleAplicarPago(ticket.id)}
+                                                                    className="h-8 text-xs bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 flex items-center gap-1 font-semibold rounded-lg transition-all"
+                                                                >
+                                                                    {applyingId === ticket.id ? (
+                                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                                    ) : (
+                                                                        <DollarSign className="w-3 h-3" />
+                                                                    )}
+                                                                    Aplicar Pago
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
                                     )}
                                 </tbody>
                             </table>
