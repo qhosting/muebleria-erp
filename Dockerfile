@@ -15,8 +15,12 @@ COPY app/package.json app/package-lock.json ./
 
 # Instalar dependencias con npm (más compatible que yarn berry)
 RUN set -ex && \
+    echo "📦 Configuring npm network resilience..." && \
+    npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
     echo "📦 Installing dependencies with npm..." && \
-    npm ci --legacy-peer-deps 2>&1 | tee /tmp/npm-install.log && \
+    npm ci --legacy-peer-deps --network-timeout 1000000 2>&1 | tee /tmp/npm-install.log && \
     echo "📦 Verifying installation..." && \
     if [ ! -d "node_modules" ]; then \
     echo "❌ ERROR: node_modules not created!" && \
