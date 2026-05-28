@@ -85,16 +85,18 @@ export default function TicketsPage() {
         if (tickets.length === 0) return;
 
         const csvContent = [
-            ["Fecha", "Folio/Ref", "Codigo Cliente", "Nombre Cliente", "Gestor", "Monto", "Conciliacion", "Pago Cliente"],
+            ["Fecha", "ID Ticket", "Folio/Ref", "Codigo Cliente", "Nombre Cliente", "Gestor", "Monto", "Conciliacion", "Pago Cliente", "ID Pago"],
             ...tickets.map(t => [
                 (t.fecha || t.creadoEn).split("T")[0],
+                `"${t.id}"`,
                 `"${t.folio || t.referencia || t.legacyId || "-"}"`,
                 `"${t.cliente?.codigoCliente || "-"}"`,
                 `"${t.cliente?.nombreCompleto || "-"}"`,
                 `"${t.gestor?.codigoGestor || t.cliente?.cobradorAsignado?.codigoGestor || "-"}"`,
                 t.monto,
                 t.conciliado ? "CONCILIADO" : "PENDIENTE",
-                (t.pagos && t.pagos.length > 0) ? "APLICADO" : "SIN APLICAR"
+                (t.pagos && t.pagos.length > 0) ? "APLICADO" : "SIN APLICAR",
+                `"${t.pagos && t.pagos.length > 0 ? t.pagos.map((p: any) => p.id).join("; ") : "-"}"`
             ])
         ].map(e => e.join(",")).join("\n");
 
@@ -180,7 +182,10 @@ export default function TicketsPage() {
                                                         {formatDate(ticket.fecha || ticket.creadoEn).split(' ')[0]}
                                                     </td>
                                                     <td className="px-4 py-3 font-mono text-sm text-gray-900">
-                                                        {ticket.folio || ticket.referencia || `#${ticket.legacyId}`}
+                                                        <div>{ticket.folio || ticket.referencia || `#${ticket.legacyId}`}</div>
+                                                        <div className="text-[10px] text-gray-400 font-mono mt-0.5" title="Ticket ID">
+                                                            ID: {ticket.id}
+                                                        </div>
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <p className="font-medium text-gray-900 truncate max-w-[180px]">
@@ -213,10 +218,17 @@ export default function TicketsPage() {
                                                     </td>
                                                     <td className="px-4 py-3 text-center whitespace-nowrap">
                                                         {tienePago ? (
-                                                            <Badge variant="success" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-                                                                <CheckCircle2 className="w-3 h-3 mr-1" />
-                                                                Aplicado
-                                                            </Badge>
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <Badge variant="success" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                                                                    Aplicado
+                                                                </Badge>
+                                                                {ticket.pagos.map((pago: any) => (
+                                                                    <span key={pago.id} className="text-[10px] text-gray-400 font-mono" title="Pago ID">
+                                                                        ID: {pago.id}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
                                                         ) : (
                                                             <Badge variant="destructive" className="bg-red-50 text-red-700 border-red-200">
                                                                 <AlertCircle className="w-3 h-3 mr-1" />

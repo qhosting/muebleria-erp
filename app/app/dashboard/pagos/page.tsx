@@ -63,6 +63,8 @@ export default function PagosPage() {
   const [selectedTipo, setSelectedTipo] = useState('all');
   const [selectedCobrador, setSelectedCobrador] = useState('all');
   const [selectedFecha, setSelectedFecha] = useState('');
+  const [activeDbSearch, setActiveDbSearch] = useState('');
+  const [isDbSearching, setIsDbSearching] = useState(false);
   
   // Edit modal states
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -78,13 +80,15 @@ export default function PagosPage() {
       const search = urlParams.get('search');
       if (search) {
         setSearchTerm(search);
+        setActiveDbSearch(search);
+        setIsDbSearching(true);
       }
     }
   }, []);
 
   useEffect(() => {
     fetchPagos();
-  }, [selectedTipo, selectedCobrador, selectedFecha]);
+  }, [selectedTipo, selectedCobrador, selectedFecha, activeDbSearch]);
 
   const fetchPagos = async () => {
     try {
@@ -95,6 +99,11 @@ export default function PagosPage() {
       if (selectedFecha) {
         params.set('fechaDesde', selectedFecha);
         params.set('fechaHasta', selectedFecha);
+      }
+      
+      if (activeDbSearch) {
+        params.set('search', activeDbSearch);
+        params.set('limit', '1000'); // Load more records when performing search
       }
 
       const response = await fetch(`/api/pagos?${params.toString()}`);
@@ -107,6 +116,21 @@ export default function PagosPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearchDb = () => {
+    if (!searchTerm.trim()) {
+      toast.error('Ingresa un término de búsqueda');
+      return;
+    }
+    setActiveDbSearch(searchTerm.trim());
+    setIsDbSearching(true);
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    setActiveDbSearch('');
+    setIsDbSearching(false);
   };
 
   const fetchCobradores = async () => {
@@ -270,14 +294,47 @@ export default function PagosPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Buscar pagos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+              <div className="flex gap-1.5 items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Buscar pagos..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      if (e.target.value === '') {
+                        setActiveDbSearch('');
+                        setIsDbSearching(false);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSearchDb();
+                      }
+                    }}
+                    className="pl-10 h-10"
+                  />
+                </div>
+                <Button 
+                  onClick={handleSearchDb} 
+                  variant={isDbSearching ? "secondary" : "default"}
+                  size="sm"
+                  className="whitespace-nowrap h-10 px-3 flex items-center gap-1 font-semibold"
+                  disabled={loading}
+                >
+                  Buscar DB
+                </Button>
+                {isDbSearching && (
+                  <Button 
+                    onClick={handleClearSearch} 
+                    variant="outline"
+                    size="sm"
+                    className="whitespace-nowrap border-red-200 text-red-600 hover:bg-red-50 h-10 px-2.5"
+                    title="Restaurar lista general"
+                  >
+                    X
+                  </Button>
+                )}
               </div>
               <Select value={selectedTipo} onValueChange={setSelectedTipo}>
                 <SelectTrigger>

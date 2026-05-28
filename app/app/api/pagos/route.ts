@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
     const fechaDesde = searchParams.get('fechaDesde');
     const fechaHasta = searchParams.get('fechaHasta');
     const tipoPago = searchParams.get('tipoPago');
+    const search = searchParams.get('search') || '';
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
 
@@ -29,6 +30,15 @@ export async function GET(request: NextRequest) {
     if (clienteId) where.clienteId = clienteId;
     if (cobradorId) where.cobradorId = cobradorId;
     if (tipoPago) where.tipoPago = tipoPago;
+
+    if (search) {
+      where.OR = [
+        { concepto: { contains: search, mode: 'insensitive' } },
+        { cliente: { nombreCompleto: { contains: search, mode: 'insensitive' } } },
+        { cliente: { codigoCliente: { contains: search, mode: 'insensitive' } } },
+        { numeroRecibo: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     if (fechaDesde || fechaHasta) {
       where.fechaPago = {};
