@@ -129,6 +129,17 @@ async function enviarTareaAlServidor(tarea: TareaSincronizacion): Promise<boolea
 
         if (response.ok) {
             console.log(`✅ ${tarea.tipo} sincronizado con éxito`);
+            if (tarea.tipo === 'solicitud' && tarea.payload.localId) {
+                try {
+                    const { db } = await import('@/lib/offline-db');
+                    await db.solicitudes.where('localId').equals(tarea.payload.localId).modify({
+                        syncStatus: 'synced'
+                    });
+                    console.log(`✅ Estado de solicitud ${tarea.payload.localId} actualizado en IndexedDB a 'synced'`);
+                } catch (dbError) {
+                    console.error('Error al actualizar IndexedDB para solicitud:', dbError);
+                }
+            }
             return true;
         } else {
             const errorData = await response.json().catch(() => ({}));

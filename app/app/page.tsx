@@ -1,16 +1,22 @@
-
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import LandingPage from '@/components/ecommerce/LandingPage';
-import { prisma } from '@/lib/db';
-
 
 export const dynamic = 'force-dynamic';
 
 const isCapacitor = process.env.BUILD_TARGET === 'capacitor';
+const isCobradorMode = process.env.NEXT_PUBLIC_APP_MODE === 'cobrador';
 
 export default async function HomePage() {
+  // 🚀 En Capacitor / Modo Cobrador redirigir de inmediato sin usar Base de Datos ni Sesiones de Servidor
+  if (isCapacitor || isCobradorMode) {
+    redirect('/cobrador-app');
+  }
+
+  // Importar dinámicamente dependencias de servidor para evitar bails en build estático
+  const { getServerSession } = await import('next-auth');
+  const { authOptions } = await import('@/lib/auth');
+  const { prisma } = await import('@/lib/db');
+
   let session = null;
   try {
     session = await getServerSession(authOptions);
@@ -27,16 +33,6 @@ export default async function HomePage() {
       redirect('/cobrador-app');
     }
     redirect('/dashboard');
-  }
-
-  // 🚀 MODO COBRADOR: Si la app está compilada específicamente para cobradores,
-  // redirigir al entry-point de cobrador (el cual manejará el login si no hay sesión)
-  if (process.env.NEXT_PUBLIC_APP_MODE === 'cobrador') {
-    redirect('/cobrador-app');
-  }
-
-  if (isCapacitor) {
-    return <LandingPage />;
   }
 
   // Consultar configuración del sistema para ver si el landing page está habilitado

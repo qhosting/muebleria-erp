@@ -166,6 +166,7 @@ export default function VendedorSolicitudPage() {
 
                 // Agregar a la cola de sincronización global
                 await agregarColaSincronizacion('solicitud', {
+                    localId,
                     data: formData,
                     files: base64Files
                 });

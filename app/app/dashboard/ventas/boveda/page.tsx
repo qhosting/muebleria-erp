@@ -65,6 +65,7 @@ export default function BovedaDigitalPage() {
     // Edición de CURP y Datos
     const [isEditingCurp, setIsEditingCurp] = useState(false);
     const [curpToEdit, setCurpToEdit] = useState<any>(null);
+    const [newNombreVal, setNewNombreVal] = useState('');
     const [newCurpVal, setNewCurpVal] = useState('');
     const [newCodigoVal, setNewCodigoVal] = useState('');
     const [newContratoVal, setNewContratoVal] = useState('');
@@ -165,7 +166,8 @@ export default function BovedaDigitalPage() {
                     newCurp: newCurpVal,
                     newCodigo: newCodigoVal,
                     newContrato: newContratoVal,
-                    newTelefono: newTelefonoVal
+                    newTelefono: newTelefonoVal,
+                    newNombre: newNombreVal
                 })
             });
 
@@ -330,6 +332,7 @@ export default function BovedaDigitalPage() {
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             setCurpToEdit(res);
+                                                            setNewNombreVal(res.nombreCompleto || '');
                                                             setNewCurpVal(res.curp || '');
                                                             setNewCodigoVal(res.codigoCliente || '');
                                                             setNewContratoVal(res.folioContrato || '');
@@ -506,9 +509,15 @@ export default function BovedaDigitalPage() {
                             </DialogTitle>
                         </DialogHeader>
                         <div className="py-4 space-y-4">
-                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                                <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Cliente</p>
-                                <p className="text-sm font-bold text-slate-700 uppercase">{curpToEdit?.nombreCompleto}</p>
+                            <div className="grid gap-2">
+                                <Label htmlFor="new-nombre">Nombre del Cliente</Label>
+                                <Input 
+                                    id="new-nombre" 
+                                    className="uppercase"
+                                    placeholder="Ej. MARIO PÉREZ" 
+                                    value={newNombreVal}
+                                    onChange={(e) => setNewNombreVal(e.target.value.toUpperCase())}
+                                />
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="new-curp">CURP (Opcional)</Label>

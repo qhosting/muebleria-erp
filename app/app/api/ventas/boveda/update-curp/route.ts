@@ -19,7 +19,7 @@ export async function PATCH(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { currentCurp, currentNombre, newCurp, newCodigo, newContrato, newTelefono } = body;
+        const { currentCurp, currentNombre, newCurp, newCodigo, newContrato, newTelefono, newNombre } = body;
 
         const db = prisma as any;
 
@@ -29,6 +29,7 @@ export async function PATCH(request: NextRequest) {
         if (newCodigo !== undefined) updateData.codigoCliente = newCodigo.toUpperCase();
         if (newContrato !== undefined) updateData.folioContrato = newContrato.toUpperCase();
         if (newTelefono !== undefined) updateData.telefono = newTelefono;
+        if (newNombre !== undefined && newNombre !== '') updateData.nombreCliente = newNombre.toUpperCase();
 
         // Actualizamos todos los registros que coincidan con el cliente actual
         const result = await db.documentoBoveda.updateMany({
