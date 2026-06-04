@@ -679,6 +679,30 @@ Email: soporte@vertexerp.com
 
 ---
 
+## 🧪 Pruebas de Notificaciones Push (FCM)
+
+Para probar que las notificaciones push de Firebase Cloud Messaging (FCM) funcionen correctamente en el APK, sigue estos pasos:
+
+### 1. Obtener el Token FCM del Dispositivo
+Al iniciar la aplicación por primera vez en el dispositivo o emulador:
+1. Conecta el dispositivo a la computadora y abre Chrome. Navega a `chrome://inspect` para habilitar la depuración remota.
+2. Abre la app en el dispositivo e inicia sesión.
+3. En la consola de inspección de Chrome (DevTools) verás impreso: `FCM Token registrado: <TOKEN_FCM>`. Copia este token.
+4. Alternativamente, puedes consultar el token directamente en la base de datos dentro de la tabla `DispositivoAutorizado` asociado a tu dispositivo.
+
+### 2. Enviar una Notificación de Prueba desde la Consola de Firebase
+1. Ve a la consola de [Firebase](https://console.firebase.google.com/).
+2. Selecciona tu proyecto (`dasoplus-cb403`).
+3. En el menú izquierdo, navega a **Engage / Campaña / Cloud Messaging**.
+4. Haz clic en **Crear tu primera campaña** -> **Mensajes de notificación de Firebase**.
+5. Escribe un título (ej: "Prueba de Cobro") y el texto de la notificación.
+6. Haz clic en **Enviar mensaje de prueba**.
+7. Pega el token FCM que copiaste del dispositivo en el campo correspondiente y haz clic en el botón `+`.
+8. Presiona **Probar**.
+9. La notificación debería aparecer en el dispositivo de inmediato (si la app está en segundo plano o bloqueada, se mostrará en el centro de notificaciones nativo de Android; si la app está en primer plano, se mostrará como un Toast local emergente).
+
+---
+
 **Tiempo Total Estimado:** 7-10 días  
 **Costo Total:** $25 USD (Google Play Developer)  
 **Resultado:** App nativa Android exclusiva para cobradores en campo
@@ -687,5 +711,5 @@ Email: soporte@vertexerp.com
 
 **Creado por:** DeepAgent  
 **Fecha:** 2026-02-07  
-**Versión:** 1.0  
-**Última actualización:** 2026-06-04 — APK Release firmado generado exitosamente.
+**Versión:** 2.9.34  
+**Última actualización:** 2026-06-04 — Integrado Firebase Cloud Messaging (FCM) y compilado APK Release firmado v2.9.34 con soporte para notificaciones push.

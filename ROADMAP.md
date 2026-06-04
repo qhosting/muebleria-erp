@@ -1,6 +1,6 @@
 # Roadmap - VertexERP Muebles
 
-## 🚀 Estado Actual del Proyecto (v2.9.31)
+## 🚀 Estado Actual del Proyecto (v2.9.34)
 
 VertexERP Muebles es un sistema integral de gestión de cobranza y administración de clientes diseñado específicamente para mueblerías que operan con créditos y cobranza en campo. El sistema funciona tanto como PWA (Progressive Web App) como **App Nativa Android** para cobradores en campo.
 
@@ -13,7 +13,7 @@ VertexERP Muebles es un sistema integral de gestión de cobranza y administraci�
 
 #### 2. Módulo de Cobranza (Campo)
 - **App Móvil (PWA):** Interfaz optimizada para cobradores en ruta.
-- **App Nativa Android:** APK compilado y firmado (`com.vertexerp.cobrador`, v2.9.31). ✅ *Junio 2026*
+- **App Nativa Android:** APK compilado y firmado (`com.vertexerp.cobrador`, v2.9.34). ✅ *Junio 2026*
 - **Modo Offline:** Capacidad de registrar cobros sin conexión a internet y sincronización automática.
 - **Rutas de Cobro:** Organización lógica de clientes por zonas o rutas asignadas.
 - **Caja Diaria:** Cierre de caja y resumen de cobranza por usuario.
@@ -58,5 +58,5 @@ VertexERP Muebles es un sistema integral de gestión de cobranza y administraci�
 
 ### 🟢 Mejoras Futuras
 - [ ] Soporte iOS (requiere cuenta Apple Developer $99 USD/año).
-- [ ] Notificaciones push configuradas con FCM.
+- [x] Notificaciones push configuradas con FCM (google-services.json integrado, plugin aplicado y APK compilada).
 - [ ] Actualización OTA (Over-The-Air) sin pasar por Play Store.
