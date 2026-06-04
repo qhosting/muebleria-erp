@@ -8,7 +8,7 @@ const allowedOrigins = [
   'https://localhost',
   'http://localhost:3000',
   'capacitor://localhost',
-  'https://app.mueblerialaeconomica.com'
+  'https://erp.mueblesdaso.com'
 ];
 
 // Lógica de CORS y sanitización general

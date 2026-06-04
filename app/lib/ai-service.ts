@@ -163,7 +163,7 @@ async function callOpenRouter(key: string, prompt: string): Promise<AIResponse> 
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${key}`,
-            "HTTP-Referer": "https://mueblerialaeconomica.com",
+            "HTTP-Referer": "https://erp.mueblesdaso.com",
             "X-Title": "Muebleria ERP"
         },
         body: JSON.stringify({
