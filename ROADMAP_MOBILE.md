@@ -35,9 +35,10 @@ Digitalizar y optimizar la operación de cobranza en campo, proporcionando herra
 - [x] Script de build estático para Capacitor (`scripts/build-native.js`).
 - [x] Keystore de firma creado (`android/app/vertexerp-release.jks`).
 - [x] `signingConfigs` configurado en `android/app/build.gradle`.
-- [x] **APK Release firmado generado** — `app-release.apk` (8.8 MB).
+- [x] Integración de Firebase Cloud Messaging (FCM) con `google-services.json` y el plugin de Google Services.
+- [x] **APK Release firmado generado con FCM** — `app-release.apk` (9.28 MB).
   - App ID: `com.vertexerp.cobrador`
-  - Versión: `2.9.31` (versionCode 2)
+  - Versión: `2.9.34` (versionCode 2)
   - Herramienta: Capacitor 8 + Gradle + JDK 21
   - 12 plugins nativos incluidos (GPS, BT, Cámara, Push, etc.)
 
@@ -71,4 +72,4 @@ Digitalizar y optimizar la operación de cobranza en campo, proporcionando herra
 | Key Password | `VertexERP2024!` |
 
 ---
-*Última actualización: 4 de Junio de 2026*
+*Última actualización: 4 de Junio de 2026 (v2.9.34 con soporte para notificaciones push FCM)*
