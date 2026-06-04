@@ -83,11 +83,23 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
         const sendHeartbeat = async () => {
             try {
                 let deviceId = 'web-browser';
+                let nombre = 'Navegador Web';
+                let modelo = 'Browser';
+                let sistemaOperativo = 'Web';
                 
                 if (Capacitor.isNativePlatform()) {
                     const { Device } = await import('@capacitor/device');
-                    const info = await Device.getId();
-                    deviceId = info.identifier;
+                    const idInfo = await Device.getId();
+                    deviceId = idInfo.identifier;
+                    
+                    try {
+                        const info = await Device.getInfo();
+                        modelo = info.model || 'Device';
+                        nombre = `${info.manufacturer || ''} ${info.model || ''}`.trim() || 'Dispositivo Móvil';
+                        sistemaOperativo = `${info.operatingSystem || ''} ${info.osVersion || ''}`.trim() || 'Android/iOS';
+                    } catch (deviceError) {
+                        console.warn("No se pudo obtener información del dispositivo:", deviceError);
+                    }
                 }
 
                 // Importar dinámicamente para evitar problemas de SSR / Capacitor
@@ -99,8 +111,11 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         deviceId,
-                        latitud: pos.lat,
-                        longitd: pos.lng
+                        latitud: pos?.lat,
+                        longitud: pos?.lng, // Corregido: longitud en vez de longitd
+                        nombre,
+                        modelo,
+                        sistemaOperativo
                     })
                 });
             } catch (e) {

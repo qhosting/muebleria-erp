@@ -16,7 +16,7 @@ async function checkAdmin() {
 /**
  * Validar si un dispositivo está autorizado
  */
-export async function checkDeviceStatus(deviceId: string) {
+async function checkDeviceStatus(deviceId: string) {
   const device = await prisma.dispositivoAutorizado.findUnique({
     where: { id: deviceId }
   });

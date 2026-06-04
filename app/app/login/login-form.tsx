@@ -231,14 +231,31 @@ export default function LoginForm() {
     if (Capacitor.isNativePlatform() && ['cobrador', 'vendedor', 'jefe_ventas'].includes(userRole)) {
       try {
         const { Device } = await import('@capacitor/device');
-        const info = await Device.getId();
-        const currentDeviceId = info.identifier;
+        const idInfo = await Device.getId();
+        const currentDeviceId = idInfo.identifier;
         setDeviceId(currentDeviceId);
+
+        let nombre = 'Dispositivo Móvil';
+        let modelo = 'Desconocido';
+        let sistemaOperativo = 'Android/iOS';
+        try {
+          const info = await Device.getInfo();
+          modelo = info.model || 'Device';
+          nombre = `${info.manufacturer || ''} ${info.model || ''}`.trim() || 'Dispositivo Móvil';
+          sistemaOperativo = `${info.operatingSystem || ''} ${info.osVersion || ''}`.trim() || 'Android/iOS';
+        } catch (deviceError) {
+          console.warn("No se pudo obtener información del dispositivo:", deviceError);
+        }
 
         const hbRes = await fetch('/api/mobile/dispositivos/heartbeat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deviceId: currentDeviceId })
+          body: JSON.stringify({ 
+            deviceId: currentDeviceId,
+            nombre,
+            modelo,
+            sistemaOperativo
+          })
         });
         const hbData = await hbRes.json();
 
