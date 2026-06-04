@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "308697025249",
+    "project_id": "dasoplus-cb403",
+    "storage_bucket": "dasoplus-cb403.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:308697025249:android:677c9718b99236114f85a0",
+        "android_client_info": {
+          "package_name": "com.vertexerp.cobrador"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAgwHajvf8AqFNs54e1LqK5i_875zhnbGk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
