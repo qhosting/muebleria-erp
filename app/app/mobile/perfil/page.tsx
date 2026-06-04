@@ -258,14 +258,12 @@ export default function MobilePerfilPage() {
                                 } catch (e) { console.error("Error deleting caches:", e); }
                             }
 
-                            // 3. Limpiar Storage pero PRESERVAR ajustes de servidor
-                            const customUrl = localStorage.getItem('custom_server_url');
+                            // 3. Limpiar Storage pero PRESERVAR ajustes de usuario
                             const rememberedEmail = localStorage.getItem('remembered_email');
                             const pwaInstalled = localStorage.getItem('pwa-installed');
                             
                             localStorage.clear();
                             
-                            if (customUrl) localStorage.setItem('custom_server_url', customUrl);
                             if (rememberedEmail) localStorage.setItem('remembered_email', rememberedEmail);
                             if (pwaInstalled) localStorage.setItem('pwa-installed', pwaInstalled);
 

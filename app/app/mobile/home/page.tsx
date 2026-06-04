@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, DollarSign, MapPin, Printer, TrendingUp } from "lucide-react";
+import { Loader2, DollarSign, MapPin, Printer, TrendingUp, ShieldAlert, Hash, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { usePlatform } from "@/hooks/usePlatform";
 import { db } from "@/lib/offline-db";
@@ -260,8 +260,9 @@ export default function MobileHome() {
         );
     }
 
-    const stats = data?.stats || { totalCobrado: 0, clientesPendientes: 0, cuentasCobradas: 0, efectividad: 0 };
+    const stats = data?.stats || { totalCobrado: 0, clientesPendientes: 0, cuentasCobradas: 0, efectividad: 0, vdPendientes: 0 };
     const proximosClientes = data?.proximosClientes || [];
+    const clientesVdPendientes = data?.clientesVdPendientes || [];
 
     return (
         <div className="space-y-6">
@@ -279,16 +280,69 @@ export default function MobileHome() {
                     </div>
                 </div>
 
+                {/* Fila secundaria: efectividad + VD pendientes */}
                 <div className="mt-4 pt-4 border-t border-slate-700 flex justify-between items-center">
                     <div className="flex items-center space-x-2 text-slate-300">
                         <TrendingUp className="w-4 h-4 text-sky-400" />
                         <span className="text-sm">Efectividad: {stats.efectividad}%</span>
                     </div>
-                    <Link href="/mobile/mapa-ruta" className="bg-sky-600 hover:bg-sky-500 transition-colors text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg active:scale-95 transition-transform inline-block text-center">
-                        Ver Ruta
-                    </Link>
+                    <div className="flex items-center gap-3">
+                        {stats.vdPendientes > 0 && (
+                            <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg">
+                                <ShieldAlert className="w-3 h-3 text-amber-400" />
+                                <span className="text-xs font-bold text-amber-400">{stats.vdPendientes} VD</span>
+                            </div>
+                        )}
+                        <Link href="/mobile/mapa-ruta" className="bg-sky-600 hover:bg-sky-500 transition-colors text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg active:scale-95 transition-transform inline-block text-center">
+                            Ver Ruta
+                        </Link>
+                    </div>
                 </div>
             </div>
+
+            {/* ALERTA: VD PENDIENTES */}
+            {stats.vdPendientes > 0 && (
+                <div className="bg-amber-950/40 border border-amber-600/30 rounded-2xl overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-amber-600/20">
+                        <div className="flex items-center gap-2">
+                            <ShieldAlert className="w-4 h-4 text-amber-400" />
+                            <span className="text-xs font-bold uppercase tracking-wider text-amber-400">VD Pendientes</span>
+                        </div>
+                        <Link
+                            href="/mobile/clientes"
+                            className="text-[10px] text-amber-400/70 font-bold uppercase hover:text-amber-300"
+                        >
+                            Ver todos ({stats.vdPendientes})
+                        </Link>
+                    </div>
+
+                    <div className="divide-y divide-amber-900/30">
+                        {clientesVdPendientes.map((c: any) => (
+                            <Link
+                                key={c.id}
+                                href={`/mobile/clientes?id=${c.id}&search=${encodeURIComponent(c.nombre)}`}
+                                className="flex items-center justify-between px-5 py-3 active:bg-amber-900/20 transition-colors"
+                            >
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-slate-200 truncate">{c.nombre}</p>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                        {c.codigo && (
+                                            <span className="flex items-center gap-0.5 text-[10px] text-slate-500 font-mono">
+                                                <Hash className="w-2.5 h-2.5" />{c.codigo}
+                                            </span>
+                                        )}
+                                        <span className="text-[10px] text-slate-600">{c.direccion?.slice(0, 30)}</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase">Sin VD</span>
+                                    <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* LISTA DE PRÓXIMOS CLIENTES (REAL DATA) */}
             <div className="space-y-3">

@@ -263,35 +263,47 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
 
   const handleCompartirPagoPDF = async (pago: Pago) => {
     try {
+      toast.info('Generando comprobante PDF...');
+
       const ticketData = createReimpresionTicketData(pago);
-      
       const { generateReceiptPdf } = await import("@/lib/receipt-pdf");
       const doc = await generateReceiptPdf(ticketData);
-      
-      const pdfName = `Recibo_${cliente.nombreCompleto?.replace(/\s+/g, '_')}_${ticketData.numeroRecibo}.pdf`;
-      doc.save(pdfName);
-      toast.success("PDF del recibo descargado.");
 
-      const totalPago = pago.monto;
-      const mensaje = `*COMPROBANTE DE PAGO DIGITAL* 📄
-Hola *${cliente.nombreCompleto}*, te compartimos tu comprobante de pago.
+      const pdfName = `Comprobante_${cliente.nombreCompleto?.replace(/\s+/g, '_')}_${ticketData.numeroRecibo}.pdf`;
 
-*Detalle del Pago:*
-• Abono a Saldo: $${pago.monto.toFixed(2)}
-• *Total Recibido: $${totalPago.toFixed(2)}*
+      // Intentar compartir como archivo usando la Web Share API (soportado en Android Chrome/Capacitor)
+      const pdfOutput = doc.output('arraybuffer');
+      const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
+      const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
 
-*Estado de Cuenta:*
-• Saldo Restante: $${pago.saldoNuevo.toFixed(2)}
+      const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] });
 
-Se ha descargado el comprobante oficial en formato PDF en el dispositivo para que lo envíes a continuación. ¡Muchas gracias!`;
+      if (canShare) {
+        // Compartir directamente como archivo — WhatsApp, correo, Drive, etc.
+        await navigator.share({
+          title: `Comprobante de Pago — ${cliente.nombreCompleto}`,
+          text: `Comprobante de pago por $${pago.monto.toFixed(2)} — ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}`,
+          files: [pdfFile],
+        });
+        toast.success('PDF compartido exitosamente');
+      } else {
+        // Fallback: descargar PDF + abrir WhatsApp con mensaje breve
+        doc.save(pdfName);
+        toast.success('PDF descargado. Ábrelo y compártelo por WhatsApp.', { duration: 5000 });
 
-      const telefono = formatWhatsAppNumber(cliente.telefono);
-      const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
-
-      window.open(url, '_blank');
-    } catch (error) {
-      console.error("Error al generar PDF:", error);
-      toast.error("Error al generar PDF del recibo");
+        const mensaje = `Hola *${cliente.nombreCompleto}* 👋, adjunto encontrarás tu comprobante de pago por *$${pago.monto.toFixed(2)}* del ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}. ¡Gracias!`;
+        const telefono = formatWhatsAppNumber(cliente.telefono);
+        if (telefono) {
+          setTimeout(() => {
+            window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, '_blank');
+          }, 1500); // Pequeña pausa para que el PDF se descargue primero
+        }
+      }
+    } catch (error: any) {
+      // El usuario canceló el share — no es un error real
+      if (error?.name === 'AbortError') return;
+      console.error("Error al compartir PDF:", error);
+      toast.error("Error al generar el comprobante PDF");
     }
   };
 

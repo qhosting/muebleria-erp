@@ -2,15 +2,14 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
     appId: 'com.vertexerp.cobrador',
-    appName: 'VertexERP Cobrador',
+    appName: 'VertexERP Movil',
     webDir: 'out',
     server: {
         androidScheme: 'https',
-        cleartext: true,
-        // Permite que Capacitor cargue archivos locales (index.html) desde 'out'
-        url: undefined,
-        // Permite cualquier dominio dinámico configurado por el usuario en la app
-        allowNavigation: ["*"]
+        cleartext: false,
+        // La app carga directamente desde el servidor de producción
+        url: 'https://erp.mueblesdaso.com',
+        allowNavigation: ['erp.mueblesdaso.com']
     },
     plugins: {
         CapacitorHttp: {

@@ -74,15 +74,8 @@ export async function sincronizarCola() {
 }
 
 async function enviarTareaAlServidor(tarea: TareaSincronizacion): Promise<boolean> {
-    const isNative = Capacitor.isNativePlatform();
-    let baseUrl = '';
-
-    if (isNative && typeof window !== 'undefined') {
-        const savedUrl = localStorage.getItem('custom_server_url');
-        if (savedUrl) {
-            baseUrl = savedUrl.endsWith('/') ? savedUrl.slice(0, -1) : savedUrl;
-        }
-    }
+    const { getBaseUrl } = await import('@/lib/api-config');
+    const baseUrl = getBaseUrl();
 
     let endpoint = '';
     switch (tarea.tipo) {

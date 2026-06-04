@@ -42,9 +42,15 @@ export async function GET() {
     inicioCicloMexico.setUTCDate(inicioCicloMexico.getUTCDate() - diffToSaturday);
     const inicioCiclo = new Date(inicioCicloMexico.getTime() - offsetMexico);
 
+    // Filtro base: clientes del cobrador activos
+    const whereBase: any = {
+      cobradorAsignadoId: isAdminOrSupervisor ? undefined : userId,
+      statusCuenta: 'activo',
+    };
+
     try {
-      const [hoyResult, clientesPendientesCount, proximosClientes] = await Promise.all([
-        // 1. Cobrado hoy (Optimizado con índice)
+      const [hoyResult, clientesPendientesCount, proximosClientes, vdPendientesCount, clientesVdPendientes] = await Promise.all([
+        // 1. Cobrado hoy
         prisma.pago.aggregate({
           where: {
             cobradorId: userId,
@@ -53,11 +59,10 @@ export async function GET() {
           _sum: { monto: true },
           _count: { id: true }
         }),
-        // 2. Clientes pendientes (Optimizado con índice)
+        // 2. Clientes pendientes de pago este ciclo
         prisma.cliente.count({
           where: {
-            cobradorAsignadoId: userId,
-            statusCuenta: 'activo',
+            ...whereBase,
             pagos: {
               none: {
                 fechaPago: { gte: inicioCiclo },
@@ -66,11 +71,10 @@ export async function GET() {
             }
           }
         }),
-        // 3. Próximos clientes a visitar (Limitado a 10 para velocidad)
+        // 3. Próximos clientes a visitar (máximo 10, ordenados por días vencidos)
         prisma.cliente.findMany({
           where: {
-            cobradorAsignadoId: userId,
-            statusCuenta: 'activo',
+            ...whereBase,
             pagos: {
               none: {
                 fechaPago: { gte: inicioCiclo },
@@ -79,9 +83,32 @@ export async function GET() {
             }
           },
           take: 10,
-          orderBy: {
-            diasVencidos: 'desc'
+          orderBy: { diasVencidos: 'desc' }
+        }),
+        // 4. Conteo de clientes con VD PENDIENTE (sin ninguna verificación domiciliaria)
+        prisma.cliente.count({
+          where: {
+            ...whereBase,
+            verificaciones: { none: {} }
           }
+        }),
+        // 5. Lista de clientes con VD pendiente (máximo 5 para mostrar en dashboard)
+        prisma.cliente.findMany({
+          where: {
+            ...whereBase,
+            verificaciones: { none: {} }
+          },
+          select: {
+            id: true,
+            nombreCompleto: true,
+            codigoCliente: true,
+            direccionCompleta: true,
+            saldoActual: true,
+            diasVencidos: true,
+            fechaVenta: true,
+          },
+          orderBy: { fechaVenta: 'asc' }, // Las más antiguas primero (más urgentes)
+          take: 5,
         })
       ]);
 
@@ -92,7 +119,8 @@ export async function GET() {
           clientesPendientes: clientesPendientesCount || 0,
           efectividad: clientesPendientesCount > 0 
             ? Math.round((hoyResult._count.id / (hoyResult._count.id + clientesPendientesCount)) * 100) 
-            : 100
+            : 100,
+          vdPendientes: vdPendientesCount || 0,
         },
         proximosClientes: proximosClientes.map(c => ({
           id: c.id,
@@ -101,6 +129,15 @@ export async function GET() {
           saldo: parseFloat(c.saldoActual.toString()),
           vencido: parseFloat(c.saldoVencido.toString()),
           diaPago: c.diaPago
+        })),
+        clientesVdPendientes: clientesVdPendientes.map(c => ({
+          id: c.id,
+          nombre: c.nombreCompleto,
+          codigo: c.codigoCliente,
+          direccion: c.direccionCompleta,
+          saldo: parseFloat(c.saldoActual.toString()),
+          diasVencidos: c.diasVencidos,
+          fechaVenta: c.fechaVenta.toISOString(),
         }))
       });
     } catch (dbError) {

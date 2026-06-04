@@ -69,7 +69,11 @@ export async function GET(req: NextRequest) {
             take: 1
           },
           producto: true,
-          vendedorRel: true
+          vendedorRel: true,
+          verificaciones: {
+            select: { id: true },
+            take: 1
+          }
         },
         orderBy: {
           nombreCompleto: 'asc'
@@ -97,6 +101,7 @@ export async function GET(req: NextRequest) {
           telefono: c.telefono,
           estatus: c.saldoVencido.toNumber() > 0 ? 'atrasado' : 'aldia',
           yaPagoEstaSemana: c.pagos.length > 0,
+          vdStatus: c.verificaciones.length === 0 ? 'PENDIENTE' : 'REALIZADA',
           diasVencidos: c.diasVencidos,
           // Datos extendidos para el perfil
           descripcionProducto: c.descripcionProducto,

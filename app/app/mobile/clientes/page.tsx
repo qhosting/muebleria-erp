@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake, RefreshCw } from "lucide-react";
+import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake, RefreshCw, Phone, Hash } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { usePlatform } from "@/hooks/usePlatform";
@@ -38,10 +38,9 @@ function MobileClientes() {
     const [pagoExitoso, setPagoExitoso] = useState(false);
     const [loading, setLoading] = useState(true);
     const [clientes, setClientes] = useState<any[]>([]);
-    const [mostrarTodos, setMostrarTodos] = useState(false);
-    const [filtroDia, setFiltroDia] = useState("todos");
-    const [filtroEstatus, setFiltroEstatus] = useState("todos");
     const [filtroCobro, setFiltroCobro] = useState<"todos" | "cobrados" | "nocobrados">("todos");
+    const [filtroDia, setFiltroDia] = useState<string>("todos");
+    const [filtroVd, setFiltroVd] = useState<"todos" | "pendiente">("todos");
     
     // Estados para el cobro
     const [interesMoratorio, setInteresMoratorio] = useState("0");
@@ -162,7 +161,8 @@ function MobileClientes() {
                     const searchLower = searchTerm.toLowerCase();
                     query = db.clientes.filter(c => 
                         (c.nombreCompleto?.toLowerCase() || "").includes(searchLower) ||
-                        (c.direccion?.toLowerCase() || "").includes(searchLower)
+                        (c.direccion?.toLowerCase() || "").includes(searchLower) ||
+                        (c.codigoCliente?.toLowerCase() || "").includes(searchLower)
                     );
                 }
 
@@ -203,6 +203,7 @@ function MobileClientes() {
 
                     return {
                         id: c.id,
+                        codigoCliente: c.codigoCliente,
                         nombre: c.nombreCompleto,
                         direccion: c.direccion,
                         diaPago: c.diaPago,
@@ -212,6 +213,7 @@ function MobileClientes() {
                         pagoSemanal: Number(c.montoAcordado || 0),
                         telefono: c.telefono,
                         yaPagoEstaSemana: yaPago,
+                        vdStatus: c.vdStatus || 'REALIZADA',
                         // Campos extendidos para perfil
                         descripcionProducto: c.descripcionProducto,
                         vendedorNombre: c.vendedorNombre,
@@ -236,6 +238,7 @@ function MobileClientes() {
             try {
                 const toPut = data.map(c => ({
                     id: c.id,
+                    codigoCliente: c.codigoCliente,
                     nombreCompleto: c.nombre,
                     direccion: c.direccion,
                     diaPago: c.diaPago,
@@ -244,6 +247,7 @@ function MobileClientes() {
                     saldoVencido: c.saldoVencido,
                     montoAcordado: c.pagoSemanal,
                     telefono: c.telefono,
+                    vdStatus: c.vdStatus || 'REALIZADA',
                     // Datos extendidos
                     descripcionProducto: c.descripcionProducto,
                     vendedorNombre: c.vendedorNombre,
@@ -451,6 +455,8 @@ function MobileClientes() {
         if (!selectedCliente) return;
 
         try {
+            toast.info('Generando comprobante PDF...');
+
             const ticketData = {
                 numeroRecibo: `REC-${Date.now().toString().slice(-6)}`,
                 cliente: {
@@ -485,37 +491,50 @@ function MobileClientes() {
 
             const { generateReceiptPdf } = await import("@/lib/receipt-pdf");
             const doc = await generateReceiptPdf(ticketData);
-            
-            const pdfName = `Recibo_${selectedCliente.nombre.replace(/\s+/g, '_')}_${ticketData.numeroRecibo}.pdf`;
-            doc.save(pdfName);
-            toast.success("PDF descargado en el dispositivo.");
 
             const totalPago = parseFloat(montoCobrar) + parseFloat(interesMoratorio) + parseFloat(gastosCobranza);
-            const mensaje = `*COMPROBANTE DE PAGO DIGITAL* 📄
-Hola *${selectedCliente.nombre}*, hemos registrado tu pago con éxito.
+            const pdfName = `Comprobante_${selectedCliente.nombre.replace(/\s+/g, '_')}_${ticketData.numeroRecibo}.pdf`;
 
-*Detalle del Pago:*
-• Abono a Saldo: $${parseFloat(montoCobrar).toFixed(2)}
-${parseFloat(interesMoratorio) > 0 ? `• Interés Moratorio: $${parseFloat(interesMoratorio).toFixed(2)}\n` : ''}${parseFloat(gastosCobranza) > 0 ? `• Gastos de Cobro: $${parseFloat(gastosCobranza).toFixed(2)}\n` : ''}• *Total Recibido: $${totalPago.toFixed(2)}*
+            // Intentar compartir como archivo PDF usando la Web Share API (Android / Capacitor)
+            const pdfOutput = doc.output('arraybuffer');
+            const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
+            const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
 
-*Estado de Cuenta:*
-• Saldo Restante: $${(selectedCliente.saldo - parseFloat(montoCobrar)).toFixed(2)}
+            const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] });
 
-Se ha descargado el comprobante oficial en formato PDF en el dispositivo para que lo envíes a continuación. ¡Muchas gracias por tu pago!`;
-
-            const telefono = formatWhatsAppNumber(selectedCliente.telefono);
-            const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
-
-            if (isNative) {
-                window.open(url, '_system');
+            if (canShare) {
+                // Selector nativo de apps — WhatsApp, correo, Drive, etc.
+                await navigator.share({
+                    title: `Comprobante de Pago — ${selectedCliente.nombre}`,
+                    text: `Tu comprobante de pago por $${totalPago.toFixed(2)}. ¡Gracias!`,
+                    files: [pdfFile],
+                });
+                toast.success('Comprobante compartido exitosamente');
             } else {
-                window.open(url, '_blank');
+                // Fallback: descargar y abrir WhatsApp con texto breve
+                doc.save(pdfName);
+                toast.success('PDF descargado. Ábrelo y compártelo por WhatsApp.', { duration: 5000 });
+
+                const mensaje = `Hola *${selectedCliente.nombre}* 👋, adjunto tu comprobante de pago por *$${totalPago.toFixed(2)}*. ¡Gracias!`;
+                const telefono = formatWhatsAppNumber(selectedCliente.telefono);
+                if (telefono) {
+                    setTimeout(() => {
+                        const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+                        if (isNative) {
+                            window.open(url, '_system');
+                        } else {
+                            window.open(url, '_blank');
+                        }
+                    }, 1500);
+                }
             }
-        } catch (error) {
-            console.error("Error generando PDF para WhatsApp:", error);
-            toast.error("Error al generar el PDF del recibo");
+        } catch (error: any) {
+            if (error?.name === 'AbortError') return; // El usuario canceló, no es error
+            console.error("Error generando PDF para compartir:", error);
+            toast.error("Error al generar el comprobante PDF");
         }
     };
+
 
     const handleAvisoCobro = async (cliente: any) => {
         if (!isConnected) {
@@ -556,31 +575,33 @@ Se ha descargado el comprobante oficial en formato PDF en el dispositivo para qu
     const filteredClientes = clientes.filter(c => {
         if (!c) return false;
         
-        // Búsqueda por Nombre, Calle o Colonia (ya viene filtrado por API pero reforzamos localmente)
+        // Búsqueda por Nombre, Dirección o Código de Cliente
         const nombre = c.nombre || "";
         const direccion = c.direccion || "";
-        
+        const codigo = c.codigoCliente || "";
+
         const matchesSearch = nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            direccion.toLowerCase().includes(searchTerm.toLowerCase());
-        
+            direccion.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            codigo.toLowerCase().includes(searchTerm.toLowerCase());
+
         // Filtro por Día
-        const matchesDia = filtroDia === "todos" || c.diaPago === filtroDia;
+        const matchesDia = filtroDia === "todos" || c.diaPago?.toString() === filtroDia;
 
-        // Filtro Lento (Atrasado)
-        const matchesLento = filtroEstatus === "todos" || c.estatus === "atrasado";
-
-        // Filtro Cobros (Cobrados, No Cobrados, Todos)
+        // Filtro por estado de cobro del ciclo actual
         let matchesCobro = true;
         if (filtroCobro === "cobrados") {
             matchesCobro = !!c.yaPagoEstaSemana;
         } else if (filtroCobro === "nocobrados") {
             matchesCobro = !c.yaPagoEstaSemana;
-        } else {
-            // "todos" (Todo Cobro) - mostrar clientes sin importar cobrado o no cobrado!
-            matchesCobro = true;
         }
 
-        return matchesSearch && matchesDia && matchesLento && matchesCobro;
+        // Filtro por Verificación Domiciliaria (VD) Pendiente
+        let matchesVd = true;
+        if (filtroVd === "pendiente") {
+            matchesVd = c.vdStatus === "PENDIENTE";
+        }
+
+        return matchesSearch && matchesDia && matchesCobro && matchesVd;
     });
 
     const dias = [
@@ -602,11 +623,16 @@ Se ha descargado el comprobante oficial en formato PDF en el dispositivo para qu
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="Buscar por nombre, calle o colonia..."
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-slate-200 focus:outline-none focus:border-emerald-500 text-sm"
+                        placeholder="Buscar por nombre, código o dirección..."
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 pl-10 pr-10 text-slate-200 focus:outline-none focus:border-emerald-500 text-sm"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                    {searchTerm && (
+                        <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
 
                 <div className="flex flex-col space-y-3">
@@ -626,60 +652,42 @@ Se ha descargado el comprobante oficial en formato PDF en el dispositivo para qu
                         ))}
                     </div>
 
-                    <div className="flex items-center justify-between px-1">
-                        <div className="flex gap-2">
-                            <button 
+                    <div className="flex items-center justify-between px-1 gap-2">
+                        <div className="flex items-center gap-2">
+                            <button
                                 onClick={() => {
-                                    const nextMostrarTodos = !mostrarTodos;
-                                    setMostrarTodos(nextMostrarTodos);
-                                    setFiltroCobro(nextMostrarTodos ? "todos" : "nocobrados");
+                                    setFiltroCobro(prev =>
+                                        prev === "todos" ? "cobrados" :
+                                        prev === "cobrados" ? "nocobrados" : "todos"
+                                    );
                                 }}
-                                className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase transition-colors ${
-                                    mostrarTodos 
-                                    ? 'bg-slate-800 text-slate-400' 
-                                    : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                }`}
-                            >
-                                {mostrarTodos ? 'Todos' : 'Pendientes'}
-                            </button>
-                            <button 
-                                onClick={() => setFiltroEstatus(filtroEstatus === "todos" ? "lento" : "todos")}
-                                className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase transition-colors ${
-                                    filtroEstatus === "lento" 
-                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
-                                    : 'bg-slate-800 text-slate-400'
-                                }`}
-                            >
-                                {filtroEstatus === "lento" ? 'Solo Lentos' : 'Todo Estatus'}
-                            </button>
-                            <button 
-                                onClick={() => {
-                                    setFiltroCobro(prev => {
-                                        if (prev === "todos") {
-                                            setMostrarTodos(false);
-                                            return "cobrados";
-                                        }
-                                        if (prev === "cobrados") {
-                                            setMostrarTodos(false);
-                                            return "nocobrados";
-                                        }
-                                        setMostrarTodos(true);
-                                        return "todos";
-                                    });
-                                }}
-                                className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase transition-colors border ${
-                                    filtroCobro === "cobrados" 
-                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                                className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase transition-all border ${
+                                    filtroCobro === "cobrados"
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                                     : filtroCobro === "nocobrados"
                                     ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                                     : 'bg-slate-800 text-slate-400 border-transparent'
                                 }`}
                             >
-                                {filtroCobro === "cobrados" ? 'Cobrados' : filtroCobro === "nocobrados" ? 'No Cobrados' : 'Todo Cobro'}
+                                {filtroCobro === "cobrados" ? '✓ Cobrados' : filtroCobro === "nocobrados" ? '✗ No Cobrados' : '· Todo Cobro'}
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    setFiltroVd(prev => prev === "todos" ? "pendiente" : "todos");
+                                }}
+                                className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase transition-all border ${
+                                    filtroVd === "pendiente"
+                                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                    : 'bg-slate-800 text-slate-400 border-transparent'
+                                }`}
+                            >
+                                {filtroVd === "pendiente" ? '✓ Sin VD' : '· Todo VD'}
                             </button>
                         </div>
-                        <p className="text-[10px] text-slate-600 font-mono">
-                            {filteredClientes.length} Result.
+                        
+                        <p className="text-[10px] text-slate-600 font-mono flex-shrink-0">
+                            {filteredClientes.length} CUENTAS
                         </p>
                     </div>
                 </div>
@@ -688,14 +696,20 @@ Se ha descargado el comprobante oficial en formato PDF en el dispositivo para qu
             {/* LISTA DE CLIENTES */}
             <div className="space-y-3">
                 {filteredClientes.map((cliente) => (
-                    <div 
-                        key={cliente.id} 
+                    <div
+                        key={cliente.id}
                         className="bg-slate-900 border border-slate-800 rounded-xl p-4 active:scale-[0.99] transition-transform"
                         onClick={() => handleClienteClick(cliente)}
                     >
                         <div className="flex justify-between items-start">
                             <div className="max-w-[70%]">
                                 <h3 className="font-bold text-slate-200 truncate">{cliente.nombre || 'Sin Nombre'}</h3>
+                                {cliente.codigoCliente && (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                        <Hash className="w-2.5 h-2.5 text-slate-600" />
+                                        <span className="text-[10px] text-slate-500 font-mono">{cliente.codigoCliente}</span>
+                                    </div>
+                                )}
                                 <div className="flex items-start text-slate-500 text-[11px] mt-1">
                                     <MapPin className="w-3 h-3 mr-1 mt-0.5 flex-shrink-0" />
                                     <span className="line-clamp-1">{cliente.direccion || 'Sin dirección'}</span>
@@ -703,16 +717,17 @@ Se ha descargado el comprobante oficial en formato PDF en el dispositivo para qu
                             </div>
                             <div className="flex flex-col items-end gap-1">
                                 <span className="text-[9px] font-bold text-sky-400 bg-sky-400/10 px-1.5 py-0.5 rounded border border-sky-400/20">D{cliente.diaPago}</span>
-                                <span className={`text-[9px] px-2 py-0.5 rounded-full border uppercase font-bold ${cliente.estatus === 'aldia' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                         cliente.estatus === 'atrasado' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                             'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                     }`}>
-                                     {cliente.estatus === 'atrasado' ? 'Lento' : cliente.estatus}
-                                 </span>
+                                <span className={`text-[9px] px-2 py-0.5 rounded-full border uppercase font-bold ${
+                                    cliente.estatus === 'aldia' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                    cliente.estatus === 'atrasado' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                    'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                }`}>
+                                    {cliente.estatus === 'atrasado' ? 'Lento' : cliente.estatus}
+                                </span>
                             </div>
                         </div>
 
-                        <div className="mt-4 pt-4 border-t border-slate-800 flex justify-between items-end">
+                        <div className="mt-3 pt-3 border-t border-slate-800 flex justify-between items-end">
                             <div className="flex gap-4">
                                 <div>
                                     <p className="text-[9px] text-slate-500 uppercase font-bold">Saldo</p>
@@ -766,19 +781,43 @@ Se ha descargado el comprobante oficial en formato PDF en el dispositivo para qu
                     <div className="bg-slate-900 w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-slate-800 shadow-2xl overflow-hidden max-h-[95vh] flex flex-col animate-in slide-in-from-bottom duration-300">
                         <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
                             <h3 className="font-bold text-white">Perfil del Cliente</h3>
-                            <button onClick={() => setDetailCliente(null)} className="p-1 rounded-full hover:bg-slate-700">
+                            <button
+                                onClick={() => {
+                                    setDetailCliente(null);
+                                    if (typeof window !== 'undefined') {
+                                        window.history.replaceState(null, '', window.location.pathname);
+                                    }
+                                }}
+                                className="p-1 rounded-full hover:bg-slate-700"
+                                aria-label="Cerrar y volver a clientes"
+                            >
                                 <X className="w-5 h-5 text-slate-400" />
                             </button>
                         </div>
-                        
+
                         <div className="overflow-y-auto p-6 space-y-6 custom-scrollbar">
                             <div className="flex items-center space-x-4">
                                 <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-500 font-bold text-2xl">
                                     {(detailCliente.nombre || "S").charAt(0)}
                                 </div>
-                                <div>
-                                    <h4 className="text-xl font-bold text-white leading-tight">{detailCliente.nombre || "Sin Nombre"}</h4>
-                                    <p className="text-sm text-slate-500 font-mono">Código: {detailCliente.codigoCliente || "N/A"}</p>
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="text-xl font-bold text-white leading-tight truncate">{detailCliente.nombre || "Sin Nombre"}</h4>
+                                    {detailCliente.codigoCliente ? (
+                                        <div className="flex items-center gap-1 mt-0.5">
+                                            <Hash className="w-3 h-3 text-slate-500" />
+                                            <span className="text-sm text-slate-400 font-mono font-bold">{detailCliente.codigoCliente}</span>
+                                        </div>
+                                    ) : null}
+                                    {detailCliente.telefono ? (
+                                        <a
+                                            href={`tel:${detailCliente.telefono}`}
+                                            onClick={e => e.stopPropagation()}
+                                            className="flex items-center gap-1.5 mt-1 text-emerald-400 hover:text-emerald-300 transition-colors"
+                                        >
+                                            <Phone className="w-3.5 h-3.5" />
+                                            <span className="text-sm font-mono">{detailCliente.telefono}</span>
+                                        </a>
+                                    ) : null}
                                 </div>
                             </div>
 
