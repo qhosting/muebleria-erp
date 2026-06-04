@@ -7,6 +7,7 @@ import { Network, Wifi, WifiOff, MapPin, Printer, MessageSquare } from "lucide-r
 import { useState, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import Link from "next/link";
+import { toast } from "sonner";
 
 interface CobradorLayoutProps {
     children: React.ReactNode;
@@ -63,6 +64,67 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
+    }, []);
+
+    useEffect(() => {
+        const initPushNotifications = async () => {
+            if (!Capacitor.isNativePlatform()) return;
+            
+            try {
+                const { PushNotifications } = await import('@capacitor/push-notifications');
+                
+                let permStatus = await PushNotifications.checkPermissions();
+                
+                if (permStatus.receive === 'prompt') {
+                    permStatus = await PushNotifications.requestPermissions();
+                }
+                
+                if (permStatus.receive !== 'granted') {
+                    console.warn("Permisos de notificaciones push denegados.");
+                    return;
+                }
+                
+                await PushNotifications.register();
+                
+                await PushNotifications.addListener('registration', async (token) => {
+                    const fcmToken = token.value;
+                    console.log('FCM Token registrado:', fcmToken);
+                    
+                    let deviceId = 'web-browser';
+                    try {
+                        const { Device } = await import('@capacitor/device');
+                        const idInfo = await Device.getId();
+                        deviceId = idInfo.identifier;
+                    } catch (e) {}
+
+                    await fetch('/api/mobile/dispositivos/fcm-token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ deviceId, fcmToken })
+                    });
+                });
+                
+                await PushNotifications.addListener('registrationError', (error) => {
+                    console.error('Error al registrar notificaciones push:', error);
+                });
+                
+                await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+                    console.log('Notificación recibida en primer plano:', notification);
+                    const title = notification.title || "Notificación";
+                    const body = notification.body || "";
+                    toast.info(title, { description: body });
+                });
+                
+                await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+                    console.log('Acción sobre notificación:', action);
+                });
+                
+            } catch (error) {
+                console.error("Error al inicializar notificaciones push:", error);
+            }
+        };
+
+        initPushNotifications();
     }, []);
 
     useEffect(() => {
