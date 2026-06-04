@@ -5,7 +5,7 @@ Digitalizar y optimizar la operación de cobranza en campo, proporcionando herra
 
 ---
 
-## 📅 Estado de Desarrollo (Mayo 2026)
+## 📅 Estado de Desarrollo (Junio 2026)
 
 ### 🟢 Fase 1: Infraestructura Base (100%)
 - [x] Configuración de Capacitor y Plugins (GPS, BT, Network).
@@ -22,7 +22,7 @@ Digitalizar y optimizar la operación de cobranza en campo, proporcionando herra
 - [x] Refinar captura de gastos administrativos.
 - [x] Identificar depósitos bancarios (Gestor vs Bot) en CAJA.
 
-### 🟡 Fase 3: Optimización y Notificaciones (85%)
+### 🟢 Fase 3: Optimización y Notificaciones (100%)
 - [x] Visualización de clientes en mapa (Leaflet).
 - [x] Apertura de navegación en Google Maps/Waze.
 - [x] Algoritmo de ruta óptima (TSP).
@@ -31,17 +31,44 @@ Digitalizar y optimizar la operación de cobranza en campo, proporcionando herra
 - [x] Indicadores de notificación (Red dots) en navegación.
 - [x] Registro de ubicación forzada al cobrar.
 
-### 🟠 Fase 4: Expansión e IA (30%)
+### 🟢 Fase 4: Build & Distribución Nativa (100%) ✅ *Junio 2026*
+- [x] Script de build estático para Capacitor (`scripts/build-native.js`).
+- [x] Keystore de firma creado (`android/app/vertexerp-release.jks`).
+- [x] `signingConfigs` configurado en `android/app/build.gradle`.
+- [x] **APK Release firmado generado** — `app-release.apk` (8.8 MB).
+  - App ID: `com.vertexerp.cobrador`
+  - Versión: `2.9.31` (versionCode 2)
+  - Herramienta: Capacitor 8 + Gradle + JDK 21
+  - 12 plugins nativos incluidos (GPS, BT, Cámara, Push, etc.)
+
+### 🟠 Fase 5: Expansión e IA (30%)
 - [x] Registro de Leads en campo.
 - [ ] **Prioridad:** Conversión Lead -> Cliente desde la App (Flujo de aprobación).
 - [ ] **Pendiente:** Asistente de voz para notas de cobranza.
 - [ ] **Pendiente:** Dashboard de metas y gamificación para el cobrador.
 
+### 🔵 Fase 6: Publicación Play Store (0%)
+- [ ] Crear cuenta Google Play Developer ($25 USD, pago único).
+- [ ] Generar AAB (Android App Bundle) para Play Store.
+- [ ] Crear assets: icono verde (192x192, 512x512), screenshots.
+- [ ] Subir a Play Console y enviar a revisión.
+
 ---
 
 ## 🛠️ Próximos Pasos Inmediatos
-1. **Flujo Lead -> Cliente:** Implementar la lógica para que el cobrador pueda formalizar un contrato desde el celular.
-2. **Validación de Avisos:** Revisar en el panel administrativo el reporte de avisos entregados.
+1. **Flujo Lead → Cliente:** Implementar la lógica para que el cobrador pueda formalizar un contrato desde el celular.
+2. **Testing en campo:** Instalar el APK en dispositivos de cobradores y recolectar feedback.
+3. **Play Store:** Publicar para distribución masiva.
 
 ---
-*Ultima actualización: 5 de Mayo de 2026*
+
+## 🔑 Datos del Keystore (guardar en lugar seguro)
+| Campo | Valor |
+|-------|-------|
+| Archivo | `android/app/vertexerp-release.jks` |
+| Store Password | `VertexERP2024!` |
+| Key Alias | `vertexerp` |
+| Key Password | `VertexERP2024!` |
+
+---
+*Última actualización: 4 de Junio de 2026*

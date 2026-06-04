@@ -1,7 +1,7 @@
 # 📱 App Nativa Android - VertexERP Cobrador
 
-**Versión:** 1.0  
-**Fecha:** 2026-02-07  
+**Versión:** 2.9.31 ✅ APK Release generado  
+**Fecha:** 2026-06-04  
 **Alcance:** Aplicación exclusiva para cobradores en campo  
 **Plataforma:** Android 5.0+ (API 21+)
 
@@ -412,7 +412,8 @@ export function ClientesList() {
 | **Recursos (imágenes, iconos)** | ~2 MB |
 | **Código JavaScript** | ~3 MB |
 | **Plugins nativos** | ~5 MB |
-| **Total APK** | **~25 MB** |
+| **Total APK (estimado)** | ~~25 MB~~ |
+| **Total APK (real, Release firmado)** | **8.8 MB** ✅ |
 
 ---
 
@@ -572,16 +573,16 @@ Email: soporte@vertexerp.com
 ## ✅ Checklist de Implementación
 
 ### Preparación
-- [ ] Instalar Android Studio (Manual por el usuario)
-- [ ] Instalar JDK 11+ (Manual por el usuario)
-- [ ] Configurar variables de entorno (ANDROID_HOME, JAVA_HOME)
+- [x] Instalar Android Studio ✅
+- [x] Instalar JDK 21 (via Android Studio JBR) ✅
+- [x] Configurar variables de entorno (ANDROID_HOME) ✅
 - [ ] Crear cuenta de Google Play Developer ($25 USD)
 
-### Fase 1: Setup (✅ 90%)
+### Fase 1: Setup (✅ 100%)
 - [x] Instalar Capacitor y dependencias
 - [x] Agregar plataforma Android (`/android`)
 - [x] Configurar build estático en Next.js (`output: 'export'`)
-- [ ] Hacer primer build y sincronización exitosa (En proceso ⏳)
+- [x] Build y sincronización exitosa (`cap sync android`) ✅ *Junio 2026*
 
 ### Fase 2: Plugins (✅ 100%)
 - [x] Instalar plugin Bluetooth (@capacitor-community/bluetooth-le)
@@ -604,11 +605,20 @@ Email: soporte@vertexerp.com
 - [ ] Probar impresión Bluetooth física
 - [ ] Probar flujo offline/online (Sincronización)
 
-### Fase 5: Publicación
-- [ ] Generar keystore de firma
-- [ ] Generar AAB de producción
-- [ ] Crear assets para Play Store (Icono verde, Splash)
+### Fase 5: Publicación (✅ 50%)
+- [x] **Generar keystore de firma** — `android/app/vertexerp-release.jks` ✅ *Junio 2026*
+- [x] **Generar APK Release firmado** — `app-release.apk` (8.8 MB) ✅ *Junio 2026*
+- [ ] Generar AAB (Android App Bundle) para Play Store
+- [ ] Crear assets para Play Store (Icono verde, Splash, Screenshots)
 - [ ] Subir a Play Console y enviar a revisión
+
+### 🔑 Datos del Keystore
+| Campo | Valor |
+|-------|-------|
+| Archivo | `android/app/vertexerp-release.jks` |
+| Store Password | `VertexERP2024!` |
+| Key Alias | `vertexerp` |
+| Key Password | `VertexERP2024!` |
 
 ---
 
@@ -677,4 +687,5 @@ Email: soporte@vertexerp.com
 
 **Creado por:** DeepAgent  
 **Fecha:** 2026-02-07  
-**Versión:** 1.0
+**Versión:** 1.0  
+**Última actualización:** 2026-06-04 — APK Release firmado generado exitosamente.
