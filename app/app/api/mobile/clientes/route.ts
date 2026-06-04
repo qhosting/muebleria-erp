@@ -91,6 +91,7 @@ export async function GET(req: NextRequest) {
       data: clientes.map(c => ({
           id: c.id,
           codigoCliente: c.codigoCliente,
+          numContrato: c.numContrato,
           nombre: c.nombreCompleto,
           direccion: c.direccionCompleta,
           saldo: parseFloat(c.saldoActual.toString()),

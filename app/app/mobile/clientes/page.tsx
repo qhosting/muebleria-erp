@@ -575,14 +575,16 @@ function MobileClientes() {
     const filteredClientes = clientes.filter(c => {
         if (!c) return false;
         
-        // Búsqueda por Nombre, Dirección o Código de Cliente
+        // Búsqueda por Nombre, Dirección, Código de Cliente o Número de Contrato (DP/DQ)
         const nombre = c.nombre || "";
         const direccion = c.direccion || "";
         const codigo = c.codigoCliente || "";
+        const contrato = c.numContrato || "";
 
         const matchesSearch = nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
             direccion.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            codigo.toLowerCase().includes(searchTerm.toLowerCase());
+            codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            contrato.toLowerCase().includes(searchTerm.toLowerCase());
 
         // Filtro por Día
         const matchesDia = filtroDia === "todos" || c.diaPago?.toString() === filtroDia;
@@ -704,10 +706,10 @@ function MobileClientes() {
                         <div className="flex justify-between items-start">
                             <div className="max-w-[70%]">
                                 <h3 className="font-bold text-slate-200 truncate">{cliente.nombre || 'Sin Nombre'}</h3>
-                                {cliente.codigoCliente && (
+                                {(cliente.numContrato || cliente.codigoCliente) && (
                                     <div className="flex items-center gap-1 mt-0.5">
                                         <Hash className="w-2.5 h-2.5 text-slate-600" />
-                                        <span className="text-[10px] text-slate-500 font-mono">{cliente.codigoCliente}</span>
+                                        <span className="text-[10px] text-slate-500 font-mono">{cliente.numContrato || cliente.codigoCliente}</span>
                                     </div>
                                 )}
                                 <div className="flex items-start text-slate-500 text-[11px] mt-1">
@@ -802,10 +804,10 @@ function MobileClientes() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h4 className="text-xl font-bold text-white leading-tight truncate">{detailCliente.nombre || "Sin Nombre"}</h4>
-                                    {detailCliente.codigoCliente ? (
+                                    {(detailCliente.numContrato || detailCliente.codigoCliente) ? (
                                         <div className="flex items-center gap-1 mt-0.5">
                                             <Hash className="w-3 h-3 text-slate-500" />
-                                            <span className="text-sm text-slate-400 font-mono font-bold">{detailCliente.codigoCliente}</span>
+                                            <span className="text-sm text-slate-400 font-mono font-bold">{detailCliente.numContrato || detailCliente.codigoCliente}</span>
                                         </div>
                                     ) : null}
                                     {detailCliente.telefono ? (

@@ -80,6 +80,7 @@ export async function GET(
         saldoVencido: true,
         diasVencidos: true,
         numContrato: true,
+        codigoCliente: true,
         verificaciones: {
           select: {
             id: true
@@ -157,6 +158,7 @@ export async function GET(
           p12: cliente.importe4 ? Number(cliente.importe4) : 0
         },
         numContrato: cliente.numContrato || '',
+        codigoCliente: cliente.codigoCliente || '',
         vdStatus: cliente.verificaciones && cliente.verificaciones.length > 0 ? 'REALIZADA' : 'PENDIENTE'
       };
     });
