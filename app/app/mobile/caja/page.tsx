@@ -5,7 +5,7 @@ import { usePlatform } from "@/hooks/usePlatform";
 import { Loader2, DollarSign, Printer, Download, CreditCard, ChevronUp, ChevronDown, CheckCircle2, Calendar, Filter, RefreshCw } from "lucide-react";
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { toast } from "sonner";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatWhatsAppNumber } from "@/lib/utils";
 import { ArqueoModal } from "@/components/mobile/arqueo-modal";
 import dayjs from "dayjs";
 import { Button } from "@/components/ui/button";
@@ -199,44 +199,85 @@ export default function MobileCaja() {
         }
     };
 
-    const handleShareWhatsApp = (pago: any) => {
+    const handleShareWhatsApp = async (pago: any) => {
         if (!pago) return;
 
-        const cli = pago.cliente;
-        const total = Number(pago.monto || 0) + Number(pago.interesMoratorio || 0) + Number(pago.gastosCobranza || 0);
-        
-        const messageText = 
-`*MUEBLES DASO - COMPROBANTE DE PAGO* 📄
-------------------------------------------
-¡Hola, *${cli.nombreCompleto}*! 👋
+        try {
+            toast.info('Generando comprobante PDF...');
 
-Te confirmamos la recepción exitosa de tu abono:
+            // Mapear a formato TicketData
+            const ticketData = {
+                numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-8)}`,
+                cliente: {
+                    nombreCompleto: pago.cliente.nombreCompleto || "",
+                    telefono: pago.cliente.telefono,
+                    direccion: pago.cliente.direccionCompleta || pago.cliente.direccion || "",
+                    diaPago: pago.cliente.diaPago
+                },
+                cobrador: {
+                    nombre: pago.cobrador?.name || "Cobrador",
+                    id: pago.cobrador?.id || ""
+                },
+                pago: {
+                    monto: pago.monto,
+                    interesMoratorio: pago.interesMoratorio,
+                    gastosCobranza: pago.gastosCobranza,
+                    tipoPago: pago.tipoPago,
+                    metodoPago: pago.metodoPago,
+                    concepto: pago.concepto,
+                    fechaPago: pago.fechaPago
+                },
+                saldos: {
+                    anterior: pago.saldoAnterior,
+                    nuevo: pago.saldoNuevo,
+                },
+                empresa: {
+                    nombre: 'VertexERP Muebles',
+                    direccion: 'Dirección de la empresa',
+                    telefono: 'Tel: (555) 123-4567'
+                }
+            };
 
-📄 *Recibo:* ${pago.numeroRecibo || 'N/A'}
-💵 *Monto del Pago:* ${formatCurrency(pago.monto)}
-🟠 *Interés Moratorio:* ${formatCurrency(pago.interesMoratorio || 0)}
-🔵 *Gastos Cobranza:* ${formatCurrency(pago.gastosCobranza || 0)}
-💰 *Total Recibido:* ${formatCurrency(total)}
-💳 *Método de Pago:* ${pago.metodoPago || 'Efectivo'}
+            const { generateReceiptPdf } = await import("@/lib/receipt-pdf");
+            const doc = await generateReceiptPdf(ticketData);
 
-📊 *Resumen de tu Cuenta:*
-📉 *Saldo Anterior:* ${formatCurrency(pago.saldoAnterior)}
-📉 *Saldo Nuevo:* ${formatCurrency(pago.saldoNuevo)}
-🗓️ *Fecha:* ${new Date(pago.fechaPago).toLocaleString()}
+            const pdfName = `Comprobante_${pago.cliente.nombreCompleto?.replace(/\s+/g, '_')}_${ticketData.numeroRecibo}.pdf`;
 
-------------------------------------------
-*¡Gracias por tu pago y preferencia!* 🙌`;
+            // Intentar compartir como archivo usando la Web Share API (soportado en Android Chrome/Capacitor)
+            const pdfOutput = doc.output('arraybuffer');
+            const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
+            const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
 
-        const encodedText = encodeURIComponent(messageText);
-        let phone = cli.telefono ? cli.telefono.replace(/\D/g, '') : '';
-        
-        if (phone && phone.length === 10) {
-            phone = '52' + phone;
+            const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] });
+
+            if (canShare) {
+                // Compartir directamente como archivo
+                await navigator.share({
+                    title: `Comprobante de Pago — ${pago.cliente.nombreCompleto}`,
+                    text: `Comprobante de pago por $${pago.monto.toFixed(2)} — ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}`,
+                    files: [pdfFile],
+                });
+                toast.success('PDF compartido exitosamente');
+            } else {
+                // Fallback: descargar PDF + abrir WhatsApp con mensaje breve
+                doc.save(pdfName);
+                toast.success('PDF descargado. Ábrelo y compártelo por WhatsApp.', { duration: 5000 });
+
+                const total = Number(pago.monto || 0) + Number(pago.interesMoratorio || 0) + Number(pago.gastosCobranza || 0);
+                const mensaje = `Hola *${pago.cliente.nombreCompleto}* 👋, adjunto encontrarás tu comprobante de pago por *$${total.toFixed(2)}* del ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}. ¡Gracias!`;
+                const telefono = formatWhatsAppNumber(pago.cliente.telefono);
+                if (telefono) {
+                    setTimeout(() => {
+                        window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, '_blank');
+                    }, 1500); // Pequeña pausa para que el PDF se descargue primero
+                }
+            }
+        } catch (error: any) {
+            // El usuario canceló el share — no es un error real
+            if (error?.name === 'AbortError') return;
+            console.error("Error al compartir PDF:", error);
+            toast.error("Error al generar el comprobante PDF");
         }
-
-        const whatsappUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`;
-        window.open(whatsappUrl, '_blank');
-        toast.success('Abriendo WhatsApp para compartir comprobante...');
     };
 
     const handlePrintArqueo = async (arqueo: any) => {
