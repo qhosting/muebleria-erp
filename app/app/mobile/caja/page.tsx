@@ -242,7 +242,8 @@ export default function MobileCaja() {
             const { generateReceiptPdf } = await import("@/lib/receipt-pdf");
             const doc = await generateReceiptPdf(ticketData);
 
-            const pdfName = `Comprobante_${pago.cliente.nombreCompleto?.replace(/\s+/g, '_')}_${ticketData.numeroRecibo}.pdf`;
+            const clienteCodigo = pago.cliente.codigoCliente || pago.cliente.nombreCompleto?.replace(/\s+/g, '_') || 'cliente';
+            const pdfName = `Comprobante_${clienteCodigo}_${ticketData.numeroRecibo}.pdf`;
             const shareTitle = `Comprobante de Pago — ${pago.cliente.nombreCompleto}`;
             const total = Number(pago.monto || 0) + Number(pago.interesMoratorio || 0) + Number(pago.gastosCobranza || 0);
             const shareText = `Comprobante de pago por $${total.toFixed(2)} — ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}`;
@@ -279,7 +280,16 @@ export default function MobileCaja() {
                     }
                 }
             } else {
-                toast.success('PDF compartido exitosamente');
+                toast.success('PDF generado exitosamente');
+                // Redirigir directamente al WhatsApp del cliente
+                const telefono = formatWhatsAppNumber(pago.cliente.telefono);
+                if (telefono) {
+                    const mensaje = `Hola *${pago.cliente.nombreCompleto}* 👋, adjunto encontrarás tu comprobante de pago por *$${total.toFixed(2)}* del ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}. ¡Gracias!`;
+                    setTimeout(() => {
+                        const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+                        window.open(url, isNative ? '_system' : '_blank');
+                    }, 1000);
+                }
             }
         } catch (error: any) {
             // El usuario canceló el share — no es un error real

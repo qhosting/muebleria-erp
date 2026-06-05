@@ -494,7 +494,8 @@ function MobileClientes() {
             const doc = await generateReceiptPdf(ticketData);
 
             const totalPago = parseFloat(montoCobrar) + parseFloat(interesMoratorio) + parseFloat(gastosCobranza);
-            const pdfName = `Comprobante_${selectedCliente.nombre.replace(/\s+/g, '_')}_${ticketData.numeroRecibo}.pdf`;
+            const clienteCodigo = selectedCliente.codigoCliente || selectedCliente.nombre.replace(/\s+/g, '_') || 'cliente';
+            const pdfName = `Comprobante_${clienteCodigo}_${ticketData.numeroRecibo}.pdf`;
             const shareTitle = `Comprobante de Pago — ${selectedCliente.nombre}`;
             const shareText = `Tu comprobante de pago por $${totalPago.toFixed(2)}. ¡Gracias!`;
 
@@ -535,7 +536,16 @@ function MobileClientes() {
                     }
                 }
             } else {
-                toast.success('Comprobante compartido exitosamente');
+                toast.success('Comprobante generado exitosamente');
+                // Redirigir directamente al WhatsApp del cliente
+                const telefono = formatWhatsAppNumber(selectedCliente.telefono);
+                if (telefono) {
+                    const mensaje = `Hola *${selectedCliente.nombre}* 👋, adjunto tu comprobante de pago por *$${totalPago.toFixed(2)}*. ¡Gracias!`;
+                    setTimeout(() => {
+                        const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+                        window.open(url, isNative ? '_system' : '_blank');
+                    }, 1000);
+                }
             }
         } catch (error: any) {
             if (error?.name === 'AbortError') return; // El usuario canceló, no es error

@@ -4,6 +4,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useSession } from 'next-auth/react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -270,7 +271,8 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
       const { generateReceiptPdf } = await import("@/lib/receipt-pdf");
       const doc = await generateReceiptPdf(ticketData);
 
-      const pdfName = `Comprobante_${cliente.nombreCompleto?.replace(/\s+/g, '_')}_${ticketData.numeroRecibo}.pdf`;
+      const clienteCodigo = cliente.codigoCliente || cliente.nombreCompleto?.replace(/\s+/g, '_') || 'cliente';
+      const pdfName = `Comprobante_${clienteCodigo}_${ticketData.numeroRecibo}.pdf`;
       const shareTitle = `Comprobante de Pago — ${cliente.nombreCompleto}`;
       const shareText = `Comprobante de pago por $${pago.monto.toFixed(2)} — ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}`;
 
@@ -306,7 +308,16 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
           }
         }
       } else {
-        toast.success('PDF compartido exitosamente');
+        toast.success('PDF generado exitosamente');
+        // Redirigir directamente al WhatsApp del cliente
+        const telefono = formatWhatsAppNumber(cliente.telefono);
+        if (telefono) {
+          const mensaje = `Hola *${cliente.nombreCompleto}* 👋, adjunto encontrarás tu comprobante de pago por *$${pago.monto.toFixed(2)}* del ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}. ¡Gracias!`;
+          setTimeout(() => {
+            const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+            window.open(url, Capacitor.isNativePlatform() ? '_system' : '_blank');
+          }, 1000);
+        }
       }
     } catch (error: any) {
       // El usuario canceló el share — no es un error real

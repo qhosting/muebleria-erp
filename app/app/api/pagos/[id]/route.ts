@@ -26,6 +26,7 @@ export async function GET(
             direccionCompleta: true,
             diaPago: true,
             saldoActual: true,
+            codigoCliente: true,
           }
         },
         cobrador: {
