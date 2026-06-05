@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Capacitor } from '@capacitor/core';
 import { APP_VERSION } from '@/lib/version';
+import { PrinterConfigModal } from '@/components/mobile/printer-config-modal';
 
 export default function MobilePerfilPage() {
     const { data: session } = useSession();
@@ -16,6 +17,7 @@ export default function MobilePerfilPage() {
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [preferOffline, setPreferOffline] = useState(false);
     const [modoSol, setModoSol] = useState(false);
+    const [showPrinterConfig, setShowPrinterConfig] = useState(false);
 
     useEffect(() => {
         const loadPending = async () => {
@@ -169,6 +171,7 @@ export default function MobilePerfilPage() {
                 </Button>
 
                 <Button
+                    onClick={() => setShowPrinterConfig(true)}
                     className="w-full bg-slate-900 border border-slate-800 hover:bg-slate-800 text-white justify-start h-12"
                     variant="outline"
                 >
@@ -299,6 +302,11 @@ export default function MobilePerfilPage() {
                     <p className="opacity-50">© {new Date().getFullYear()} Aurum Capital Holding</p>
                 </div>
             </div>
+
+            <PrinterConfigModal
+                isOpen={showPrinterConfig}
+                onClose={() => setShowPrinterConfig(false)}
+            />
         </div>
     );
 }
