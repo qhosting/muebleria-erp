@@ -27,13 +27,13 @@ export async function generateReceiptPdf(ticketData: any) {
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
-  doc.text(ticketData.empresa?.nombre || 'VERTEX ERP', width / 2, 8, { align: 'center' });
+  doc.text(ticketData.empresa?.nombre || 'Grupo Mueblero DASO', width / 2, 8, { align: 'center' });
 
   // Subtítulo del Encabezado
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  doc.text(ticketData.empresa?.direccion || 'COMPROBANTE OFICIAL DE PAGO', width / 2, 12, { align: 'center' });
-  doc.text(ticketData.empresa?.telefono || '', width / 2, 15, { align: 'center' });
+  doc.text(ticketData.empresa?.direccion || 'Juarez Ote. 223, Centro, SJR. QRO', width / 2, 12, { align: 'center' });
+  doc.text(ticketData.empresa?.telefono || 'Tel: 442 980 0772', width / 2, 15, { align: 'center' });
 
   // Título del Recibo
   doc.setFont('helvetica', 'bold');

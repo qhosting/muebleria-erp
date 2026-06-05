@@ -220,9 +220,9 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
         nuevo: pago.saldoNuevo
       },
       empresa: {
-        nombre: 'VertexERP Muebles',
-        direccion: 'Dirección de la empresa',
-        telefono: 'Tel: (555) 123-4567'
+        nombre: 'Grupo Mueblero DASO',
+        direccion: 'Juarez Ote. 223, Centro, SJR. QRO',
+        telefono: 'Tel: 442 980 0772'
       }
     };
   };

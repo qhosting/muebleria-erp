@@ -135,9 +135,9 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
         consolidado: (cliente.saldoConsolidado || cliente.saldoPendiente) - calculatedValues.montoAbono
       },
       empresa: {
-        nombre: 'VertexERP Muebles',
-        direccion: 'Dirección de la empresa',
-        telefono: 'Tel: (555) 123-4567'
+        nombre: 'Grupo Mueblero DASO',
+        direccion: 'Juarez Ote. 223, Centro, SJR. QRO',
+        telefono: 'Tel: 442 980 0772'
       }
     };
   };
