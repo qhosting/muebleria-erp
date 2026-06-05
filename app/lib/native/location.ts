@@ -13,6 +13,16 @@ export async function obtenerUbicacionCobrador(highAccuracy: boolean = true, max
         try {
             const { Geolocation } = await import('@capacitor/geolocation');
 
+            // Verificar y solicitar permisos de ubicación en tiempo de ejecución
+            let permStatus = await Geolocation.checkPermissions();
+            if (permStatus.location !== 'granted') {
+                permStatus = await Geolocation.requestPermissions();
+            }
+
+            if (permStatus.location !== 'granted') {
+                throw new Error('Permiso de geolocalización denegado por el usuario');
+            }
+
             const position = await Geolocation.getCurrentPosition({
                 enableHighAccuracy: highAccuracy,
                 timeout: 10000,

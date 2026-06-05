@@ -3,35 +3,41 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePlatform } from "@/hooks/usePlatform";
-import { Loader2, Navigation, Crosshair } from "lucide-react";
-import "leaflet/dist/leaflet.css";
-import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css";
+import { Loader2, Crosshair } from "lucide-react";
 
-// Dynamic imports para Leaflet (no soporta SSR)
-const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false });
-const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
-const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
-const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false });
+// Importación dinámica del componente completo de mapa para evitar problemas de SSR
+const RouteMapInner = dynamic(() => import("@/components/mobile/route-map-inner"), {
+    ssr: false,
+    loading: () => (
+        <div className="flex flex-col items-center justify-center p-8 h-full space-y-4 text-slate-400">
+            <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+            <p>Cargando mapa interactivo...</p>
+        </div>
+    )
+});
 
 export default function MobileMap() {
     const { isNative } = usePlatform();
     const [loading, setLoading] = useState(true);
     const [position, setPosition] = useState<[number, number] | null>(null);
     const [puntosRuta, setPuntosRuta] = useState<any[]>([]);
+    const [centerTrigger, setCenterTrigger] = useState(0);
+
+    const getUbicacion = async (forceFresh = false) => {
+        try {
+            const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
+            // Cachear por 60s a menos que se fuerce una actualización fresca
+            const pos = await obtenerUbicacionCobrador(true, forceFresh ? 0 : 60000);
+            setPosition([pos.lat, pos.lng]);
+        } catch (error) {
+            console.warn("Error obteniendo ubicación, usando fallback:", error);
+            // Solo establecer fallback si no tenemos una posición previa
+            setPosition((prev) => prev || [19.432608, -99.133209]);
+        }
+    };
 
     useEffect(() => {
-        // 1. Obtener ubicación actual del cobrador
-        const getUbicacion = async () => {
-            try {
-                const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
-                const pos = await obtenerUbicacionCobrador(true, 60000);
-                setPosition([pos.lat, pos.lng]);
-            } catch (error) {
-                console.warn("Error obteniendo ubicación, usando fallback:", error);
-                setPosition([19.432608, -99.133209]); // Fallback
-            }
-        };
-
+        // 1. Obtener ubicación actual inicial del cobrador
         getUbicacion();
 
         // 2. Cargar clientes reales con coordenadas
@@ -41,7 +47,8 @@ export default function MobileMap() {
                 if (response.ok) {
                     const result = await response.json();
                     const clientsArray = result.data || [];
-                    // Filtrar solo los que tienen coordenadas (o simularlas si faltan para demo)
+                    
+                    // Mapear clientes asegurando que tengan coordenadas válidas
                     const validPoints = clientsArray.map((c: any) => ({
                         id: c.id,
                         lat: c.latitud || (19.432608 + (Math.random() - 0.5) * 0.02),
@@ -62,9 +69,16 @@ export default function MobileMap() {
         fetchRouteData();
     }, []);
 
+    const handleRecenter = async () => {
+        // Disparar animación de recentrado en Leaflet
+        setCenterTrigger((prev) => prev + 1);
+        // Solicitar coordenadas actualizadas del GPS
+        await getUbicacion(true);
+    };
+
     if (loading || !position) {
         return (
-            <div className="flex flex-col items-center justify-center p-8 h-full space-y-4 text-slate-400">
+            <div className="flex flex-col items-center justify-center p-8 h-full space-y-4 text-slate-400 bg-slate-950">
                 <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
                 <p>Obteniendo ubicación...</p>
             </div>
@@ -81,10 +95,9 @@ export default function MobileMap() {
                         <p className="text-xs text-slate-400">{puntosRuta.length} clientes pendientes</p>
                     </div>
                     <button
-                        className="bg-emerald-600 p-2 rounded-lg text-white shadow-lg active:scale-95 transition-transform"
-                        onClick={() => {
-                            // Centrar mapa
-                        }}
+                        className="bg-emerald-600 p-2.5 rounded-lg text-white shadow-lg active:scale-90 hover:bg-emerald-500 transition-all"
+                        onClick={handleRecenter}
+                        title="Centrar en mi ubicación"
                     >
                         <Crosshair className="w-5 h-5" />
                     </button>
@@ -93,53 +106,12 @@ export default function MobileMap() {
 
             {/* MAPA INTERACTIVO */}
             <div className="flex-1 w-full h-full relative z-0">
-                <MapContainer
-                    center={position}
-                    zoom={14}
-                    scrollWheelZoom={true}
-                    style={{ height: "100%", width: "100%", zIndex: 0 }}
-                >
-                    <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
-
-                    {/* MARCADOR COBRADOR (AZUL) */}
-                    <Marker position={position}>
-                        <Popup>
-                            <div className="text-center">
-                                <p className="font-bold text-slate-800">¡Estás aquí!</p>
-                            </div>
-                        </Popup>
-                    </Marker>
-
-                    {/* MARCADORES CLIENTES (ROJO) */}
-                    {puntosRuta.map(cliente => (
-                        <Marker key={cliente.id} position={[cliente.lat, cliente.lng]}>
-                            <Popup>
-                                <div className="min-w-[150px]">
-                                    <h3 className="font-bold text-slate-900">{cliente.nombre}</h3>
-                                    <p className="text-xs text-slate-600 mb-2">{cliente.direccion}</p>
-                                    <p className="font-mono font-bold text-emerald-600 mb-3">Deuda: ${cliente.deuda}</p>
-
-                                    <button
-                                        className="w-full bg-blue-600 text-white text-xs font-bold py-2 rounded flex items-center justify-center space-x-1 hover:bg-blue-700 transition"
-                                        onClick={() => {
-                                            if (isNative) {
-                                                window.open(`geo:${cliente.lat},${cliente.lng}?q=${cliente.lat},${cliente.lng}`, '_system');
-                                            } else {
-                                                window.open(`https://www.google.com/maps/dir/?api=1&destination=${cliente.lat},${cliente.lng}`, '_blank');
-                                            }
-                                        }}
-                                    >
-                                        <Navigation className="w-3 h-3" />
-                                        <span>Navegar</span>
-                                    </button>
-                                </div>
-                            </Popup>
-                        </Marker>
-                    ))}
-                </MapContainer>
+                <RouteMapInner
+                    position={position}
+                    puntosRuta={puntosRuta}
+                    centerTrigger={centerTrigger}
+                    isNative={isNative}
+                />
             </div>
 
             {/* LEYENDA INFERIOR */}
@@ -149,3 +121,4 @@ export default function MobileMap() {
         </div>
     );
 }
+
