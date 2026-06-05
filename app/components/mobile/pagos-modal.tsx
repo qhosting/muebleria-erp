@@ -41,6 +41,7 @@ import { formatCurrency, formatDate, formatWhatsAppNumber } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { sharePdfNative } from '@/lib/native/share';
 import { useBluetoothPrinter } from '@/hooks/use-bluetooth-printer';
 import { TicketData } from '@/lib/bluetooth-printer';
 import { PrinterConfigModal } from './printer-config-modal';
@@ -270,34 +271,42 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
       const doc = await generateReceiptPdf(ticketData);
 
       const pdfName = `Comprobante_${cliente.nombreCompleto?.replace(/\s+/g, '_')}_${ticketData.numeroRecibo}.pdf`;
+      const shareTitle = `Comprobante de Pago — ${cliente.nombreCompleto}`;
+      const shareText = `Comprobante de pago por $${pago.monto.toFixed(2)} — ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}`;
 
-      // Intentar compartir como archivo usando la Web Share API (soportado en Android Chrome/Capacitor)
-      const pdfOutput = doc.output('arraybuffer');
-      const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
-      const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
+      // 1. Intentar compartir usando el plugin nativo de Capacitor (APK)
+      const sharedNatively = await sharePdfNative(doc, pdfName, shareTitle, shareText);
 
-      const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] });
+      if (!sharedNatively) {
+        // 2. Fallback: intentar Web Share API (Navegadores móviles compatibles)
+        const pdfOutput = doc.output('arraybuffer');
+        const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
+        const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
 
-      if (canShare) {
-        // Compartir directamente como archivo — WhatsApp, correo, Drive, etc.
-        await navigator.share({
-          title: `Comprobante de Pago — ${cliente.nombreCompleto}`,
-          text: `Comprobante de pago por $${pago.monto.toFixed(2)} — ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}`,
-          files: [pdfFile],
-        });
-        toast.success('PDF compartido exitosamente');
-      } else {
-        // Fallback: descargar PDF + abrir WhatsApp con mensaje breve
-        doc.save(pdfName);
-        toast.success('PDF descargado. Ábrelo y compártelo por WhatsApp.', { duration: 5000 });
+        const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] });
 
-        const mensaje = `Hola *${cliente.nombreCompleto}* 👋, adjunto encontrarás tu comprobante de pago por *$${pago.monto.toFixed(2)}* del ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}. ¡Gracias!`;
-        const telefono = formatWhatsAppNumber(cliente.telefono);
-        if (telefono) {
-          setTimeout(() => {
-            window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, '_blank');
-          }, 1500); // Pequeña pausa para que el PDF se descargue primero
+        if (canShare) {
+          await navigator.share({
+            title: shareTitle,
+            text: shareText,
+            files: [pdfFile],
+          });
+          toast.success('PDF compartido exitosamente');
+        } else {
+          // 3. Fallback final: descargar PDF + abrir WhatsApp con mensaje breve
+          doc.save(pdfName);
+          toast.success('PDF descargado. Ábrelo y compártelo por WhatsApp.', { duration: 5000 });
+
+          const mensaje = `Hola *${cliente.nombreCompleto}* 👋, adjunto encontrarás tu comprobante de pago por *$${pago.monto.toFixed(2)}* del ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}. ¡Gracias!`;
+          const telefono = formatWhatsAppNumber(cliente.telefono);
+          if (telefono) {
+            setTimeout(() => {
+              window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, '_blank');
+            }, 1500); // Pequeña pausa para que el PDF se descargue primero
+          }
         }
+      } else {
+        toast.success('PDF compartido exitosamente');
       }
     } catch (error: any) {
       // El usuario canceló el share — no es un error real

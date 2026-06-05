@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { usePlatform } from "@/hooks/usePlatform";
 import { formatWhatsAppNumber } from "@/lib/utils";
+import { sharePdfNative } from "@/lib/native/share";
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { VerificacionModal } from "@/components/mobile/verificacion-modal";
 import { ConvenioModal } from "@/components/mobile/convenio-modal";
@@ -494,39 +495,47 @@ function MobileClientes() {
 
             const totalPago = parseFloat(montoCobrar) + parseFloat(interesMoratorio) + parseFloat(gastosCobranza);
             const pdfName = `Comprobante_${selectedCliente.nombre.replace(/\s+/g, '_')}_${ticketData.numeroRecibo}.pdf`;
+            const shareTitle = `Comprobante de Pago — ${selectedCliente.nombre}`;
+            const shareText = `Tu comprobante de pago por $${totalPago.toFixed(2)}. ¡Gracias!`;
 
-            // Intentar compartir como archivo PDF usando la Web Share API (Android / Capacitor)
-            const pdfOutput = doc.output('arraybuffer');
-            const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
-            const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
+            // 1. Intentar compartir usando el plugin nativo de Capacitor (APK)
+            const sharedNatively = await sharePdfNative(doc, pdfName, shareTitle, shareText);
 
-            const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] });
+            if (!sharedNatively) {
+                // 2. Fallback: intentar Web Share API (Navegadores móviles compatibles)
+                const pdfOutput = doc.output('arraybuffer');
+                const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
+                const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
 
-            if (canShare) {
-                // Selector nativo de apps — WhatsApp, correo, Drive, etc.
-                await navigator.share({
-                    title: `Comprobante de Pago — ${selectedCliente.nombre}`,
-                    text: `Tu comprobante de pago por $${totalPago.toFixed(2)}. ¡Gracias!`,
-                    files: [pdfFile],
-                });
-                toast.success('Comprobante compartido exitosamente');
-            } else {
-                // Fallback: descargar y abrir WhatsApp con texto breve
-                doc.save(pdfName);
-                toast.success('PDF descargado. Ábrelo y compártelo por WhatsApp.', { duration: 5000 });
+                const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] });
 
-                const mensaje = `Hola *${selectedCliente.nombre}* 👋, adjunto tu comprobante de pago por *$${totalPago.toFixed(2)}*. ¡Gracias!`;
-                const telefono = formatWhatsAppNumber(selectedCliente.telefono);
-                if (telefono) {
-                    setTimeout(() => {
-                        const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
-                        if (isNative) {
-                            window.open(url, '_system');
-                        } else {
-                            window.open(url, '_blank');
-                        }
-                    }, 1500);
+                if (canShare) {
+                    await navigator.share({
+                        title: shareTitle,
+                        text: shareText,
+                        files: [pdfFile],
+                    });
+                    toast.success('Comprobante compartido exitosamente');
+                } else {
+                    // 3. Fallback final: descargar y abrir WhatsApp con texto breve
+                    doc.save(pdfName);
+                    toast.success('PDF descargado. Ábrelo y compártelo por WhatsApp.', { duration: 5000 });
+
+                    const mensaje = `Hola *${selectedCliente.nombre}* 👋, adjunto tu comprobante de pago por *$${totalPago.toFixed(2)}*. ¡Gracias!`;
+                    const telefono = formatWhatsAppNumber(selectedCliente.telefono);
+                    if (telefono) {
+                        setTimeout(() => {
+                            const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+                            if (isNative) {
+                                window.open(url, '_system');
+                            } else {
+                                window.open(url, '_blank');
+                            }
+                        }, 1500);
+                    }
                 }
+            } else {
+                toast.success('Comprobante compartido exitosamente');
             }
         } catch (error: any) {
             if (error?.name === 'AbortError') return; // El usuario canceló, no es error
