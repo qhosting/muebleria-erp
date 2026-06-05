@@ -166,7 +166,7 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
 
                 // Importar dinámicamente para evitar problemas de SSR / Capacitor
                 const { obtenerUbicacionCobrador } = await import('@/lib/native/location');
-                const pos = (await obtenerUbicacionCobrador(false, 300000)) as any; // Baja precisión, caché de 5 minutos
+                const pos = (await obtenerUbicacionCobrador(true, 60000)) as any; // Alta precisión (GPS), caché de 1 minuto
 
                 await fetch('/api/mobile/dispositivos/heartbeat', {
                     method: 'POST',
