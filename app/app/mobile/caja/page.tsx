@@ -200,12 +200,15 @@ export default function MobileCaja() {
             setPrinting(null);
         }
     };
-
     const handleShareWhatsApp = async (pago: any) => {
         if (!pago) return;
 
         try {
-            toast.info('Generando comprobante PDF...');
+            const telefono = formatWhatsAppNumber(pago.cliente.telefono);
+            if (!telefono) {
+                toast.error("El cliente no tiene un teléfono válido");
+                return;
+            }
 
             // Mapear a formato TicketData
             const ticketData = {
@@ -240,66 +243,81 @@ export default function MobileCaja() {
                 }
             };
 
-            const { generateReceiptPdf } = await import("@/lib/receipt-pdf");
-            const doc = await generateReceiptPdf(ticketData);
-
-            const clienteCodigo = pago.cliente.codigoCliente || pago.cliente.nombreCompleto?.replace(/\s+/g, '_') || 'cliente';
-            const pdfName = `Comprobante_${clienteCodigo}_${ticketData.numeroRecibo}.pdf`;
-            const shareTitle = `Comprobante de Pago — ${pago.cliente.nombreCompleto}`;
             const total = Number(pago.monto || 0) + Number(pago.interesMoratorio || 0) + Number(pago.gastosCobranza || 0);
-            const shareText = `Comprobante de pago por $${total.toFixed(2)} — ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}`;
+            const mensaje = `Hola *${pago.cliente.nombreCompleto}* 👋, adjunto encontrarás tu comprobante de pago por *$${total.toFixed(2)}* del ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}. ¡Gracias!`;
 
-            // 1. Intentar compartir usando el plugin nativo de Capacitor (APK)
-            const sharedNatively = await sharePdfNative(doc, pdfName, shareTitle, shareText);
+            toast.info('Abriendo WhatsApp para enviar mensaje...');
+            
+            // 1. Abrir WhatsApp primero con el mensaje de texto
+            const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+            window.open(url, isNative ? '_system' : '_blank');
 
-            if (!sharedNatively) {
-                // 2. Fallback: intentar Web Share API (Navegadores móviles compatibles)
-                const pdfOutput = doc.output('arraybuffer');
-                const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
-                const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
+            // 2. Registrar el listener de retorno para compartir el PDF nativamente
+            let triggered = false;
+            const sharePDF = async () => {
+                if (triggered) return;
+                triggered = true;
 
-                const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] });
+                window.removeEventListener('focus', sharePDF);
 
-                if (canShare) {
-                    await navigator.share({
-                        title: shareTitle,
-                        text: shareText,
-                        files: [pdfFile],
-                    });
-                    toast.success('PDF compartido exitosamente');
-                } else {
-                    // 3. Fallback final: descargar PDF + abrir WhatsApp con mensaje
-                    doc.save(pdfName);
-                    toast.success('PDF descargado. Ábrelo y compártelo por WhatsApp.', { duration: 5000 });
+                toast.info('Generando comprobante PDF para compartir...');
+                const { generateReceiptPdf } = await import("@/lib/receipt-pdf");
+                const doc = await generateReceiptPdf(ticketData);
 
-                    const mensaje = `Hola *${pago.cliente.nombreCompleto}* 👋, adjunto encontrarás tu comprobante de pago por *$${total.toFixed(2)}* del ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}. ¡Gracias!`;
-                    const telefono = formatWhatsAppNumber(pago.cliente.telefono);
-                    if (telefono) {
-                        setTimeout(() => {
-                            window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, '_blank');
-                        }, 1500); // Pequeña pausa para que el PDF se descargue primero
+                const clienteCodigo = pago.cliente.codigoCliente || pago.cliente.nombreCompleto?.replace(/\s+/g, '_') || 'cliente';
+                const pdfName = `Comprobante_${clienteCodigo}_${ticketData.numeroRecibo}.pdf`;
+                const shareTitle = `Comprobante de Pago — ${pago.cliente.nombreCompleto}`;
+                const shareText = `Comprobante de pago por $${total.toFixed(2)} — ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}`;
+
+                // Intentar compartir usando el plugin nativo de Capacitor (APK)
+                const sharedNatively = await sharePdfNative(doc, pdfName, shareTitle, shareText);
+
+                if (!sharedNatively) {
+                    // Fallback: intentar Web Share API (Navegadores móviles compatibles)
+                    const pdfOutput = doc.output('arraybuffer');
+                    const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
+                    const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
+
+                    const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] });
+
+                    if (canShare) {
+                        await navigator.share({
+                            title: shareTitle,
+                            text: shareText,
+                            files: [pdfFile],
+                        });
+                        toast.success('PDF compartido exitosamente');
+                    } else {
+                        doc.save(pdfName);
+                        toast.success('PDF descargado.');
                     }
+                } else {
+                    toast.success('PDF compartido exitosamente');
                 }
-            } else {
-                toast.success('PDF generado exitosamente');
-                // Redirigir directamente al WhatsApp del cliente
-                const telefono = formatWhatsAppNumber(pago.cliente.telefono);
-                if (telefono) {
-                    const mensaje = `Hola *${pago.cliente.nombreCompleto}* 👋, adjunto encontrarás tu comprobante de pago por *$${total.toFixed(2)}* del ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}. ¡Gracias!`;
-                    setTimeout(() => {
-                        const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
-                        window.open(url, isNative ? '_system' : '_blank');
-                    }, 1000);
-                }
+            };
+
+            // Registrar listeners para detectar cuando el usuario regrese
+            window.addEventListener('focus', sharePDF);
+            
+            // Registrar evento de Capacitor si es nativo
+            try {
+                const { App } = await import('@capacitor/app');
+                const listener = await App.addListener('appStateChange', (state) => {
+                    if (state.isActive) {
+                        sharePDF();
+                        listener.remove();
+                    }
+                });
+            } catch (e) {
+                console.warn('Capacitor App state listener error:', e);
             }
+
         } catch (error: any) {
-            // El usuario canceló el share — no es un error real
             if (error?.name === 'AbortError') return;
             console.error("Error al compartir PDF:", error);
             toast.error("Error al generar el comprobante PDF");
         }
     };
-
     const handlePrintArqueo = async (arqueo: any) => {
         try {
             // Guardar en base de datos primero
