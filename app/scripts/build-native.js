@@ -17,7 +17,8 @@ const foldersToHide = [
     { dir: path.join(appRouterDir, 'importar'), backup: path.join(appRouterDir, '_importar_backup'), name: 'Importar' },
     { dir: path.join(appRouterDir, 'portal'), backup: path.join(appRouterDir, '_portal_backup'), name: 'Portal' },
     { dir: path.join(appRouterDir, 'debug-session'), backup: path.join(appRouterDir, '_debug-session_backup'), name: 'Debug Session' },
-    { dir: path.join(appRouterDir, 'test-auth'), backup: path.join(appRouterDir, '_test-auth_backup'), name: 'Test Auth' }
+    { dir: path.join(appRouterDir, 'test-auth'), backup: path.join(appRouterDir, '_test-auth_backup'), name: 'Test Auth' },
+    { dir: path.join(appRouterDir, 'public'), backup: path.join(appRouterDir, '_public_backup'), name: 'Public Receipts' }
 ];
 
 const ocultadas = [];

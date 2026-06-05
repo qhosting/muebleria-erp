@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export default function MobileCaja() {
+    const { isNative } = usePlatform();
     const [loading, setLoading] = useState(true);
     const [isExpanded, setIsExpanded] = useState(false);
     const [stats, setStats] = useState({
@@ -204,98 +205,29 @@ export default function MobileCaja() {
         if (!pago) return;
 
         try {
-            toast.info('Generando comprobante PDF...');
+            toast.info('Generando enlace temporal de recibo...');
 
-            // Mapear a formato TicketData
-            const ticketData = {
-                numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-8)}`,
-                cliente: {
-                    nombreCompleto: pago.cliente.nombreCompleto || "",
-                    telefono: pago.cliente.telefono,
-                    direccion: pago.cliente.direccionCompleta || pago.cliente.direccion || "",
-                    diaPago: pago.cliente.diaPago
-                },
-                cobrador: {
-                    nombre: pago.cobrador?.name || "Cobrador",
-                    id: pago.cobrador?.id || ""
-                },
-                pago: {
-                    monto: pago.monto,
-                    interesMoratorio: pago.interesMoratorio,
-                    gastosCobranza: pago.gastosCobranza,
-                    tipoPago: pago.tipoPago,
-                    metodoPago: pago.metodoPago,
-                    concepto: pago.concepto,
-                    fechaPago: pago.fechaPago
-                },
-                saldos: {
-                    anterior: pago.saldoAnterior,
-                    nuevo: pago.saldoNuevo,
-                },
-                empresa: {
-                    nombre: 'VertexERP Muebles',
-                    direccion: 'Dirección de la empresa',
-                    telefono: 'Tel: (555) 123-4567'
-                }
-            };
+            const response = await fetch(`/api/mobile/recibo/link?pagoId=${pago.id}`);
+            if (!response.ok) {
+                throw new Error("No se pudo obtener el enlace temporal del recibo");
+            }
+            const data = await response.json();
+            const shareUrl = data.shareUrl;
 
-            const { generateReceiptPdf } = await import("@/lib/receipt-pdf");
-            const doc = await generateReceiptPdf(ticketData);
-
-            const clienteCodigo = pago.cliente.codigoCliente || pago.cliente.nombreCompleto?.replace(/\s+/g, '_') || 'cliente';
-            const pdfName = `Comprobante_${clienteCodigo}_${ticketData.numeroRecibo}.pdf`;
-            const shareTitle = `Comprobante de Pago — ${pago.cliente.nombreCompleto}`;
             const total = Number(pago.monto || 0) + Number(pago.interesMoratorio || 0) + Number(pago.gastosCobranza || 0);
-            const shareText = `Comprobante de pago por $${total.toFixed(2)} — ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}`;
+            const mensaje = `Hola *${pago.cliente.nombreCompleto}* 👋, aquí tienes el enlace para abrir tu comprobante de pago por *$${total.toFixed(2)}* del ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}: ${shareUrl}\n\n*Nota:* Este enlace es temporal por seguridad y estará disponible únicamente durante 15 minutos. ¡Muchas gracias!`;
 
-            // 1. Intentar compartir usando el plugin nativo de Capacitor (APK)
-            const sharedNatively = await sharePdfNative(doc, pdfName, shareTitle, shareText);
-
-            if (!sharedNatively) {
-                // 2. Fallback: intentar Web Share API (Navegadores móviles compatibles)
-                const pdfOutput = doc.output('arraybuffer');
-                const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
-                const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
-
-                const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] });
-
-                if (canShare) {
-                    await navigator.share({
-                        title: shareTitle,
-                        text: shareText,
-                        files: [pdfFile],
-                    });
-                    toast.success('PDF compartido exitosamente');
-                } else {
-                    // 3. Fallback final: descargar PDF + abrir WhatsApp con mensaje
-                    doc.save(pdfName);
-                    toast.success('PDF descargado. Ábrelo y compártelo por WhatsApp.', { duration: 5000 });
-
-                    const mensaje = `Hola *${pago.cliente.nombreCompleto}* 👋, adjunto encontrarás tu comprobante de pago por *$${total.toFixed(2)}* del ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}. ¡Gracias!`;
-                    const telefono = formatWhatsAppNumber(pago.cliente.telefono);
-                    if (telefono) {
-                        setTimeout(() => {
-                            window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, '_blank');
-                        }, 1500); // Pequeña pausa para que el PDF se descargue primero
-                    }
-                }
+            const telefono = formatWhatsAppNumber(pago.cliente.telefono);
+            if (telefono) {
+                const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+                window.open(url, isNative ? '_system' : '_blank');
+                toast.success('Abriendo WhatsApp...');
             } else {
-                toast.success('PDF generado exitosamente');
-                // Redirigir directamente al WhatsApp del cliente
-                const telefono = formatWhatsAppNumber(pago.cliente.telefono);
-                if (telefono) {
-                    const mensaje = `Hola *${pago.cliente.nombreCompleto}* 👋, adjunto encontrarás tu comprobante de pago por *$${total.toFixed(2)}* del ${new Date(pago.fechaPago).toLocaleDateString('es-MX')}. ¡Gracias!`;
-                    setTimeout(() => {
-                        const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
-                        window.open(url, isNative ? '_system' : '_blank');
-                    }, 1000);
-                }
+                toast.error("El cliente no tiene un teléfono válido");
             }
         } catch (error: any) {
-            // El usuario canceló el share — no es un error real
-            if (error?.name === 'AbortError') return;
-            console.error("Error al compartir PDF:", error);
-            toast.error("Error al generar el comprobante PDF");
+            console.error("Error al compartir el enlace del recibo:", error);
+            toast.error("Error al generar el enlace de WhatsApp");
         }
     };
 
