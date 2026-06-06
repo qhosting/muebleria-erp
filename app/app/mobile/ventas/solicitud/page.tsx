@@ -569,7 +569,7 @@ export default function VendedorSolicitudPage() {
             </div>
 
             {/* Sticky Navigation Footer */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-900/80 backdrop-blur-xl border-t border-slate-800 flex space-x-3">
+            <div className="fixed bottom-0 left-0 right-0 px-4 pt-4 pb-safe-bottom-p4 bg-slate-900/80 backdrop-blur-xl border-t border-slate-800 flex space-x-3">
                 {step > 1 && (
                     <button 
                         onClick={prevStep}

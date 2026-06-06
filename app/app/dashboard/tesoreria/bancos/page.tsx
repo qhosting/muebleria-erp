@@ -90,8 +90,9 @@ export default function BancosPage() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        if (!file.name.endsWith('.csv')) {
-            toast.error('Solo se permiten archivos CSV');
+        const extension = file.name.split('.').pop()?.toLowerCase();
+        if (extension !== 'csv' && extension !== 'xlsx' && extension !== 'xls') {
+            toast.error('Solo se permiten archivos CSV o Excel (.xlsx, .xls)');
             return;
         }
 
@@ -150,13 +151,13 @@ export default function BancosPage() {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <h3 className="font-bold text-gray-900 text-base">Santander</h3>
-                                <p className="text-xs text-gray-500 mt-0.5">Importar CSV del estado de cuenta de Santander</p>
+                                <p className="text-xs text-gray-500 mt-0.5">Importar CSV o Excel del estado de cuenta de Santander</p>
                             </div>
                             <div>
                                 <input
                                     ref={santanderInputRef}
                                     type="file"
-                                    accept=".csv"
+                                    accept=".csv,.xlsx,.xls"
                                     className="hidden"
                                     onChange={(e) => onFileSelected('santander', e)}
                                 />
@@ -168,7 +169,7 @@ export default function BancosPage() {
                                     {importing === 'santander' ? (
                                         <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Importando...</>
                                     ) : (
-                                        <><Upload className="h-4 w-4 mr-2" /> Importar CSV</>
+                                        <><Upload className="h-4 w-4 mr-2" /> Importar archivo</>
                                     )}
                                 </Button>
                             </div>
@@ -183,13 +184,13 @@ export default function BancosPage() {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <h3 className="font-bold text-gray-900 text-base">Banorte</h3>
-                                <p className="text-xs text-gray-500 mt-0.5">Importar CSV del estado de cuenta de Banorte</p>
+                                <p className="text-xs text-gray-500 mt-0.5">Importar CSV o Excel del estado de cuenta de Banorte</p>
                             </div>
                             <div>
                                 <input
                                     ref={banorteInputRef}
                                     type="file"
-                                    accept=".csv"
+                                    accept=".csv,.xlsx,.xls"
                                     className="hidden"
                                     onChange={(e) => onFileSelected('banorte', e)}
                                 />
@@ -201,7 +202,7 @@ export default function BancosPage() {
                                     {importing === 'banorte' ? (
                                         <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Importando...</>
                                     ) : (
-                                        <><Upload className="h-4 w-4 mr-2" /> Importar CSV</>
+                                        <><Upload className="h-4 w-4 mr-2" /> Importar archivo</>
                                     )}
                                 </Button>
                             </div>

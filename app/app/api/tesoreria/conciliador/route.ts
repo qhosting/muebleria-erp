@@ -48,6 +48,16 @@ export async function GET(request: NextRequest) {
         const sugerencias = [];
         const movimientosDisponibles = [...movimientosPendientes];
 
+        // Función auxiliar para normalizar cadenas (remueve acentos, mayúsculas, etc.)
+        const normalizarTexto = (text: string) => {
+            if (!text) return "";
+            return text
+                .toUpperCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .trim();
+        };
+
         for (const ticket of ticketsPendientes) {
             let bestMatch: any = null;
             let bestPriority = 10;
@@ -55,8 +65,15 @@ export async function GET(request: NextRequest) {
 
             const monto = Number(ticket.monto);
             const contrato = (ticket.cliente?.codigoCliente || "").toUpperCase();
-            const nombre = (ticket.cliente?.nombreCompleto || "").toUpperCase().substring(0, 15);
-            const cuentaTicket = ticket.cuentaOrigen;
+            const normalizedContrato = contrato.replace(/[^A-Z0-9]/g, "");
+            
+            const nombre = normalizarTexto(ticket.cliente?.nombreCompleto || "");
+            const nombreSubstr = nombre.substring(0, 15);
+            
+            const cuentaTicket = ticket.cuentaOrigen ? ticket.cuentaOrigen.trim() : null;
+            const refTicket = (ticket.referencia || "").replace(/^0+/, "").trim().toUpperCase();
+            const folioTicket = (ticket.folio || "").replace(/^0+/, "").trim().toUpperCase();
+            const rastreoTicket = ticket.claveRastreo ? ticket.claveRastreo.trim().toUpperCase() : null;
 
             for (const mov of movimientosDisponibles) {
                 // Solo sugerimos si el monto coincide exactamente
@@ -66,36 +83,68 @@ export async function GET(request: NextRequest) {
                 const descripcion = (mov.descripcionDetallada || "").toUpperCase();
                 const general = (mov.descripcionGeneral || "").toUpperCase();
                 const dataPool = `${concepto} ${descripcion} ${general}`;
+                const dataPoolNormalized = normalizarTexto(dataPool);
 
                 let currentPriority = 8; // Coincidencia de monto (base)
                 let currentRazon = "Monto exacto (Prioridad 8)";
 
-                // A. Búsqueda por Cuenta Bancaria Histórica (Inteligencia)
-                const matchCuenta = cuentasConocidas.find((c: any) => 
-                    (c.clabe && dataPool.includes(c.clabe)) || 
-                    (c.cuenta && dataPool.includes(c.cuenta))
-                );
-
-                if (matchCuenta && matchCuenta.clienteId === ticket.clienteId) {
-                    currentPriority = 1;
-                    currentRazon = "Cuenta Bancaria Conocida del Cliente (Prioridad 1)";
-                } 
-                // B. Búsqueda por Código de Contrato (Regex)
+                // A. Prioridad 0: Coincidencia por Clave de Rastreo (idéntica y única)
+                const rastreoMov = mov.claveRastreo ? mov.claveRastreo.trim().toUpperCase() : null;
+                if (rastreoTicket && rastreoMov && rastreoTicket === rastreoMov) {
+                    currentPriority = 0;
+                    currentRazon = "Clave de Rastreo idéntica (Prioridad 0)";
+                }
+                // B. Prioridad 1: Búsqueda por Cuenta Bancaria Histórica (Inteligencia)
                 else {
-                    const contractMatch = dataPool.match(/[A-Z]{2}\d{4,}/);
-                    if (contractMatch && contractMatch[0] === contrato) {
-                        currentPriority = 2;
-                        currentRazon = "Código de Contrato en Concepto (Prioridad 2)";
+                    const matchCuentaDirecta = cuentasConocidas.find((c: any) => 
+                        c.clienteId === ticket.clienteId && (
+                            (mov.clabeEmisor && c.clabe === mov.clabeEmisor) || 
+                            (mov.cuentaEmisor && c.cuenta === mov.cuentaEmisor)
+                        )
+                    );
+                    
+                    const matchCuentaPool = cuentasConocidas.find((c: any) => 
+                        c.clienteId === ticket.clienteId && (
+                            (c.clabe && dataPool.includes(c.clabe)) || 
+                            (c.cuenta && dataPool.includes(c.cuenta))
+                        )
+                    );
+
+                    if (matchCuentaDirecta || matchCuentaPool) {
+                        currentPriority = 1;
+                        currentRazon = "Cuenta Bancaria Conocida del Cliente (Prioridad 1)";
                     } 
-                    // C. Búsqueda por Nombre (Mínimo 15 caracteres o exacto)
-                    else if (nombre && dataPool.includes(nombre)) {
-                        currentPriority = 3;
-                        currentRazon = "Nombre del Cliente detectado (Prioridad 3)";
-                    }
-                    // D. Búsqueda por CLABE en Ticket vs Concepto
-                    else if (cuentaTicket && dataPool.includes(cuentaTicket)) {
-                        currentPriority = 4;
-                        currentRazon = "CLABE del Ticket coincide con Banco (Prioridad 4)";
+                    // C. Prioridad 2: Búsqueda por Código de Contrato (Regex y Alfanumérico Normalizado)
+                    else {
+                        const contractMatch = dataPool.match(/[A-Z]{2}\d{4,}/);
+                        const normalizedDataPool = dataPool.replace(/[^A-Z0-9]/g, "");
+                        const contractInPool = normalizedContrato && normalizedDataPool.includes(normalizedContrato);
+                        
+                        if ((contractMatch && contractMatch[0] === contrato) || contractInPool) {
+                            currentPriority = 2;
+                            currentRazon = "Código de Contrato en Concepto (Prioridad 2)";
+                        } 
+                        // D. Prioridad 3: Búsqueda por Referencia o Folio (sin ceros a la izquierda)
+                        else {
+                            const refMov = (mov.referencia || "").replace(/^0+/, "").trim().toUpperCase();
+                            const matchReferencia = (refMov && refTicket && refMov === refTicket) ||
+                                                    (refMov && folioTicket && refMov === folioTicket);
+                            
+                            if (matchReferencia) {
+                                currentPriority = 3;
+                                currentRazon = "Referencia o Folio coincide (Prioridad 3)";
+                            }
+                            // E. Prioridad 4: Búsqueda por Nombre (Mínimo 15 caracteres, sin acentos)
+                            else if (nombreSubstr && dataPoolNormalized.includes(nombreSubstr)) {
+                                currentPriority = 4;
+                                currentRazon = "Nombre del Cliente detectado (Prioridad 4)";
+                            }
+                            // F. Prioridad 5: Búsqueda por CLABE en Ticket vs Concepto
+                            else if (cuentaTicket && dataPool.includes(cuentaTicket)) {
+                                currentPriority = 5;
+                                currentRazon = "CLABE del Ticket coincide con Banco (Prioridad 5)";
+                            }
+                        }
                     }
                 }
 

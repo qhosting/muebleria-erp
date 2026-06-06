@@ -24,3 +24,5 @@ app_payload.json
 app/node_modules
 root/node_modules
 **/node_modules
+/temporales/
+/app/scratch/
