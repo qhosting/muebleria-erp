@@ -260,6 +260,9 @@ model Cliente {
   pagos               Pago[]
   motararios          Motarario[]
   movimientosBancarios MovimientoBancario[]
+  movimientosBanorte0330253963 MovimientoBanorte0330253963[]
+  movimientosSantander22001022837 MovimientoSantander22001022837[]
+  movimientosSantander65505732541 MovimientoSantander65505732541[]
   tickets             Ticket[]
   verificaciones      VerificacionDomiciliaria[]
   convenios           ConvenioPago[]
@@ -347,6 +350,9 @@ model Ticket {
   cliente               Cliente?             @relation(fields: [clienteId], references: [id])
   gestor                User?                @relation(fields: [gestorId], references: [id])
   movimientosBancarios  MovimientoBancario[]
+  movimientosBanorte0330253963 MovimientoBanorte0330253963[]
+  movimientosSantander22001022837 MovimientoSantander22001022837[]
+  movimientosSantander65505732541 MovimientoSantander65505732541[]
   pagos                 Pago[]
 
   @@map("tickets")
@@ -378,6 +384,87 @@ model MovimientoBancario {
   cliente               Cliente?  @relation(fields: [clienteId], references: [id])
 
   @@map("movimientos_bancarios")
+}
+
+model MovimientoBanorte0330253963 {
+  id                    String    @id @default(cuid())
+  legacyId              Int?      @unique
+  bancoOrigen           String
+  fechaOperacion       DateTime
+  horaOperacion        DateTime?  @db.Time(6)
+  descripcionGeneral   String?
+  cargo                Float?
+  abono                Float?
+  saldo                Float?
+  referencia           String?
+  claveRastreo         String?
+  concepto             String?
+  descripcionDetallada String?
+  fechaIngreso         DateTime   @default(now())
+  ticketId             String?
+  clienteId            String?
+  cuentaEmisor         String?
+  clabeEmisor          String?
+  fechaIdentificado    DateTime?
+
+  ticket                Ticket?   @relation(fields: [ticketId], references: [id])
+  cliente               Cliente?  @relation(fields: [clienteId], references: [id])
+
+  @@map("movimientos_banorte_0330253963")
+}
+
+model MovimientoSantander22001022837 {
+  id                    String    @id @default(cuid())
+  legacyId              Int?      @unique
+  bancoOrigen           String
+  fechaOperacion       DateTime
+  horaOperacion        DateTime?  @db.Time(6)
+  descripcionGeneral   String?
+  cargo                Float?
+  abono                Float?
+  saldo                Float?
+  referencia           String?
+  claveRastreo         String?
+  concepto             String?
+  descripcionDetallada String?
+  fechaIngreso         DateTime   @default(now())
+  ticketId             String?
+  clienteId            String?
+  cuentaEmisor         String?
+  clabeEmisor          String?
+  fechaIdentificado    DateTime?
+
+  ticket                Ticket?   @relation(fields: [ticketId], references: [id])
+  cliente               Cliente?  @relation(fields: [clienteId], references: [id])
+
+  @@map("movimientos_santander_22001022837")
+}
+
+model MovimientoSantander65505732541 {
+  id                    String    @id @default(cuid())
+  legacyId              Int?      @unique
+  bancoOrigen           String
+  fechaOperacion       DateTime
+  horaOperacion        DateTime?  @db.Time(6)
+  descripcionGeneral   String?
+  cargo                Float?
+  abono                Float?
+  saldo                Float?
+  referencia           String?
+  claveRastreo         String?
+  concepto             String?
+  descripcionDetallada String?
+  fechaIngreso         DateTime   @default(now())
+  ticketId             String?
+  clienteId            String?
+  cuentaEmisor         String?
+  clabeEmisor          String?
+  fechaIdentificado    DateTime?
+
+  ticket                Ticket?   @relation(fields: [ticketId], references: [id])
+  cliente               Cliente?  @relation(fields: [clienteId], references: [id])
+
+  @@map("movimientos_santander_65505732541")
 }
 
 model EquipoVentas {

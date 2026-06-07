@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -30,15 +29,39 @@ export async function GET(request: NextRequest) {
             orderBy: { creadoEn: 'desc' }
         });
 
-        // 2. Movimientos bancarios sin ticket asociado
-        const bancosSinTicket = await prisma.movimientoBancario.findMany({
-            where: {
-                ticketId: null,
-                fechaOperacion: { gte: fechaDesde, lte: fechaHasta },
-                abono: { gt: 0 }
-            },
-            orderBy: { fechaOperacion: 'desc' }
-        });
+        // 2. Movimientos bancarios sin ticket asociado en las 3 tablas
+        const [m1, m2, m3] = await Promise.all([
+            prisma.movimientoSantander22001022837.findMany({
+                where: {
+                    ticketId: null,
+                    fechaOperacion: { gte: fechaDesde, lte: fechaHasta },
+                    abono: { gt: 0 }
+                }
+            }),
+            prisma.movimientoSantander65505732541.findMany({
+                where: {
+                    ticketId: null,
+                    fechaOperacion: { gte: fechaDesde, lte: fechaHasta },
+                    abono: { gt: 0 }
+                }
+            }),
+            prisma.movimientoBanorte0330253963.findMany({
+                where: {
+                    ticketId: null,
+                    fechaOperacion: { gte: fechaDesde, lte: fechaHasta },
+                    abono: { gt: 0 }
+                }
+            })
+        ]);
+
+        const bancosSinTicket = [
+            ...m1.map(m => ({ ...m, cuentaDestino: '22001022837', bancoDestino: 'SANTANDER' })),
+            ...m2.map(m => ({ ...m, cuentaDestino: '65505732541', bancoDestino: 'SANTANDER' })),
+            ...m3.map(m => ({ ...m, cuentaDestino: '0330253963', bancoDestino: 'BANORTE' }))
+        ];
+
+        // Ordenamos descendente por fecha de operación
+        bancosSinTicket.sort((a, b) => b.fechaOperacion.getTime() - a.fechaOperacion.getTime());
 
         // 3. Pagos reportados como bancarios pero sin vinculación a estado_de_cuenta
         const pagosBancariosHuefanos = await prisma.pago.findMany({

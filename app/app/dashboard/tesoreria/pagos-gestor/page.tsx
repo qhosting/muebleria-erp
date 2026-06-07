@@ -227,7 +227,7 @@ export default function PagosGestorPage() {
                                             <TableCell className="text-center">
                                                 <Button
                                                     size="sm"
-                                                    variant={r.conciliado ? "destructive" : "success"}
+                                                    variant={r.conciliado ? "destructive" : "default"}
                                                     className={`h-8 font-bold min-w-[120px] ${r.conciliado ? "" : "bg-green-600 hover:bg-green-700 text-white"}`}
                                                     onClick={() => toggleCierre(r.cobradorId, r.conciliado, r.gestor)}
                                                 >

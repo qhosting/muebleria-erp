@@ -60,8 +60,8 @@ function parseExcelDate(val: any): Date | null {
 }
 
 // Helper: Parse Santander rows parsed from SheetJS
-function parseSantander(rows: any[][]): any[] {
-    if (rows.length < 2) return [];
+function parseSantander(rows: any[][]): { records: any[], cuentaNum: string } {
+    if (rows.length < 2) return { records: [], cuentaNum: '' };
     
     const headers = rows[0].map(h => clean(h).toUpperCase());
     const records: any[] = [];
@@ -84,15 +84,26 @@ function parseSantander(rows: any[][]): any[] {
     const idxRfcOrdenante = colIdx('RFC ORDENANTE');
     const idxClaveRastreo = colIdx('CLAVE DE RASTREO');
     
+    let cuentaNum = '';
+    
     for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (!row || row.length === 0 || row.every(cell => cell === "")) continue;
         
+        const rawCuenta = idxCuenta >= 0 ? clean(row[idxCuenta]) : '';
+        const cleanCuenta = rawCuenta.replace(/[^0-9]/g, '');
+        if (cleanCuenta && !cuentaNum) {
+            cuentaNum = cleanCuenta;
+        }
+
         const cargoAbono = idxCargoAbono >= 0 ? clean(row[idxCargoAbono]) : '';
-        if (cargoAbono !== '+') continue; // Solo abonos (ingresos)
         
         const importe = idxImporte >= 0 ? parseFloat(clean(row[idxImporte])) || 0 : 0;
         if (importe <= 0) continue;
+        
+        const isAbono = cargoAbono === '+';
+        const abono = isAbono ? importe : 0;
+        const cargo = !isAbono ? importe : 0;
         
         const saldo = idxSaldo >= 0 ? parseFloat(clean(row[idxSaldo])) || 0 : 0;
         const referencia = idxReferencia >= 0 ? clean(row[idxReferencia]) : '';
@@ -126,12 +137,11 @@ function parseSantander(rows: any[][]): any[] {
         
         records.push({
             bancoOrigen: bancoParticipante || 'SANTANDER',
-            bancoDestino: 'SANTANDER',
             fechaOperacion,
             horaOperacion,
             descripcionGeneral: descripcion,
-            cargo: 0,
-            abono: importe,
+            cargo,
+            abono,
             saldo,
             referencia: referencia || null,
             claveRastreo: claveRastreo || null,
@@ -142,12 +152,12 @@ function parseSantander(rows: any[][]): any[] {
         });
     }
     
-    return records;
+    return { records, cuentaNum };
 }
 
 // Helper: Parse Banorte rows parsed from SheetJS
-function parseBanorte(rows: any[][]): any[] {
-    if (rows.length < 2) return [];
+function parseBanorte(rows: any[][]): { records: any[], cuentaNum: string } {
+    if (rows.length < 2) return { records: [], cuentaNum: '' };
     
     const headers = rows[0].map(h => clean(h).toUpperCase());
     const records: any[] = [];
@@ -163,19 +173,26 @@ function parseBanorte(rows: any[][]): any[] {
     const idxSaldo = colIdx('SALDO');
     const idxDescripcionDetallada = colIdx('DESCRIPCIÓN DETALLADA');
     
+    let cuentaNum = '';
+    
+    const parseAmount = (val: any) => {
+        if (val === undefined || val === null || val === "" || val === "-") return 0;
+        return parseFloat(String(val).replace(/[$,]/g, '')) || 0;
+    };
+
     for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         if (!row || row.length === 0 || row.every(cell => cell === "")) continue;
         
         const cuenta = idxCuenta >= 0 ? clean(row[idxCuenta]) : '';
-        if (!cuenta) continue;
-        
-        const depositoStr = idxDepositos >= 0 ? clean(row[idxDepositos]) : '';
-        const deposito = parseFloat(depositoStr.replace(/[$,]/g, '')) || 0;
-        if (deposito <= 0) continue; // Solo abonos
-        
-        const retiroStr = idxRetiros >= 0 ? clean(row[idxRetiros]) : '';
-        const retiro = parseFloat(retiroStr.replace(/[$,]/g, '')) || 0;
+        const cleanCuenta = cuenta.replace(/[^0-9]/g, '');
+        if (cleanCuenta && !cuentaNum) {
+            cuentaNum = cleanCuenta;
+        }
+
+        const deposito = idxDepositos >= 0 ? parseAmount(row[idxDepositos]) : 0;
+        const retiro = idxRetiros >= 0 ? parseAmount(row[idxRetiros]) : 0;
+        if (deposito <= 0 && retiro <= 0) continue;
         
         const saldoStr = idxSaldo >= 0 ? clean(row[idxSaldo]) : '';
         const saldo = parseFloat(saldoStr.replace(/[$,"]/g, '')) || 0;
@@ -224,7 +241,6 @@ function parseBanorte(rows: any[][]): any[] {
         
         records.push({
             bancoOrigen,
-            bancoDestino: 'BANORTE',
             fechaOperacion,
             horaOperacion,
             descripcionGeneral: concepto,
@@ -240,7 +256,7 @@ function parseBanorte(rows: any[][]): any[] {
         });
     }
     
-    return records;
+    return { records, cuentaNum };
 }
 
 export async function POST(request: NextRequest) {
@@ -267,23 +283,47 @@ export async function POST(request: NextRequest) {
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" }) as any[][];
         
         let records: any[] = [];
+        let cuentaNum = '';
 
         if (banco === 'santander') {
-            records = parseSantander(rows);
+            const parsed = parseSantander(rows);
+            records = parsed.records;
+            cuentaNum = parsed.cuentaNum;
         } else if (banco === 'banorte') {
-            records = parseBanorte(rows);
+            const parsed = parseBanorte(rows);
+            records = parsed.records;
+            cuentaNum = parsed.cuentaNum;
         } else {
             return NextResponse.json({ error: 'Banco no soportado' }, { status: 400 });
         }
 
         if (records.length === 0) {
             return NextResponse.json({
-                error: 'No se encontraron registros de ingresos (abonos) en el archivo',
+                error: 'No se encontraron registros de movimientos en el archivo',
                 total: 0
             }, { status: 400 });
         }
 
-        // Insertar en la base de datos, evitando duplicados por claveRastreo o datos de la transacción
+        // Determinar qué modelo de base de datos usar en función del número de cuenta detectado
+        let prismaModel: any = null;
+        let cuentaDestinoReal = '';
+
+        if (cuentaNum === '22001022837') {
+            prismaModel = (prisma as any).movimientoSantander22001022837;
+            cuentaDestinoReal = '22001022837 (Santander)';
+        } else if (cuentaNum === '65505732541') {
+            prismaModel = (prisma as any).movimientoSantander65505732541;
+            cuentaDestinoReal = '65505732541 (Santander)';
+        } else if (cuentaNum === '0330253963') {
+            prismaModel = (prisma as any).movimientoBanorte0330253963;
+            cuentaDestinoReal = '0330253963 (Banorte)';
+        } else {
+            return NextResponse.json({ 
+                error: `La cuenta detectada en el archivo (${cuentaNum || 'Ninguna'}) no corresponde a las cuentas autorizadas. Cuentas soportadas: Santander 22001022837, Santander 65505732541, Banorte 0330253963.` 
+            }, { status: 400 });
+        }
+
+        // Insertar en la base de datos, evitando duplicados
         let insertados = 0;
         let duplicados = 0;
         let errores = 0;
@@ -292,7 +332,7 @@ export async function POST(request: NextRequest) {
             try {
                 // Verificar duplicado por clave de rastreo (única en SPEI)
                 if (record.claveRastreo) {
-                    const existing = await (prisma as any).movimientoBancario.findFirst({
+                    const existing = await prismaModel.findFirst({
                         where: { claveRastreo: record.claveRastreo }
                     });
                     if (existing) {
@@ -300,12 +340,12 @@ export async function POST(request: NextRequest) {
                         continue;
                     }
                 } else {
-                    // Fallback para depósitos sin clave de rastreo (ej. depósito directo en efectivo)
-                    // Evitar duplicar validando fecha, abono, referencia y concepto general
-                    const existing = await (prisma as any).movimientoBancario.findFirst({
+                    // Fallback para depósitos/cargos sin clave de rastreo
+                    const existing = await prismaModel.findFirst({
                         where: {
                             fechaOperacion: record.fechaOperacion,
                             abono: record.abono,
+                            cargo: record.cargo,
                             referencia: record.referencia || null,
                             concepto: record.concepto || null,
                             descripcionGeneral: record.descripcionGeneral || null
@@ -317,10 +357,9 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                await (prisma as any).movimientoBancario.create({
+                await prismaModel.create({
                     data: {
                         bancoOrigen: record.bancoOrigen,
-                        bancoDestino: record.bancoDestino,
                         fechaOperacion: record.fechaOperacion,
                         horaOperacion: record.horaOperacion ? new Date(`1970-01-01T${record.horaOperacion}Z`) : null,
                         descripcionGeneral: record.descripcionGeneral,
@@ -344,12 +383,12 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            banco: banco.toUpperCase(),
+            banco: cuentaDestinoReal,
             total: records.length,
             insertados,
             duplicados,
             errores,
-            mensaje: `Se importaron ${insertados} movimientos de ${banco.toUpperCase()}. ${duplicados} duplicados omitidos.`
+            mensaje: `Se importaron ${insertados} movimientos en la cuenta ${cuentaDestinoReal}. ${duplicados} duplicados omitidos.`
         });
 
     } catch (error) {

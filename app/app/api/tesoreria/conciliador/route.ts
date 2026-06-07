@@ -32,12 +32,33 @@ export async function GET(request: NextRequest) {
             take: 100
         });
 
-        // 2. Obtener Movimientos Bancarios no conciliados
-        const movimientosPendientes = await prisma.movimientoBancario.findMany({
-            where: { ticketId: null },
-            orderBy: { fechaOperacion: 'desc' },
-            take: 100
-        });
+        // 2. Obtener Movimientos Bancarios no conciliados de las 3 tablas (solo abonos/depositos, ya que cargos no se concilian)
+        const [m1, m2, m3] = await Promise.all([
+            prisma.movimientoSantander22001022837.findMany({
+                where: { ticketId: null, abono: { gt: 0 } },
+                orderBy: { fechaOperacion: 'desc' },
+                take: 100
+            }),
+            prisma.movimientoSantander65505732541.findMany({
+                where: { ticketId: null, abono: { gt: 0 } },
+                orderBy: { fechaOperacion: 'desc' },
+                take: 100
+            }),
+            prisma.movimientoBanorte0330253963.findMany({
+                where: { ticketId: null, abono: { gt: 0 } },
+                orderBy: { fechaOperacion: 'desc' },
+                take: 100
+            })
+        ]);
+
+        const movimientosPendientes = [
+            ...m1.map(m => ({ ...m, tabla: 'movimientoSantander22001022837', cuentaDestino: '22001022837', bancoDestino: 'SANTANDER' })),
+            ...m2.map(m => ({ ...m, tabla: 'movimientoSantander65505732541', cuentaDestino: '65505732541', bancoDestino: 'SANTANDER' })),
+            ...m3.map(m => ({ ...m, tabla: 'movimientoBanorte0330253963', cuentaDestino: '0330253963', bancoDestino: 'BANORTE' }))
+        ];
+
+        // Ordenamos descendente por fecha de operación
+        movimientosPendientes.sort((a, b) => b.fechaOperacion.getTime() - a.fechaOperacion.getTime());
 
         // 3. Obtener Catálogo de Cuentas para búsqueda inversa
         const cuentasConocidas = await (prisma as any).cuentaBancariaCliente.findMany({
@@ -164,7 +185,7 @@ export async function GET(request: NextRequest) {
                 });
 
                 // Remover para no duplicar sugerencias en este batch
-                const idx = movimientosDisponibles.findIndex(m => m.id === bestMatch.id);
+                const idx = movimientosDisponibles.findIndex(m => m.id === bestMatch.id && m.tabla === bestMatch.tabla);
                 if (idx > -1) movimientosDisponibles.splice(idx, 1);
             }
         }
@@ -189,13 +210,39 @@ export async function POST(request: NextRequest) {
         if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
         const body = await request.json();
-        const { ticketId, movimientoId } = body;
+        const { ticketId, movimientoId, tabla } = body;
 
         const ticket: any = await prisma.ticket.findUnique({ 
             where: { id: ticketId },
             include: { cliente: true }
         });
-        const movimiento: any = await prisma.movimientoBancario.findUnique({ where: { id: movimientoId } });
+
+        let movimiento: any = null;
+        let tablaOrigen = tabla;
+
+        if (tablaOrigen === 'movimientoSantander22001022837') {
+            movimiento = await prisma.movimientoSantander22001022837.findUnique({ where: { id: movimientoId } });
+        } else if (tablaOrigen === 'movimientoSantander65505732541') {
+            movimiento = await prisma.movimientoSantander65505732541.findUnique({ where: { id: movimientoId } });
+        } else if (tablaOrigen === 'movimientoBanorte0330253963') {
+            movimiento = await prisma.movimientoBanorte0330253963.findUnique({ where: { id: movimientoId } });
+        } else {
+            // Búsqueda fallback en las 3 tablas
+            movimiento = await prisma.movimientoSantander22001022837.findUnique({ where: { id: movimientoId } });
+            if (movimiento) {
+                tablaOrigen = 'movimientoSantander22001022837';
+            } else {
+                movimiento = await prisma.movimientoSantander65505732541.findUnique({ where: { id: movimientoId } });
+                if (movimiento) {
+                    tablaOrigen = 'movimientoSantander65505732541';
+                } else {
+                    movimiento = await prisma.movimientoBanorte0330253963.findUnique({ where: { id: movimientoId } });
+                    if (movimiento) {
+                        tablaOrigen = 'movimientoBanorte0330253963';
+                    }
+                }
+            }
+        }
 
         if (!ticket || !movimiento) return NextResponse.json({ error: 'Datos no encontrados' }, { status: 404 });
 
@@ -204,22 +251,37 @@ export async function POST(request: NextRequest) {
         const clabeMatch = dataPool.match(/\d{18}/); // CLABE standard
         const cuentaMatch = dataPool.match(/\d{10,11}/); // Cuenta standard
 
+        const updateMovimientoData: any = {
+            ticketId: ticketId, 
+            clienteId: ticket.clienteId,
+            fechaIdentificado: new Date(),
+            clabeEmisor: clabeMatch ? clabeMatch[0] : (movimiento.clabeEmisor || null),
+            cuentaEmisor: cuentaMatch ? cuentaMatch[0] : (movimiento.cuentaEmisor || null)
+        };
+
         const operations: any[] = [
             prisma.ticket.update({
                 where: { id: ticketId },
                 data: { conciliado: true }
-            }),
-            prisma.movimientoBancario.update({
-                where: { id: movimientoId },
-                data: { 
-                    ticketId: ticketId, 
-                    clienteId: ticket.clienteId,
-                    fechaIdentificado: new Date(),
-                    clabeEmisor: clabeMatch ? clabeMatch[0] : (movimiento.clabeEmisor || null),
-                    cuentaEmisor: cuentaMatch ? cuentaMatch[0] : (movimiento.cuentaEmisor || null)
-                } as any
             })
         ];
+
+        if (tablaOrigen === 'movimientoSantander22001022837') {
+            operations.push(prisma.movimientoSantander22001022837.update({
+                where: { id: movimientoId },
+                data: updateMovimientoData
+            }));
+        } else if (tablaOrigen === 'movimientoSantander65505732541') {
+            operations.push(prisma.movimientoSantander65505732541.update({
+                where: { id: movimientoId },
+                data: updateMovimientoData
+            }));
+        } else if (tablaOrigen === 'movimientoBanorte0330253963') {
+            operations.push(prisma.movimientoBanorte0330253963.update({
+                where: { id: movimientoId },
+                data: updateMovimientoData
+            }));
+        }
 
         // Si detectamos una nueva CLABE para este cliente, la guardamos/actualizamos
         if (ticket.clienteId && (clabeMatch || cuentaMatch)) {

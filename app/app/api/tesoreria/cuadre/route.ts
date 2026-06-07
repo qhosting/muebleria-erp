@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -74,20 +73,39 @@ export async function GET(request: NextRequest) {
             where: whereTickets,
             include: {
                 cliente: { select: { codigoCliente: true } },
-                movimientosBancarios: true
+                movimientosBanorte0330253963: true,
+                movimientosSantander22001022837: true,
+                movimientosSantander65505732541: true,
             }
         });
 
-        // 3. Obtener Movimientos Bancarios en el rango (para Abonos sin asignar)
-        const movimientosBancos: any[] = await (prisma as any).movimientoBancario.findMany({
-            where: {
-                fechaOperacion: {
-                    gte: startDate,
-                    lte: endDate,
-                },
-                abono: { gt: 0 }
-            }
-        });
+        // 3. Obtener Movimientos Bancarios en el rango (para Abonos sin asignar) de las 3 tablas
+        const [m1, m2, m3] = await Promise.all([
+            prisma.movimientoSantander22001022837.findMany({
+                where: {
+                    fechaOperacion: { gte: startDate, lte: endDate },
+                    abono: { gt: 0 }
+                }
+            }),
+            prisma.movimientoSantander65505732541.findMany({
+                where: {
+                    fechaOperacion: { gte: startDate, lte: endDate },
+                    abono: { gt: 0 }
+                }
+            }),
+            prisma.movimientoBanorte0330253963.findMany({
+                where: {
+                    fechaOperacion: { gte: startDate, lte: endDate },
+                    abono: { gt: 0 }
+                }
+            })
+        ]);
+
+        const movimientosBancos: any[] = [
+            ...m1.map(m => ({ ...m, cuentaDestino: '22001022837', bancoDestino: 'SANTANDER' })),
+            ...m2.map(m => ({ ...m, cuentaDestino: '65505732541', bancoDestino: 'SANTANDER' })),
+            ...m3.map(m => ({ ...m, cuentaDestino: '0330253963', bancoDestino: 'BANORTE' }))
+        ];
 
         // --- PROCESAMIENTO ---
 
@@ -112,19 +130,20 @@ export async function GET(request: NextRequest) {
             }
             gestoresMap[cid].cantidadPagos++;
             gestoresMap[cid].totalCobrado += Number(pago.monto);
-
-            // Resumen Bancario (Solo pagos vinculados a tickets que tienen movimiento bancario)
-            // En legacy: join pagos -> ticket -> estado_de_cuenta
-            // Aquí: Pago ya tiene ticketId si fue de un ticket
         });
 
         // Para el resumen DQ/DP Solo Bancos usaremos los tickets que tienen movimientos
-        // Legacy logic: Categoria ACTUAL if ec.fecha_operacion >= startDate
         ticketsAll.forEach((ticket: any) => {
             const pref = ticket.cliente.codigoCliente?.substring(0, 2).toUpperCase();
             if (resumenPrefijos[pref]) {
-                if (ticket.movimientosBancarios && ticket.movimientosBancarios.length > 0) {
-                    ticket.movimientosBancarios.forEach((mov: any) => {
+                const combinedMovs = [
+                    ...(ticket.movimientosBanorte0330253963 || []).map((m: any) => ({ ...m, cuentaDestino: '0330253963', bancoDestino: 'BANORTE' })),
+                    ...(ticket.movimientosSantander22001022837 || []).map((m: any) => ({ ...m, cuentaDestino: '22001022837', bancoDestino: 'SANTANDER' })),
+                    ...(ticket.movimientosSantander65505732541 || []).map((m: any) => ({ ...m, cuentaDestino: '65505732541', bancoDestino: 'SANTANDER' })),
+                ];
+
+                if (combinedMovs.length > 0) {
+                    combinedMovs.forEach((mov: any) => {
                         const isActual = mov.fechaOperacion >= startDate;
                         const cat = isActual ? 'actual' : 'anterior';
                         const banco = mov.bancoOrigen?.toUpperCase() || 'DESCONOCIDO';
@@ -158,8 +177,6 @@ export async function GET(request: NextRequest) {
             const totalC = p.actual.monto + p.anterior.monto;
             const totalCtas = p.actual.ctas + p.anterior.ctas;
 
-            // Discrepancia: En legacy es (Pagos Bancarios Detalle - Pagos Bancarios Resumen)
-            // Aquí simplificamos o usamos la misma lógica si tenemos los pagos bancarios "pendientes"
             const isBankMethod = (method: string) => {
                 const m = (method || '').toLowerCase();
                 return m.includes('banc') || m.includes('transf') || m.includes('depo');

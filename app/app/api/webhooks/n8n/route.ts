@@ -188,18 +188,36 @@ export async function POST(req: Request) {
                 }
             });
 
-            // B. Intentar Conciliación Inteligente con Movimientos Bancarios
+            // B. Intentar Conciliación Inteligente con Movimientos Bancarios en las 3 tablas
             let movimientoBancario = null;
+            let tablaOrigen = '';
+
             if (claverastreo && claverastreo !== 'null') {
-                movimientoBancario = await tx.movimientoBancario.findFirst({
-                    where: {
-                        claveRastreo: claverastreo,
-                        OR: [
-                            { ticketId: null },
-                            { ticketId: newTicket.id }
-                        ]
+                const queryClause = {
+                    claveRastreo: claverastreo,
+                    OR: [
+                        { ticketId: null },
+                        { ticketId: newTicket.id }
+                    ]
+                };
+
+                let mov = await tx.movimientoSantander22001022837.findFirst({ where: queryClause });
+                if (mov) {
+                    movimientoBancario = mov;
+                    tablaOrigen = 'movimientoSantander22001022837';
+                } else {
+                    mov = await tx.movimientoSantander65505732541.findFirst({ where: queryClause });
+                    if (mov) {
+                        movimientoBancario = mov;
+                        tablaOrigen = 'movimientoSantander65505732541';
+                    } else {
+                        mov = await tx.movimientoBanorte0330253963.findFirst({ where: queryClause });
+                        if (mov) {
+                            movimientoBancario = mov;
+                            tablaOrigen = 'movimientoBanorte0330253963';
+                        }
                     }
-                });
+                }
             }
 
             // C. Si se encontró el movimiento bancario, marcar ticket como conciliado
@@ -244,14 +262,28 @@ export async function POST(req: Request) {
 
             // G. Vincular el movimiento bancario
             if (movimientoBancario) {
-                await tx.movimientoBancario.update({
-                    where: { id: movimientoBancario.id },
-                    data: {
-                        ticketId: newTicket.id,
-                        clienteId: cliente.id,
-                        fechaIdentificado: new Date()
-                    }
-                });
+                const updateMovData = {
+                    ticketId: newTicket.id,
+                    clienteId: cliente.id,
+                    fechaIdentificado: new Date()
+                };
+
+                if (tablaOrigen === 'movimientoSantander22001022837') {
+                    await tx.movimientoSantander22001022837.update({
+                        where: { id: movimientoBancario.id },
+                        data: updateMovData
+                    });
+                } else if (tablaOrigen === 'movimientoSantander65505732541') {
+                    await tx.movimientoSantander65505732541.update({
+                        where: { id: movimientoBancario.id },
+                        data: updateMovData
+                    });
+                } else if (tablaOrigen === 'movimientoBanorte0330253963') {
+                    await tx.movimientoBanorte0330253963.update({
+                        where: { id: movimientoBancario.id },
+                        data: updateMovData
+                    });
+                }
             }
 
             // H. Eliminar de pendientes si existe

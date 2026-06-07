@@ -374,19 +374,43 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
             }
         });
 
-        // Intentar Conciliación Inteligente
-        const movimiento = await prisma.movimientoBancario.findFirst({
-            where: {
-                OR: [
-                    ...(extracted.claverastreo ? [{ claveRastreo: extracted.claverastreo }] : []),
-                    { 
-                        abono: parseFloat(extracted.monto),
-                        fechaOperacion: extracted.fecha ? new Date(extracted.fecha) : undefined,
-                        ticketId: null
-                    }
-                ]
+        // Intentar Conciliación Inteligente en las 3 tablas
+        let movimiento: any = null;
+        let tablaOrigen = '';
+
+        const trackingClause = extracted.claverastreo ? { claveRastreo: extracted.claverastreo } : null;
+        const abonoAndFechaClause = { 
+            abono: parseFloat(extracted.monto),
+            fechaOperacion: extracted.fecha ? new Date(extracted.fecha) : undefined,
+            ticketId: null
+        };
+
+        // 1. Santander 22001022837
+        let mov = trackingClause 
+            ? await prisma.movimientoSantander22001022837.findFirst({ where: { OR: [trackingClause, abonoAndFechaClause] } })
+            : await prisma.movimientoSantander22001022837.findFirst({ where: abonoAndFechaClause });
+        if (mov) {
+            movimiento = mov;
+            tablaOrigen = 'movimientoSantander22001022837';
+        } else {
+            // 2. Santander 65505732541
+            mov = trackingClause 
+                ? await prisma.movimientoSantander65505732541.findFirst({ where: { OR: [trackingClause, abonoAndFechaClause] } })
+                : await prisma.movimientoSantander65505732541.findFirst({ where: abonoAndFechaClause });
+            if (mov) {
+                movimiento = mov;
+                tablaOrigen = 'movimientoSantander65505732541';
+            } else {
+                // 3. Banorte 0330253963
+                mov = trackingClause 
+                    ? await prisma.movimientoBanorte0330253963.findFirst({ where: { OR: [trackingClause, abonoAndFechaClause] } })
+                    : await prisma.movimientoBanorte0330253963.findFirst({ where: abonoAndFechaClause });
+                if (mov) {
+                    movimiento = mov;
+                    tablaOrigen = 'movimientoBanorte0330253963';
+                }
             }
-        });
+        }
 
         let mensajeFinal = `✅ ¡Comprobante EN PROCESO de VALIDACIÓN!\n\n📌 *Detalles del Ticket*\n- 🆔 ID: ${ticket.id}\n- 📄 Contrato: ${contractId}\n- 💰 Monto: $${extracted.monto}\n- 🔢 Referencia: ${extracted.referencia || 'N/A'}`;
         
@@ -394,10 +418,23 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
             // Si hay coincidencia, conciliar inmediatamente y CREAR EL PAGO
             await prisma.$transaction(async (tx) => {
                 // 1. Vincular movimiento y ticket
-                await tx.movimientoBancario.update({
-                    where: { id: movimiento.id },
-                    data: { ticketId: ticket.id, clienteId: clienteRecord.id, fechaIdentificado: new Date() }
-                });
+                const updateMovData = { ticketId: ticket.id, clienteId: clienteRecord.id, fechaIdentificado: new Date() };
+                if (tablaOrigen === 'movimientoSantander22001022837') {
+                    await tx.movimientoSantander22001022837.update({
+                        where: { id: movimiento.id },
+                        data: updateMovData
+                    });
+                } else if (tablaOrigen === 'movimientoSantander65505732541') {
+                    await tx.movimientoSantander65505732541.update({
+                        where: { id: movimiento.id },
+                        data: updateMovData
+                    });
+                } else if (tablaOrigen === 'movimientoBanorte0330253963') {
+                    await tx.movimientoBanorte0330253963.update({
+                        where: { id: movimiento.id },
+                        data: updateMovData
+                    });
+                }
 
                 // 2. Marcar ticket como conciliado
                 await tx.ticket.update({

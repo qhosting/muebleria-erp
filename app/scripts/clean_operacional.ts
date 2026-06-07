@@ -21,8 +21,17 @@ async function clean() {
     const d5 = await prisma.smsLog.deleteMany();
     console.log(`Eliminados ${d5.count} logs de SMS.`);
     
-    const d6 = await prisma.movimientoBancario.deleteMany();
-    console.log(`Eliminados ${d6.count} movimientos bancarios.`);
+    const d6_legacy = await prisma.movimientoBancario.deleteMany();
+    console.log(`Eliminados ${d6_legacy.count} movimientos bancarios obsoletos.`);
+
+    const d6_m1 = await prisma.movimientoSantander22001022837.deleteMany();
+    console.log(`Eliminados ${d6_m1.count} movimientos de Santander 22001022837.`);
+
+    const d6_m2 = await prisma.movimientoSantander65505732541.deleteMany();
+    console.log(`Eliminados ${d6_m2.count} movimientos de Santander 65505732541.`);
+
+    const d6_m3 = await prisma.movimientoBanorte0330253963.deleteMany();
+    console.log(`Eliminados ${d6_m3.count} movimientos de Banorte 0330253963.`);
 
     const d7 = await prisma.ticket.deleteMany();
     console.log(`Eliminados ${d7.count} tickets.`);

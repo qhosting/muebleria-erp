@@ -17,14 +17,10 @@ export async function GET(request: NextRequest) {
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '50');
         const search = searchParams.get('search') || '';
-        const banco = searchParams.get('banco') || ''; // 'SANTANDER' | 'BANORTE' | ''
+        const banco = searchParams.get('banco') || ''; // '', '22001022837', '65505732541', '0330253963'
 
         const skip = (page - 1) * limit;
         const where: any = {};
-
-        if (banco) {
-            where.bancoDestino = { equals: banco, mode: 'insensitive' };
-        }
 
         if (search) {
             where.OR = [
@@ -36,15 +32,80 @@ export async function GET(request: NextRequest) {
             ];
         }
 
-        const [movimientos, total] = await Promise.all([
-            prisma.movimientoBancario.findMany({
-                where,
-                orderBy: { fechaOperacion: 'desc' },
-                skip,
-                take: limit,
-            }),
-            prisma.movimientoBancario.count({ where }),
-        ]);
+        let movimientos: any[] = [];
+        let total = 0;
+
+        if (banco === '22001022837') {
+            const [data, count] = await Promise.all([
+                prisma.movimientoSantander22001022837.findMany({
+                    where,
+                    orderBy: { fechaOperacion: 'desc' },
+                    skip,
+                    take: limit,
+                }),
+                prisma.movimientoSantander22001022837.count({ where }),
+            ]);
+            movimientos = data.map(m => ({ ...m, cuentaDestino: '22001022837', bancoDestino: 'SANTANDER' }));
+            total = count;
+        } else if (banco === '65505732541') {
+            const [data, count] = await Promise.all([
+                prisma.movimientoSantander65505732541.findMany({
+                    where,
+                    orderBy: { fechaOperacion: 'desc' },
+                    skip,
+                    take: limit,
+                }),
+                prisma.movimientoSantander65505732541.count({ where }),
+            ]);
+            movimientos = data.map(m => ({ ...m, cuentaDestino: '65505732541', bancoDestino: 'SANTANDER' }));
+            total = count;
+        } else if (banco === '0330253963') {
+            const [data, count] = await Promise.all([
+                prisma.movimientoBanorte0330253963.findMany({
+                    where,
+                    orderBy: { fechaOperacion: 'desc' },
+                    skip,
+                    take: limit,
+                }),
+                prisma.movimientoBanorte0330253963.count({ where }),
+            ]);
+            movimientos = data.map(m => ({ ...m, cuentaDestino: '0330253963', bancoDestino: 'BANORTE' }));
+            total = count;
+        } else {
+            // "todas" las cuentas: combinamos las 3 tablas con paginación en memoria inteligente
+            const [m1, m2, m3, c1, c2, c3] = await Promise.all([
+                prisma.movimientoSantander22001022837.findMany({
+                    where,
+                    orderBy: { fechaOperacion: 'desc' },
+                    take: skip + limit,
+                }),
+                prisma.movimientoSantander65505732541.findMany({
+                    where,
+                    orderBy: { fechaOperacion: 'desc' },
+                    take: skip + limit,
+                }),
+                prisma.movimientoBanorte0330253963.findMany({
+                    where,
+                    orderBy: { fechaOperacion: 'desc' },
+                    take: skip + limit,
+                }),
+                prisma.movimientoSantander22001022837.count({ where }),
+                prisma.movimientoSantander65505732541.count({ where }),
+                prisma.movimientoBanorte0330253963.count({ where }),
+            ]);
+
+            const combined = [
+                ...m1.map(m => ({ ...m, cuentaDestino: '22001022837', bancoDestino: 'SANTANDER' })),
+                ...m2.map(m => ({ ...m, cuentaDestino: '65505732541', bancoDestino: 'SANTANDER' })),
+                ...m3.map(m => ({ ...m, cuentaDestino: '0330253963', bancoDestino: 'BANORTE' })),
+            ];
+
+            // Ordenamos descendente por fecha de operación
+            combined.sort((a, b) => b.fechaOperacion.getTime() - a.fechaOperacion.getTime());
+
+            movimientos = combined.slice(skip, skip + limit);
+            total = c1 + c2 + c3;
+        }
 
         return NextResponse.json({
             movimientos,

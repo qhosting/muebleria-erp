@@ -33,13 +33,33 @@ export async function GET(request: NextRequest) {
         const nombreCliente = cliente?.nombreCompleto || '';
         const nombreBusqueda = nombreCliente.substring(0, 20);
 
-        // Buscamos movimientos bancarios con el mismo monto que no estén conciliados
-        const movimientos = await prisma.movimientoBancario.findMany({
-            where: {
-                ticketId: null,
-                abono: Number(monto)
-            }
-        });
+        // Buscamos movimientos bancarios con el mismo monto que no estén conciliados en las 3 tablas
+        const [m1, m2, m3] = await Promise.all([
+            prisma.movimientoSantander22001022837.findMany({
+                where: {
+                    ticketId: null,
+                    abono: Number(monto)
+                }
+            }),
+            prisma.movimientoSantander65505732541.findMany({
+                where: {
+                    ticketId: null,
+                    abono: Number(monto)
+                }
+            }),
+            prisma.movimientoBanorte0330253963.findMany({
+                where: {
+                    ticketId: null,
+                    abono: Number(monto)
+                }
+            })
+        ]);
+
+        const movimientos = [
+            ...m1.map(m => ({ ...m, tabla: 'movimientoSantander22001022837', cuentaDestino: '22001022837', bancoDestino: 'SANTANDER' })),
+            ...m2.map(m => ({ ...m, tabla: 'movimientoSantander65505732541', cuentaDestino: '65505732541', bancoDestino: 'SANTANDER' })),
+            ...m3.map(m => ({ ...m, tabla: 'movimientoBanorte0330253963', cuentaDestino: '0330253963', bancoDestino: 'BANORTE' }))
+        ];
 
         // Aplicar lógica de scoring/prioridad
         const sugerencias = movimientos.map(mov => {
@@ -59,7 +79,6 @@ export async function GET(request: NextRequest) {
                 prioridad = 3;
                 razon = "Coincidencia de Nombre";
             }
-            // Nota: La prioridad 4 (Hora) es más lenta de calcular con precisión de +/- 5 min, se deja para refinamiento posterior
 
             return {
                 ...mov,

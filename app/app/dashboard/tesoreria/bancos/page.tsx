@@ -21,7 +21,7 @@ import {
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 
-type TabKey = "todas" | "santander" | "banorte";
+type TabKey = "todas" | "santander_22001022837" | "santander_65505732541" | "banorte_0330253963";
 
 const TABS: { key: TabKey; label: string; bancoParam: string; color: string; bg: string; border: string; logoChar: string; logoBg: string; logoShadow: string }[] = [
     {
@@ -36,9 +36,9 @@ const TABS: { key: TabKey; label: string; bancoParam: string; color: string; bg:
         logoShadow: "shadow-blue-200",
     },
     {
-        key: "santander",
-        label: "Santander",
-        bancoParam: "SANTANDER",
+        key: "santander_22001022837",
+        label: "Santander - 22001022837",
+        bancoParam: "22001022837",
         color: "text-red-700",
         bg: "bg-red-50",
         border: "border-red-200",
@@ -47,9 +47,20 @@ const TABS: { key: TabKey; label: string; bancoParam: string; color: string; bg:
         logoShadow: "shadow-red-200",
     },
     {
-        key: "banorte",
-        label: "Banorte",
-        bancoParam: "BANORTE",
+        key: "santander_65505732541",
+        label: "Santander - 65505732541",
+        bancoParam: "65505732541",
+        color: "text-red-700",
+        bg: "bg-red-50",
+        border: "border-red-200",
+        logoChar: "S",
+        logoBg: "bg-red-800",
+        logoShadow: "shadow-red-300",
+    },
+    {
+        key: "banorte_0330253963",
+        label: "Banorte - 0330253963",
+        bancoParam: "0330253963",
         color: "text-orange-700",
         bg: "bg-orange-50",
         border: "border-orange-200",
@@ -202,7 +213,7 @@ export default function BancosPage() {
                             Estado de Cuenta Bancario
                         </h1>
                         <p className="text-muted-foreground mt-1">
-                            Importa y visualiza los movimientos bancarios de Santander y Banorte.
+                            Importa y visualiza los movimientos de las 3 cuentas bancarias autorizadas.
                         </p>
                     </div>
                     <Button
@@ -223,8 +234,8 @@ export default function BancosPage() {
                                 S
                             </div>
                             <div className="flex-1 min-w-0">
-                                <h3 className="font-bold text-gray-900 text-sm">Santander</h3>
-                                <p className="text-xs text-gray-500 mt-0.5">Importar CSV / Excel</p>
+                                <h3 className="font-bold text-gray-900 text-sm">Santander (Excel/CSV)</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">Detecta automáticamente la cuenta</p>
                             </div>
                             <div>
                                 <input
@@ -257,8 +268,8 @@ export default function BancosPage() {
                                 B
                             </div>
                             <div className="flex-1 min-w-0">
-                                <h3 className="font-bold text-gray-900 text-sm">Banorte</h3>
-                                <p className="text-xs text-gray-500 mt-0.5">Importar CSV / Excel</p>
+                                <h3 className="font-bold text-gray-900 text-sm">Banorte (Excel/CSV)</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">Detecta automáticamente la cuenta</p>
                             </div>
                             <div>
                                 <input
@@ -292,7 +303,7 @@ export default function BancosPage() {
                             <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
                             <div className="flex-1">
                                 <h4 className="font-bold text-green-800 text-sm">
-                                    Importación Exitosa — {importResult.banco}
+                                    Importación Exitosa
                                 </h4>
                                 <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
                                     <div>
@@ -310,6 +321,7 @@ export default function BancosPage() {
                                         <p className="text-gray-500 text-xs">Errores</p>
                                     </div>
                                 </div>
+                                <p className="text-xs text-gray-500 mt-2">{importResult.mensaje}</p>
                             </div>
                             <Button variant="ghost" size="sm" className="text-gray-400" onClick={() => setImportResult(null)}>
                                 ✕
@@ -345,13 +357,13 @@ export default function BancosPage() {
                                             flex items-center gap-2.5 px-5 py-3.5 text-sm font-medium whitespace-nowrap
                                             border-b-2 transition-all duration-200
                                             ${isActive
-                                                ? `border-${tab.key === "todas" ? "blue" : tab.key === "santander" ? "red" : "orange"}-500 ${tab.color} bg-white`
+                                                ? `border-blue-500 ${tab.color} bg-white`
                                                 : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100/50"
                                             }
                                         `}
                                         style={isActive ? {
-                                            borderBottomColor: tab.key === "todas" ? "#3b82f6" : tab.key === "santander" ? "#dc2626" : "#ea580c",
-                                            color: tab.key === "todas" ? "#1d4ed8" : tab.key === "santander" ? "#b91c1c" : "#c2410c",
+                                            borderBottomColor: tab.key === "todas" ? "#3b82f6" : tab.key.startsWith("santander") ? "#dc2626" : "#ea580c",
+                                            color: tab.key === "todas" ? "#1d4ed8" : tab.key.startsWith("santander") ? "#b91c1c" : "#c2410c",
                                         } : {}}
                                     >
                                         <div className={`h-5 w-5 rounded-md ${tab.logoBg} flex items-center justify-center text-white text-[10px] font-black flex-shrink-0`}>
@@ -457,7 +469,7 @@ export default function BancosPage() {
                                                 </td>
                                                 {activeTab === "todas" && (
                                                     <td className="px-4 py-3">
-                                                        {mov.bancoDestino ? (
+                                                        {mov.cuentaDestino ? (
                                                             <Badge
                                                                 variant="outline"
                                                                 className={`text-xs font-semibold ${mov.bancoDestino === "SANTANDER"
@@ -467,7 +479,7 @@ export default function BancosPage() {
                                                                     : "border-gray-200 text-gray-600"
                                                                 }`}
                                                             >
-                                                                {mov.bancoDestino}
+                                                                {mov.cuentaDestino}
                                                             </Badge>
                                                         ) : (
                                                             <span className="text-gray-400 text-xs">—</span>
@@ -491,7 +503,7 @@ export default function BancosPage() {
                                                 <td className="px-4 py-3 text-right font-medium text-green-700">
                                                     {mov.abono ? formatCurrency(mov.abono) : "—"}
                                                 </td>
-                                                <td className="px-4 py-3 text-right font-medium text-red-600">
+                                                <td className="px-4 py-3 text-right font-medium text-red-650">
                                                     {mov.cargo ? formatCurrency(mov.cargo) : "—"}
                                                 </td>
                                                 <td className="px-4 py-3 text-right font-medium text-gray-900">
