@@ -372,6 +372,7 @@ model MovimientoBancario {
   cuentaEmisor         String?
   clabeEmisor          String?
   fechaIdentificado    DateTime?
+  bancoDestino         String?
 
   ticket                Ticket?   @relation(fields: [ticketId], references: [id])
   cliente               Cliente?  @relation(fields: [clienteId], references: [id])

@@ -17,9 +17,14 @@ export async function GET(request: NextRequest) {
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '50');
         const search = searchParams.get('search') || '';
+        const banco = searchParams.get('banco') || ''; // 'SANTANDER' | 'BANORTE' | ''
 
         const skip = (page - 1) * limit;
         const where: any = {};
+
+        if (banco) {
+            where.bancoDestino = { equals: banco, mode: 'insensitive' };
+        }
 
         if (search) {
             where.OR = [

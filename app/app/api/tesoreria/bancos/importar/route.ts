@@ -126,6 +126,7 @@ function parseSantander(rows: any[][]): any[] {
         
         records.push({
             bancoOrigen: bancoParticipante || 'SANTANDER',
+            bancoDestino: 'SANTANDER',
             fechaOperacion,
             horaOperacion,
             descripcionGeneral: descripcion,
@@ -223,6 +224,7 @@ function parseBanorte(rows: any[][]): any[] {
         
         records.push({
             bancoOrigen,
+            bancoDestino: 'BANORTE',
             fechaOperacion,
             horaOperacion,
             descripcionGeneral: concepto,
@@ -318,6 +320,7 @@ export async function POST(request: NextRequest) {
                 await (prisma as any).movimientoBancario.create({
                     data: {
                         bancoOrigen: record.bancoOrigen,
+                        bancoDestino: record.bancoDestino,
                         fechaOperacion: record.fechaOperacion,
                         horaOperacion: record.horaOperacion ? new Date(`1970-01-01T${record.horaOperacion}Z`) : null,
                         descripcionGeneral: record.descripcionGeneral,
