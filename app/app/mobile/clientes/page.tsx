@@ -476,13 +476,94 @@ function MobileClientes() {
             // 1. Forzar sincronización inmediata si hay red para que el pago se guarde en el servidor y obtengamos el id
             if (navigator.onLine && cobradorId) {
                 toast.info("Sincronizando pago con el servidor...");
-                await syncService.syncAll(cobradorId, false);
+                await syncService.syncAll(cobradorId, false).catch(() => {});
             }
 
-            // 2. Buscar el pago en la base de datos local para verificar si ya fue sincronizado y tiene un id de servidor
+            // 2. Buscar el pago en la base de datos local
             const dbPago = await db.pagos.get(lastPagoLocalId);
-            if (!dbPago || dbPago.syncStatus !== 'synced' || !dbPago.id) {
-                toast.error("El pago no se ha sincronizado con el servidor. Conéctate a internet para compartir el recibo temporal.");
+            if (!dbPago) {
+                toast.error("No se encontró el pago en la base de datos local");
+                return;
+            }
+
+            const totalPago = parseFloat(montoCobrar) + parseFloat(interesMoratorio) + parseFloat(gastosCobranza);
+            const telefono = formatWhatsAppNumber(selectedCliente.telefono);
+            if (!telefono) {
+                toast.error("El cliente no tiene un teléfono válido");
+                return;
+            }
+
+            // 🚀 NUEVO: Si no hay red o el pago aún no se ha sincronizado en el servidor, generar PDF localmente y compartir nativamente
+            if (!navigator.onLine || dbPago.syncStatus !== 'synced' || !dbPago.id) {
+                toast.info("Generando comprobante PDF temporal (offline)...");
+                
+                const cobradorNombre = session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || "COBRADOR";
+                
+                // Estructurar los datos del ticket para el generador local de PDF
+                const ticketData = {
+                    numeroRecibo: dbPago.numeroRecibo || `REC-${dbPago.localId.slice(-8)}`,
+                    cliente: {
+                        nombreCompleto: selectedCliente.nombre,
+                        telefono: selectedCliente.telefono,
+                        direccion: selectedCliente.direccion || "",
+                        diaPago: selectedCliente.diaPago
+                    },
+                    cobrador: {
+                        nombre: cobradorNombre,
+                        id: dbPago.cobradorId
+                    },
+                    pago: {
+                        monto: totalPago,
+                        montoAbono: parseFloat(montoCobrar),
+                        interesMoratorio: parseFloat(interesMoratorio),
+                        gastosCobranza: parseFloat(gastosCobranza),
+                        tipoPago: dbPago.tipoPago,
+                        metodoPago: dbPago.metodoPago || 'efectivo',
+                        concepto: dbPago.concepto || "Pago de cuota",
+                        fechaPago: dbPago.fechaPago
+                    },
+                    saldos: {
+                        anterior: selectedCliente.saldo,
+                        nuevo: selectedCliente.saldo - parseFloat(montoCobrar)
+                    },
+                    empresa: {
+                        nombre: 'Grupo Mueblero DASO',
+                        direccion: 'Juarez Ote. 223, Centro, SJR. QRO',
+                        telefono: 'Tel: 442 980 0772'
+                    }
+                };
+
+                const { generateReceiptPdf } = await import("@/lib/receipt-pdf");
+                const doc = await generateReceiptPdf(ticketData);
+
+                const clienteCodigo = selectedCliente.codigoCliente || selectedCliente.nombre?.replace(/\s+/g, '_') || 'cliente';
+                const pdfName = `Recibo_Temp_${clienteCodigo}_${ticketData.numeroRecibo}.pdf`;
+                const shareTitle = `Comprobante Temporal — ${selectedCliente.nombre}`;
+                const shareText = `Hola, te comparto el comprobante provisional de tu pago por $${totalPago.toFixed(2)} registrado offline. Se sincronizará automáticamente.`;
+
+                const { sharePdfNative } = await import("@/lib/native/share");
+                const sharedNatively = await sharePdfNative(doc, pdfName, shareTitle, shareText);
+
+                if (sharedNatively) {
+                    toast.success('PDF temporal compartido exitosamente.');
+                } else {
+                    // Fallback para web / navegadores móviles compatibles
+                    const pdfOutput = doc.output('arraybuffer');
+                    const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
+                    const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
+                    const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] });
+
+                    if (canShare) {
+                        await navigator.share({
+                            title: shareTitle,
+                            text: shareText,
+                            files: [pdfFile],
+                        }).catch(() => {});
+                    } else {
+                        doc.save(pdfName);
+                        toast.success('PDF provisional descargado localmente.');
+                    }
+                }
                 return;
             }
 
@@ -496,20 +577,14 @@ function MobileClientes() {
             const data = await response.json();
             const shareUrl = data.shareUrl;
 
-            const totalPago = parseFloat(montoCobrar) + parseFloat(interesMoratorio) + parseFloat(gastosCobranza);
             const mensaje = `Hola *${selectedCliente.nombre}* 👋, aquí tienes el enlace para abrir tu comprobante de pago por *$${totalPago.toFixed(2)}* registrado hace unos momentos: ${shareUrl}\n\n*Nota:* Este enlace es temporal por seguridad y estará disponible únicamente durante 15 minutos. ¡Muchas gracias!`;
 
-            const telefono = formatWhatsAppNumber(selectedCliente.telefono);
-            if (telefono) {
-                const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
-                window.open(url, isNative ? '_system' : '_blank');
-                toast.success('Abriendo WhatsApp...');
-            } else {
-                toast.error("El cliente no tiene un teléfono válido");
-            }
+            const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+            window.open(url, isNative ? '_system' : '_blank');
+            toast.success('Abriendo WhatsApp...');
         } catch (error: any) {
             console.error("Error al compartir el recibo por WhatsApp:", error);
-            toast.error("Error al generar el enlace de WhatsApp");
+            toast.error("Error al generar el enlace de WhatsApp o PDF");
         }
     };
 
