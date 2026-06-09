@@ -58,23 +58,61 @@ export function DeviceLockGuard({ children }: { children: React.ReactNode }) {
       };
       setDeviceInfo(currentDeviceInfo);
 
-      // Verificar con el servidor si este ID está autorizado
-      const res = await fetch(`/api/auth/device-status?deviceId=${id.identifier}`);
-      const data = await res.json();
+      const cacheKey = `device_authorized_${id.identifier}`;
 
-      if (data.status === 'AUTHORIZED') {
-        setIsAuthorized(true);
-      } else {
-        setIsAuthorized(false);
-        // Si no está autorizado, registrar intento (upsert)
-        await fetch('/api/auth/device-status', {
-          method: 'POST',
-          body: JSON.stringify(currentDeviceInfo)
-        });
+      // Si no hay internet, validar directamente contra la caché local
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        const cachedAuth = localStorage.getItem(cacheKey);
+        if (cachedAuth === 'true') {
+          console.log('🔌 [DeviceLockGuard] Dispositivo offline previamente autorizado. Permitido.');
+          setIsAuthorized(true);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Verificar con el servidor si este ID está autorizado
+      try {
+        const res = await fetch(`/api/auth/device-status?deviceId=${id.identifier}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'AUTHORIZED') {
+            setIsAuthorized(true);
+            localStorage.setItem(cacheKey, 'true');
+          } else {
+            setIsAuthorized(false);
+            localStorage.removeItem(cacheKey);
+            // Registrar intento (upsert)
+            await fetch('/api/auth/device-status', {
+              method: 'POST',
+              body: JSON.stringify(currentDeviceInfo)
+            }).catch(() => {});
+          }
+        } else {
+          // El servidor falló o retornó error, usar caché local si existe
+          const cachedAuth = localStorage.getItem(cacheKey);
+          if (cachedAuth === 'true') {
+            console.log('⚠️ [DeviceLockGuard] Servidor no disponible, usando autorización en caché.');
+            setIsAuthorized(true);
+          } else {
+            setIsAuthorized(false);
+          }
+        }
+      } catch (fetchError) {
+        console.error('Fetch error checking device status:', fetchError);
+        // Si hay error de red/fetch, verificar caché local como respaldo
+        const cachedAuth = localStorage.getItem(cacheKey);
+        if (cachedAuth === 'true') {
+          console.log('🔌 [DeviceLockGuard] Error de conexión, usando autorización en caché.');
+          setIsAuthorized(true);
+        } else {
+          setIsAuthorized(false);
+        }
       }
     } catch (error) {
       console.error('Error checking device:', error);
       toast.error('Error al verificar seguridad del dispositivo');
+      setIsAuthorized(false);
     } finally {
       setLoading(false);
     }

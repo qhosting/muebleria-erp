@@ -95,16 +95,45 @@ async function enviarTareaAlServidor(tarea: TareaSincronizacion): Promise<boolea
         if (isSolicitud) {
             // Reconstruir FormData para la solicitud con imágenes
             const formData = new FormData();
-            // Payload de solicitud tiene { data, files }
-            Object.entries(tarea.payload.data).forEach(([key, value]: [string, any]) => {
+            const localId = tarea.payload.localId;
+            
+            console.log(`📡 Reconstruyendo solicitud offline ${localId || 'desconocida'} para sincronización...`);
+            
+            // Cargar datos completos de la base de datos local (IndexedDB)
+            let dataToUse = tarea.payload.data;
+            let filesToUse = tarea.payload.files;
+
+            if (localId) {
+                try {
+                    const { db } = await import('@/lib/offline-db');
+                    const localSol = await db.solicitudes.get(localId);
+                    if (localSol) {
+                        console.log('✅ Solicitud encontrada en IndexedDB para reconstrucción.');
+                        if (localSol.data) dataToUse = localSol.data;
+                        if (localSol.files) filesToUse = localSol.files;
+                    } else {
+                        console.warn(`⚠️ No se encontró la solicitud ${localId} en IndexedDB. Usando datos de payload.`);
+                    }
+                } catch (dbErr) {
+                    console.error('Error al consultar IndexedDB para reconstruir solicitud:', dbErr);
+                }
+            }
+
+            Object.entries(dataToUse).forEach(([key, value]: [string, any]) => {
                 if (value !== null && value !== undefined) formData.append(key, value.toString());
             });
 
-            // Convertir Base64 de vuelta a Blobs
-            for (const [key, base64] of Object.entries(tarea.payload.files as {[key: string]: string})) {
-                if (base64) {
-                    const blob = await fetch(base64).then(r => r.blob());
-                    formData.append(key, blob, `${key}.jpg`);
+            // Convertir Base64 de vuelta a Blobs de forma segura
+            if (filesToUse) {
+                for (const [key, base64] of Object.entries(filesToUse as {[key: string]: string})) {
+                    if (base64) {
+                        try {
+                            const blob = await fetch(base64).then(r => r.blob());
+                            formData.append(key, blob, `${key}.jpg`);
+                        } catch (blobError) {
+                            console.error(`Error al convertir base64 a Blob para la imagen ${key}:`, blobError);
+                        }
+                    }
                 }
             }
             body = formData;
@@ -126,9 +155,10 @@ async function enviarTareaAlServidor(tarea: TareaSincronizacion): Promise<boolea
                 try {
                     const { db } = await import('@/lib/offline-db');
                     await db.solicitudes.where('localId').equals(tarea.payload.localId).modify({
-                        syncStatus: 'synced'
+                        syncStatus: 'synced',
+                        files: {} // 🚀 OPTIMIZACIÓN: Limpiar archivos Base64 pesados para liberar espacio local
                     });
-                    console.log(`✅ Estado de solicitud ${tarea.payload.localId} actualizado en IndexedDB a 'synced'`);
+                    console.log(`✅ Estado de solicitud ${tarea.payload.localId} actualizado en IndexedDB a 'synced' y archivos base64 limpiados.`);
                 } catch (dbError) {
                     console.error('Error al actualizar IndexedDB para solicitud:', dbError);
                 }

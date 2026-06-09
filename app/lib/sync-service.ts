@@ -300,10 +300,12 @@ export class SyncService {
           const vServidor = await response.json();
           console.log(`Verificación ${v.localId} sincronizada exitosamente con ID: ${vServidor.id}`);
 
+          const updatedDetalles = { ...v.detallesExtra, evidencia: [] };
           await (db as any).verificaciones.where('localId').equals(v.localId).modify({
             id: vServidor.id,
             syncStatus: 'synced',
-            lastSync: Date.now()
+            lastSync: Date.now(),
+            detallesExtra: updatedDetalles
           });
 
           await db.syncQueue.where('localId').equals(v.localId).modify({ status: 'completed' });

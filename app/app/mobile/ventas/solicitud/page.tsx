@@ -155,7 +155,7 @@ export default function VendedorSolicitudPage() {
 
                 const localId = `sol_${Date.now()}`;
                 
-                // Guardar en la tabla de solicitudes local para persistencia
+                // Guardar en la tabla de solicitudes local para persistencia (Dexie tiene más capacidad)
                 await (db as any).solicitudes.add({
                     localId,
                     data: formData,
@@ -164,11 +164,11 @@ export default function VendedorSolicitudPage() {
                     syncStatus: 'pending'
                 });
 
-                // Agregar a la cola de sincronización global
+                // Agregar a la cola de sincronización global (SIN el objeto files pesado!)
+                // Esto evita saturar Preferences de Capacitor con megabytes de Base64
                 await agregarColaSincronizacion('solicitud', {
                     localId,
-                    data: formData,
-                    files: base64Files
+                    data: formData
                 });
 
                 toast.success("Solicitud guardada localmente. Se enviará automáticamente al recuperar red.");
