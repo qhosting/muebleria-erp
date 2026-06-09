@@ -10,7 +10,7 @@ Digitalizar y optimizar la operación de cobranza en campo, proporcionando herra
 ### 🟢 Fase 1: Infraestructura Base (100%)
 - [x] Configuración de Capacitor y Plugins (GPS, BT, Network).
 - [x] Arquitectura de almacenamiento local (Dexie/IndexedDB).
-- [x] Lógica de autenticación con sesión persistente.
+- [x] Lógica de autenticación con sesión persistente (Soporte offline NextAuth e inmunidad a caídas de red en DeviceLockGuard).
 - [x] Sincronización básica de clientes y pagos.
 
 ### 🟢 Fase 2: Operación en Campo (100%)
@@ -18,7 +18,7 @@ Digitalizar y optimizar la operación de cobranza en campo, proporcionando herra
 - [x] Registro de pagos (Capital, Interés, Moras).
 - [x] Registro de "Motararios" (visitas sin pago).
 - [x] Impresión de tickets vía Bluetooth.
-- [x] Envío de recibos y Avisos de Cobro por WhatsApp.
+- [x] Envío de recibos y Avisos de Cobro por WhatsApp (generación y compartición local offline de PDF).
 - [x] Refinar captura de gastos administrativos.
 - [x] Identificar depósitos bancarios (Gestor vs Bot) en CAJA.
 
@@ -72,4 +72,4 @@ Digitalizar y optimizar la operación de cobranza en campo, proporcionando herra
 | Key Password | `VertexERP2024!` |
 
 ---
-*Última actualización: 4 de Junio de 2026 (v2.9.34 con soporte para notificaciones push FCM)*
+*Última actualización: 8 de Junio de 2026 (v2.9.35 con soporte robusto offline para NextAuth, compartición de recibos PDF offline y optimización de imágenes en IndexedDB)*
