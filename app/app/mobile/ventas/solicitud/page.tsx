@@ -647,18 +647,31 @@ function FileUploader({ label, name, file, onChange, full, isSelfie }: any) {
                                 </label>
                             </>
                         ) : (
-                            <label className="flex flex-col items-center justify-center w-full cursor-pointer group">
-                                <Camera className="w-6 h-6 text-slate-600 group-hover:text-slate-400 mb-1" />
-                                <span className="text-[10px] text-slate-500 group-hover:text-slate-400">Tomar foto</span>
-                                <input 
-                                    type="file" 
-                                    name={name} 
-                                    className="hidden" 
-                                    onChange={onChange} 
-                                    accept="image/*" 
-                                    capture="environment" 
-                                />
-                            </label>
+                            <>
+                                <label className="flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg cursor-pointer transition-all active:scale-95">
+                                    <Camera className="w-4 h-4" />
+                                    <span className="text-[10px] font-bold uppercase">Tomar Foto</span>
+                                    <input 
+                                        type="file" 
+                                        name={name} 
+                                        className="hidden" 
+                                        onChange={onChange} 
+                                        accept="image/*" 
+                                        capture="environment" 
+                                    />
+                                </label>
+                                <label className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg cursor-pointer transition-all active:scale-95">
+                                    <ImageIcon className="w-4 h-4" />
+                                    <span className="text-[10px] font-bold uppercase">De Galería</span>
+                                    <input 
+                                        type="file" 
+                                        name={name} 
+                                        className="hidden" 
+                                        onChange={onChange} 
+                                        accept="image/*" 
+                                    />
+                                </label>
+                            </>
                         )}
                     </div>
                 )}
