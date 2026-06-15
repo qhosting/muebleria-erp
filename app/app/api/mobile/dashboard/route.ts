@@ -17,7 +17,7 @@ export async function GET() {
     const userId = (session.user as any).id;
     const userRole = (session.user as any).role;
 
-    const isAdminOrSupervisor = ['admin', 'gestor_cobranza', 'reporte_cobranza'].includes(userRole);
+    const isAdminOrSupervisor = ['admin', 'gestor_cobranza', 'reporte_cobranza', 'direccion'].includes(userRole);
 
     if (!isAdminOrSupervisor && userRole !== 'cobrador') {
       return NextResponse.json({ error: 'No autorizado para esta vista' }, { status: 403 });

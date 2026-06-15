@@ -50,7 +50,9 @@ export default function MobileMenu() {
                 <div>
                     <h2 className="text-xl font-bold text-slate-100">{session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || "Usuario"}</h2>
                     <p className="text-sm text-slate-500 uppercase tracking-wider font-medium">
-                        {(session?.user as any)?.role === 'vendedor' ? 'Vendedor Autorizado' : 'Cobrador Autorizado'}
+                        {(session?.user as any)?.role === 'direccion' || (session?.user as any)?.role === 'admin'
+                            ? 'Dirección General'
+                            : (session?.user as any)?.role === 'vendedor' ? 'Vendedor Autorizado' : 'Cobrador Autorizado'}
                     </p>
                 </div>
             </div>

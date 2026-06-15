@@ -12,6 +12,7 @@ export default function MobileHome() {
     const { data: session } = useSession();
     const userRole = (session?.user as any)?.role || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_role') : null);
     const isVendedor = userRole === 'vendedor' || userRole === 'jefe_ventas';
+    const isDireccion = userRole === 'direccion' || userRole === 'admin';
 
     const [loading, setLoading] = useState(true);
     const { isNative } = usePlatform();
@@ -62,7 +63,11 @@ export default function MobileHome() {
                     return;
                 }
 
-                const endpoint = isVendedor ? '/api/mobile/vendedor/dashboard' : '/api/mobile/dashboard';
+                const endpoint = isDireccion 
+                    ? '/api/mobile/direccion/dashboard' 
+                    : isVendedor 
+                        ? '/api/mobile/vendedor/dashboard' 
+                        : '/api/mobile/dashboard';
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout for poor signal
 
@@ -164,13 +169,154 @@ export default function MobileHome() {
         };
 
         fetchDashboardData();
-    }, [preferOffline, session, isVendedor]);
+    }, [preferOffline, session, isVendedor, isDireccion]);
 
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 space-y-4 text-slate-400">
                 <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
                 <p className="animate-pulse">Sincronizando datos...</p>
+            </div>
+        );
+    }
+
+    if (isDireccion) {
+        const stats = data?.stats || { 
+            totalCobrado: 0, 
+            cuentasCobradas: 0, 
+            clientesPendientes: 0, 
+            efectividad: 100, 
+            ventasHoy: 0, 
+            countVentasHoy: 0, 
+            leadsActivos: 0, 
+            metaAlcanzada: 0 
+        };
+        const recentPayments = data?.recentPayments || [];
+        const recentLeads = data?.recentLeads || [];
+
+        return (
+            <div className="space-y-6">
+                {/* SALUDO DIRECCION */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                    <div className="absolute right-0 bottom-0 opacity-10 translate-x-4 translate-y-4">
+                        <TrendingUp className="h-32 w-32 text-indigo-500" />
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-100 mb-1">
+                        Hola, {session?.user?.name || "Director"}
+                    </h2>
+                    <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
+                        Resumen Ejecutivo de la Operación
+                    </p>
+                </div>
+
+                {/* METRICAS DE COBRANZA */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Métricas de Cobranza</h3>
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 font-bold px-2 py-0.5 rounded-full border border-emerald-500/20 uppercase">Hoy</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <p className="text-2xl font-mono font-bold text-emerald-400">${stats.totalCobrado}</p>
+                            <p className="text-[10px] text-slate-500 uppercase font-semibold">Cobrado Total</p>
+                        </div>
+                        <div className="space-y-1 text-right">
+                            <p className="text-2xl font-mono font-bold text-amber-400">{stats.clientesPendientes}</p>
+                            <p className="text-[10px] text-slate-500 uppercase font-semibold">Clientes Pendientes</p>
+                        </div>
+                    </div>
+                    <div className="pt-2 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
+                        <span>Cuentas Cobradas: <strong>{stats.cuentasCobradas}</strong></span>
+                        <span>Efectividad: <strong>{stats.efectividad}%</strong></span>
+                    </div>
+                </div>
+
+                {/* METRICAS DE VENTAS */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Métricas de Ventas</h3>
+                        <span className="text-[10px] bg-indigo-500/10 text-indigo-400 font-bold px-2 py-0.5 rounded-full border border-indigo-500/20 uppercase">Este Mes</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <p className="text-2xl font-mono font-bold text-indigo-400">${stats.ventasHoy}</p>
+                            <p className="text-[10px] text-slate-500 uppercase font-semibold">Ventas Hoy ({stats.countVentasHoy})</p>
+                        </div>
+                        <div className="space-y-1 text-right">
+                            <p className="text-2xl font-mono font-bold text-sky-400">{stats.leadsActivos}</p>
+                            <p className="text-[10px] text-slate-500 uppercase font-semibold">Leads Activos</p>
+                        </div>
+                    </div>
+                    <div className="space-y-2 pt-2 border-t border-slate-800">
+                        <div className="flex justify-between items-end mb-1">
+                            <span className="text-xs text-slate-400">Avance de Meta Global</span>
+                            <span className="text-xs font-bold text-indigo-400">{stats.metaAlcanzada}%</span>
+                        </div>
+                        <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.min(stats.metaAlcanzada, 100)}%` }}></div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* PAGOS RECIENTES */}
+                <div className="space-y-3">
+                    <div className="flex justify-between items-center px-2">
+                        <h3 className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Cobros Recientes</h3>
+                        <Link href="/mobile/clientes" className="text-xs text-emerald-400 font-bold">Ver Clientes</Link>
+                    </div>
+
+                    {recentPayments.length > 0 ? (
+                        <div className="bg-slate-900 border border-slate-800 rounded-2xl divide-y divide-slate-800">
+                            {recentPayments.map((p: any) => (
+                                <div key={p.id} className="p-4 flex items-center justify-between">
+                                    <div className="min-w-0 flex-1 pr-2">
+                                        <p className="text-sm font-bold text-slate-200 truncate">{p.cliente}</p>
+                                        <p className="text-[10px] text-slate-500">
+                                            {new Date(p.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                        <span className="font-mono text-sm font-bold text-emerald-400">+${p.monto}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="bg-slate-900/50 border border-dashed border-slate-800 p-8 rounded-2xl text-center">
+                            <p className="text-slate-500 text-xs italic">No hay cobros registrados hoy</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* LEADS RECIENTES */}
+                <div className="space-y-3">
+                    <div className="flex justify-between items-center px-2">
+                        <h3 className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Leads Recientes</h3>
+                        <Link href="/mobile/ventas" className="text-xs text-indigo-400 font-bold">Ver Ventas</Link>
+                    </div>
+
+                    {recentLeads.length > 0 ? (
+                        <div className="bg-slate-900 border border-slate-800 rounded-2xl divide-y divide-slate-800">
+                            {recentLeads.map((l: any) => (
+                                <div key={l.id} className="p-4 flex items-center justify-between">
+                                    <div className="min-w-0 flex-1 pr-2">
+                                        <p className="text-sm font-bold text-slate-200 truncate">{l.nombre}</p>
+                                        <p className="text-[10px] text-slate-500">{l.interes}</p>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 font-bold uppercase border border-indigo-500/20">
+                                            {l.estado}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="bg-slate-900/50 border border-dashed border-slate-800 p-8 rounded-2xl text-center">
+                            <p className="text-slate-500 text-xs italic">No hay leads registrados hoy</p>
+                        </div>
+                    )}
+                </div>
             </div>
         );
     }

@@ -23,6 +23,7 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
     const { data: session } = useSession();
     const userRole = (session?.user as any)?.role || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_role') : null);
     const isVendedor = userRole === 'vendedor' || userRole === 'jefe_ventas';
+    const isDireccion = userRole === 'direccion' || userRole === 'admin';
 
     const [modoSol, setModoSol] = useState(false);
 
@@ -202,7 +203,7 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
                     <div>
                         <h1 className="text-lg font-bold text-emerald-400">VertexERP</h1>
                         <p className="text-xs text-slate-400">
-                            {isVendedor ? 'Modo Vendedor' : 'Modo Cobrador'}
+                            {isDireccion ? 'Modo Dirección' : isVendedor ? 'Modo Vendedor' : 'Modo Cobrador'}
                         </p>
                     </div>
                     <div className="flex items-center space-x-3">
@@ -238,7 +239,13 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
                     <div className="grid grid-cols-5 h-16">
                         <NavButton icon="home" label="Inicio" href="/mobile/home" active={pathname === "/mobile/home"} />
                         
-                        {isVendedor ? (
+                        {isDireccion ? (
+                            <>
+                                <NavButton icon="users" label="Clientes" href="/mobile/clientes" active={pathname === "/mobile/clientes"} />
+                                <NavButton icon="shopping-bag" label="Ventas" href="/mobile/ventas" active={pathname === "/mobile/ventas"} />
+                                <NavButton icon="dollar" label="Caja" href="/mobile/caja" active={pathname === "/mobile/caja"} />
+                            </>
+                        ) : isVendedor ? (
                             <>
                                 <NavButton icon="shopping-bag" label="Ventas" href="/mobile/ventas" active={pathname === "/mobile/ventas"} />
                                 <NavButton icon="message-square" label="Prospectos" href="/mobile/ventas#leads" active={pathname === "/mobile/ventas"} />
