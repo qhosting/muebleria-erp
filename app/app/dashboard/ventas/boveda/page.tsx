@@ -71,15 +71,18 @@ export default function BovedaDigitalPage() {
     const [newContratoVal, setNewContratoVal] = useState('');
     const [newTelefonoVal, setNewTelefonoVal] = useState('');
     const [updatingCurp, setUpdatingCurp] = useState(false);
-
     useEffect(() => {
         fetchRecent();
-    }, []);
+    }, [filterVendedor, filterStatus]);
 
     const fetchRecent = async () => {
         setLoadingRecent(true);
         try {
-            const res = await fetch('/api/ventas/boveda/list?mine=true');
+            const params = new URLSearchParams();
+            if (filterVendedor === 'mine') params.append('mine', 'true');
+            if (filterStatus) params.append('status', filterStatus);
+
+            const res = await fetch(`/api/ventas/boveda/list?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
                 setRecentResults(data);
@@ -193,8 +196,8 @@ export default function BovedaDigitalPage() {
 
     const handleSearch = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        if (!searchTerm || searchTerm.length < 3) {
-            toast.error('Ingresa al menos 3 caracteres para buscar');
+        if (!searchTerm || searchTerm.trim().length < 3) {
+            fetchRecent();
             return;
         }
 
