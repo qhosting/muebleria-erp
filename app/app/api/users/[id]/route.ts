@@ -26,6 +26,22 @@ export async function PUT(
     const body = await request.json();
     const { email, name, role, codigoGestor, isActive, password, enableLabsMobile, enableNativeSms } = body;
 
+    if (email) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email,
+          NOT: { id: params.id }
+        }
+      });
+
+      if (existingUser) {
+        return NextResponse.json(
+          { error: 'El correo electrónico ya está registrado por otro usuario' },
+          { status: 400 }
+        );
+      }
+    }
+
     const updateData: any = {
       email,
       name,
