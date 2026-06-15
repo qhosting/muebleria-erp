@@ -117,7 +117,7 @@ export interface OfflineMotarario {
 
 export interface SyncQueue {
   id?: number;
-  type: 'pago' | 'motarario' | 'cliente_update';
+  type: 'pago' | 'motarario' | 'cliente_update' | 'verificacion';
   data: any;
   localId: string;
   attempts: number;

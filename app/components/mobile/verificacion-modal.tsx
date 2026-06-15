@@ -223,15 +223,24 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
             // Importar dinámicamente el servicio de sincronización para IndexedDB
             const { syncService } = await import("@/lib/sync-service");
             
-            // Guardar offline primero de forma robusta
+            // Guardar offline primero de forma robusta (siempre)
             await syncService.addVerificacionOffline(verificacionData);
             
-            // Si está conectado, intentar sincronizar de inmediato en background
+            // Siempre mostrar éxito tras guardar localmente
+            toast.success("Verificación domiciliaria guardada", {
+                description: isOnline && navigator.onLine
+                    ? "Sincronizando con el servidor..."
+                    : "Se sincronizará automáticamente cuando tengas señal."
+            });
+            
+            // Si está conectado, intentar sincronizar de inmediato en background sin bloquear el UI
             if (isOnline && navigator.onLine) {
-                toast.info("Enviando verificación al servidor...");
-                syncService.syncAll((session?.user as any)?.id, false);
-            } else {
-                toast.success("Verificación guardada localmente (Modo Offline)");
+                const cobradorId = (session?.user as any)?.id;
+                if (cobradorId) {
+                    syncService.syncAll(cobradorId, false).catch(err => {
+                        console.warn("Error en sincronización inmediata de verificación:", err);
+                    });
+                }
             }
             
             onSuccess();

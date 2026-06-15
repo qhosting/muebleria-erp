@@ -1197,9 +1197,15 @@ function MobileClientes() {
                     isOpen={verVerificacion}
                     onClose={() => setVerVerificacion(false)}
                     onSuccess={() => {
+                        // Actualizar el estado VD del cliente en la lista local
+                        setClientes(prev => prev.map(c =>
+                            c.id === detailCliente.id
+                                ? { ...c, vdStatus: 'REALIZADA' }
+                                : c
+                        ));
                         setVerVerificacion(false);
                     }}
-                    isOnline={true}
+                    isOnline={!isOffline}
                 />
             )}
 

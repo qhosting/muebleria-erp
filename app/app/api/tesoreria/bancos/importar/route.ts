@@ -149,6 +149,7 @@ function parseSantander(rows: any[][]): { records: any[], cuentaNum: string } {
             descripcionDetallada,
             clabeEmisor,
             cuentaEmisor,
+            cuentaDestino: cleanCuenta,
         });
     }
     
@@ -253,6 +254,7 @@ function parseBanorte(rows: any[][]): { records: any[], cuentaNum: string } {
             descripcionDetallada: fullDescripcionDetallada,
             clabeEmisor,
             cuentaEmisor,
+            cuentaDestino: cleanCuenta,
         });
     }
     
@@ -304,32 +306,36 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        // Determinar qué modelo de base de datos usar en función del número de cuenta detectado
-        let prismaModel: any = null;
-        let cuentaDestinoReal = '';
-
-        if (cuentaNum === '22001022837') {
-            prismaModel = (prisma as any).movimientoSantander22001022837;
-            cuentaDestinoReal = '22001022837 (Santander)';
-        } else if (cuentaNum === '65505732541') {
-            prismaModel = (prisma as any).movimientoSantander65505732541;
-            cuentaDestinoReal = '65505732541 (Santander)';
-        } else if (cuentaNum === '0330253963') {
-            prismaModel = (prisma as any).movimientoBanorte0330253963;
-            cuentaDestinoReal = '0330253963 (Banorte)';
-        } else {
-            return NextResponse.json({ 
-                error: `La cuenta detectada en el archivo (${cuentaNum || 'Ninguna'}) no corresponde a las cuentas autorizadas. Cuentas soportadas: Santander 22001022837, Santander 65505732541, Banorte 0330253963.` 
-            }, { status: 400 });
-        }
-
         // Insertar en la base de datos, evitando duplicados
         let insertados = 0;
         let duplicados = 0;
         let errores = 0;
+        const cuentasImportadas = new Set<string>();
 
         for (const record of records) {
             try {
+                const cNum = record.cuentaDestino || cuentaNum;
+                let prismaModel: any = null;
+                let cuentaDestinoReal = '';
+
+                if (cNum === '22001022837') {
+                    prismaModel = (prisma as any).movimientoSantander22001022837;
+                    cuentaDestinoReal = '22001022837 (Santander)';
+                } else if (cNum === '65505732541') {
+                    prismaModel = (prisma as any).movimientoSantander65505732541;
+                    cuentaDestinoReal = '65505732541 (Santander)';
+                } else if (cNum === '0330253963') {
+                    prismaModel = (prisma as any).movimientoBanorte0330253963;
+                    cuentaDestinoReal = '0330253963 (Banorte)';
+                }
+
+                if (!prismaModel) {
+                    errores++;
+                    continue;
+                }
+
+                cuentasImportadas.add(cuentaDestinoReal);
+
                 // Verificar duplicado por clave de rastreo (única en SPEI)
                 if (record.claveRastreo) {
                     const existing = await prismaModel.findFirst({
@@ -381,14 +387,22 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        if (insertados === 0 && duplicados === 0 && errores > 0) {
+            return NextResponse.json({ 
+                error: `Las cuentas detectadas en el archivo no corresponden a ninguna de las cuentas autorizadas. Cuentas soportadas: Santander 22001022837, Santander 65505732541, Banorte 0330253963.` 
+            }, { status: 400 });
+        }
+
+        const cuentasLista = Array.from(cuentasImportadas).join(', ');
+
         return NextResponse.json({
             success: true,
-            banco: cuentaDestinoReal,
+            banco: cuentasLista,
             total: records.length,
             insertados,
             duplicados,
             errores,
-            mensaje: `Se importaron ${insertados} movimientos en la cuenta ${cuentaDestinoReal}. ${duplicados} duplicados omitidos.`
+            mensaje: `Se importaron ${insertados} movimientos en las cuentas: ${cuentasLista}. ${duplicados} duplicados omitidos.${errores > 0 ? ` ${errores} con errores o cuenta no autorizada.` : ''}`
         });
 
     } catch (error) {

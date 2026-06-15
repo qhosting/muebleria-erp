@@ -271,19 +271,19 @@ export class SyncService {
 
   // Subir verificaciones domiciliarias pendientes al servidor
   private async uploadVerificaciones(cobradorId: string) {
-    if (!(db as any).verificaciones) return;
-
-    const verificacionesPendientes = await (db as any).verificaciones
+    const verificacionesPendientes = await db.verificaciones
       .where('syncStatus').equals('pending')
-      .and((v: any) => v.gestorId === cobradorId)
+      .and((v) => v.gestorId === cobradorId)
       .toArray();
 
     console.log(`Verificaciones pendientes para sincronizar: ${verificacionesPendientes.length}`);
 
+    if (verificacionesPendientes.length === 0) return;
+
     for (const v of verificacionesPendientes) {
       try {
         console.log(`Sincronizando verificación ${v.localId}`);
-        await (db as any).verificaciones.where('localId').equals(v.localId).modify({ syncStatus: 'syncing' });
+        await db.verificaciones.where('localId').equals(v.localId).modify({ syncStatus: 'syncing' });
 
         const response = await apiFetch('/api/clientes/verificaciones', {
           method: 'POST',
@@ -300,8 +300,9 @@ export class SyncService {
           const vServidor = await response.json();
           console.log(`Verificación ${v.localId} sincronizada exitosamente con ID: ${vServidor.id}`);
 
+          // Limpiar las fotos de evidencia del local (ahorrar espacio en IndexedDB)
           const updatedDetalles = { ...v.detallesExtra, evidencia: [] };
-          await (db as any).verificaciones.where('localId').equals(v.localId).modify({
+          await db.verificaciones.where('localId').equals(v.localId).modify({
             id: vServidor.id,
             syncStatus: 'synced',
             lastSync: Date.now(),
@@ -310,12 +311,13 @@ export class SyncService {
 
           await db.syncQueue.where('localId').equals(v.localId).modify({ status: 'completed' });
         } else {
-          console.error(`Error al sincronizar verificación ${v.localId}: ${response.status}`);
-          await (db as any).verificaciones.where('localId').equals(v.localId).modify({ syncStatus: 'failed' });
+          const errText = await response.text();
+          console.error(`Error al sincronizar verificación ${v.localId}: ${response.status}`, errText);
+          await db.verificaciones.where('localId').equals(v.localId).modify({ syncStatus: 'failed' });
         }
       } catch (error) {
         console.error('Error subiendo verificación:', error);
-        await (db as any).verificaciones.where('localId').equals(v.localId).modify({ syncStatus: 'failed' });
+        await db.verificaciones.where('localId').equals(v.localId).modify({ syncStatus: 'failed' });
       }
     }
   }
@@ -400,13 +402,12 @@ export class SyncService {
       createdOffline: true
     };
 
-    if ((db as any).verificaciones) {
-      await (db as any).verificaciones.add(verificacion);
-    }
+    // Guardar en la tabla IndexedDB de verificaciones
+    await db.verificaciones.add(verificacion);
 
     // Agregar a la cola de sincronización
     await db.syncQueue.add({
-      type: 'verificacion' as any,
+      type: 'verificacion',
       data: verificacion,
       localId,
       attempts: 0,
@@ -427,7 +428,7 @@ export class SyncService {
       db.settings.get(cobradorId),
       db.pagos.where('syncStatus').equals('pending').and(p => p.cobradorId === cobradorId).count(),
       db.motararios.where('syncStatus').equals('pending').and(m => m.cobradorId === cobradorId).count(),
-      (db as any).verificaciones ? (db as any).verificaciones.where('syncStatus').equals('pending').and((v: any) => v.gestorId === cobradorId).count() : Promise.resolve(0),
+      db.verificaciones.where('syncStatus').equals('pending').and((v) => v.gestorId === cobradorId).count(),
       db.syncQueue.where('status').equals('failed').count()
     ]);
 

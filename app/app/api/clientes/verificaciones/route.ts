@@ -14,19 +14,38 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { clienteId, fecha, detallesExtra } = body;
+        const { clienteId, fecha, detallesExtra, localId } = body;
         const userId = (session.user as any).id;
 
         if (!clienteId || !fecha) {
             return NextResponse.json({ error: 'Faltan datos requeridos' }, { status: 400 });
         }
 
-        const verificacion = await (prisma as any).verificacionDomiciliaria.create({
+        // Deduplicación por localId: si ya existe una verificación con este localId, retornarla
+        if (localId) {
+            const existente = await prisma.verificacionDomiciliaria.findFirst({
+                where: {
+                    detallesExtra: {
+                        path: ['localId'],
+                        equals: localId,
+                    }
+                }
+            });
+            if (existente) {
+                console.log(`Verificación con localId ${localId} ya existe, retornando existente.`);
+                return NextResponse.json(existente);
+            }
+        }
+
+        const verificacion = await prisma.verificacionDomiciliaria.create({
             data: {
                 clienteId,
                 gestorId: userId,
                 fecha: new Date(fecha),
-                detallesExtra,
+                detallesExtra: {
+                    ...(detallesExtra || {}),
+                    localId, // Guardar el localId dentro de detallesExtra para deduplicación
+                },
             },
         });
 
