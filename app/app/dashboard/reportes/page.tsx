@@ -76,9 +76,20 @@ export default function ReportesPage() {
     return fecha.toISOString().split('T')[0];
   });
 
+  const userRole = (session?.user as any)?.role;
+
   useEffect(() => {
     fetchCobradores();
-  }, []);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab) {
+        setActiveTab(tab);
+      } else if (userRole && ['vendedor', 'jefe_ventas'].includes(userRole)) {
+        setActiveTab('ventas');
+      }
+    }
+  }, [userRole]);
 
   useEffect(() => {
     if (activeTab === 'cobranza') fetchReporte();
@@ -281,23 +292,25 @@ export default function ReportesPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="cobrador">Cobrador</Label>
-                <Select value={selectedCobrador} onValueChange={setSelectedCobrador}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar cobrador" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los cobradores</SelectItem>
-                    {cobradores.map((cobrador) => (
-                      <SelectItem key={cobrador.id} value={cobrador.id}>
-                        {cobrador.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className={`grid grid-cols-1 gap-4 ${activeTab === 'ventas' ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
+              {activeTab !== 'ventas' && (
+                <div className="space-y-2">
+                  <Label htmlFor="cobrador">Cobrador</Label>
+                  <Select value={selectedCobrador} onValueChange={setSelectedCobrador}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar cobrador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los cobradores</SelectItem>
+                      {cobradores.map((cobrador) => (
+                        <SelectItem key={cobrador.id} value={cobrador.id}>
+                          {cobrador.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="fechaDesde">Fecha Desde</Label>
@@ -323,12 +336,14 @@ export default function ReportesPage() {
         </Card>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-4 w-full max-w-lg">
-            <TabsTrigger value="cobranza">Cobranza</TabsTrigger>
-            <TabsTrigger value="gestores">Rendimiento</TabsTrigger>
-            <TabsTrigger value="discrepancias">Discrepancias</TabsTrigger>
-            <TabsTrigger value="ventas">Ventas y Metas</TabsTrigger>
-          </TabsList>
+          {!['vendedor', 'jefe_ventas'].includes(userRole) && (
+            <TabsList className="grid grid-cols-4 w-full max-w-lg mb-4">
+              <TabsTrigger value="cobranza">Cobranza</TabsTrigger>
+              <TabsTrigger value="gestores">Rendimiento</TabsTrigger>
+              <TabsTrigger value="discrepancias">Discrepancias</TabsTrigger>
+              <TabsTrigger value="ventas">Ventas y Metas</TabsTrigger>
+            </TabsList>
+          )}
 
           <TabsContent value="cobranza" className="space-y-6 mt-6">
             {/* Resumen General */}

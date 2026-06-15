@@ -109,6 +109,7 @@ const navigation: NavItem[] = [
       { name: 'Pagos Gestor (Clientes DP/DQ)', href: '/dashboard/reportes/pagos-gestor', icon: Users },
       { name: 'Verificaciones', href: '/dashboard/reportes/verificaciones', icon: UserCheck },
       { name: 'Convenios de Pago', href: '/dashboard/reportes/convenios', icon: FileText },
+      { name: 'Ventas y Metas', href: '/dashboard/reportes?tab=ventas', icon: Target },
     ]
   },
 
@@ -157,6 +158,7 @@ const navigation: NavItem[] = [
       { name: 'Programa de Recompras', href: '/dashboard/ventas/recompras', icon: Gift },
       { name: 'Dashboard Ventas', href: '/mobile/ventas', icon: BarChart3 },
       { name: 'Metas y Presupuestos', href: '/dashboard/ventas/config', icon: Target, roles: ['admin', 'jefe_ventas'] },
+      { name: 'Reporte Ventas y Metas', href: '/dashboard/reportes?tab=ventas', icon: Target },
     ]
   },
 ];
