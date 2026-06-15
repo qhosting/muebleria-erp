@@ -354,7 +354,7 @@ export default function RecomprasPage() {
                                     const statusUpper = info.status.toUpperCase();
                                     let statusColorClass = 'bg-slate-100 text-slate-800';
                                     if (statusUpper.includes('PAGADO')) statusColorClass = 'bg-blue-100 text-blue-800';
-                                    else if (statusUpper.includes('COBRANZA NORMAL') || statusUpper.includes('COBRANZA')) statusColorClass = 'bg-sky-100 text-sky-800';
+                                    else if (statusUpper.includes('COBRANZA NORMAL') || statusUpper.includes('COBRANZA') || statusUpper.includes('NORMAL')) statusColorClass = 'bg-sky-100 text-sky-800';
                                     else if (statusUpper.includes('CANCELADO')) statusColorClass = 'bg-gray-100 text-gray-800';
                                     else if (statusUpper.includes('ATRASADO') || statusUpper.includes('MORA')) statusColorClass = 'bg-orange-100 text-orange-800';
                                     else if (statusUpper.includes('DEMANDADO') || statusUpper.includes('JURIDICO')) statusColorClass = 'bg-rose-100 text-rose-800';
