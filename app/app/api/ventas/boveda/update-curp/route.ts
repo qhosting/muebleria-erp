@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { checkPermission } from '@/lib/permissions';
 
 export async function PATCH(request: NextRequest) {
     try {
@@ -11,10 +12,10 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
         }
 
-        const userRole = ((session.user as any).role || '').toLowerCase();
-        const isAdmin = ['admin', 'jefe_ventas', 'gestor_cobranza', 'administrador', 'direccion'].includes(userRole);
+        const userRole = (session.user as any).role;
+        const hasModuleAccess = await checkPermission(userRole, 'ventas');
 
-        if (!isAdmin) {
+        if (!hasModuleAccess) {
             return NextResponse.json({ error: 'No tienes permisos para realizar esta acción' }, { status: 403 });
         }
 

@@ -186,6 +186,63 @@ export default function ConfiguracionPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [syncingFechas, setSyncingFechas] = useState(false);
 
+  const [permissionsMatrix, setPermissionsMatrix] = useState<any[]>([]);
+  const [loadingPerms, setLoadingPerms] = useState(true);
+  const [savingPerms, setSavingPerms] = useState(false);
+
+  useEffect(() => {
+    const loadPermissions = async () => {
+      try {
+        setLoadingPerms(true);
+        const response = await fetch('/api/configuracion/permisos');
+        if (response.ok) {
+          const data = await response.json();
+          setPermissionsMatrix(data);
+        }
+      } catch (error) {
+        console.error('Error al cargar permisos:', error);
+        toast.error('Error al cargar permisos de roles');
+      } finally {
+        setLoadingPerms(false);
+      }
+    };
+
+    if (session?.user && (session.user as any)?.role === 'admin') {
+      loadPermissions();
+    }
+  }, [session]);
+
+  const handleTogglePerm = (role: string, modulo: string, currentVal: boolean) => {
+    setPermissionsMatrix(prev =>
+      prev.map(p =>
+        p.role === role && p.modulo === modulo
+          ? { ...p, permitido: !currentVal }
+          : p
+      )
+    );
+  };
+
+  const handleSavePermissions = async () => {
+    setSavingPerms(true);
+    try {
+      const response = await fetch('/api/configuracion/permisos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permissions: permissionsMatrix })
+      });
+      if (response.ok) {
+        toast.success('Permisos de roles actualizados exitosamente');
+      } else {
+        const data = await response.json();
+        throw new Error(data.error || 'Error al guardar permisos');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Error al guardar permisos');
+    } finally {
+      setSavingPerms(false);
+    }
+  };
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -398,6 +455,7 @@ export default function ConfiguracionPage() {
             <TabsTrigger value="landing">Landing Builder</TabsTrigger>
             <TabsTrigger value="notificaciones">WhatsApp/IA</TabsTrigger>
             <TabsTrigger value="contpaqi">ERP / Contpaqi</TabsTrigger>
+            <TabsTrigger value="permisos">Permisos de Roles</TabsTrigger>
             <TabsTrigger value="avanzado">Avanzado</TabsTrigger>
           </TabsList>
 
@@ -972,6 +1030,82 @@ export default function ConfiguracionPage() {
                     ))}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="permisos" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-indigo-600" />
+                  Matriz de Permisos de Roles
+                </CardTitle>
+                <CardDescription>
+                  Define a qué módulos principales del ERP tiene acceso cada rol. Los administradores siempre tienen acceso total.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {loadingPerms ? (
+                  <div className="flex items-center justify-center py-12">
+                    <p className="text-sm text-slate-500">Cargando permisos...</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="overflow-x-auto rounded-lg border border-slate-200">
+                      <table className="w-full border-collapse text-left text-sm text-slate-500">
+                        <thead className="bg-slate-50 text-xs uppercase text-slate-700">
+                          <tr>
+                            <th scope="col" className="px-6 py-3 font-semibold">Rol</th>
+                            <th scope="col" className="px-6 py-3 font-semibold">Clientes</th>
+                            <th scope="col" className="px-6 py-3 font-semibold">Cobranza</th>
+                            <th scope="col" className="px-6 py-3 font-semibold">Inventario</th>
+                            <th scope="col" className="px-6 py-3 font-semibold">Reportes</th>
+                            <th scope="col" className="px-6 py-3 font-semibold">Tesorería</th>
+                            <th scope="col" className="px-6 py-3 font-semibold">Configuración</th>
+                            <th scope="col" className="px-6 py-3 font-semibold">Ventas</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 bg-white">
+                          {[
+                            { code: 'direccion', name: 'Dirección' },
+                            { code: 'jefe_ventas', name: 'Jefe de Ventas' },
+                            { code: 'vendedor', name: 'Vendedor' },
+                            { code: 'gestor_cobranza', name: 'Gestor de Cobranza' },
+                            { code: 'reporte_cobranza', name: 'Reporte de Cobranza' },
+                            { code: 'cobrador', name: 'Cobrador' }
+                          ].map(roleItem => {
+                            return (
+                              <tr key={roleItem.code} className="hover:bg-slate-50 transition-colors">
+                                <td className="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">
+                                  {roleItem.name}
+                                </td>
+                                {['clientes', 'cobranza', 'inventario', 'reportes', 'tesoreria', 'configuracion', 'ventas'].map(modulo => {
+                                  const perm = permissionsMatrix.find(p => p.role === roleItem.code && p.modulo === modulo);
+                                  const permitido = perm ? perm.permitido : false;
+                                  return (
+                                    <td key={modulo} className="px-6 py-4">
+                                      <Switch
+                                        checked={permitido}
+                                        onCheckedChange={() => handleTogglePerm(roleItem.code, modulo, permitido)}
+                                      />
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="flex justify-end gap-3 mt-4">
+                      <Button onClick={handleSavePermissions} disabled={savingPerms} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold">
+                        {savingPerms ? 'Guardando...' : 'Guardar Permisos de Roles'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

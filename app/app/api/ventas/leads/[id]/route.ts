@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { checkPermission } from '@/lib/permissions';
 
 const db = prisma as any;
 
@@ -95,7 +96,7 @@ export async function DELETE(
   try {
     const session = await getServerSession(authOptions);
     const userRole = (session?.user as any)?.role;
-    if (!session?.user || !['admin', 'gestor_cobranza', 'direccion'].includes(userRole)) {
+    if (!session?.user || !await checkPermission(userRole, 'ventas')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 

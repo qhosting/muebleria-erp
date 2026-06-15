@@ -6,6 +6,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
+import { checkPermission } from '@/lib/permissions';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -15,7 +17,7 @@ export async function GET(request: NextRequest) {
     }
 
     const userRole = (session.user as any).role;
-    if (!['admin', 'gestor_cobranza', 'reporte_cobranza', 'direccion'].includes(userRole)) {
+    if (!await checkPermission(userRole, 'reportes')) {
       return NextResponse.json({ error: 'Permisos insuficientes' }, { status: 403 });
     }
 

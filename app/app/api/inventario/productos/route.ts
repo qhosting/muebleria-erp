@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { checkPermission } from '@/lib/permissions';
 
 // GET - Listar productos
 export async function GET(request: NextRequest) {
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
         }
 
         const userRole = (session.user as any).role;
-        if (!['admin', 'gestor_cobranza', 'direccion'].includes(userRole)) {
+        if (!await checkPermission(userRole, 'inventario')) {
             return NextResponse.json({ error: 'Permisos insuficientes' }, { status: 403 });
         }
 

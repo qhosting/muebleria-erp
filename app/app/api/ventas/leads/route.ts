@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { checkPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,8 +21,8 @@ export async function GET(request: NextRequest) {
     
     if (vendedorId) {
       where.vendedorId = vendedorId;
-    } else if (!showAll && !['admin', 'gestor_cobranza', 'jefe_ventas', 'direccion'].includes((session.user as any).role)) {
-      // Si no es un rol supervisor/dirección y no pide todos, mostrar solo los suyos o los que no tienen dueño (AI)
+    } else if (!showAll && !await checkPermission((session.user as any).role, 'ventas')) {
+      // Si no es un rol supervisor/dirección (no tiene acceso al módulo completo) y no pide todos, mostrar solo los suyos o los que no tienen dueño (AI)
       where.OR = [
         { vendedorId: (session.user as any).id },
         { vendedorId: null }

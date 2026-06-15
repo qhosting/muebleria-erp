@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { checkPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
     try {
@@ -45,12 +46,12 @@ export async function GET(request: NextRequest) {
             return NextResponse.json(documentos);
         }
 
-        const userRole = ((session.user as any).role || '').toLowerCase();
-        const isAdmin = ['admin', 'jefe_ventas', 'gestor_cobranza', 'administrador', 'direccion'].includes(userRole);
+        const userRole = (session.user as any).role;
+        const hasModuleAccess = await checkPermission(userRole, 'ventas');
 
         // Para búsquedas o listados generales:
         // 1. Determinar si se restringe al vendedor actual
-        const restrictToSeller = !isAdmin || mine;
+        const restrictToSeller = !hasModuleAccess || mine;
         const sellerId = (session.user as any).id;
 
         // 2. Construir filtros para la consulta de DocumentoBoveda

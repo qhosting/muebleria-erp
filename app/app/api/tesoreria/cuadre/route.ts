@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { checkPermission } from '@/lib/permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -225,7 +226,7 @@ export async function POST(request: NextRequest) {
         }
 
         const userRole = (session.user as any).role;
-        if (!['admin', 'gestor_cobranza', 'direccion'].includes(userRole)) {
+        if (!await checkPermission(userRole, 'tesoreria')) {
             return NextResponse.json({ error: 'Solo administradores, gestores y dirección pueden finalizar el cuadre' }, { status: 403 });
         }
 

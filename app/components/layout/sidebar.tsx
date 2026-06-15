@@ -56,6 +56,7 @@ interface NavItem {
   href: string;
   icon: any;
   roles: string[];
+  modulo?: string;
   subItems?: {
     name: string;
     href: string;
@@ -75,15 +76,14 @@ const navigation: NavItem[] = [
     name: 'Clientes',
     href: '/dashboard/clientes',
     icon: Users,
+    modulo: 'clientes',
     roles: ['admin', 'gestor_cobranza', 'cobrador', 'direccion'],
   },
-
-
-
-{
+  {
     name: 'Cobranza',
     href: '/dashboard/morosidad',
     icon: CreditCard,
+    modulo: 'cobranza',
     roles: ['admin', 'gestor_cobranza', 'reporte_cobranza', 'direccion'],
     subItems: [
       { name: 'Morosidad', href: '/dashboard/morosidad', icon: AlertTriangle },
@@ -97,12 +97,14 @@ const navigation: NavItem[] = [
     name: 'Inventario',
     href: '/dashboard/inventario',
     icon: Package,
+    modulo: 'inventario',
     roles: ['admin', 'gestor_cobranza', 'direccion'],
   },
   {
     name: 'Reportes',
     href: '/dashboard/reportes',
     icon: BarChart3,
+    modulo: 'reportes',
     roles: ['admin', 'gestor_cobranza', 'reporte_cobranza', 'direccion'],
     subItems: [
       { name: 'General', href: '/dashboard/reportes', icon: FileText },
@@ -123,6 +125,7 @@ const navigation: NavItem[] = [
     name: 'Tesorería',
     href: '/dashboard/tesoreria',
     icon: Wallet,
+    modulo: 'tesoreria',
     roles: ['admin', 'gestor_cobranza', 'direccion'],
     subItems: [
       { name: 'Pagos Gestor', href: '/dashboard/tesoreria/pagos-gestor', icon: Users },
@@ -137,6 +140,7 @@ const navigation: NavItem[] = [
     name: 'Configuración',
     href: '/dashboard/configuracion',
     icon: Settings,
+    modulo: 'configuracion',
     roles: ['admin', 'gestor_cobranza', 'direccion'],
     subItems: [
       { name: 'Ajustes Generales', href: '/dashboard/configuracion', icon: Settings, roles: ['admin'] },
@@ -150,6 +154,7 @@ const navigation: NavItem[] = [
     name: 'Ventas',
     href: '/dashboard/ventas',
     icon: TrendingUp,
+    modulo: 'ventas',
     roles: ['admin', 'jefe_ventas', 'vendedor', 'direccion'],
     subItems: [
       { name: 'Bóveda Digital', href: '/dashboard/ventas/boveda', icon: Database },
@@ -169,6 +174,7 @@ export function Sidebar({ className, session }: SidebarProps) {
   const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({});
   const [companyName, setCompanyName] = useState('');
   const [configLoading, setConfigLoading] = useState(true);
+  const [permissions, setPermissions] = useState<Record<string, boolean> | null>(null);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -190,13 +196,45 @@ export function Sidebar({ className, session }: SidebarProps) {
     fetchConfig();
   }, []);
 
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      try {
+        const response = await fetch('/api/configuracion/permisos?my=true');
+        if (response.ok) {
+          const data = await response.json();
+          setPermissions(data);
+        }
+      } catch (error) {
+        console.error('Error fetching permissions:', error);
+      }
+    };
+    if (session?.user) {
+      fetchPermissions();
+    }
+  }, [session]);
+
   const userRole = (session?.user as any)?.role;
 
   const filteredNavigation = navigation
-    .filter(item => item.roles.includes(userRole) || item.roles.includes('all'))
+    .filter(item => {
+      if (!session?.user) return false;
+      if (userRole === 'admin') return true;
+
+      // Si tenemos los permisos dinámicos del backend, usarlos si el item tiene modulo
+      if (permissions && item.modulo) {
+        return permissions[item.modulo] === true;
+      }
+
+      // Fallback estático
+      return item.roles.includes(userRole) || item.roles.includes('all');
+    })
     .map(item => ({
       ...item,
-      subItems: item.subItems?.filter(sub => !sub.roles || sub.roles.includes(userRole))
+      subItems: item.subItems?.filter(sub => {
+        if (!sub.roles) return true;
+        if (userRole === 'admin') return true;
+        return sub.roles.includes(userRole);
+      })
     }));
 
   const handleSignOut = () => {

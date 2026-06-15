@@ -1024,3 +1024,13 @@ model DocumentoBoveda {
   @@index([vendedorId])
   @@map("documentos_boveda")
 }
+
+model PermisoRol {
+  id        String   @id @default(cuid())
+  role      UserRole
+  modulo    String   // 'clientes', 'cobranza', 'inventario', 'reportes', 'tesoreria', 'configuracion', 'ventas'
+  permitido Boolean  @default(false)
+
+  @@unique([role, modulo])
+  @@map("permisos_roles")
+}

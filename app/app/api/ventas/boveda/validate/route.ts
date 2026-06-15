@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { checkPermission } from '@/lib/permissions';
 
 export async function PATCH(request: NextRequest) {
     try {
@@ -12,7 +13,7 @@ export async function PATCH(request: NextRequest) {
         }
 
         const user = session.user as any;
-        if (!['admin', 'gestor_cobranza', 'jefe_ventas', 'direccion'].includes(user?.role)) {
+        if (!await checkPermission(user?.role, 'ventas')) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
         }
 

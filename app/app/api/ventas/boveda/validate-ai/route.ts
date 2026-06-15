@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { GoogleGenAI } from '@google/genai';
+import { checkPermission } from '@/lib/permissions';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -13,10 +14,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
         }
 
-        const userRole = ((session.user as any).role || '').toLowerCase();
-        const isAdmin = ['admin', 'jefe_ventas', 'gestor_cobranza', 'administrador', 'direccion'].includes(userRole);
+        const userRole = (session.user as any).role;
+        const hasModuleAccess = await checkPermission(userRole, 'ventas');
 
-        if (!isAdmin) {
+        if (!hasModuleAccess) {
             return NextResponse.json({ error: 'No tienes permisos para auditar con IA' }, { status: 403 });
         }
 
