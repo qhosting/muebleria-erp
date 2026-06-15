@@ -1,6 +1,8 @@
 
-// Servicio de impresión por Bluetooth para tickets de cobranza
 'use client';
+
+import { Capacitor } from '@capacitor/core';
+import { BleClient, BluetoothLe } from '@capacitor-community/bluetooth-le';
 
 // Definiciones de tipos para Web Bluetooth API
 declare global {
@@ -57,10 +59,10 @@ declare global {
 }
 
 export interface PrinterConnection {
-  device: WebBluetoothDevice | null;
-  server: WebBluetoothRemoteGATTServer | null;
-  service: WebBluetoothRemoteGATTService | null;
-  characteristic: WebBluetoothRemoteGATTCharacteristic | null;
+  device: any | null;
+  server: any | null;
+  service: any | null;
+  characteristic: any | null;
   isConnected: boolean;
 }
 
@@ -139,7 +141,10 @@ class BluetoothPrinterService {
   };
 
   async isBluetoothAvailable(): Promise<boolean> {
-    return 'bluetooth' in navigator && 'requestDevice' in (navigator.bluetooth as any);
+    if (Capacitor.isNativePlatform()) {
+      return true;
+    }
+    return typeof navigator !== 'undefined' && 'bluetooth' in navigator && 'requestDevice' in (navigator.bluetooth as any);
   }
 
   // 🔧 Guardar estado de conexión en localStorage
@@ -190,6 +195,9 @@ class BluetoothPrinterService {
 
   // 🔧 NUEVO: Verificar estado real de conexión GATT
   private checkRealConnectionStatus(): boolean {
+    if (Capacitor.isNativePlatform()) {
+      return this.connection.isConnected;
+    }
     if (!this.connection.device || !this.connection.server) {
       return false;
     }
@@ -236,11 +244,70 @@ class BluetoothPrinterService {
 
   async connectToPrinter(): Promise<boolean> {
     try {
+      if (Capacitor.isNativePlatform()) {
+        await BleClient.initialize({ androidNeverForLocation: true });
+        
+        if (Capacitor.getPlatform() === 'android') {
+          // Verificar y solicitar permisos de Bluetooth
+          try {
+            console.log('🔍 [Nativo] Verificando permisos de Bluetooth...');
+            const permStatus = await (BluetoothLe as any).checkPermissions();
+            const needsScan = permStatus.bluetoothScan && permStatus.bluetoothScan !== 'granted';
+            const needsConnect = permStatus.bluetoothConnect && permStatus.bluetoothConnect !== 'granted';
+            
+            if (needsScan || needsConnect) {
+              console.log('🔄 [Nativo] Permisos de Bluetooth ausentes. Solicitando...');
+              const newPerms = await (BluetoothLe as any).requestPermissions();
+              const scanDenied = newPerms.bluetoothScan && newPerms.bluetoothScan !== 'granted';
+              const connectDenied = newPerms.bluetoothConnect && newPerms.bluetoothConnect !== 'granted';
+              
+              if (scanDenied || connectDenied) {
+                throw new Error('Permisos de Bluetooth denegados. Actívalos en la configuración de la app.');
+              }
+            }
+          } catch (permErr: any) {
+            console.error('❌ [Nativo] Error al verificar/solicitar permisos:', permErr);
+            throw new Error('Error de permisos Bluetooth: ' + (permErr.message || permErr));
+          }
+
+          const enabled = await BleClient.isEnabled();
+          if (!enabled) {
+            try {
+              await BleClient.requestEnable();
+            } catch (err) {
+              console.warn('El usuario denegó activar Bluetooth:', err);
+            }
+          }
+        }
+
+        // Buscar y seleccionar dispositivo nativo
+        const device = await BleClient.requestDevice({
+          optionalServices: [this.SERVICE_UUID]
+        });
+
+        if (!device) {
+          throw new Error('No se seleccionó ningún dispositivo');
+        }
+
+        this.connection.device = device;
+        
+        await BleClient.connect(device.deviceId, (disconnectedId) => {
+          console.log('⚠️ [Nativo] Impresora desconectada:', disconnectedId);
+          this.connection.isConnected = false;
+          this.saveConnectionState(false);
+        });
+
+        this.connection.isConnected = true;
+        this.saveConnectionState(true, device.name || 'Impresora Bluetooth', device.deviceId);
+        console.log('✅ [Nativo] Impresora conectada exitosamente:', device.name);
+        return true;
+      }
+
       if (!await this.isBluetoothAvailable()) {
         throw new Error('Bluetooth no está disponible en este dispositivo');
       }
 
-      // Buscar dispositivos Bluetooth
+      // Buscar dispositivos Bluetooth en Web
       this.connection.device = await navigator.bluetooth.requestDevice({
         filters: [
           { services: [this.SERVICE_UUID] },
@@ -268,6 +335,39 @@ class BluetoothPrinterService {
   // 🆕 NUEVO: Reconectar a la última impresora guardada
   async reconnectToPrinter(): Promise<boolean> {
     try {
+      if (Capacitor.isNativePlatform()) {
+        const { deviceId, deviceName } = this.loadConnectionState();
+        if (deviceId) {
+          await BleClient.initialize({ androidNeverForLocation: true });
+          console.log('🔄 [Nativo] Intentando reconectar a dispositivo guardado:', deviceId);
+          
+          if (Capacitor.getPlatform() === 'android') {
+            try {
+              const permStatus = await (BluetoothLe as any).checkPermissions();
+              const needsScan = permStatus.bluetoothScan && permStatus.bluetoothScan !== 'granted';
+              const needsConnect = permStatus.bluetoothConnect && permStatus.bluetoothConnect !== 'granted';
+              if (needsScan || needsConnect) {
+                console.log('🔄 [Nativo] Permisos de Bluetooth ausentes en reconexión. Solicitando...');
+                await (BluetoothLe as any).requestPermissions();
+              }
+            } catch (permErr) {
+              console.warn('⚠️ [Nativo] Error de permisos en reconexión:', permErr);
+            }
+          }
+
+          await BleClient.connect(deviceId, (disconnectedId) => {
+            console.log('⚠️ [Nativo] Impresora desconectada:', disconnectedId);
+            this.connection.isConnected = false;
+            this.saveConnectionState(false);
+          });
+          this.connection.device = { deviceId, name: deviceName };
+          this.connection.isConnected = true;
+          this.saveConnectionState(true, deviceName || 'Impresora Bluetooth', deviceId);
+          return true;
+        }
+        return false;
+      }
+
       // 1. Si ya hay un dispositivo en memoria pero está desconectado, reconectarlo
       if (this.connection.device && !this.connection.isConnected) {
         console.log('🔄 Intentando reconectar a dispositivo en memoria:', this.connection.device.name);
@@ -301,6 +401,20 @@ class BluetoothPrinterService {
   }
 
   async disconnect(): Promise<void> {
+    if (Capacitor.isNativePlatform()) {
+      if (this.connection.device && this.connection.isConnected) {
+        try {
+          await BleClient.disconnect(this.connection.device.deviceId);
+        } catch (err) {
+          console.warn('Error al desconectar nativo:', err);
+        }
+        this.connection.isConnected = false;
+        this.saveConnectionState(false);
+        console.log('🔌 [Nativo] Impresora desconectada manualmente');
+      }
+      return;
+    }
+
     if (this.connection.device && this.connection.isConnected) {
       this.connection.server?.disconnect();
       this.connection.isConnected = false;
@@ -314,6 +428,10 @@ class BluetoothPrinterService {
     // Primero verificar el estado local
     if (!this.connection.isConnected) {
       return false;
+    }
+
+    if (Capacitor.isNativePlatform()) {
+      return this.connection.isConnected;
     }
 
     // Verificar el estado real del servidor GATT
@@ -348,14 +466,35 @@ class BluetoothPrinterService {
   }
 
   private async sendData(data: string): Promise<void> {
-    if (!this.connection.characteristic || !this.connection.isConnected) {
+    if (!this.connection.isConnected || !this.connection.device) {
       throw new Error('Impresora no conectada');
     }
 
     const encoder = new TextEncoder();
     const uint8Array = encoder.encode(data);
 
-    // Dividir en chunks para evitar problemas con MTU
+    if (Capacitor.isNativePlatform()) {
+      const deviceId = this.connection.device.deviceId;
+      const chunkSize = 20;
+      for (let i = 0; i < uint8Array.length; i += chunkSize) {
+        const chunk = uint8Array.slice(i, i + chunkSize);
+        const dataView = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+        await BleClient.writeWithoutResponse(
+          deviceId,
+          this.SERVICE_UUID,
+          this.CHARACTERISTIC_UUID,
+          dataView
+        );
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      return;
+    }
+
+    if (!this.connection.characteristic) {
+      throw new Error('Impresora no conectada');
+    }
+
+    // Dividir en chunks para evitar problemas con MTU (para web)
     const chunkSize = 20;
     for (let i = 0; i < uint8Array.length; i += chunkSize) {
       const chunk = uint8Array.slice(i, i + chunkSize);
