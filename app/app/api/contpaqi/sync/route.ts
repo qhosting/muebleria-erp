@@ -407,27 +407,49 @@ export async function GET(request: NextRequest) {
 
             for (const p of productos) {
                 const m = mapping.productos;
-                const existencia = Math.round(parseFloat(p[m.existencias]) || 0);
+                
+                // Fallbacks seguros para existencias
+                const existenciaVal = p[m.existencias] !== undefined ? p[m.existencias] :
+                                      p.existencias !== undefined ? p.existencias :
+                                      p.Existencias !== undefined ? p.Existencias :
+                                      p.existencia !== undefined ? p.existencia :
+                                      p.Existencia !== undefined ? p.Existencia : 0;
+                const existencia = Math.round(parseFloat(String(existenciaVal)) || 0);
                 
                 // Si solo queremos con existencia y no tiene, saltar
                 if (soloConExistencia && existencia <= 0) continue;
 
+                // Fallbacks seguros para código y nombre
+                const codigo = String(p[m.codigo] || p.codigo || p.Codigo || '').trim();
+                const nombre = String(p[m.nombre] || p.nombre || p.Nombre || '').trim();
+
+                if (!codigo || !nombre) continue;
+
+                // Fallbacks seguros para costo y precio de venta
+                const precioCompra = parseFloat(String(p[m.costoEstandar] || p.costo || p.ultimoCosto || p.costoUltimo || p.CostoUltimo || 0)) || 0;
+                const precioVenta = parseFloat(String(p[m.precioVenta] || p.precio1 || p.Precio1 || p.precio || p.Precio || p.precioVenta || 0)) || 0;
+
+                const existenciaHoyVal = p[m.existenciaHoy] !== undefined ? p[m.existenciaHoy] :
+                                         p.existenciaHoy !== undefined ? p.existenciaHoy :
+                                         p.ExistenciaHoy !== undefined ? p.ExistenciaHoy : existencia;
+                const existenciaHoy = Math.round(parseFloat(String(existenciaHoyVal)) || existencia);
+
                 await prisma.producto.upsert({
-                    where: { codigo: p[m.codigo] || p.codigo },
+                    where: { codigo },
                     update: {
-                        nombre: p[m.nombre] || p.nombre,
-                        precioCompra: parseFloat(p[m.costoEstandar] || p.costo || p.ultimoCosto) || 0,
-                        precioVenta: parseFloat(p[m.precioVenta]) || 0,
+                        nombre,
+                        precioCompra,
+                        precioVenta,
                         existencias: existencia,
-                        existenciaHoy: Math.round(parseFloat(p[m.existenciaHoy]) || existencia)
+                        existenciaHoy
                     },
                     create: {
-                        codigo: p[m.codigo] || p.codigo,
-                        nombre: p[m.nombre] || p.nombre,
-                        precioCompra: parseFloat(p[m.costoEstandar] || p.costo || p.ultimoCosto) || 0,
-                        precioVenta: parseFloat(p[m.precioVenta]) || 0,
+                        codigo,
+                        nombre,
+                        precioCompra,
+                        precioVenta,
                         existencias: existencia,
-                        existenciaHoy: Math.round(parseFloat(p[m.existenciaHoy]) || existencia)
+                        existenciaHoy
                     }
                 });
             }

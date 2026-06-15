@@ -5,6 +5,45 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { getContpaqiService } from '@/lib/contpaqi-service';
 
+const getConceptNameLocal = (doc: any): string => {
+  if (!doc) return 'Venta / Cargo';
+  if (doc.concepto && typeof doc.concepto === 'object') {
+    const nested = doc.concepto;
+    const name = nested.nombre || nested.Nombre || nested.cNombre || 
+                 nested.cNombreConcepto || nested.CNOMBRECONCEPTO || 
+                 nested.nombreConcepto || nested.NombreConcepto || 
+                 nested.cNombreClasificacion || nested.codigo || 
+                 nested.cCodigoConcepto || nested.codigoConcepto ||
+                 nested.cnombreconcepto;
+    if (name) return String(name);
+  }
+  const directName = doc.CNOMBRECONCEPTO || doc.cNombreConcepto || doc.cnombreconcepto || doc.nombreConcepto || doc.NombreConcepto || doc.cNombreClasificacion || doc.conceptoNombre || doc.ConceptoNombre || doc.cNombre || doc.Nombre || doc.nombre;
+  if (directName) return String(directName);
+  return 'Venta / Cargo';
+};
+
+const isAbonoDoc = (doc: any, conceptName: string) => {
+  const name = conceptName.toUpperCase();
+  const code = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || '').trim();
+  
+  const abonoCodes = ['101', '102', '103', '112', '122', '130', '135', '6', '8', '13', '15', '45'];
+  
+  const total = Number(doc.cTotal || doc.ctotal || doc.total || doc.importe || doc.CTOTAL || 0);
+  const pending = Number(doc.cSaldo || doc.csaldo || doc.saldo || doc.pendiente || doc.cPendiente || doc.CSALDO || doc.CPENDIENTE || 0);
+  
+  return abonoCodes.includes(code) ||
+         name.includes('PAGO') || 
+         name.includes('ABONO') || 
+         name.includes('RECIBO') || 
+         name.includes('DEV SOBRE VENTA') || 
+         name.includes('NOTA DE CREDITO') || 
+         name.includes('NC QUERETARO') || 
+         name.startsWith('PC') || 
+         name.includes('PC ') || 
+         total < 0 || 
+         (total > 0 && pending === 0 && (name.toLowerCase().includes('recibo') || name.startsWith('PC') || abonoCodes.includes(code)));
+};
+
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
@@ -116,11 +155,48 @@ export async function POST(request: NextRequest) {
             cNombreClasificacion6: contpaqiCliente.cNombreClasificacion6 || contpaqiCliente.cnombreclasificacion6 || 'N/A',
         };
 
+        // Obtener documentos para determinar fecha de primer y último pago
+        let fechaPrimerPago = null;
+        let fechaUltimoPago = null;
+
+        try {
+            const documentos = await service.getClientDocumentos(codigoCliente);
+            if (Array.isArray(documentos) && documentos.length > 0) {
+                const abonos: any[] = [];
+                documentos.forEach((doc: any) => {
+                    const conceptName = getConceptNameLocal(doc);
+                    // Excluir "Abono por Letras" (concepto 17)
+                    const conceptCode = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || '').trim();
+                    if (conceptCode === '17' || conceptName.toUpperCase().includes('LETRAS')) {
+                        return;
+                    }
+
+                    if (isAbonoDoc(doc, conceptName)) {
+                        abonos.push(doc);
+                    }
+                });
+
+                if (abonos.length > 0) {
+                    abonos.sort((a, b) => new Date(a.cFecha || a.cfecha || a.fecha || a.CFECHA || 0).getTime() - new Date(b.cFecha || b.cfecha || b.fecha || b.CFECHA || 0).getTime());
+                    
+                    const firstAbono = abonos[0];
+                    const lastAbono = abonos[abonos.length - 1];
+                    
+                    fechaPrimerPago = firstAbono.cFecha || firstAbono.cfecha || firstAbono.fecha || firstAbono.CFECHA || null;
+                    fechaUltimoPago = lastAbono.cFecha || lastAbono.cfecha || lastAbono.fecha || lastAbono.CFECHA || null;
+                }
+            }
+        } catch (docError) {
+            console.warn(`No se pudieron obtener documentos detallados para cliente ${codigoCliente} en validación:`, docError);
+        }
+
         return NextResponse.json({ 
             codigoCliente: codigoCliente,
             nombre: contpaqiCliente.cNombreCliente || contpaqiCliente.cnombrecliente,
             clasificaciones,
-            recompraActiva: cuentasActivas.length > 0 ? cuentasActivas[0] : null
+            recompraActiva: cuentasActivas.length > 0 ? cuentasActivas[0] : null,
+            fechaPrimerPago,
+            fechaUltimoPago
         });
     } catch (error: any) {
         console.error('Error al validar cliente en Contpaqi:', error);

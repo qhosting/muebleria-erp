@@ -181,7 +181,7 @@ export async function PUT(
     // Detectar si se asignó un nuevo cobrador para notificarle
     const clienteActual = await prisma.cliente.findUnique({
       where: { id: params.id },
-      select: { cobradorAsignadoId: true }
+      select: { cobradorAsignadoId: true, statusCuenta: true }
     });
 
     const cliente = await prisma.cliente.update({
@@ -193,6 +193,7 @@ export async function PUT(
         vendedor,
         cobradorAsignadoId: cobradorAsignadoId || null,
         statusCuenta,
+        ...(statusCuenta === 'inactivo' && clienteActual?.statusCuenta === 'activo' && { fechaInactivacion: new Date() }),
         direccionCompleta,
         descripcionProducto,
         diaPago: diaPago,
@@ -269,6 +270,16 @@ export async function PUT(
         }
     }
 
+    // CREAR LEAD DE RECOMPRA SI SE INACTIVA
+    if (statusCuenta === 'inactivo' && clienteActual?.statusCuenta === 'activo') {
+        try {
+            const { RecomprasService } = await import('@/lib/recompras-service');
+            await RecomprasService.crearLeadPorLiquidacion(params.id, 'Inactivado desde edición de cliente');
+        } catch (rError) {
+            console.error('Error al crear lead de recompra en PUT:', rError);
+        }
+    }
+
     // Convert Decimal fields to numbers for JSON serialization
     const clienteSerializado = {
       ...cliente,
@@ -307,13 +318,34 @@ export async function DELETE(
       return NextResponse.json({ error: 'Solo administradores y gestores pueden desactivar clientes' }, { status: 403 });
     }
 
-    await prisma.cliente.update({
+    const clienteActual = await prisma.cliente.findUnique({
       where: { id: params.id },
-      data: {
-        statusCuenta: 'inactivo',
-        fechaInactivacion: new Date(),
-      },
+      select: { statusCuenta: true }
     });
+
+    if (clienteActual && clienteActual.statusCuenta === 'activo') {
+      await prisma.cliente.update({
+        where: { id: params.id },
+        data: {
+          statusCuenta: 'inactivo',
+          fechaInactivacion: new Date(),
+        },
+      });
+
+      try {
+        const { RecomprasService } = await import('@/lib/recompras-service');
+        await RecomprasService.crearLeadPorLiquidacion(params.id, 'Inactivado por desactivación/eliminación de cliente');
+      } catch (rError) {
+        console.error('Error al crear lead de recompra en DELETE:', rError);
+      }
+    } else {
+      await prisma.cliente.update({
+        where: { id: params.id },
+        data: {
+          statusCuenta: 'inactivo',
+        },
+      });
+    }
 
     return NextResponse.json({ message: 'Cliente desactivado exitosamente' });
   } catch (error) {

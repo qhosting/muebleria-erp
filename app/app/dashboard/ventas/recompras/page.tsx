@@ -58,6 +58,7 @@ export default function RecomprasPage() {
     const [activeTab, setActiveTab] = useState('liquidados');
     const [validaciones, setValidaciones] = useState<Record<string, any>>({});
     const [validatingId, setValidatingId] = useState<string | null>(null);
+    const [isValidatingAll, setIsValidatingAll] = useState(false);
 
     // Estado Cuenta Modal Trigger states
     const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null);
@@ -192,6 +193,44 @@ export default function RecomprasPage() {
         }
     };
 
+    const validarTodos = async () => {
+        const leadsToValidate = filteredLeads.filter((l: any) => l.codigoCliente);
+        if (leadsToValidate.length === 0) {
+            toast.error('No hay clientes con código de Contpaqi para validar');
+            return;
+        }
+
+        setIsValidatingAll(true);
+        let successCount = 0;
+        let errorCount = 0;
+
+        toast.info(`Iniciando consulta de ${leadsToValidate.length} clientes en Contpaqi...`);
+
+        for (let i = 0; i < leadsToValidate.length; i++) {
+            const lead = leadsToValidate[i];
+            try {
+                const res = await fetch('/api/ventas/recompras/validar-contpaqi', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ leadId: lead.id })
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    setValidaciones((prev: Record<string, any>) => ({ ...prev, [lead.id]: data }));
+                    successCount++;
+                } else {
+                    errorCount++;
+                }
+            } catch (error) {
+                errorCount++;
+            }
+        }
+
+        setIsValidatingAll(false);
+        toast.success(`Consulta finalizada. Exitosos: ${successCount}, Errores: ${errorCount}`);
+    };
+
     const eliminarLead = async (leadId: string) => {
         if (!confirm('¿Está seguro de que desea eliminar este cliente de recompras?')) {
             return;
@@ -267,6 +306,17 @@ export default function RecomprasPage() {
                                     onChange={(e: any) => setSearchTerm(e.target.value)}
                                 />
                             </div>
+                            {activeTab === 'liquidados' && (
+                                <Button 
+                                    variant="outline" 
+                                    className="h-11 rounded-xl bg-white shadow-sm border-none gap-2 px-4 text-indigo-600 font-bold text-xs uppercase" 
+                                    onClick={validarTodos}
+                                    disabled={isValidatingAll || filteredLeads.length === 0}
+                                >
+                                    <RefreshCw className={`h-4 w-4 ${isValidatingAll ? 'animate-spin' : ''}`} />
+                                    {isValidatingAll ? 'Validando...' : 'Consultar Contpaqi'}
+                                </Button>
+                            )}
                             <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl bg-white shadow-sm border-none" onClick={fetchData}>
                                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                             </Button>
@@ -389,6 +439,16 @@ export default function RecomprasPage() {
                                                     <div className="flex items-center gap-2 mt-2 text-[10px] text-indigo-400 font-bold uppercase tracking-wider">
                                                         <Calendar className="h-3 w-3" /> Liquidado el {formatDate(lead.createdAt)}
                                                     </div>
+                                                    {validation?.fechaPrimerPago && (
+                                                        <div className="flex items-center gap-2 mt-1.5 text-[10px] text-emerald-600 font-bold uppercase tracking-wider">
+                                                            <Calendar className="h-3 w-3" /> Primer Pago: {formatDate(validation.fechaPrimerPago)}
+                                                        </div>
+                                                    )}
+                                                    {validation?.fechaUltimoPago && (
+                                                        <div className="flex items-center gap-2 mt-1.5 text-[10px] text-blue-600 font-bold uppercase tracking-wider">
+                                                            <Calendar className="h-3 w-3" /> Último Pago: {formatDate(validation.fechaUltimoPago)}
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 {/* Estatus Actual de Contpaqi */}
