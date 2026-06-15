@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ResumenGestores } from '@/components/reportes/ResumenGestores';
 import { ReporteDiscrepancias } from '@/components/reportes/ReporteDiscrepancias';
+import { ReporteVentasMetas } from '@/components/reportes/ReporteVentasMetas';
 
 interface User {
   id: string;
@@ -55,10 +56,12 @@ export default function ReportesPage() {
   const [reporte, setReporte] = useState<ReporteCobranza | null>(null);
   const [reporteGestores, setReporteGestores] = useState<any[]>([]);
   const [reporteDiscrepancias, setReporteDiscrepancias] = useState<any>(null);
+  const [reporteVentas, setReporteVentas] = useState<any[]>([]);
   const [cobradores, setCobradores] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingGestores, setLoadingGestores] = useState(false);
   const [loadingDiscrepancias, setLoadingDiscrepancias] = useState(false);
+  const [loadingVentas, setLoadingVentas] = useState(false);
   const [activeTab, setActiveTab] = useState('cobranza');
 
   // Filtros
@@ -81,7 +84,24 @@ export default function ReportesPage() {
     if (activeTab === 'cobranza') fetchReporte();
     if (activeTab === 'gestores') fetchReporteGestores();
     if (activeTab === 'discrepancias') fetchReporteDiscrepancias();
+    if (activeTab === 'ventas') fetchReporteVentas();
   }, [selectedCobrador, fechaDesde, fechaHasta, activeTab]);
+
+  const fetchReporteVentas = async () => {
+    try {
+      setLoadingVentas(true);
+      const params = new URLSearchParams({ fechaDesde, fechaHasta });
+      const response = await fetch(`/api/reportes/ventas?${params.toString()}`);
+      if (response.ok) {
+        setReporteVentas(await response.json());
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Error al cargar reporte de ventas');
+    } finally {
+      setLoadingVentas(false);
+    }
+  };
 
   const fetchCobradores = async () => {
     try {
@@ -151,6 +171,37 @@ export default function ReportesPage() {
   };
 
   const exportarReporte = () => {
+    if (activeTab === 'ventas') {
+      if (!reporteVentas || reporteVentas.length === 0) return;
+      const csvContent = [
+        ['Reporte de Ventas y Metas'],
+        ['Período:', `${formatDate(new Date(fechaDesde))} - ${formatDate(new Date(fechaHasta))}`],
+        [''],
+        ['Asesor', 'Ppto Clientes', 'Ppto Monto', 'Logro Cl', '% Avanzado Clientes', 'Logro Monto', '% Avanzado Monto', 'Dias Mes', 'SM'],
+        ...reporteVentas.map(r => [
+          r.asesor,
+          r.pptoClientes.toString(),
+          r.pptoMonto.toString(),
+          r.logroCl.toString(),
+          `${r.porcentajeCl}%`,
+          r.logroMonto.toString(),
+          `${r.porcentajeMonto}%`,
+          r.diasMes.toString(),
+          r.sm || ''
+        ])
+      ].map(row => row.join(',')).join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reporte-ventas-metas-${fechaDesde}-${fechaHasta}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('Reporte de ventas exportado exitosamente');
+      return;
+    }
+
     if (!reporte) return;
 
     const csvContent = [
@@ -196,13 +247,17 @@ export default function ReportesPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Reportes de Cobranza</h1>
-            <p className="text-gray-600">Análisis detallado por cobrador y período</p>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {activeTab === 'ventas' ? 'Reportes de Ventas y Metas' : 'Reportes de Cobranza'}
+            </h1>
+            <p className="text-gray-600">
+              {activeTab === 'ventas' ? 'Análisis de presupuestos y cumplimiento por asesor' : 'Análisis detallado por cobrador y período'}
+            </p>
           </div>
           <Button
             onClick={exportarReporte}
             className="flex items-center gap-2"
-            disabled={!reporte || loading}
+            disabled={(activeTab === 'ventas' ? reporteVentas.length === 0 : !reporte) || loading || loadingVentas}
           >
             <Download className="h-4 w-4" />
             Exportar CSV
@@ -268,10 +323,11 @@ export default function ReportesPage() {
         </Card>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-3 w-full max-w-md">
+          <TabsList className="grid grid-cols-4 w-full max-w-lg">
             <TabsTrigger value="cobranza">Cobranza</TabsTrigger>
             <TabsTrigger value="gestores">Rendimiento</TabsTrigger>
             <TabsTrigger value="discrepancias">Discrepancias</TabsTrigger>
+            <TabsTrigger value="ventas">Ventas y Metas</TabsTrigger>
           </TabsList>
 
           <TabsContent value="cobranza" className="space-y-6 mt-6">
@@ -447,6 +503,10 @@ export default function ReportesPage() {
 
           <TabsContent value="discrepancias" className="mt-6">
             <ReporteDiscrepancias data={reporteDiscrepancias} loading={loadingDiscrepancias} />
+          </TabsContent>
+
+          <TabsContent value="ventas" className="mt-6">
+            <ReporteVentasMetas data={reporteVentas} loading={loadingVentas} />
           </TabsContent>
         </Tabs>
       </div>
