@@ -22,6 +22,7 @@ export default function ConciliadorPage() {
     // Selecciones manuales
     const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
     const [selectedMovimiento, setSelectedMovimiento] = useState<string | null>(null);
+    const [filterByAmount, setFilterByAmount] = useState(true);
 
     const [expandedMovs, setExpandedMovs] = useState<Record<string, boolean>>({});
     const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
@@ -240,6 +241,22 @@ export default function ConciliadorPage() {
             toast.error("Error de servidor");
         }
     };
+
+    const activeMovObjForTickets = movimientos.find(mov => mov.id === selectedMovimiento);
+    const displayedTickets = tickets.filter(t => {
+        if (filterByAmount && activeMovObjForTickets) {
+            return Number(t.monto) === Number(activeMovObjForTickets.abono || activeMovObjForTickets.cargo);
+        }
+        return true;
+    });
+
+    const activeTicketObjForMovs = tickets.find(t => t.id === selectedTicket);
+    const displayedMovimientos = movimientos.filter(m => {
+        if (filterByAmount && activeTicketObjForMovs) {
+            return Number(m.abono || m.cargo) === Number(activeTicketObjForMovs.monto);
+        }
+        return true;
+    });
 
     return (
         <>
@@ -505,15 +522,43 @@ export default function ConciliadorPage() {
                 </Card>
 
                 {/* Panel Inferior: Match Manual */}
-                <div className="grid md:grid-cols-2 gap-6">
-                    {/* Columna Izquierda: Tickets */}
-                    <Card>
-                        <CardHeader className="bg-gray-50/50 border-b">
-                            <CardTitle className="text-base text-gray-700">1. Seleccionar Ticket de Sistema</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0 max-h-[500px] overflow-y-auto">
-                            <ul className="divide-y divide-gray-100">
-                                {tickets.map(t => {
+                <div className="space-y-4 pt-6 border-t border-slate-100">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <Link2 className="w-5 h-5 text-blue-600" />
+                                Conciliación Manual
+                            </h3>
+                            <p className="text-slate-500 text-xs mt-0.5">
+                                Asocia manualmente registros cuando el algoritmo automático no encuentra un match exacto.
+                            </p>
+                        </div>
+                        <div className="flex items-center space-x-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 self-start sm:self-center">
+                            <input
+                                type="checkbox"
+                                id="filter-by-amount"
+                                checked={filterByAmount}
+                                onChange={(e) => setFilterByAmount(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                            <label htmlFor="filter-by-amount" className="text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                                Filtrar por monto coincidente
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                        {/* Columna Izquierda: Tickets */}
+                        <Card className="border-slate-200 shadow-sm overflow-hidden">
+                            <CardHeader className="bg-slate-50/50 border-b py-3 px-4 flex flex-row items-center justify-between">
+                                <CardTitle className="text-sm font-bold text-slate-700">1. Seleccionar Ticket de Sistema</CardTitle>
+                                <Badge variant="secondary" className="text-[10px] font-bold">
+                                    {displayedTickets.length} de {tickets.length}
+                                </Badge>
+                            </CardHeader>
+                            <CardContent className="p-0 max-h-[500px] overflow-y-auto">
+                                <ul className="divide-y divide-gray-100">
+                                    {displayedTickets.map(t => {
                                     const activeMovObj = movimientos.find(mov => mov.id === selectedMovimiento);
                                     const activeMovWords = activeMovObj ? getMovimientoTextWords(activeMovObj) : [];
                                     const datesMatchLevel = activeMovObj ? getDatesMatchLevel(t.fecha || t.creadoEn, activeMovObj.fechaOperacion) : "none";
@@ -593,21 +638,26 @@ export default function ConciliadorPage() {
                                         </li>
                                     );
                                 })}
-                                {tickets.length === 0 && !loading && (
-                                    <p className="p-4 text-center text-sm text-gray-500">No hay tickets pendientes.</p>
+                                {displayedTickets.length === 0 && !loading && (
+                                    <p className="p-4 text-center text-sm text-gray-500">
+                                        {tickets.length === 0 ? "No hay tickets pendientes." : "No hay tickets con el mismo monto."}
+                                    </p>
                                 )}
                             </ul>
                         </CardContent>
                     </Card>
 
                     {/* Columna Derecha: Banco */}
-                    <Card>
-                        <CardHeader className="bg-gray-50/50 border-b">
-                            <CardTitle className="text-base text-gray-700">2. Seleccionar Movimiento Bancario</CardTitle>
+                    <Card className="border-slate-200 shadow-sm overflow-hidden">
+                        <CardHeader className="bg-slate-50/50 border-b py-3 px-4 flex flex-row items-center justify-between">
+                            <CardTitle className="text-sm font-bold text-slate-700">2. Seleccionar Movimiento Bancario</CardTitle>
+                            <Badge variant="secondary" className="text-[10px] font-bold">
+                                {displayedMovimientos.length} de {movimientos.length}
+                            </Badge>
                         </CardHeader>
                         <CardContent className="p-0 max-h-[500px] overflow-y-auto">
                             <ul className="divide-y divide-gray-100">
-                                {movimientos.map(m => {
+                                {displayedMovimientos.map(m => {
                                     const activeTicketObj = tickets.find(t => t.id === selectedTicket);
                                     const activeTicketQueries = activeTicketObj ? getTicketQueries(activeTicketObj) : [];
                                     const datesMatchLevel = activeTicketObj ? getDatesMatchLevel(activeTicketObj.fecha || activeTicketObj.creadoEn, m.fechaOperacion) : "none";
@@ -739,12 +789,15 @@ export default function ConciliadorPage() {
                                         </li>
                                     );
                                 })}
-                                {movimientos.length === 0 && !loading && (
-                                    <p className="p-4 text-center text-sm text-gray-500">No hay movimientos pendientes en banco.</p>
+                                {displayedMovimientos.length === 0 && !loading && (
+                                    <p className="p-4 text-center text-sm text-gray-500">
+                                        {movimientos.length === 0 ? "No hay movimientos pendientes en banco." : "No hay movimientos con el mismo monto."}
+                                    </p>
                                 )}
                             </ul>
                         </CardContent>
                     </Card>
+                    </div>
                 </div>
 
                         {/* Botón de Match Manual Flotante (Si ambos están seleccionados) */}
