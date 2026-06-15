@@ -39,7 +39,8 @@ const DEFAULT_CONFIG = {
     recordatoriosDias: 2,
     wahaApiUrl: '',
     wahaApiKey: '',
-    wahaSessionName: 'default'
+    wahaSessionName: 'default',
+    disableSofiaBot: false
   },
   sincronizacion: {
     intervaloMinutos: 15,
@@ -98,6 +99,7 @@ export async function GET(request: NextRequest) {
       leadsWahaApiUrl: notif.leadsWahaApiUrl || process.env.WAHA_API_URL_LEADS || '',
       leadsWahaApiKey: notif.leadsWahaApiKey || process.env.WAHA_API_KEY_LEADS || '',
       leadsAgentName: notif.leadsAgentName || 'Sofía (Ventas)',
+      disableSofiaBot: typeof notif.disableSofiaBot === 'boolean' ? notif.disableSofiaBot : (process.env.DISABLE_SOFIA_BOT === 'true'),
       
       // Tesorería
       tesoreriaWahaSession: notif.tesoreriaWahaSession || process.env.WAHA_SESSION_TESORERIA || '',

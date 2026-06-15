@@ -165,6 +165,11 @@ export async function POST(request: NextRequest) {
         }
 
         // RUTA 2: OFICINA (LEADS / VENTAS / SOFÍA)
+        if (notif.disableSofiaBot === true || process.env.DISABLE_SOFIA_BOT === 'true') {
+            console.log(`ℹ️ [${session}] Bot de Oficina/Sofia ignorado (desactivado mediante configuración o variable de entorno).`);
+            return NextResponse.json({ status: 'ignored_sofia_disabled' });
+        }
+
         return await handleOficina(from, payload, session, notif.leadsAgentName || 'Sofía (Ventas)', notif.openaiApiKey);
 
     } catch (error: any) {

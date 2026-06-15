@@ -63,6 +63,7 @@ interface ConfiguracionSistema {
     leadsWahaSession?: string;
     leadsWahaApiUrl?: string;
     leadsAgentName?: string;
+    disableSofiaBot?: boolean;
     
     globalAgentName?: string;
     openaiApiKey?: string;
@@ -137,6 +138,7 @@ export default function ConfiguracionPage() {
       leadsWahaApiKey: '',
       leadsAgentName: 'Sofía (Ventas)',
       openaiApiKey: '',
+      disableSofiaBot: false,
       tesoreriaWahaSession: '',
       tesoreriaWahaApiUrl: '',
       tesoreriaWahaApiKey: '',
@@ -699,6 +701,17 @@ export default function ConfiguracionPage() {
                         <div className="md:col-span-2 flex items-center gap-2">
                           <div className="h-2 w-2 rounded-full bg-blue-500"></div>
                           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Ventas y Leads (Cerebro de IA)</h4>
+                        </div>
+                        <div className="md:col-span-2 flex items-center justify-between bg-white p-3 rounded-lg border">
+                          <div>
+                            <Label htmlFor="disableSofiaBot" className="font-bold text-slate-700">Desactivar IA Sofia (Ventas)</Label>
+                            <p className="text-[10px] text-slate-500">Apaga temporalmente las respuestas automáticas de la IA para leads y ventas.</p>
+                          </div>
+                          <Switch
+                            id="disableSofiaBot"
+                            checked={config.notificaciones.disableSofiaBot || false}
+                            onCheckedChange={(checked) => setConfig({ ...config, notificaciones: { ...config.notificaciones, disableSofiaBot: checked } })}
+                          />
                         </div>
                         <div>
                           <Label htmlFor="leadsAgentName">Nombre del Agente / Personalidad</Label>
