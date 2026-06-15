@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/db';
 import { addMonths, isAfter } from 'date-fns';
-
-const prisma = new PrismaClient();
 
 export class RecomprasService {
     

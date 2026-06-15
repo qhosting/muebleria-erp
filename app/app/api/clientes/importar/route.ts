@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { StatusCuenta, Periodicidad } from '@prisma/client';
+import { RecomprasService } from '@/lib/recompras-service';
 
 export async function POST(req: Request) {
     try {
@@ -153,6 +154,19 @@ export async function POST(req: Request) {
                     codigoGestor: c.cobradorAsignado?.codigoGestor || null,
                     fechaInactivacion: fechaInactivacion.toISOString(),
                 }));
+
+                // ── Crear leads de recompra para los clientes inactivados ──
+                // Se ejecuta en paralelo sin bloquear la respuesta si alguno falla
+                const leadsPromises = clientesAInactivar.map(c =>
+                    RecomprasService.crearLeadPorLiquidacion(
+                        c.id,
+                        'Cuenta inactivada en importación masiva de clientes'
+                    ).catch(err => {
+                        console.warn(`[Recompras] No se pudo crear lead para ${c.codigoCliente}:`, err);
+                    })
+                );
+                await Promise.allSettled(leadsPromises);
+                console.log(`[Recompras] Leads creados para ${clientesAInactivar.length} clientes inactivados.`);
             }
         }
 
