@@ -75,7 +75,7 @@ const navigation: NavItem[] = [
     name: 'Clientes',
     href: '/dashboard/clientes',
     icon: Users,
-    roles: ['admin', 'gestor_cobranza', 'cobrador'],
+    roles: ['admin', 'gestor_cobranza', 'cobrador', 'direccion'],
   },
 
 
@@ -84,7 +84,7 @@ const navigation: NavItem[] = [
     name: 'Cobranza',
     href: '/dashboard/morosidad',
     icon: CreditCard,
-    roles: ['admin', 'gestor_cobranza', 'reporte_cobranza'],
+    roles: ['admin', 'gestor_cobranza', 'reporte_cobranza', 'direccion'],
     subItems: [
       { name: 'Morosidad', href: '/dashboard/morosidad', icon: AlertTriangle },
       { name: 'Pagos', href: '/dashboard/pagos', icon: Receipt },
@@ -97,13 +97,13 @@ const navigation: NavItem[] = [
     name: 'Inventario',
     href: '/dashboard/inventario',
     icon: Package,
-    roles: ['admin', 'gestor_cobranza'],
+    roles: ['admin', 'gestor_cobranza', 'direccion'],
   },
   {
     name: 'Reportes',
     href: '/dashboard/reportes',
     icon: BarChart3,
-    roles: ['admin', 'gestor_cobranza', 'reporte_cobranza'],
+    roles: ['admin', 'gestor_cobranza', 'reporte_cobranza', 'direccion'],
     subItems: [
       { name: 'General', href: '/dashboard/reportes', icon: FileText },
       { name: 'Pagos Gestor (Clientes DP/DQ)', href: '/dashboard/reportes/pagos-gestor', icon: Users },
@@ -123,7 +123,7 @@ const navigation: NavItem[] = [
     name: 'Tesorería',
     href: '/dashboard/tesoreria',
     icon: Wallet,
-    roles: ['admin', 'gestor_cobranza'],
+    roles: ['admin', 'gestor_cobranza', 'direccion'],
     subItems: [
       { name: 'Pagos Gestor', href: '/dashboard/tesoreria/pagos-gestor', icon: Users },
       { name: 'Cuadre', href: '/dashboard/tesoreria/cuadre', icon: Calculator },
@@ -137,27 +137,27 @@ const navigation: NavItem[] = [
     name: 'Configuración',
     href: '/dashboard/configuracion',
     icon: Settings,
-    roles: ['admin', 'gestor_cobranza'],
+    roles: ['admin', 'gestor_cobranza', 'direccion'],
     subItems: [
       { name: 'Ajustes Generales', href: '/dashboard/configuracion', icon: Settings, roles: ['admin'] },
       { name: 'Usuarios', href: '/dashboard/usuarios', icon: Users, roles: ['admin'] },
       { name: 'Seguridad Equipos', href: '/dashboard/configuracion/dispositivos', icon: Smartphone, roles: ['admin'] },
       { name: 'Contpaqi API', href: '/dashboard/integraciones/contpaqi', icon: Landmark, roles: ['admin'] },
-      { name: 'Plantillas', href: '/dashboard/plantillas', icon: FileText, roles: ['admin', 'gestor_cobranza'] },
+      { name: 'Plantillas', href: '/dashboard/plantillas', icon: FileText, roles: ['admin', 'gestor_cobranza', 'direccion'] },
     ]
   },
   {
     name: 'Ventas',
     href: '/dashboard/ventas',
     icon: TrendingUp,
-    roles: ['admin', 'jefe_ventas', 'vendedor'],
+    roles: ['admin', 'jefe_ventas', 'vendedor', 'direccion'],
     subItems: [
       { name: 'Bóveda Digital', href: '/dashboard/ventas/boveda', icon: Database },
       { name: 'Solicitudes de Crédito', href: '/dashboard/ventas/solicitudes', icon: FileText },
       { name: 'Leads (AI Sofia)', href: '/dashboard/ventas/leads', icon: MessageSquare },
       { name: 'Programa de Recompras', href: '/dashboard/ventas/recompras', icon: Gift },
       { name: 'Dashboard Ventas', href: '/mobile/ventas', icon: BarChart3 },
-      { name: 'Metas y Presupuestos', href: '/dashboard/ventas/config', icon: Target, roles: ['admin', 'jefe_ventas'] },
+      { name: 'Metas y Presupuestos', href: '/dashboard/ventas/config', icon: Target, roles: ['admin', 'jefe_ventas', 'direccion'] },
       { name: 'Reporte Ventas y Metas', href: '/dashboard/reportes?tab=ventas', icon: Target },
     ]
   },
@@ -357,6 +357,7 @@ export function Sidebar({ className, session }: SidebarProps) {
                 {userRole === 'cobrador' && 'Cobrador'}
                 {userRole === 'vendedor' && 'Vendedor'}
                 {userRole === 'jefe_ventas' && 'Jefe de Ventas'}
+                {userRole === 'direccion' && 'Dirección'}
               </p>
             </div>
           )}

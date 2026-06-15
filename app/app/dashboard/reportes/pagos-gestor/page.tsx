@@ -43,7 +43,7 @@ export default function PagosGestorPage() {
     const userRole = (session?.user as any)?.role;
 
     useEffect(() => {
-        if (userRole === "admin" || userRole === "gestor_cobranza") {
+        if (userRole === "admin" || userRole === "gestor_cobranza" || userRole === "direccion") {
             fetchCobradores();
         }
     }, [userRole]);
@@ -163,7 +163,7 @@ export default function PagosGestorPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            {(userRole === "admin" || userRole === "gestor_cobranza") && (
+                            {(userRole === "admin" || userRole === "gestor_cobranza" || userRole === "direccion") && (
                                 <div className="space-y-2">
                                     <Label>Cobrador / Gestor</Label>
                                     <Select value={selectedCobrador} onValueChange={setSelectedCobrador}>

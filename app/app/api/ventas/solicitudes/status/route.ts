@@ -7,7 +7,7 @@ import { authOptions } from '@/lib/auth';
 export async function PATCH(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session || !['admin', 'gestor_cobranza', 'jefe_ventas'].includes(session.user?.role as string)) {
+        if (!session || !['admin', 'gestor_cobranza', 'jefe_ventas', 'direccion'].includes((session.user as any)?.role)) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
         }
 

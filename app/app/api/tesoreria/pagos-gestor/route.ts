@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session?.user || !['admin', 'gestor_cobranza'].includes((session.user as any).role)) {
+        if (!session?.user || !['admin', 'gestor_cobranza', 'direccion'].includes((session.user as any).role)) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
         }
 

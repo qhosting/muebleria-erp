@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         }
 
         const userRole = ((session.user as any).role || '').toLowerCase();
-        const isAdmin = ['admin', 'jefe_ventas', 'gestor_cobranza', 'administrador'].includes(userRole);
+        const isAdmin = ['admin', 'jefe_ventas', 'gestor_cobranza', 'administrador', 'direccion'].includes(userRole);
 
         // Para búsquedas o listados generales:
         // 1. Determinar si se restringe al vendedor actual

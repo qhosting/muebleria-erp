@@ -12,7 +12,7 @@ export async function PATCH(request: NextRequest) {
         }
 
         const user = session.user as any;
-        if (!['admin', 'gestor_cobranza', 'jefe_ventas'].includes(user?.role)) {
+        if (!['admin', 'gestor_cobranza', 'jefe_ventas', 'direccion'].includes(user?.role)) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
         }
 

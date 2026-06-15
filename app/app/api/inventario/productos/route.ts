@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
         }
 
         const userRole = (session.user as any).role;
-        if (!['admin', 'gestor_cobranza'].includes(userRole)) {
+        if (!['admin', 'gestor_cobranza', 'direccion'].includes(userRole)) {
             return NextResponse.json({ error: 'Permisos insuficientes' }, { status: 403 });
         }
 

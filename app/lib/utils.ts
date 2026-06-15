@@ -140,11 +140,11 @@ export function hasPermission(userRole: string, requiredRoles: string[]): boolea
 }
 
 export function canManageClients(userRole: string): boolean {
-  return hasPermission(userRole, ['admin', 'gestor_cobranza']);
+  return hasPermission(userRole, ['admin', 'gestor_cobranza', 'direccion']);
 }
 
 export function canViewReports(userRole: string): boolean {
-  return hasPermission(userRole, ['admin', 'gestor_cobranza', 'reporte_cobranza']);
+  return hasPermission(userRole, ['admin', 'gestor_cobranza', 'reporte_cobranza', 'direccion']);
 }
 
 export function canManageUsers(userRole: string): boolean {

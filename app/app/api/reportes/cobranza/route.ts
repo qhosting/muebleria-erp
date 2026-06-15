@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     }
 
     const userRole = (session.user as any).role;
-    if (!['admin', 'gestor_cobranza', 'reporte_cobranza'].includes(userRole)) {
+    if (!['admin', 'gestor_cobranza', 'reporte_cobranza', 'direccion'].includes(userRole)) {
       return NextResponse.json({ error: 'Permisos insuficientes' }, { status: 403 });
     }
 

@@ -80,7 +80,7 @@ export function DashboardClient({ session: initialSession }: DashboardClientProp
 
   // 🚀 Cargar estadísticas solo para roles con permisos
   useEffect(() => {
-    if (['admin', 'gestor_cobranza', 'reporte_cobranza'].includes(userRole)) {
+    if (['admin', 'gestor_cobranza', 'reporte_cobranza', 'direccion'].includes(userRole)) {
       fetchStats();
     } else {
       setLoading(false);
@@ -165,6 +165,7 @@ export function DashboardClient({ session: initialSession }: DashboardClientProp
               {userRole === 'gestor_cobranza' && 'Panel de Gestión de Cobranza'}
               {userRole === 'reporte_cobranza' && 'Panel de Reportes'}
               {userRole === 'cobrador' && 'Panel de Cobranza'}
+              {userRole === 'direccion' && 'Panel de Dirección General'}
             </p>
           </div>
           <div className="flex items-center space-x-2 mt-4 sm:mt-0">
@@ -299,7 +300,7 @@ export function DashboardClient({ session: initialSession }: DashboardClientProp
             </>
           )}
 
-          {(userRole === 'admin' || userRole === 'gestor_cobranza' || userRole === 'reporte_cobranza') && (
+          {(userRole === 'admin' || userRole === 'gestor_cobranza' || userRole === 'reporte_cobranza' || userRole === 'direccion') && (
             <Card className="animate-fade-in hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">

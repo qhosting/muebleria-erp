@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validar rol y auto-corregir si es inválido
-    const validRoles = ['admin', 'gestor_cobranza', 'reporte_cobranza', 'cobrador'];
+    const validRoles = ['admin', 'gestor_cobranza', 'reporte_cobranza', 'cobrador', 'vendedor', 'jefe_ventas', 'direccion'];
     if (!validRoles.includes(role)) {
       // Auto-corregir a cobrador si es un rol inválido
       role = 'cobrador';
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         email,
         name,
         password: hashedPassword,
-        role: role as 'admin' | 'gestor_cobranza' | 'reporte_cobranza' | 'cobrador',
+        role: role as any,
         isActive: true,
       },
       select: {

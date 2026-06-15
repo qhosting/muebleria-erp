@@ -225,8 +225,8 @@ export async function POST(request: NextRequest) {
         }
 
         const userRole = (session.user as any).role;
-        if (userRole !== 'admin' && userRole !== 'gestor_cobranza') {
-            return NextResponse.json({ error: 'Solo administradores y gestores pueden finalizar el cuadre' }, { status: 403 });
+        if (!['admin', 'gestor_cobranza', 'direccion'].includes(userRole)) {
+            return NextResponse.json({ error: 'Solo administradores, gestores y dirección pueden finalizar el cuadre' }, { status: 403 });
         }
 
         // Reactivar todos los clientes con saldo pendiente

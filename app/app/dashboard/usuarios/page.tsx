@@ -32,7 +32,8 @@ const ROLES = {
   reporte_cobranza: 'Reportes',
   cobrador: 'Cobrador',
   vendedor: 'Vendedor',
-  jefe_ventas: 'Jefe de Ventas'
+  jefe_ventas: 'Jefe de Ventas',
+  direccion: 'Dirección'
 };
 
 export default function UsuariosPage() {

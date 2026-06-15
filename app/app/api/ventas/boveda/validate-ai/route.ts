@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
         }
 
         const userRole = ((session.user as any).role || '').toLowerCase();
-        const isAdmin = ['admin', 'jefe_ventas', 'gestor_cobranza', 'administrador'].includes(userRole);
+        const isAdmin = ['admin', 'jefe_ventas', 'gestor_cobranza', 'administrador', 'direccion'].includes(userRole);
 
         if (!isAdmin) {
             return NextResponse.json({ error: 'No tienes permisos para auditar con IA' }, { status: 403 });

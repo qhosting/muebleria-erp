@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
     
     if (vendedorId) {
       where.vendedorId = vendedorId;
-    } else if (!showAll && (session.user as any).role !== 'admin') {
-      // Si no es admin y no pide todos, mostrar solo los suyos o los que no tienen dueño (AI)
+    } else if (!showAll && !['admin', 'gestor_cobranza', 'jefe_ventas', 'direccion'].includes((session.user as any).role)) {
+      // Si no es un rol supervisor/dirección y no pide todos, mostrar solo los suyos o los que no tienen dueño (AI)
       where.OR = [
         { vendedorId: (session.user as any).id },
         { vendedorId: null }
