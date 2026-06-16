@@ -6,6 +6,7 @@ import {
     X, 
     Upload, 
     Check, 
+    Camera,
     AlertTriangle, 
     FileText, 
     Image as ImageIcon,
@@ -842,7 +843,7 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-[98vw] w-full h-[98vh] max-h-[98vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl">
+            <DialogContent className="max-w-[98vw] w-full h-[98dvh] max-h-[98dvh] overflow-hidden flex flex-col p-0 border-none shadow-2xl">
                 <DialogHeader className="p-6 border-b bg-slate-50 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <DialogTitle className="flex items-center gap-2">
                         <FileText className="w-5 h-5 text-sky-600" />
@@ -1066,21 +1067,40 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                                         )}
                                                     </Button>
                                                 ) : (
-                                                    <label className={`cursor-pointer ${uploading === tipo.id ? 'opacity-50 pointer-events-none' : ''}`}>
-                                                        <input 
-                                                            type="file" 
-                                                            className="hidden" 
-                                                            accept="image/*,application/pdf"
-                                                            capture="environment"
-                                                            onChange={(e) => {
-                                                                const file = e.target.files?.[0];
-                                                                if (file) handleFileUpload(tipo.id, file);
-                                                            }}
-                                                        />
-                                                        <div className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors">
-                                                            {uploading === tipo.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                                                        </div>
-                                                    </label>
+                                                    <div className="flex gap-1 items-center">
+                                                        {/* Botón de Cámara (Tomar foto) */}
+                                                        <label className={`cursor-pointer ${uploading === tipo.id ? 'opacity-50 pointer-events-none' : ''}`} title="Tomar Foto con Cámara">
+                                                            <input 
+                                                                type="file" 
+                                                                className="hidden" 
+                                                                accept="image/*"
+                                                                capture="environment"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) handleFileUpload(tipo.id, file);
+                                                                }}
+                                                            />
+                                                            <div className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-sky-600 transition-colors animate-in fade-in zoom-in-95">
+                                                                {uploading === tipo.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                                                            </div>
+                                                        </label>
+
+                                                        {/* Botón de Archivo/Galería (Subir archivo existente) */}
+                                                        <label className={`cursor-pointer ${uploading === tipo.id ? 'opacity-50 pointer-events-none' : ''}`} title="Seleccionar de Galería o PDF">
+                                                            <input 
+                                                                type="file" 
+                                                                className="hidden" 
+                                                                accept="image/*,application/pdf"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) handleFileUpload(tipo.id, file);
+                                                                }}
+                                                            />
+                                                            <div className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-emerald-600 transition-colors animate-in fade-in zoom-in-95">
+                                                                {uploading === tipo.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                                            </div>
+                                                        </label>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
@@ -1119,7 +1139,7 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                                 </div>
                                             </div>
 
-                                            <div className="flex gap-1">
+                                            <div className="flex gap-1 items-center">
                                                 {doc && (
                                                     <Button 
                                                         variant="ghost" 
@@ -1136,18 +1156,35 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                                         <Eye className="w-4 h-4" />
                                                     </Button>
                                                 )}
-                                                <label className={`cursor-pointer ${uploading === tipo.id ? 'opacity-50 pointer-events-none' : ''}`}>
+                                                {/* Botón de Cámara (Tomar foto) */}
+                                                <label className={`cursor-pointer ${uploading === tipo.id ? 'opacity-50 pointer-events-none' : ''}`} title="Tomar Foto con Cámara">
                                                     <input 
                                                         type="file" 
                                                         className="hidden" 
-                                                        accept="image/*,application/pdf"
+                                                        accept="image/*"
                                                         capture="environment"
                                                         onChange={(e) => {
                                                             const file = e.target.files?.[0];
                                                             if (file) handleFileUpload(tipo.id, file);
                                                         }}
                                                     />
-                                                    <div className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors">
+                                                    <div className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-sky-600 transition-colors animate-in fade-in zoom-in-95">
+                                                        {uploading === tipo.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                                                    </div>
+                                                </label>
+
+                                                {/* Botón de Archivo/Galería (Subir archivo existente) */}
+                                                <label className={`cursor-pointer ${uploading === tipo.id ? 'opacity-50 pointer-events-none' : ''}`} title="Seleccionar de Galería o PDF">
+                                                    <input 
+                                                        type="file" 
+                                                        className="hidden" 
+                                                        accept="image/*,application/pdf"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) handleFileUpload(tipo.id, file);
+                                                        }}
+                                                    />
+                                                    <div className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-emerald-600 transition-colors animate-in fade-in zoom-in-95">
                                                         {uploading === tipo.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                                                     </div>
                                                 </label>

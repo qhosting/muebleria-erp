@@ -577,7 +577,7 @@ export default function MobileCaja() {
             {/* MODAL DE DETALLE DE PAGO */}
             {selectedPago && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                    <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl overflow-y-auto max-h-[90dvh] shadow-2xl animate-in zoom-in-95 duration-200 custom-scrollbar">
                         <div className="p-6 space-y-4">
                             <div className="flex justify-between items-center">
                                 <h3 className="text-slate-100 font-bold">Detalle del Pago</h3>

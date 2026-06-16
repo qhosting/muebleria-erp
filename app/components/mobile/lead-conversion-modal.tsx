@@ -81,7 +81,7 @@ export function LeadConversionModal({ lead, open, onOpenChange, onSuccess }: Lea
           </div>
         </DialogHeader>
 
-        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto pb-10 custom-scrollbar">
+        <div className="p-6 space-y-6 max-h-[75dvh] overflow-y-auto pb-10 custom-scrollbar">
             {step === 1 && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex items-start gap-4">

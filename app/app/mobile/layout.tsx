@@ -195,7 +195,7 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
     }, [isVendedor]);
 
     return (
-        <div className="flex flex-col h-[100dvh] bg-slate-950 text-slate-100 overflow-hidden relative">
+        <div className="flex flex-col h-screen h-[100dvh] bg-slate-950 text-slate-100 overflow-hidden relative">
             {/* HEADER NATIVO - Opcional según la página */}
             {pathname !== '/mobile/home' && (
                 <header className="flex-none bg-slate-900 border-b border-slate-800 p-4 pt-safe-top z-20 shadow-md">

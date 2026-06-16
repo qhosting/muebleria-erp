@@ -81,7 +81,7 @@ export function LeadModal({ onSuccess }: LeadModalProps) {
           </DialogTitle>
         </DialogHeader>
         
-        <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto pb-10 custom-scrollbar">
+        <div className="p-6 space-y-5 max-h-[80dvh] overflow-y-auto pb-10 custom-scrollbar">
           {/* SECCION NOMBRE */}
           <div className="space-y-2">
             <label className="text-[10px] font-bold uppercase text-slate-500 tracking-[0.1em] ml-1">Información Personal</label>

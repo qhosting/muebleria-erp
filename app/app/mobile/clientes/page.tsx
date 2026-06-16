@@ -833,7 +833,7 @@ function MobileClientes() {
             {/* MODAL DE DETALLE DEL CLIENTE */}
             {detailCliente && (
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className="bg-slate-900 w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-slate-800 shadow-2xl overflow-hidden max-h-[95vh] flex flex-col animate-in slide-in-from-bottom duration-300">
+                    <div className="bg-slate-900 w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-slate-800 shadow-2xl overflow-hidden max-h-[95dvh] flex flex-col animate-in slide-in-from-bottom duration-300">
                         <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
                             <h3 className="font-bold text-white">Perfil del Cliente</h3>
                             <button
@@ -979,17 +979,17 @@ function MobileClientes() {
             {/* MODAL DE COBRO */}
             {selectedCliente && (
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className="bg-slate-900 w-full max-w-sm rounded-2xl border border-slate-800 shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 pb-20">
+                    <div className="bg-slate-900 w-full max-w-sm rounded-2xl border border-slate-800 shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col animate-in slide-in-from-bottom duration-300 pb-safe-bottom">
 
                         {/* Header Modal */}
-                        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
+                        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50 flex-none">
                             <h3 className="font-bold text-white">Registrar Pago</h3>
                             <button onClick={() => setSelectedCliente(null)} className="p-1 rounded-full hover:bg-slate-700">
                                 <X className="w-5 h-5 text-slate-400" />
                             </button>
                         </div>
 
-                        <div className="p-6 space-y-6">
+                        <div className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
                             {!pagoExitoso ? (
                                 <>
                                     <div className="text-center bg-slate-950/50 p-4 rounded-xl border border-slate-800">
@@ -1128,7 +1128,7 @@ function MobileClientes() {
             {/* MODAL HISTORIAL DE PAGOS */}
             {verHistorico && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
-                    <div className="bg-slate-900 w-full max-w-sm rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                    <div className="bg-slate-900 w-full max-w-sm rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[80dvh]">
                         <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-800/30">
                             <div className="flex items-center gap-2">
                                 <History className="w-5 h-5 text-blue-400" />

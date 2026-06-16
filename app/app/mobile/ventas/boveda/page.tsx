@@ -121,7 +121,7 @@ export default function MobileBovedaPage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-200 pb-20">
+        <div className="min-h-screen min-h-[100dvh] bg-slate-950 text-slate-200 pb-20">
             {/* Header */}
             <div className="bg-slate-900/50 backdrop-blur-md border-b border-slate-800 p-4 sticky top-0 z-10">
                 <div className="flex items-center justify-between">
