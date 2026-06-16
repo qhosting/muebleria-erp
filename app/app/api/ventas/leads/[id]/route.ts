@@ -29,6 +29,10 @@ export async function GET(
       return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 });
     }
 
+    if ((session.user as any).role === 'vendedor' && lead.vendedorId !== (session.user as any).id) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
     // Obtener historial de chat
     const chats = await db.leadChat.findMany({
       where: { leadId: params.id },
@@ -52,12 +56,21 @@ export async function PATCH(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    const current = await prisma.lead.findUnique({ where: { id: params.id } });
+    if (!current) {
+      return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 });
+    }
+
+    if ((session.user as any).role === 'vendedor' && current.vendedorId !== (session.user as any).id) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { estado, vendedorId, notas, nombre, telefono, interes, montoEstimado, origen } = body;
 
     const updateData: any = {};
     if (estado !== undefined) updateData.estado = estado;
-    if (vendedorId !== undefined) updateData.vendedorId = vendedorId || null;
+    if (vendedorId !== undefined && (session.user as any).role !== 'vendedor') updateData.vendedorId = vendedorId || null;
     if (notas !== undefined) updateData.notas = notas;
     if (nombre !== undefined) updateData.nombre = nombre;
     if (telefono !== undefined) updateData.telefono = telefono;
@@ -65,10 +78,9 @@ export async function PATCH(
     if (montoEstimado !== undefined) updateData.montoEstimado = montoEstimado ? Number(montoEstimado) : null;
     if (origen !== undefined) updateData.origen = origen;
 
-    // Si se asigna un vendedor, marcar como contactado si estaba en nuevo
-    if (vendedorId && !estado) {
-      const current = await prisma.lead.findUnique({ where: { id: params.id } });
-      if (current?.estado === 'nuevo') {
+    // Si se asigna un vendedor (por un admin/supervisor), marcar como contactado si estaba en nuevo
+    if (vendedorId && !estado && (session.user as any).role !== 'vendedor') {
+      if (current.estado === 'nuevo') {
         updateData.estado = 'contactado';
       }
     }

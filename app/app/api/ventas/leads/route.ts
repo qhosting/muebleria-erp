@@ -17,16 +17,18 @@ export async function GET(request: NextRequest) {
     const intencion = searchParams.get('intencion');
     const showAll = searchParams.get('all') === 'true';
 
+    const userRole = (session.user as any).role;
+    const userId = (session.user as any).id;
     const where: any = {};
     
-    if (vendedorId) {
+    if (userRole === 'vendedor') {
+      // Si el rol es vendedor, mostrar ÚNICAMENTE sus prospectos
+      where.vendedorId = userId;
+    } else if (vendedorId) {
       where.vendedorId = vendedorId;
-    } else if (!showAll && !await checkPermission((session.user as any).role, 'ventas')) {
-      // Si no es un rol supervisor/dirección (no tiene acceso al módulo completo) y no pide todos, mostrar solo los suyos o los que no tienen dueño (AI)
-      where.OR = [
-        { vendedorId: (session.user as any).id },
-        { vendedorId: null }
-      ];
+    } else if (!showAll && !await checkPermission(userRole, 'ventas')) {
+      // Si no tiene permisos de ventas, mostrar solo sus asignados
+      where.vendedorId = userId;
     }
 
     if (intencion) {
@@ -128,7 +130,7 @@ export async function POST(request: NextRequest) {
         montoEstimado: montoEstimado ? Number(montoEstimado) : null,
         estado: estado || 'nuevo',
         origen: origen || 'cambaceo',
-        vendedorId: body.vendedorId || (session.user as any).id,
+        vendedorId: (session.user as any).role === 'vendedor' ? (session.user as any).id : (body.vendedorId || (session.user as any).id),
         notas,
         // AI fields (schema already updated, IDE cache may lag)
         ...(intencion && { intencion }),

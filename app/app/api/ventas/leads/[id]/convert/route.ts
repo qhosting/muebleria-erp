@@ -25,6 +25,10 @@ export async function POST(
       return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 });
     }
 
+    if ((session.user as any).role === 'vendedor' && lead.vendedorId !== (session.user as any).id) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
     // 2. Crear el Cliente en estado PENDIENTE
     const result = await prisma.$transaction(async (tx) => {
       // Generar un código temporal si no existe
