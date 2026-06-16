@@ -257,6 +257,17 @@ export async function GET(request: NextRequest) {
             results.clientesCount = clientes.length;
             
             const apiClientCodes: string[] = [];
+
+            // 🗺️ MAPA de codigoGestor → userId para asignar cobradores automáticamente
+            const cobradores = await prisma.user.findMany({
+                where: { isActive: true, codigoGestor: { not: null } },
+                select: { id: true, codigoGestor: true }
+            });
+            const gestorMap = new Map<string, string>();
+            for (const u of cobradores) {
+                if (u.codigoGestor) gestorMap.set(u.codigoGestor.trim().toLowerCase(), u.id);
+            }
+            console.log(`👥 [Contpaqi Sync] Mapa de gestores cargado: ${gestorMap.size} gestores encontrados.`);
             
             // Actualizar clientes en VertexERP usando el mapeo
             for (const c of clientes) {
@@ -327,6 +338,18 @@ export async function GET(request: NextRequest) {
                     console.warn(`No se pudo actualizar fecha de venta para ${codigo}:`, (e as Error).message);
                 }
 
+                // 🔗 Resolver cobradorAsignadoId desde codigoGestor de Contpaqi
+                const codigoGestorRaw = String(c[m.codigoGestor] || c.cCodigoAgente || c.cNombreAgente || '').trim();
+                const cobradorResueltId = codigoGestorRaw ? gestorMap.get(codigoGestorRaw.toLowerCase()) : undefined;
+
+                // Obtener el cliente actual para saber si ya tiene cobrador asignado
+                const clienteExistente = await prisma.cliente.findUnique({
+                    where: { codigoCliente: codigo },
+                    select: { cobradorAsignadoId: true }
+                });
+                // Solo re-asignar en update si actualmente no tiene cobrador (evitar sobreescribir asignaciones manuales)
+                const cobradorParaUpdate = clienteExistente?.cobradorAsignadoId ? undefined : (cobradorResueltId || undefined);
+
                 await prisma.cliente.upsert({
                     where: { codigoCliente: codigo },
                     update: {
@@ -355,7 +378,9 @@ export async function GET(request: NextRequest) {
                             ref1: c[m.referencia1],
                             ref2: c[m.referencia2],
                             aval: c[m.aval]
-                        }
+                        },
+                        // Asignar cobrador si no tenía uno (no sobreescribir asignaciones manuales)
+                        ...(cobradorParaUpdate ? { cobradorAsignadoId: cobradorParaUpdate } : {})
                     },
                     create: {
                         codigoCliente: codigo,
@@ -382,6 +407,7 @@ export async function GET(request: NextRequest) {
                         montoPago: parseFloat(c[m.montoPago]) || 0,
                         saldoActual: saldoReal,
                         statusCuenta: 'activo',
+                        cobradorAsignadoId: cobradorResueltId || null,
                         observaciones: `Ref 1: ${c[m.referencia1] || ''}\nRef 2: ${c[m.referencia2] || ''}\nAval: ${c[m.aval] || ''}\nCuenta Mensajería: ${c[m.cCuentaMensajeria] || ''}`,
                         referencias: {
                             ref1: c[m.referencia1],
