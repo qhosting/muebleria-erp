@@ -404,32 +404,73 @@ export async function GET(request: NextRequest) {
         if (target === 'all' || target === 'productos') {
             const productos = await service.getProductos();
             results.productosCount = productos.length;
+            console.log(`📦 [Contpaqi Sync] Se obtuvieron ${productos.length} productos de la API.`);
+            if (productos.length > 0) {
+                console.log(`📦 [Contpaqi Sync] Ejemplo de propiedades del primer producto:`, Object.keys(productos[0]));
+                console.log(`📦 [Contpaqi Sync] Primer producto completo:`, JSON.stringify(productos[0]));
+            }
 
             for (const p of productos) {
                 const m = mapping.productos;
                 
                 // Fallbacks seguros para existencias
                 const existenciaVal = p[m.existencias] !== undefined ? p[m.existencias] :
-                                      p.existencias !== undefined ? p.existencias :
-                                      p.Existencias !== undefined ? p.Existencias :
-                                      p.existencia !== undefined ? p.existencia :
-                                      p.Existencia !== undefined ? p.Existencia : 0;
+                                       p.cExistenciaActual !== undefined ? p.cExistenciaActual :
+                                       p.Existencia !== undefined ? p.Existencia :
+                                       p.existencias !== undefined ? p.existencias :
+                                       p.Existencias !== undefined ? p.Existencias :
+                                       p.existencia !== undefined ? p.existencia :
+                                       p.Existencia !== undefined ? p.Existencia : 0;
                 const existencia = Math.round(parseFloat(String(existenciaVal)) || 0);
                 
                 // Si solo queremos con existencia y no tiene, saltar
                 if (soloConExistencia && existencia <= 0) continue;
 
                 // Fallbacks seguros para código y nombre
-                const codigo = String(p[m.codigo] || p.codigo || p.Codigo || '').trim();
-                const nombre = String(p[m.nombre] || p.nombre || p.Nombre || '').trim();
+                const codigo = String(
+                    p[m.codigo] || 
+                    p.cCodigoProducto || 
+                    p.cCodigo || 
+                    p.codigo || 
+                    p.Codigo || 
+                    p.cIdProducto || 
+                    ''
+                ).trim();
+                const nombre = String(
+                    p[m.nombre] || 
+                    p.cNombreProducto || 
+                    p.cNombre || 
+                    p.nombre || 
+                    p.Nombre || 
+                    ''
+                ).trim();
 
                 if (!codigo || !nombre) continue;
 
                 // Fallbacks seguros para costo y precio de venta
-                const precioCompra = parseFloat(String(p[m.costoEstandar] || p.costo || p.ultimoCosto || p.costoUltimo || p.CostoUltimo || 0)) || 0;
-                const precioVenta = parseFloat(String(p[m.precioVenta] || p.precio1 || p.Precio1 || p.precio || p.Precio || p.precioVenta || 0)) || 0;
+                const precioCompra = parseFloat(String(
+                    p[m.costoEstandar] || 
+                    p.cImporteExtra1 ||
+                    p.costo || 
+                    p.ultimoCosto || 
+                    p.costoUltimo || 
+                    p.CostoUltimo || 
+                    0
+                )) || 0;
+                
+                const precioVenta = parseFloat(String(
+                    p[m.precioVenta] || 
+                    p.cPrecio1 || 
+                    p.precio1 || 
+                    p.Precio1 || 
+                    p.precio || 
+                    p.Precio || 
+                    p.precioVenta || 
+                    0
+                )) || 0;
 
                 const existenciaHoyVal = p[m.existenciaHoy] !== undefined ? p[m.existenciaHoy] :
+                                         p.cExistenciaActual !== undefined ? p.cExistenciaActual :
                                          p.existenciaHoy !== undefined ? p.existenciaHoy :
                                          p.ExistenciaHoy !== undefined ? p.ExistenciaHoy : existencia;
                 const existenciaHoy = Math.round(parseFloat(String(existenciaHoyVal)) || existencia);
