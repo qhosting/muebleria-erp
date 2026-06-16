@@ -5,7 +5,7 @@ import {
     User, Phone, MapPin, Search, CreditCard, 
     Home, Briefcase, Camera, Check, AlertCircle, 
     ChevronRight, ChevronLeft, Loader2, FileText, 
-    ShieldCheck, UserCheck, Image as ImageIcon
+    ShieldCheck, UserCheck, Image as ImageIcon, X
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -207,17 +207,25 @@ export default function VendedorSolicitudPage() {
     const prevStep = () => setStep(s => s - 1);
 
     return (
-        <div className="min-h-screen min-h-[100dvh] bg-slate-950 text-slate-200 pb-20">
+        <div className="min-h-screen min-h-[100dvh] bg-slate-950 text-slate-200 pb-36">
             {/* Header */}
-            <div className="bg-slate-900/50 backdrop-blur-md border-b border-slate-800 p-4 sticky top-0 z-10">
-                <div className="flex items-center space-x-3">
-                    <div className="bg-emerald-500/20 p-2 rounded-lg">
-                        <ShieldCheck className="w-6 h-6 text-emerald-500" />
+            <div className="bg-slate-900/50 backdrop-blur-md border-b border-slate-800 p-4 sticky top-0 z-10 pt-safe-top">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                        <div className="bg-emerald-500/20 p-2 rounded-lg">
+                            <ShieldCheck className="w-6 h-6 text-emerald-500" />
+                        </div>
+                        <div>
+                            <h1 className="font-bold text-lg text-white">Solicitud de Crédito</h1>
+                            <p className="text-xs text-slate-400">Paso {step} de 4</p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="font-bold text-lg">Solicitud de Crédito</h1>
-                        <p className="text-xs text-slate-500">Paso {step} de 4</p>
-                    </div>
+                    <button 
+                        onClick={() => router.push("/mobile/ventas")}
+                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl transition-colors active:scale-95"
+                    >
+                        <X className="w-6 h-6" />
+                    </button>
                 </div>
                 {/* Progress Bar */}
                 <div className="mt-4 h-1 bg-slate-800 rounded-full overflow-hidden">

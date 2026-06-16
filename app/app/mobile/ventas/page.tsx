@@ -36,6 +36,7 @@ export default function SalesMobilePage() {
   const [loadingReport, setLoadingReport] = useState(false);
   const [searchAsesor, setSearchAsesor] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [expandedAsesor, setExpandedAsesor] = useState<string | null>(null);
   const [fechaDesde, setFechaDesde] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
@@ -315,7 +316,11 @@ export default function SalesMobilePage() {
               const initials = row.asesor.split(' ').map((n: string) => n[0]).slice(0, 2).join('');
 
               return (
-                <Card key={idx} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:bg-slate-850/80 transition-colors">
+                <Card 
+                  key={idx} 
+                  className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:bg-slate-850/80 transition-colors cursor-pointer"
+                  onClick={() => setExpandedAsesor(expandedAsesor === row.asesor ? null : row.asesor)}
+                >
                   <CardContent className="p-4 space-y-4">
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2.5">
@@ -327,10 +332,15 @@ export default function SalesMobilePage() {
                           <p className="text-[10px] text-slate-500 font-semibold uppercase">{row.diasMes} días del periodo</p>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="flex items-center gap-1.5 text-right">
                         <span className="text-[10px] font-black px-2 py-0.5 bg-slate-850 border border-slate-700/80 rounded-full text-slate-300">
                           SM: {row.sm || '-'}
                         </span>
+                        {expandedAsesor === row.asesor ? (
+                          <ChevronUp className="h-4 w-4 text-slate-500" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-slate-500" />
+                        )}
                       </div>
                     </div>
 
@@ -371,6 +381,31 @@ export default function SalesMobilePage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Detalle diario de ventas (se muestra al dar click) */}
+                    {expandedAsesor === row.asesor && (
+                      <div className="mt-4 pt-4 border-t border-slate-800/60 space-y-2.5 animate-in slide-in-from-top-2 duration-200" onClick={(e) => e.stopPropagation()}>
+                        <p className="text-[9px] uppercase font-black text-slate-500 tracking-wider ml-1">Desglose de Ventas</p>
+                        {row.ventasDetalle && row.ventasDetalle.length > 0 ? (
+                          row.ventasDetalle.map((v: any, vidx: number) => (
+                            <div key={vidx} className="bg-slate-950/60 p-3 rounded-xl border border-slate-850 flex justify-between items-center text-xs">
+                              <div className="space-y-0.5 pr-2">
+                                <p className="font-bold text-slate-200 truncate max-w-[160px]">{v.cliente}</p>
+                                <p className="text-[10px] text-slate-500">
+                                  {format(new Date(v.fecha), 'dd/MM/yyyy')} • <span className="text-indigo-400/80 font-medium">{v.producto || 'Sin producto'}</span>
+                                </p>
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <p className="font-mono text-emerald-400 font-bold">+{formatCurrency(v.monto)}</p>
+                                {v.piezas > 1 && <p className="text-[9px] text-slate-500 font-bold">{v.piezas} pzas</p>}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-slate-500 italic text-center py-2">No hay ventas registradas en este periodo.</p>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );

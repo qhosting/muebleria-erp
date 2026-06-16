@@ -81,7 +81,7 @@ export function LeadModal({ onSuccess }: LeadModalProps) {
           </DialogTitle>
         </DialogHeader>
         
-        <div className="p-6 space-y-5 max-h-[80dvh] overflow-y-auto pb-10 custom-scrollbar">
+        <div className="p-6 space-y-5 max-h-[65dvh] overflow-y-auto pb-10 custom-scrollbar">
           {/* SECCION NOMBRE */}
           <div className="space-y-2">
             <label className="text-[10px] font-bold uppercase text-slate-500 tracking-[0.1em] ml-1">Información Personal</label>
@@ -179,9 +179,16 @@ export function LeadModal({ onSuccess }: LeadModalProps) {
             />
           </div>
 
-          <div className="pt-4">
+          <div className="flex gap-3 pt-4">
             <Button 
-                className="w-full bg-emerald-600 hover:bg-emerald-500 h-16 rounded-2xl flex items-center justify-center gap-3 text-lg font-bold shadow-xl shadow-emerald-900/20 active:scale-95 transition-all disabled:opacity-50"
+                variant="outline"
+                className="flex-1 border-slate-800 hover:bg-slate-900 text-slate-400 h-16 rounded-2xl font-bold active:scale-95 transition-all bg-transparent"
+                onClick={() => setOpen(false)}
+            >
+                CANCELAR
+            </Button>
+            <Button 
+                className="flex-[2] bg-emerald-600 hover:bg-emerald-500 h-16 rounded-2xl flex items-center justify-center gap-3 text-base font-bold shadow-xl shadow-emerald-900/20 active:scale-95 transition-all disabled:opacity-50"
                 disabled={loading}
                 onClick={handleSubmit}
             >
@@ -190,14 +197,14 @@ export function LeadModal({ onSuccess }: LeadModalProps) {
                 ) : (
                     <>
                         <Save className="h-6 w-6" />
-                        GUARDAR PROSPECTO
+                        GUARDAR
                     </>
                 )}
             </Button>
-            <p className="text-center text-[10px] text-slate-600 mt-4 font-mono uppercase tracking-tighter">
-                Sincronización segura con Vertex Cloud
-            </p>
           </div>
+          <p className="text-center text-[10px] text-slate-600 mt-4 font-mono uppercase tracking-tighter">
+              Sincronización segura con Vertex Cloud
+          </p>
         </div>
       </DialogContent>
     </Dialog>

@@ -96,8 +96,12 @@ export async function GET(request: NextRequest) {
                     }
                 },
                 select: {
+                    nombreCompleto: true,
+                    fechaVenta: true,
                     montoPago: true,
-                    piezas: true
+                    piezas: true,
+                    descripcionProducto: true,
+                    numContrato: true
                 }
             });
 
@@ -118,7 +122,15 @@ export async function GET(request: NextRequest) {
                     logroMonto,
                     porcentajeMonto,
                     diasMes,
-                    sm: ''
+                    sm: '',
+                    ventasDetalle: ventas.map(v => ({
+                        cliente: v.nombreCompleto,
+                        fecha: v.fechaVenta,
+                        monto: Number(v.montoPago || 0),
+                        piezas: v.piezas,
+                        producto: v.descripcionProducto,
+                        contrato: v.numContrato
+                    }))
                 });
             }
         }

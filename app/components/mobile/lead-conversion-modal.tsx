@@ -81,7 +81,7 @@ export function LeadConversionModal({ lead, open, onOpenChange, onSuccess }: Lea
           </div>
         </DialogHeader>
 
-        <div className="p-6 space-y-6 max-h-[75dvh] overflow-y-auto pb-10 custom-scrollbar">
+        <div className="p-6 space-y-6 max-h-[65dvh] overflow-y-auto pb-10 custom-scrollbar">
             {step === 1 && (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex items-start gap-4">
@@ -143,10 +143,22 @@ export function LeadConversionModal({ lead, open, onOpenChange, onSuccess }: Lea
                         </div>
                     </div>
 
-                    <Button className="w-full h-16 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 mt-4" onClick={() => setStep(2)}>
-                        SIGUIENTE PASO
-                        <ChevronRight className="h-5 w-5" />
-                    </Button>
+                    <div className="flex gap-3 mt-4">
+                        <Button 
+                            variant="outline" 
+                            className="flex-1 h-16 rounded-2xl text-slate-400 border-slate-800 hover:bg-slate-900 font-bold active:scale-95 transition-all bg-transparent" 
+                            onClick={() => onOpenChange(false)}
+                        >
+                            CANCELAR
+                        </Button>
+                        <Button 
+                            className="flex-[2] h-16 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2" 
+                            onClick={() => setStep(2)}
+                        >
+                            SIGUIENTE
+                            <ChevronRight className="h-5 w-5" />
+                        </Button>
+                    </div>
                 </div>
             )}
 
@@ -204,22 +216,33 @@ export function LeadConversionModal({ lead, open, onOpenChange, onSuccess }: Lea
                         </div>
                     </div>
 
-                    <div className="flex gap-4 mt-6">
-                        <Button variant="ghost" className="flex-1 h-16 rounded-2xl text-slate-400 font-bold hover:bg-slate-900" onClick={() => setStep(1)}>
-                            <ChevronLeft className="h-5 w-5 mr-1" />
+                    <div className="flex gap-2.5 mt-6">
+                        <Button 
+                            variant="ghost" 
+                            className="flex-1 h-16 rounded-2xl text-slate-400 font-bold hover:bg-slate-900 text-[10px] px-1" 
+                            onClick={() => setStep(1)}
+                        >
+                            <ChevronLeft className="h-3 w-3 mr-0.5 inline-block" />
                             ATRÁS
                         </Button>
                         <Button 
-                            className="flex-[2] h-16 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold shadow-xl shadow-emerald-900/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                            variant="outline" 
+                            className="flex-1 h-16 rounded-2xl text-slate-500 border-slate-800 hover:bg-slate-900 font-bold text-[10px] px-1 bg-transparent active:scale-95 transition-all" 
+                            onClick={() => onOpenChange(false)}
+                        >
+                            CANCELAR
+                        </Button>
+                        <Button 
+                            className="flex-[2] h-16 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold shadow-xl shadow-emerald-900/20 active:scale-95 transition-all flex items-center justify-center gap-1.5 text-xs px-1"
                             disabled={loading}
                             onClick={handleConvert}
                         >
                             {loading ? (
-                                <Loader2 className="h-6 w-6 animate-spin" />
+                                <Loader2 className="h-5 w-5 animate-spin" />
                             ) : (
                                 <>
-                                    <Save className="h-6 w-6" />
-                                    CONVERTIR AHORA
+                                    <Save className="h-4 w-4" />
+                                    CONVERTIR
                                 </>
                             )}
                         </Button>

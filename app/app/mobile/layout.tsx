@@ -197,7 +197,7 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
     return (
         <div className="flex flex-col h-screen h-[100dvh] bg-slate-950 text-slate-100 overflow-hidden relative">
             {/* HEADER NATIVO - Opcional según la página */}
-            {pathname !== '/mobile/home' && (
+            {pathname !== '/mobile/home' && !pathname.includes('/mobile/ventas/solicitud') && (
                 <header className="flex-none bg-slate-900 border-b border-slate-800 p-4 pt-safe-top z-20 shadow-md">
                 <div className="flex items-center justify-between">
                     <div>
