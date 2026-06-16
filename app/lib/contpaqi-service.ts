@@ -94,11 +94,28 @@ export class ContpaqiService {
 
     // --- CATÁLOGOS ---
 
+    private normalizeArray(response: any): any[] {
+        if (Array.isArray(response)) return response;
+        if (response && Array.isArray(response.data)) return response.data;
+        if (response && Array.isArray(response.items)) return response.items;
+        if (response && Array.isArray(response.list)) return response.list;
+        if (response && Array.isArray(response.results)) return response.results;
+        if (response && Array.isArray(response.records)) return response.records;
+        // If it's a non-null object with any array property, try to find it
+        if (response && typeof response === 'object') {
+            const arrayProp = Object.values(response).find(v => Array.isArray(v));
+            if (arrayProp) return arrayProp as any[];
+        }
+        console.warn('⚠️ [Contpaqi] normalizeArray: respuesta inesperada, no es un array:', JSON.stringify(response)?.substring(0, 200));
+        return [];
+    }
+
     async getClientes(tipo: number = 1, filters: { clasificacion?: string, ruta?: string } = {}) {
         let query = `?tipo=${tipo}`;
         if (filters.clasificacion) query += `&clasificacion=${filters.clasificacion}`;
         if (filters.ruta) query += `&ruta=${filters.ruta}`;
-        return await this.request(`/api/clientes${query}`);
+        const response = await this.request(`/api/clientes${query}`);
+        return this.normalizeArray(response);
     }
 
     async getCliente(codigo: string) {
@@ -114,7 +131,8 @@ export class ContpaqiService {
 
     async getProductos(busqueda?: string) {
         const query = busqueda ? `?busqueda=${busqueda}` : '';
-        return await this.request(`/api/productos${query}`);
+        const response = await this.request(`/api/productos${query}`);
+        return this.normalizeArray(response);
     }
 
     async getProducto(codigo: string) {

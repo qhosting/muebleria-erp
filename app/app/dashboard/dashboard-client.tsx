@@ -58,7 +58,7 @@ export function DashboardClient({ session: initialSession }: DashboardClientProp
     );
     const isMobileMode = isPWA || isMobileBrowser;
 
-    if (isMobileMode && ['cobrador', 'vendedor', 'jefe_ventas', 'admin'].includes(userRole)) {
+    if (isMobileMode && ['cobrador', 'vendedor', 'jefe_ventas', 'admin', 'direccion'].includes(userRole)) {
       hasRedirected.current = true;
       router.replace('/mobile/home');
       return;

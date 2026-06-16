@@ -278,7 +278,7 @@ export default function LoginForm() {
     const isMobileMode = Capacitor.isNativePlatform() || isPWA || isMobileBrowser;
 
     if (isMobileMode) {
-      if (['cobrador', 'vendedor', 'jefe_ventas', 'admin'].includes(userRole)) {
+      if (['cobrador', 'vendedor', 'jefe_ventas', 'admin', 'direccion'].includes(userRole)) {
         redirectUrl = '/mobile/home';
       } else {
         redirectUrl = '/dashboard';

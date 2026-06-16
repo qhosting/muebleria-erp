@@ -66,11 +66,17 @@ interface NavItem {
 }
 
 const navigation: NavItem[] = [
-{
+  {
     name: 'Dashboard',
     href: '/dashboard',
     icon: LayoutDashboard,
     roles: ['all'],
+  },
+  {
+    name: 'Modo Móvil',
+    href: '/mobile/home',
+    icon: Smartphone,
+    roles: ['admin', 'direccion'],
   },
   {
     name: 'Clientes',
