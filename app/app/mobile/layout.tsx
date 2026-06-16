@@ -245,8 +245,8 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
                             </>
                         ) : isVendedor ? (
                             <>
-                                <NavButton icon="shopping-bag" label="Ventas" href="/mobile/ventas" active={pathname === "/mobile/ventas"} />
-                                <NavButton icon="message-square" label="Prospectos" href="/mobile/ventas#leads" active={pathname === "/mobile/ventas"} />
+                                <NavButton icon="shopping-bag" label="Ventas" href="/mobile/ventas" active={pathname === "/mobile/ventas" && !pathname.includes('/prospectos')} />
+                                <NavButton icon="message-square" label="Prospectos" href="/mobile/ventas/prospectos" active={pathname === "/mobile/ventas/prospectos"} />
                                 <NavButton icon="database" label="Bóveda" href="/mobile/ventas/boveda" active={pathname === "/mobile/ventas/boveda"} />
                             </>
                         ) : (

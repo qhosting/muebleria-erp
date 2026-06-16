@@ -6,8 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { LeadModal } from "@/components/mobile/lead-modal";
-import { LeadConversionModal } from "@/components/mobile/lead-conversion-modal";
 import { RegistrarVentaModal } from "@/components/mobile/registrar-venta-modal";
 import { DigitalizadorModal } from "@/components/ventas/digitalizador-modal";
 import { useSession } from "next-auth/react";
@@ -21,11 +19,8 @@ import { Input } from "@/components/ui/input";
 
 export default function SalesMobilePage() {
   const [data, setData] = useState<any>(null);
-  const [leads, setLeads] = useState<any[]>([]);
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedLead, setSelectedLead] = useState<any>(null);
-  const [showConvertModal, setShowConvertModal] = useState(false);
   
   // Estados para el digitalizador
   const [showDigitalizador, setShowDigitalizador] = useState(false);
@@ -74,7 +69,6 @@ export default function SalesMobilePage() {
       fetchReporteVentas();
     } else {
       fetchMetrics();
-      fetchLeads();
       fetchSolicitudes();
     }
   }, [isDireccion, fechaDesde, fechaHasta]);
@@ -94,21 +88,6 @@ export default function SalesMobilePage() {
     }
   };
 
-  const fetchLeads = async () => {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch("/api/ventas/leads", { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        const json = await res.json();
-        // Solo mostrar los que no han sido convertidos (estado !== 'convertido')
-        setLeads(json.filter((l: any) => l.estado !== 'convertido'));
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   const fetchMetrics = async () => {
     setLoading(true);
@@ -417,6 +396,14 @@ export default function SalesMobilePage() {
     );
   }
 
+  const metaMonto = data?.presupuesto?.metaMonto || 0;
+  const logradoMonto = data?.presupuesto?.logradoMonto || 0;
+  const faltanMonto = metaMonto - logradoMonto;
+
+  const metaPiezas = data?.presupuesto?.metaPiezas || 0;
+  const logradoPiezas = data?.presupuesto?.logradoPiezas || 0;
+  const faltanPiezas = metaPiezas - logradoPiezas;
+
   return (
     <div className="space-y-6 pb-20">
       {/* --- MI PRESUPUESTO Y AVANCE --- */}
@@ -447,13 +434,18 @@ export default function SalesMobilePage() {
               </div>
             </div>
 
-            <div className="pt-2 border-t border-white/10 space-y-1">
-              <div className="flex justify-between items-end">
-                <p className="text-xs uppercase opacity-70 font-bold">Leads (Prospectos)</p>
-                <p className="text-sm font-bold">{data.presupuesto.logradoLeads} / {data.presupuesto.metaLeads}</p>
-              </div>
-              <Progress value={data.presupuesto.porcentajeLeads} className="h-1.5 bg-white/20" />
-              <p className="text-[10px] text-right font-medium">{data.presupuesto.porcentajeLeads.toFixed(1)}%</p>
+            {/* Faltantes para la Meta */}
+            <div className="pt-3 border-t border-white/15 text-xs space-y-1.5 text-blue-100/90 font-medium">
+              {faltanMonto > 0 ? (
+                <p>• Te faltan <span className="font-bold text-white">{formatCurrency(faltanMonto)}</span> para alcanzar tu meta de monto.</p>
+              ) : (
+                <p className="text-emerald-300 font-bold">✓ ¡Meta de monto alcanzada!</p>
+              )}
+              {faltanPiezas > 0 ? (
+                <p>• Te faltan <span className="font-bold text-white">{faltanPiezas} {faltanPiezas === 1 ? 'pieza' : 'piezas'}</span> para alcanzar tu meta de volumen.</p>
+              ) : (
+                <p className="text-emerald-300 font-bold">✓ ¡Meta de volumen alcanzada!</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -471,16 +463,13 @@ export default function SalesMobilePage() {
       )}
 
       {/* --- ACCIONES --- */}
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <LeadModal onSuccess={fetchMetrics} />
-          <Link href="/mobile/ventas/solicitud" className="flex-1">
-            <Button className="w-full bg-slate-900 hover:bg-slate-800 h-12 rounded-xl shadow-lg flex items-center justify-center gap-2 border border-slate-700 text-xs font-bold">
-              <ShieldCheck className="h-4 w-4 text-emerald-500" />
-              Nueva Solicitud
-            </Button>
-          </Link>
-        </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Link href="/mobile/ventas/solicitud" className="w-full">
+          <Button className="w-full bg-slate-900 hover:bg-slate-800 h-12 rounded-xl shadow-lg flex items-center justify-center gap-2 border border-slate-700 text-xs font-bold text-white">
+            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+            Nueva Solicitud
+          </Button>
+        </Link>
         <RegistrarVentaModal onSuccess={fetchMetrics} />
       </div>
 
@@ -529,6 +518,42 @@ export default function SalesMobilePage() {
                   </div>
                 </CardContent>
               </Card>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* --- AVANCE DIARIO DEL MES --- */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-sm font-bold text-slate-400 flex items-center gap-2 uppercase tracking-wider">
+            <TrendingUp className="h-4 w-4 text-indigo-400" />
+            Avance Diario del Mes
+          </h2>
+          <Badge variant="outline" className="rounded-full bg-slate-800 text-slate-300 border-slate-700">{data?.ventasMes?.length || 0}</Badge>
+        </div>
+
+        <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-1 custom-scrollbar">
+          {!data?.ventasMes || data.ventasMes.length === 0 ? (
+            <div className="p-8 text-center bg-slate-900/40 rounded-2xl border border-dashed border-slate-800">
+              <Package className="h-8 w-8 text-slate-700 mx-auto mb-2" />
+              <p className="text-xs text-slate-500">No tienes ventas registradas este mes.</p>
+            </div>
+          ) : (
+            data.ventasMes.map((v: any, idx: number) => (
+              <div key={v.id || idx} className="bg-slate-900 border border-slate-800 p-3 rounded-2xl flex justify-between items-center text-xs">
+                <div className="space-y-0.5">
+                  <p className="font-bold text-slate-200 truncate max-w-[170px]">{v.cliente}</p>
+                  <p className="text-[10px] text-slate-500">
+                    {format(new Date(v.fecha), 'dd/MM/yyyy')} • <span className="text-indigo-400 font-medium">{v.producto || 'Venta Directa'}</span>
+                  </p>
+                  {v.contrato && <p className="text-[9px] font-mono text-slate-600">Contrato: {v.contrato}</p>}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="font-mono text-emerald-400 font-bold">+{formatCurrency(v.monto)}</p>
+                  {v.piezas > 0 && <p className="text-[9px] text-slate-500 font-bold">{v.piezas} {v.piezas === 1 ? 'pza' : 'pzas'}</p>}
+                </div>
+              </div>
             ))
           )}
         </div>
@@ -611,16 +636,6 @@ export default function SalesMobilePage() {
           isAdmin={false}
         />
       )}
-      <LeadConversionModal 
-        lead={selectedLead} 
-        open={showConvertModal} 
-        onOpenChange={setShowConvertModal}
-        onSuccess={() => {
-          fetchMetrics();
-          fetchLeads();
-          fetchSolicitudes();
-        }}
-      />
     </div>
   );
 }

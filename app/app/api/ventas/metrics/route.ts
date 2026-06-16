@@ -51,9 +51,17 @@ export async function GET(request: NextRequest) {
         }
       },
       select: {
+        id: true,
+        fechaVenta: true,
+        codigoCliente: true,
+        numContrato: true,
+        nombreCompleto: true,
+        descripcionProducto: true,
         montoPago: true,
-        piezas: true,
-        id: true
+        piezas: true
+      },
+      orderBy: {
+        fechaVenta: 'desc'
       }
     });
 
@@ -110,6 +118,15 @@ export async function GET(request: NextRequest) {
         monto: Number(v.montoPago),
         cliente: v.nombreCompleto,
         equipo: v.equipo?.nombre || 'Particular'
+      })),
+      ventasMes: ventasPeriodo.map((v: any) => ({
+        id: v.id,
+        fecha: v.fechaVenta,
+        contrato: v.numContrato || v.codigoCliente,
+        producto: v.descripcionProducto,
+        monto: Number(v.montoPago),
+        cliente: v.nombreCompleto,
+        piezas: v.piezas
       }))
     });
 
