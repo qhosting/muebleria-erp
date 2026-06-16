@@ -451,6 +451,36 @@ export default function SalesMobilePage() {
         </Card>
       )}
 
+      {/* --- MENSAJE MOTIVACIONAL --- */}
+      {data?.presupuesto && (
+        <div className="bg-slate-900/60 border border-slate-800/80 p-4 rounded-2xl flex items-start gap-3 shadow-md">
+          <div className="bg-amber-500/10 p-2 rounded-xl text-amber-400 shrink-0">
+            <Award className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Enfoque del Día</p>
+            <p className="text-xs text-slate-300 italic leading-relaxed">
+              {(() => {
+                const pct = ((data.presupuesto.porcentajeMonto + data.presupuesto.porcentajePiezas) / 2);
+                if (data.presupuesto.logradoMonto === 0 && data.presupuesto.logradoPiezas === 0) {
+                  return "¡A la carga! Tu primera venta del periodo está a la vuelta de la esquina. ¡Mucho éxito hoy!";
+                }
+                if (pct >= 100) {
+                  return "¡Impresionante! Has alcanzado tu presupuesto del mes. ¡Sigue rompiendo récords y sumando logros!";
+                }
+                if (pct >= 75) {
+                  return "¡Excelente avance! Ya estás en la recta final para cumplir tu meta. ¡Vamos por el último empujón!";
+                }
+                if (pct >= 40) {
+                  return "¡Buen trabajo! Vas a gran ritmo. Mantén el enfoque y sigue sumando contratos hoy.";
+                }
+                return "¡Cada esfuerzo cuenta! Enfócate en tu próximo cliente y avanza paso a paso hacia tu meta.";
+              })()}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* --- SIN PRESUPUESTO --- */}
       {!data?.presupuesto && (
         <Card className="bg-slate-900 border border-slate-800 text-white rounded-2xl">
