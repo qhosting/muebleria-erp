@@ -22,7 +22,12 @@ import {
   Settings,
   Activity,
   Users,
-  Package
+  Package,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Info,
+  ShieldAlert
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -32,6 +37,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 
 // Removed redundant star import to prevent confusion and extra bundle size
@@ -107,6 +130,12 @@ export default function ContpaqiMultiPage() {
   const [metadata, setMetadata] = useState<Record<string, any>>({});
   const [fetchingMetadata, setFetchingMetadata] = useState<Record<string, boolean>>({});
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
+
+  const [isValidating, setIsValidating] = useState(false);
+  const [validatingId, setValidatingId] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<any | null>(null);
+  const [showTestResultModal, setShowTestResultModal] = useState(false);
+  const [confirmSync, setConfirmSync] = useState<{ empresa: EmpresaContpaqi, target: string } | null>(null);
 
   const toggleKeyVisibility = (id: string) => {
     setShowKeys(prev => ({ ...prev, [id]: !prev[id] }));
@@ -316,19 +345,49 @@ export default function ContpaqiMultiPage() {
     }
   };
 
-  const handleSync = async (empresa: EmpresaContpaqi, target: string) => {
+  const handleTestConnection = async (empresa: EmpresaContpaqi) => {
+    setValidatingId(empresa.id);
+    setIsValidating(true);
+    setTestResult(null);
+    try {
+      const response = await fetch(`/api/contpaqi/test?empresaId=${empresa.id}`);
+      const data = await response.json();
+      setTestResult(data);
+      setShowTestResultModal(true);
+      if (response.ok && data.success) {
+        toast.success(`Conexión exitosa con ${empresa.nombre}`);
+      } else {
+        toast.error(data.mensaje || `Error de conexión con ${empresa.nombre}`);
+      }
+    } catch (error: any) {
+      toast.error(`Error al validar conexión: ${error.message}`);
+      setTestResult({
+        success: false,
+        conexion: 'error',
+        mensaje: 'Error al conectar con la API de Contpaqi.',
+        error: error.message
+      });
+      setShowTestResultModal(true);
+    } finally {
+      setIsValidating(false);
+      setValidatingId(null);
+    }
+  };
+
+  const handleSync = async (empresa: EmpresaContpaqi, target: string, bypassConfirm = false) => {
+    if (!bypassConfirm && (target === 'clientes' || target === 'all')) {
+      setConfirmSync({ empresa, target });
+      return;
+    }
+
     setSyncingId(`${empresa.id}-${target}`);
     setSyncProgress(20);
     try {
-      // Pasamos los filtros específicos de la empresa
       let query = `?target=${target}`;
       if (empresa.clasificacion) query += `&clasificacion=${encodeURIComponent(empresa.clasificacion)}`;
       if (empresa.ruta) query += `&ruta=${encodeURIComponent(empresa.ruta)}`;
       
-      // Enviamos también los datos de conexión dinámicamente si la API lo soporta
-      // Para este MVP, el backend usará los datos guardados en la DB si coinciden con la empresa actual
       const url = `/api/contpaqi/sync${query}&empresaId=${empresa.id}`;
-      
       const response = await fetch(url);
       setSyncProgress(60);
       const data = await response.json();
@@ -815,25 +874,43 @@ export default function ContpaqiMultiPage() {
                         Acciones Rápidas
                         <ArrowRight className="h-5 w-5 text-blue-400" />
                       </h3>
-                      <p className="text-slate-400 text-sm">Dispara la sincronización manual para esta empresa.</p>
-                      
-                      <div className="grid grid-cols-2 gap-3 pt-4">
+                      <p className="text-slate-400 text-sm">Realiza pruebas o sincronizaciones controladas de tus catálogos.</p>
+
+                      <div className="pt-2">
                         <Button 
-                          onClick={() => handleSync(empresa, 'clientes')}
-                          disabled={!!syncingId}
-                          className="bg-white/10 hover:bg-white/20 border-white/10 text-white h-auto py-4 flex-col gap-2"
+                          onClick={() => handleTestConnection(empresa)}
+                          disabled={!!syncingId || (isValidating && validatingId === empresa.id)}
+                          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-5 rounded-2xl flex items-center justify-center gap-2 border border-emerald-500/20"
                         >
-                          <Users className="h-5 w-5" />
-                          <span className="text-[10px] font-bold uppercase">Clientes</span>
+                          {(isValidating && validatingId === empresa.id) ? (
+                            <RefreshCcw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Activity className="h-4 w-4" />
+                          )}
+                          <span className="text-xs uppercase font-bold">Validar Conexión (Modo Seguro)</span>
                         </Button>
-                        <Button 
-                          onClick={() => handleSync(empresa, 'productos')}
-                          disabled={!!syncingId}
-                          className="bg-white/10 hover:bg-white/20 border-white/10 text-white h-auto py-4 flex-col gap-2"
-                        >
-                          <Package className="h-5 w-5" />
-                          <span className="text-[10px] font-bold uppercase">Productos</span>
-                        </Button>
+                      </div>
+
+                      <div className="border-t border-white/10 my-4 pt-4">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Sincronización Manual</span>
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                          <Button 
+                            onClick={() => handleSync(empresa, 'clientes')}
+                            disabled={!!syncingId}
+                            className="bg-white/5 hover:bg-white/15 border border-white/10 text-white h-auto py-4 flex-col gap-2 transition-all"
+                          >
+                            <Users className="h-5 w-5 text-amber-400" />
+                            <span className="text-[10px] font-bold uppercase">Clientes (Manual)</span>
+                          </Button>
+                          <Button 
+                            onClick={() => handleSync(empresa, 'productos')}
+                            disabled={!!syncingId}
+                            className="bg-white/5 hover:bg-white/15 border border-white/10 text-white h-auto py-4 flex-col gap-2 transition-all"
+                          >
+                            <Package className="h-5 w-5 text-blue-400" />
+                            <span className="text-[10px] font-bold uppercase">Productos</span>
+                          </Button>
+                        </div>
                       </div>
                     </div>
 
@@ -851,9 +928,9 @@ export default function ContpaqiMultiPage() {
                       <Button 
                         onClick={() => handleSync(empresa, 'all')}
                         disabled={!!syncingId}
-                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-6 rounded-2xl"
+                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-6 rounded-2xl flex items-center justify-center gap-2"
                       >
-                        <RefreshCcw className={`h-5 w-5 mr-3 ${syncingId?.startsWith(empresa.id) ? 'animate-spin' : ''}`} />
+                        <RefreshCcw className={`h-5 w-5 ${syncingId?.startsWith(empresa.id) ? 'animate-spin' : ''}`} />
                         Sincronización Total
                       </Button>
                     </div>
@@ -875,6 +952,193 @@ export default function ContpaqiMultiPage() {
           )}
         </div>
       </div>
+
+      {/* Modal de Resultados de Validación */}
+      <Dialog open={showTestResultModal} onOpenChange={setShowTestResultModal}>
+        <DialogContent className="max-w-2xl bg-white border border-slate-200 shadow-2xl rounded-3xl p-6">
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="text-2xl font-bold flex items-center gap-3 text-slate-900">
+              {testResult?.success ? (
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <CheckCircle2 className="h-6 w-6" />
+                </div>
+              ) : (
+                <div className="p-2 bg-red-50 text-red-600 rounded-xl">
+                  <XCircle className="h-6 w-6" />
+                </div>
+              )}
+              {testResult?.success ? 'Validación Exitosa' : 'Fallo en la Validación'}
+            </DialogTitle>
+            <DialogDescription className="text-slate-500 text-sm">
+              Se ha verificado la comunicación con la API de Contpaqi de forma segura. <span className="font-semibold text-slate-700">No se realizaron modificaciones en la base de datos local.</span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="my-6 space-y-4 max-h-[400px] overflow-y-auto pr-2">
+            {testResult?.success ? (
+              <>
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-2">
+                  <div className="flex justify-between items-center text-xs text-slate-500">
+                    <span>Estado Conexión</span>
+                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-none font-bold uppercase tracking-wider text-[9px]">ONLINE</Badge>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-slate-500">
+                    <span>Servidor API</span>
+                    <span className="font-mono text-slate-700">{testResult?.empresa || 'Empresa de Prueba'}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-slate-500">
+                    <span>Fecha de Validación</span>
+                    <span className="text-slate-700">{testResult?.timestamp ? new Date(testResult.timestamp).toLocaleString() : ''}</span>
+                  </div>
+                </div>
+
+                {/* Resultados Productos */}
+                {testResult?.productos && (
+                  <div className="border border-slate-100 p-4 rounded-2xl space-y-3 bg-white">
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                      <Package className="h-4 w-4 text-blue-500" />
+                      Módulo Productos
+                    </h4>
+                    {testResult.productos.ok ? (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500">Total en Contpaqi:</span>
+                          <span className="font-bold text-slate-900">{testResult.productos.total} productos</span>
+                        </div>
+                        <p className="text-xs text-emerald-600 font-semibold bg-emerald-50/50 p-2 rounded-lg">{testResult.productos.mensaje}</p>
+                        {testResult.productos.muestra && (
+                          <div className="mt-2 text-[10px] space-y-1">
+                            <span className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Muestra de Campos Disponibles:</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {testResult.productos.muestra.campos?.slice(0, 8).map((c: string) => (
+                                <Badge key={c} variant="outline" className="text-slate-600 bg-slate-50 text-[9px] font-normal">{c}</Badge>
+                              ))}
+                              {testResult.productos.muestra.campos?.length > 8 && (
+                                <span className="text-slate-400 text-[10px] self-center">+{testResult.productos.muestra.campos.length - 8} más</span>
+                              )}
+                            </div>
+                            <div className="bg-slate-50 p-2 rounded-lg font-mono text-[9px] text-slate-500 mt-2 overflow-x-auto">
+                              <div>Código: <span className="text-slate-800 font-bold">{testResult.productos.muestra.primerRegistro?.cCodigoProducto || testResult.productos.muestra.primerRegistro?.cCodigo || 'N/A'}</span></div>
+                              <div>Nombre: <span className="text-slate-800">{testResult.productos.muestra.primerRegistro?.cNombreProducto || testResult.productos.muestra.primerRegistro?.cNombre || 'N/A'}</span></div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-red-600 bg-red-50 p-2 rounded-lg flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Error: {testResult.productos.error}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Resultados Clientes */}
+                {testResult?.clientes && (
+                  <div className="border border-slate-100 p-4 rounded-2xl space-y-3 bg-white">
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                      <Users className="h-4 w-4 text-amber-500" />
+                      Módulo Clientes
+                    </h4>
+                    {testResult.clientes.ok ? (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500">Total filtrados en Contpaqi:</span>
+                          <span className="font-bold text-slate-900">{testResult.clientes.total} clientes</span>
+                        </div>
+                        <p className="text-xs text-emerald-600 font-semibold bg-emerald-50/50 p-2 rounded-lg">{testResult.clientes.mensaje}</p>
+                        {testResult.clientes.muestra && (
+                          <div className="mt-2 text-[10px] space-y-1">
+                            <span className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Muestra de Campos Disponibles:</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {testResult.clientes.muestra.campos?.slice(0, 8).map((c: string) => (
+                                <Badge key={c} variant="outline" className="text-slate-600 bg-slate-50 text-[9px] font-normal">{c}</Badge>
+                              ))}
+                              {testResult.clientes.muestra.campos?.length > 8 && (
+                                <span className="text-slate-400 text-[10px] self-center">+{testResult.clientes.muestra.campos.length - 8} más</span>
+                              )}
+                            </div>
+                            <div className="bg-slate-50 p-2 rounded-lg font-mono text-[9px] text-slate-500 mt-2 overflow-x-auto">
+                              <div>Código: <span className="text-slate-800 font-bold">{testResult.clientes.muestra.primerRegistro?.cCodigoCliente || testResult.clientes.muestra.primerRegistro?.cCodigo || 'N/A'}</span></div>
+                              <div>Nombre: <span className="text-slate-800">{testResult.clientes.muestra.primerRegistro?.cNombreCliente || testResult.clientes.muestra.primerRegistro?.cNombre || 'N/A'}</span></div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-red-600 bg-red-50 p-2 rounded-lg flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Error: {testResult.clientes.error}</p>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="p-4 bg-red-50 border border-red-100 rounded-2xl space-y-2">
+                <p className="text-sm text-red-700 font-semibold">{testResult?.mensaje || 'No se pudo validar la conexión con el servidor de la API.'}</p>
+                {testResult?.error && (
+                  <pre className="text-xs bg-red-100/50 p-3 rounded-xl text-red-800 overflow-x-auto whitespace-pre-wrap font-mono">
+                    {testResult.error}
+                  </pre>
+                )}
+                <div className="pt-2 text-xs text-slate-500 flex items-start gap-1">
+                  <Info className="h-4 w-4 shrink-0 text-slate-400 mt-0.5" />
+                  <span>Asegúrese de que el servidor API de Contpaqi en local esté encendido, que la URL sea accesible y que la API Key sea la misma en ambos extremos.</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setShowTestResultModal(false)} className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 rounded-xl">
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AlertDialog para Confirmación de Sincronización */}
+      <AlertDialog open={!!confirmSync} onOpenChange={(open) => !open && setConfirmSync(null)}>
+        <AlertDialogContent className="bg-white border border-slate-200 shadow-2xl rounded-3xl p-6">
+          <AlertDialogHeader className="space-y-3">
+            <AlertDialogTitle className="text-xl font-bold flex items-center gap-3 text-slate-900">
+              <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              Confirmar Sincronización Manual
+            </AlertDialogTitle>
+            <div className="text-slate-600 space-y-3 text-sm">
+              {confirmSync?.target === 'clientes' ? (
+                <>
+                  <p>Está a punto de sincronizar <span className="font-semibold text-slate-950">todos los Clientes</span> para la empresa <span className="font-semibold text-slate-950">{confirmSync?.empresa.nombre}</span>.</p>
+                  <p className="text-sm bg-amber-50 text-amber-800 p-3 rounded-xl border border-amber-100">
+                    ⚠️ <strong>¡Cuidado!</strong> Esta acción importará nuevos clientes y modificará los saldos, direcciones, contratos y cobradores asignados de los clientes existentes en la base de datos de VertexERP de acuerdo a lo reportado por Contpaqi.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>Está a punto de realizar una <span className="font-semibold text-slate-950">Sincronización Total (Clientes y Productos)</span> para la empresa <span className="font-semibold text-slate-950">{confirmSync?.empresa.nombre}</span>.</p>
+                  <p className="text-sm bg-red-50 text-red-800 p-3 rounded-xl border border-red-100">
+                    ⚠️ <strong>Advertencia:</strong> Esto actualizará de forma masiva tanto el inventario (precios, existencias) como la cartera de clientes. Podría demorar varios minutos y no debe interrumpirse.
+                  </p>
+                </>
+              )}
+            </div>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter className="mt-6 gap-2 sm:gap-0">
+            <AlertDialogCancel className="border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl px-5">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (confirmSync) {
+                  handleSync(confirmSync.empresa, confirmSync.target, true);
+                  setConfirmSync(null);
+                }
+              }}
+              className="bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl px-5"
+            >
+              Sí, Sincronizar Ahora
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
