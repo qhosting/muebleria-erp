@@ -209,7 +209,8 @@ export default function MobileHome() {
                     </p>
                 </div>
 
-                {/* METRICAS DE COBRANZA */}
+                {/* METRICAS DE COBRANZA (OCULTO TEMPORALMENTE) */}
+                {/*
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
                     <div className="flex justify-between items-center">
                         <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Métricas de Cobranza</h3>
@@ -230,6 +231,7 @@ export default function MobileHome() {
                         <span>Efectividad: <strong>{stats.efectividad}%</strong></span>
                     </div>
                 </div>
+                */}
 
                 {/* METRICAS DE VENTAS */}
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
@@ -258,7 +260,8 @@ export default function MobileHome() {
                     </div>
                 </div>
 
-                {/* PAGOS RECIENTES */}
+                {/* PAGOS RECIENTES (OCULTO TEMPORALMENTE) */}
+                {/*
                 <div className="space-y-3">
                     <div className="flex justify-between items-center px-2">
                         <h3 className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Cobros Recientes</h3>
@@ -287,6 +290,7 @@ export default function MobileHome() {
                         </div>
                     )}
                 </div>
+                */}
 
                 {/* LEADS RECIENTES */}
                 <div className="space-y-3">
