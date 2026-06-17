@@ -385,9 +385,14 @@ export default function UsuariosPage() {
                       {usuario.isActive ? "Activo" : "Inactivo"}
                     </Badge>
                   </div>
-                  <CardDescription className="flex items-center gap-2">
-                    <Mail className="h-4 w-4" />
-                    {usuario.email}
+                  <CardDescription className="flex flex-col gap-1.5">
+                    <span className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      {usuario.email}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono select-all">
+                      ID: {usuario.id}
+                    </span>
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
