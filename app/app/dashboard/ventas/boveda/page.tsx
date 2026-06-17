@@ -595,6 +595,7 @@ export default function BovedaDigitalPage() {
                         }}
                         cliente={selectedCliente}
                         isAdmin={['admin', 'jefe_ventas', 'gestor_cobranza', 'administrador'].includes((session?.user as any)?.role?.toLowerCase())}
+                        userRole={(session?.user as any)?.role || ''}
                     />
                 )}
             </div>

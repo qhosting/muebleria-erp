@@ -20,6 +20,7 @@ import {
     ShieldCheck,
     MapPin,
     Navigation,
+    Edit3,
     Cloud
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -63,6 +64,7 @@ interface DigitalizadorModalProps {
         telefono?: string;
     };
     isAdmin?: boolean;
+    userRole?: string;
 }
 
 const TIPOS_DOCUMENTO = [
@@ -85,11 +87,16 @@ const TIPOS_DOCUMENTO = [
     { id: 'AVAL_OTRO', label: 'Aval - Otro Documento' }
 ];
 
-function GpsPreview({ url }: { url: string }) {
-    const [gps, setGps] = useState<{ lat: number; lng: number; timestamp?: string } | null>(null);
+function GpsPreview({ url, isAdmin, documentId, onGpsUpdated }: { url: string; isAdmin?: boolean; documentId?: string; onGpsUpdated?: () => void }) {
+    const [gps, setGps] = useState<{ lat: number; lng: number; timestamp?: string; lastModified?: string; modifiedBy?: string } | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isEditingGps, setIsEditingGps] = useState(false);
+    const [editLat, setEditLat] = useState('');
+    const [editLng, setEditLng] = useState('');
+    const [savingGps, setSavingGps] = useState(false);
 
-    useEffect(() => {
+    const loadGps = () => {
+        setLoading(true);
         fetch(url)
             .then(res => res.json())
             .then(data => {
@@ -100,7 +107,42 @@ function GpsPreview({ url }: { url: string }) {
                 console.error("Error al cargar JSON GPS:", e);
                 setLoading(false);
             });
+    };
+
+    useEffect(() => {
+        loadGps();
     }, [url]);
+
+    const handleSaveGps = async () => {
+        if (!documentId) return;
+        setSavingGps(true);
+        try {
+            const response = await fetch('/api/ventas/boveda/update-gps', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    documentId,
+                    lat: editLat,
+                    lng: editLng
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setGps(data.data);
+                setIsEditingGps(false);
+                toast.success('Coordenadas GPS actualizadas correctamente');
+                if (onGpsUpdated) onGpsUpdated();
+            } else {
+                const errData = await response.json();
+                toast.error(errData.error || 'Error al actualizar GPS');
+            }
+        } catch (error) {
+            toast.error('Error de conexión al actualizar GPS');
+        } finally {
+            setSavingGps(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -134,18 +176,106 @@ function GpsPreview({ url }: { url: string }) {
                 />
             </div>
             <div className="p-4 bg-slate-900 border-t border-slate-800 text-left space-y-1">
-                <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Coordenadas Registradas</p>
+                <div className="flex items-center justify-between">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Coordenadas Registradas</p>
+                    {isAdmin && documentId && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] text-sky-400 hover:text-sky-300 hover:bg-slate-800 gap-1"
+                            onClick={() => {
+                                setEditLat(lat.toString());
+                                setEditLng(lng.toString());
+                                setIsEditingGps(true);
+                            }}
+                        >
+                            <Edit3 className="w-3 h-3" />
+                            Editar GPS
+                        </Button>
+                    )}
+                </div>
                 <p className="text-xs text-slate-200 font-mono font-bold">Latitud: {lat.toFixed(6)}</p>
                 <p className="text-xs text-slate-200 font-mono font-bold">Longitud: {lng.toFixed(6)}</p>
                 {gps.timestamp && (
                     <p className="text-[9px] text-slate-500">Fecha de captura: {new Date(gps.timestamp).toLocaleString()}</p>
                 )}
+                {gps.lastModified && (
+                    <p className="text-[9px] text-amber-500/80">Modificado: {new Date(gps.lastModified).toLocaleString()} por {gps.modifiedBy || 'Admin'}</p>
+                )}
             </div>
+
+            {/* Dialog de edición de GPS */}
+            {isEditingGps && (
+                <div className="absolute inset-0 bg-black/70 z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-5">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center">
+                                    <Navigation className="w-4 h-4 text-sky-400" />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-bold text-white">Editar Coordenadas GPS</h4>
+                                    <p className="text-[10px] text-slate-500">Modifica la latitud y longitud manualmente</p>
+                                </div>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-slate-500 hover:text-white"
+                                onClick={() => setIsEditingGps(false)}
+                            >
+                                <X className="w-4 h-4" />
+                            </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div className="space-y-1.5">
+                                <Label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Latitud (-90 a 90)</Label>
+                                <Input
+                                    className="bg-slate-950 border-slate-700 text-white font-mono text-sm h-10"
+                                    placeholder="Ej: 20.659698"
+                                    value={editLat}
+                                    onChange={(e) => setEditLat(e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Longitud (-180 a 180)</Label>
+                                <Input
+                                    className="bg-slate-950 border-slate-700 text-white font-mono text-sm h-10"
+                                    placeholder="Ej: -103.349609"
+                                    value={editLng}
+                                    onChange={(e) => setEditLng(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                className="flex-1 border-slate-700 text-slate-300 hover:bg-slate-800 h-10"
+                                onClick={() => setIsEditingGps(false)}
+                                disabled={savingGps}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                className="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-bold h-10 gap-2"
+                                onClick={handleSaveGps}
+                                disabled={savingGps || !editLat || !editLng}
+                            >
+                                {savingGps ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                {savingGps ? 'Guardando...' : 'Guardar'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
-export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: DigitalizadorModalProps) {
+export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin, userRole }: DigitalizadorModalProps) {
+    const isGpsAdmin = ['admin', 'administrador'].includes((userRole || '').toLowerCase());
     const [documentos, setDocumentos] = useState<Documento[]>([]);
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState<string | null>(null);
@@ -899,7 +1029,7 @@ export function DigitalizadorModal({ open, onOpenChange, cliente, isAdmin }: Dig
                                             title="PDF Preview"
                                         />
                                     ) : selectedDoc.url.toLowerCase().endsWith('.json') ? (
-                                        <GpsPreview url={`/api/ventas/boveda/view?id=${selectedDoc.id}`} />
+                                        <GpsPreview url={`/api/ventas/boveda/view?id=${selectedDoc.id}`} isAdmin={isGpsAdmin} documentId={selectedDoc.id} onGpsUpdated={fetchDocumentos} />
                                     ) : (
                                         <img 
                                             src={`/api/ventas/boveda/view?id=${selectedDoc.id}`} 
