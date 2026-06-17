@@ -105,7 +105,8 @@ export async function GET(request: NextRequest) {
                 }
             });
 
-            const logroCl = ventas.reduce((acc, v) => acc + (v.piezas || 1), 0);
+            const logroCl = ventas.length;
+            const logroPiezas = ventas.reduce((acc, v) => acc + (v.piezas || 0), 0);
             const logroMonto = ventas.reduce((acc, v) => acc + Number(v.montoPago || 0), 0);
 
             const porcentajeCl = pptoClientes > 0 ? Math.round((logroCl / pptoClientes) * 100) : 0;
@@ -118,6 +119,7 @@ export async function GET(request: NextRequest) {
                     pptoClientes,
                     pptoMonto,
                     logroCl,
+                    logroPiezas,
                     porcentajeCl,
                     logroMonto,
                     porcentajeMonto,

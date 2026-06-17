@@ -29,10 +29,13 @@ import {
   Clock,
   UserCheck,
   Edit,
-  Trash2
+  Trash2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function VentasRegistradasPage() {
   const { data: session } = useSession();
@@ -41,6 +44,38 @@ export default function VentasRegistradasPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVendedor, setSelectedVendedor] = useState('all');
+  const [activeTab, setActiveTab] = useState('listado');
+  const [expandedDates, setExpandedDates] = useState<string[]>([]);
+
+  // Agrupar ventas por día
+  const getSalesByDay = () => {
+    const dailyGroups: { [key: string]: { date: Date; sales: any[]; totalMonto: number; totalPiezas: number } } = {};
+    
+    sales.forEach((sale) => {
+      if (!sale.fechaVenta) return;
+      const dateKey = new Date(sale.fechaVenta).toISOString().split('T')[0];
+      if (!dailyGroups[dateKey]) {
+        dailyGroups[dateKey] = {
+          date: new Date(sale.fechaVenta),
+          sales: [],
+          totalMonto: 0,
+          totalPiezas: 0
+        };
+      }
+      dailyGroups[dateKey].sales.push(sale);
+      dailyGroups[dateKey].totalMonto += Number(sale.montoPago || 0);
+      dailyGroups[dateKey].totalPiezas += Number(sale.piezas || 0);
+    });
+
+    return Object.entries(dailyGroups)
+      .map(([dateStr, data]) => ({
+        dateStr,
+        ...data
+      }))
+      .sort((a, b) => b.dateStr.localeCompare(a.dateStr));
+  };
+
+  const salesByDay = getSalesByDay();
 
   // Edit dialog state
   const [editOpen, setEditOpen] = useState(false);
@@ -250,101 +285,276 @@ export default function VentasRegistradasPage() {
           </CardContent>
         </Card>
 
-        {/* Sales Table */}
-        <Card className="border-slate-200 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr className="text-slate-600 font-bold uppercase tracking-wider text-xs">
-                  <th className="px-6 py-4">Contrato</th>
-                  <th className="px-6 py-4">Nombre Cliente</th>
-                  <th className="px-6 py-4">Fecha de Venta</th>
-                  <th className="px-6 py-4">Vendedor</th>
-                  <th className="px-6 py-4 text-center">Piezas</th>
-                  <th className="px-6 py-4 text-right">Valor Contrato</th>
-                  {isAdminOrDireccion && <th className="px-6 py-4 text-right">Acciones</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
-                {loading ? (
-                  Array(6).fill(0).map((_, i) => (
-                    <tr key={i} className="animate-pulse">
-                      <td colSpan={isAdminOrDireccion ? 7 : 6} className="px-6 py-6 h-12 bg-slate-50/20"></td>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid grid-cols-2 w-full max-w-[320px] mb-6 bg-slate-100 p-1 rounded-xl">
+            <TabsTrigger value="listado" className="rounded-lg text-xs font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm text-slate-500 py-2">
+              Listado de Ventas
+            </TabsTrigger>
+            <TabsTrigger value="pordia" className="rounded-lg text-xs font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm text-slate-500 py-2">
+              Ventas por Día
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="listado">
+            {/* Sales Table */}
+            <Card className="border-slate-200 overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm border-collapse">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr className="text-slate-600 font-bold uppercase tracking-wider text-xs">
+                      <th className="px-6 py-4">Contrato</th>
+                      <th className="px-6 py-4">Nombre Cliente</th>
+                      <th className="px-6 py-4">Fecha de Venta</th>
+                      <th className="px-6 py-4">Vendedor</th>
+                      <th className="px-6 py-4 text-center">Piezas</th>
+                      <th className="px-6 py-4 text-right">Valor Contrato</th>
+                      {isAdminOrDireccion && <th className="px-6 py-4 text-right">Acciones</th>}
                     </tr>
-                  ))
-                ) : sales.length === 0 ? (
-                  <tr>
-                    <td colSpan={isAdminOrDireccion ? 7 : 6} className="px-6 py-12 text-center text-slate-500">
-                      No se encontraron ventas registradas.
-                    </td>
-                  </tr>
-                ) : (
-                  sales.map((sale) => (
-                    <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-mono font-bold text-slate-900">
-                        {sale.numContrato || '-'}
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-slate-800">
-                        {sale.nombreCompleto}
-                      </td>
-                      <td className="px-6 py-4 text-slate-600">
-                        <span className="flex items-center gap-1.5 text-xs">
-                          <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                          {new Date(sale.fechaVenta).toLocaleDateString('es-MX', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric'
-                          })}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-semibold text-slate-800 text-xs">
-                            {sale.vendedor || 'Sistema'}
-                          </span>
-                          {sale.vendedorRel?.codigoGestor && (
-                            <span className="text-[10px] text-blue-600 font-mono font-bold">
-                              Código: {sale.vendedorRel.codigoGestor}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center font-bold text-slate-900">
-                        {sale.piezas}
-                      </td>
-                      <td className="px-6 py-4 text-right font-black text-slate-900 font-mono">
-                        {formatCurrency(sale.montoPago)}
-                      </td>
-                      {isAdminOrDireccion && (
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              title="Editar venta"
-                              onClick={() => handleEditClick(sale)}
-                            >
-                              <Edit className="w-4 h-4 text-slate-600" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              title="Eliminar venta" 
-                              className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-                              onClick={() => handleDeleteClick(sale.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
+                    {loading ? (
+                      Array(6).fill(0).map((_, i) => (
+                        <tr key={i} className="animate-pulse">
+                          <td colSpan={isAdminOrDireccion ? 7 : 6} className="px-6 py-6 h-12 bg-slate-50/20"></td>
+                        </tr>
+                      ))
+                    ) : sales.length === 0 ? (
+                      <tr>
+                        <td colSpan={isAdminOrDireccion ? 7 : 6} className="px-6 py-12 text-center text-slate-500">
+                          No se encontraron ventas registradas.
                         </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+                      </tr>
+                    ) : (
+                      sales.map((sale) => (
+                        <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 font-mono font-bold text-slate-900">
+                            {sale.numContrato || '-'}
+                          </td>
+                          <td className="px-6 py-4 font-semibold text-slate-800">
+                            {sale.nombreCompleto}
+                          </td>
+                          <td className="px-6 py-4 text-slate-600">
+                            <span className="flex items-center gap-1.5 text-xs">
+                              <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                              {new Date(sale.fechaVenta).toLocaleDateString('es-MX', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric'
+                              })}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-semibold text-slate-800 text-xs">
+                                {sale.vendedor || 'Sistema'}
+                              </span>
+                              {sale.vendedorRel?.codigoGestor && (
+                                <span className="text-[10px] text-blue-600 font-mono font-bold">
+                                  Código: {sale.vendedorRel.codigoGestor}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-center font-bold text-slate-900">
+                            {sale.piezas}
+                          </td>
+                          <td className="px-6 py-4 text-right font-black text-slate-900 font-mono">
+                            {formatCurrency(sale.montoPago)}
+                          </td>
+                          {isAdminOrDireccion && (
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  title="Editar venta"
+                                  onClick={() => handleEditClick(sale)}
+                                >
+                                  <Edit className="w-4 h-4 text-slate-600" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  title="Eliminar venta" 
+                                  className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                  onClick={() => handleDeleteClick(sale.id)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                 </table>
+               </div>
+             </Card>
+           </TabsContent>
+
+           <TabsContent value="pordia">
+             {/* Sales by Day Table */}
+             <Card className="border-slate-200 overflow-hidden shadow-sm">
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left text-sm border-collapse">
+                   <thead className="bg-slate-50 border-b border-slate-200">
+                     <tr className="text-slate-600 font-bold uppercase tracking-wider text-xs">
+                       <th className="px-6 py-4 w-10"></th>
+                       <th className="px-6 py-4">Fecha</th>
+                       <th className="px-6 py-4 text-center">Contratos</th>
+                       <th className="px-6 py-4 text-center">Piezas</th>
+                       <th className="px-6 py-4 text-right">Valor Total</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
+                     {loading ? (
+                       Array(4).fill(0).map((_, i) => (
+                         <tr key={i} className="animate-pulse">
+                           <td colSpan={5} className="px-6 py-6 h-12 bg-slate-50/20"></td>
+                         </tr>
+                       ))
+                     ) : salesByDay.length === 0 ? (
+                       <tr>
+                         <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                           No se encontraron ventas registradas.
+                         </td>
+                       </tr>
+                     ) : (
+                       salesByDay.map((group) => {
+                         const isExpanded = expandedDates.includes(group.dateStr);
+                         return (
+                           <>
+                             <tr 
+                               key={group.dateStr} 
+                               className="hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100 font-medium"
+                               onClick={() => {
+                                 setExpandedDates(prev => 
+                                   isExpanded ? prev.filter(d => d !== group.dateStr) : [...prev, group.dateStr]
+                                 );
+                               }}
+                             >
+                               <td className="px-6 py-4 text-center">
+                                 {isExpanded ? (
+                                   <ChevronUp className="h-4 w-4 text-slate-400" />
+                                 ) : (
+                                   <ChevronDown className="h-4 w-4 text-slate-400" />
+                                 )}
+                               </td>
+                               <td className="px-6 py-4 font-semibold text-slate-900">
+                                 <span className="flex items-center gap-2">
+                                   <Calendar className="h-4 w-4 text-slate-400" />
+                                   {group.date.toLocaleDateString('es-MX', {
+                                     weekday: 'long',
+                                     day: '2-digit',
+                                     month: 'long',
+                                     year: 'numeric'
+                                   })}
+                                 </span>
+                               </td>
+                               <td className="px-6 py-4 text-center font-bold text-slate-900">
+                                 <span className="px-2.5 py-0.5 bg-slate-100 border border-slate-200 rounded-full text-xs text-slate-700 font-bold">
+                                   {group.sales.length}
+                                 </span>
+                               </td>
+                               <td className="px-6 py-4 text-center font-bold text-slate-900">
+                                 {group.totalPiezas}
+                               </td>
+                               <td className="px-6 py-4 text-right font-black text-emerald-600 font-mono">
+                                 {formatCurrency(group.totalMonto)}
+                               </td>
+                             </tr>
+                             
+                             {isExpanded && (
+                               <tr>
+                                 <td colSpan={5} className="bg-slate-50/40 px-6 py-4">
+                                   <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                                     <table className="w-full text-left text-xs border-collapse">
+                                       <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
+                                         <tr>
+                                           <th className="px-4 py-3">Contrato</th>
+                                           <th className="px-4 py-3">Cliente</th>
+                                           <th className="px-4 py-3">Vendedor</th>
+                                           <th className="px-4 py-3 text-center">Piezas</th>
+                                           <th className="px-4 py-3 text-right">Valor</th>
+                                           {isAdminOrDireccion && <th className="px-4 py-3 text-right">Acciones</th>}
+                                         </tr>
+                                       </thead>
+                                       <tbody className="divide-y divide-slate-100 text-slate-700">
+                                         {group.sales.map((sale) => (
+                                           <tr key={sale.id} className="hover:bg-slate-50/50">
+                                             <td className="px-4 py-2.5 font-mono font-bold text-slate-900">
+                                               {sale.numContrato || '-'}
+                                             </td>
+                                             <td className="px-4 py-2.5 font-semibold text-slate-800">
+                                               {sale.nombreCompleto}
+                                             </td>
+                                             <td className="px-4 py-2.5">
+                                               <div className="flex flex-col gap-0.5">
+                                                 <span className="font-semibold text-slate-800 text-xs">
+                                                   {sale.vendedor || 'Sistema'}
+                                                 </span>
+                                                 {sale.vendedorRel?.codigoGestor && (
+                                                   <span className="text-[10px] text-blue-600 font-mono font-bold">
+                                                     Código: {sale.vendedorRel.codigoGestor}
+                                                   </span>
+                                                 )}
+                                               </div>
+                                             </td>
+                                             <td className="px-4 py-2.5 text-center font-bold text-slate-900">
+                                               {sale.piezas}
+                                             </td>
+                                             <td className="px-4 py-2.5 text-right font-black text-slate-900 font-mono">
+                                               {formatCurrency(sale.montoPago)}
+                                             </td>
+                                             {isAdminOrDireccion && (
+                                               <td className="px-4 py-2.5 text-right">
+                                                 <div className="flex justify-end gap-1.5">
+                                                   <Button 
+                                                     variant="ghost" 
+                                                     size="icon" 
+                                                     className="w-7 h-7"
+                                                     title="Editar venta"
+                                                     onClick={(e) => {
+                                                       e.stopPropagation();
+                                                       handleEditClick(sale);
+                                                     }}
+                                                   >
+                                                     <Edit className="w-3.5 h-3.5 text-slate-600" />
+                                                   </Button>
+                                                   <Button 
+                                                     variant="ghost" 
+                                                     size="icon" 
+                                                     className="w-7 h-7 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                                     title="Eliminar venta" 
+                                                     onClick={(e) => {
+                                                       e.stopPropagation();
+                                                       handleDeleteClick(sale.id);
+                                                     }}
+                                                   >
+                                                     <Trash2 className="w-3.5 h-3.5" />
+                                                   </Button>
+                                                 </div>
+                                               </td>
+                                             )}
+                                           </tr>
+                                         ))}
+                                       </tbody>
+                                     </table>
+                                   </div>
+                                 </td>
+                               </tr>
+                             )}
+                           </>
+                         );
+                       })
+                     )}
+                   </tbody>
+                 </table>
+               </div>
+             </Card>
+           </TabsContent>
+         </Tabs>
       </div>
 
       {/* Edit Modal */}

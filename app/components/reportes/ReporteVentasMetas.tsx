@@ -25,6 +25,7 @@ export const ReporteVentasMetas: React.FC<ReporteVentasMetasProps> = ({ data, lo
     const totalPptoClientes = data.reduce((sum, r) => sum + (r.pptoClientes || 0), 0);
     const totalPptoMonto = data.reduce((sum, r) => sum + (r.pptoMonto || 0), 0);
     const totalLogroCl = data.reduce((sum, r) => sum + (r.logroCl || 0), 0);
+    const totalLogroPiezas = data.reduce((sum, r) => sum + (r.logroPiezas || 0), 0);
     const totalLogroMonto = data.reduce((sum, r) => sum + (r.logroMonto || 0), 0);
 
     const totalPorcentajeCl = totalPptoClientes > 0 ? Math.round((totalLogroCl / totalPptoClientes) * 100) : 0;
@@ -74,7 +75,8 @@ export const ReporteVentasMetas: React.FC<ReporteVentasMetasProps> = ({ data, lo
                         <div className="text-2xl font-black text-purple-800">{totalLogroCl} / {totalPptoClientes}</div>
                         <p className="text-xs text-purple-700 mt-1">
                             Avance en cuentas del {' '}
-                            <span className="font-bold">{totalPorcentajeCl}%</span>
+                            <span className="font-bold text-yellow-600">{totalPorcentajeCl}%</span>{' '}
+                            <span className="text-[10px] text-purple-700/80 font-semibold block md:inline md:ml-1">(Piezas: {totalLogroPiezas})</span>
                         </p>
                     </CardContent>
                 </Card>
@@ -118,15 +120,16 @@ export const ReporteVentasMetas: React.FC<ReporteVentasMetasProps> = ({ data, lo
                                             {formatCurrency(row.pptoMonto)}
                                         </td>
                                         <td className="p-3 text-center font-semibold text-slate-100">
-                                            {row.logroCl}
+                                            <div>{row.logroCl}</div>
+                                            <div className="text-[10px] text-slate-400 font-normal">(Pzs: {row.logroPiezas || 0})</div>
                                         </td>
-                                        <td className="p-3 text-center font-bold text-[#b4d455] bg-white/5 font-mono">
+                                        <td className="p-3 text-center font-bold text-yellow-300 bg-white/5 font-mono">
                                             {row.porcentajeCl}%
                                         </td>
                                         <td className="p-3 text-right font-bold text-white">
                                             {formatCurrency(row.logroMonto)}
                                         </td>
-                                        <td className="p-3 text-center font-bold text-[#e67e22] bg-white/5 font-mono">
+                                        <td className="p-3 text-center font-bold text-amber-400 bg-white/5 font-mono">
                                             {row.porcentajeMonto}%
                                         </td>
                                         <td className="p-3 text-center text-slate-300 font-semibold">
@@ -143,7 +146,10 @@ export const ReporteVentasMetas: React.FC<ReporteVentasMetasProps> = ({ data, lo
                                     <td className="p-3 text-left">Resumen Total</td>
                                     <td className="p-3 text-center">{totalPptoClientes}</td>
                                     <td className="p-3 text-right">{formatCurrency(totalPptoMonto)}</td>
-                                    <td className="p-3 text-center">{totalLogroCl}</td>
+                                    <td className="p-3 text-center">
+                                        <div>{totalLogroCl}</div>
+                                        <div className="text-[10px] text-slate-800 font-normal leading-tight">(Pzs: {totalLogroPiezas})</div>
+                                    </td>
                                     <td className="p-3 text-center font-mono">{totalPorcentajeCl}%</td>
                                     <td className="p-3 text-right">{formatCurrency(totalLogroMonto)}</td>
                                     <td className="p-3 text-center font-mono">{totalPorcentajeMonto}%</td>

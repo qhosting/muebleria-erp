@@ -138,6 +138,7 @@ export default function SalesMobilePage() {
     const totalPptoClientes = reportData.reduce((sum: number, r: any) => sum + (r.pptoClientes || 0), 0);
     const totalPptoMonto = reportData.reduce((sum: number, r: any) => sum + (r.pptoMonto || 0), 0);
     const totalLogroCl = reportData.reduce((sum: number, r: any) => sum + (r.logroCl || 0), 0);
+    const totalLogroPiezas = reportData.reduce((sum: number, r: any) => sum + (r.logroPiezas || 0), 0);
     const totalLogroMonto = reportData.reduce((sum: number, r: any) => sum + (r.logroMonto || 0), 0);
 
     const totalPorcentajeCl = totalPptoClientes > 0 ? Math.round((totalLogroCl / totalPptoClientes) * 100) : 0;
@@ -215,7 +216,7 @@ export default function SalesMobilePage() {
               </div>
               <div className="bg-white/10 rounded-2xl p-3 flex flex-col items-center justify-center min-w-16">
                 <DollarSign className="h-6 w-6 text-white mb-0.5" />
-                <span className="text-xs font-black">{totalPorcentajeMonto}%</span>
+                <span className="text-xs font-black text-yellow-300">{totalPorcentajeMonto}%</span>
               </div>
             </CardContent>
           </Card>
@@ -224,15 +225,16 @@ export default function SalesMobilePage() {
             <Card className="bg-slate-900 border border-slate-800 text-white shadow-md rounded-2xl overflow-hidden">
               <CardContent className="p-4 flex flex-col justify-between h-full space-y-3">
                 <div className="flex justify-between items-start">
-                  <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Piezas / Clientes</p>
+                  <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Clientes</p>
                   <Award className="h-4 w-4 text-indigo-400" />
                 </div>
                 <div>
                   <p className="text-lg font-black">{totalLogroCl} / {totalPptoClientes}</p>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <span className="text-[10px] text-indigo-400 font-extrabold">{totalPorcentajeCl}%</span>
+                    <span className="text-[10px] text-yellow-300 font-extrabold">{totalPorcentajeCl}%</span>
                     <Progress value={totalPorcentajeCl} className="h-1 flex-1 bg-slate-850" />
                   </div>
+                  <p className="text-[9px] text-slate-500 font-semibold mt-1">Pzs sold: {totalLogroPiezas} (info)</p>
                 </div>
               </CardContent>
             </Card>
@@ -339,7 +341,7 @@ export default function SalesMobilePage() {
                           <div className="h-2 flex-1 bg-slate-800 rounded-full overflow-hidden">
                             <div className={`h-full ${colorMonto} rounded-full`} style={{ width: `${Math.min(row.porcentajeMonto, 100)}%` }} />
                           </div>
-                          <span className={`text-[10px] font-black w-8 text-right font-mono ${textMonto}`}>{row.porcentajeMonto}%</span>
+                          <span className="text-[10px] font-black w-8 text-right font-mono text-yellow-400">{row.porcentajeMonto}%</span>
                         </div>
                       </div>
 
@@ -347,7 +349,7 @@ export default function SalesMobilePage() {
                         <div className="flex justify-between items-end text-xs font-semibold text-slate-300">
                           <span className="flex items-center gap-1">
                             <Award className="w-3.5 h-3.5 text-slate-400" />
-                            Clientes / Piezas
+                            Clientes <span className="text-[10px] text-slate-500 font-normal">(Pzs: {row.logroPiezas || 0})</span>
                           </span>
                           <span className="font-mono">
                             <span className={textClientes}>{row.logroCl}</span> / {row.pptoClientes}
@@ -357,7 +359,7 @@ export default function SalesMobilePage() {
                           <div className="h-2 flex-1 bg-slate-800 rounded-full overflow-hidden">
                             <div className={`h-full ${colorClientes} rounded-full`} style={{ width: `${Math.min(row.porcentajeCl, 100)}%` }} />
                           </div>
-                          <span className={`text-[10px] font-black w-8 text-right font-mono ${textClientes}`}>{row.porcentajeCl}%</span>
+                          <span className="text-[10px] font-black w-8 text-right font-mono text-yellow-400">{row.porcentajeCl}%</span>
                         </div>
                       </div>
                     </div>
@@ -400,9 +402,10 @@ export default function SalesMobilePage() {
   const logradoMonto = data?.presupuesto?.logradoMonto || 0;
   const faltanMonto = metaMonto - logradoMonto;
 
-  const metaPiezas = data?.presupuesto?.metaPiezas || 0;
+  const metaClientes = data?.presupuesto?.metaPiezas || 0;
+  const logradoClientes = data?.presupuesto?.logradoClientes || 0;
+  const faltanClientes = metaClientes - logradoClientes;
   const logradoPiezas = data?.presupuesto?.logradoPiezas || 0;
-  const faltanPiezas = metaPiezas - logradoPiezas;
 
   return (
     <div className="space-y-6 pb-20">
@@ -424,13 +427,13 @@ export default function SalesMobilePage() {
                 <p className="text-xs uppercase opacity-70 font-bold">Monto ($)</p>
                 <p className="text-xl font-bold">{formatCurrency(data.presupuesto.logradoMonto)} / {formatCurrency(data.presupuesto.metaMonto)}</p>
                 <Progress value={data.presupuesto.porcentajeMonto} className="h-1.5 bg-white/20" />
-                <p className="text-[10px] text-right font-medium">{data.presupuesto.porcentajeMonto.toFixed(1)}%</p>
+                <p className="text-[10px] text-right font-medium text-yellow-300 font-extrabold">{data.presupuesto.porcentajeMonto.toFixed(1)}%</p>
               </div>
               <div className="space-y-1">
-                <p className="text-xs uppercase opacity-70 font-bold">Piezas (Un.)</p>
-                <p className="text-xl font-bold">{data.presupuesto.logradoPiezas} / {data.presupuesto.metaPiezas}</p>
-                <Progress value={data.presupuesto.porcentajePiezas} className="h-1.5 bg-white/20" />
-                <p className="text-[10px] text-right font-medium">{data.presupuesto.porcentajePiezas.toFixed(1)}%</p>
+                <p className="text-xs uppercase opacity-70 font-bold">Clientes</p>
+                <p className="text-xl font-bold">{logradoClientes} / {metaClientes}</p>
+                <Progress value={data.presupuesto.porcentajeClientes} className="h-1.5 bg-white/20" />
+                <p className="text-[10px] text-right font-medium text-yellow-300 font-extrabold">{data.presupuesto.porcentajeClientes.toFixed(1)}%</p>
               </div>
             </div>
 
@@ -441,11 +444,12 @@ export default function SalesMobilePage() {
               ) : (
                 <p className="text-emerald-300 font-bold">✓ ¡Meta de monto alcanzada!</p>
               )}
-              {faltanPiezas > 0 ? (
-                <p>• Te faltan <span className="font-bold text-white">{faltanPiezas} {faltanPiezas === 1 ? 'pieza' : 'piezas'}</span> para alcanzar tu meta de volumen.</p>
+              {faltanClientes > 0 ? (
+                <p>• Te faltan <span className="font-bold text-white">{faltanClientes} {faltanClientes === 1 ? 'cliente' : 'clientes'}</span> para alcanzar tu meta de volumen.</p>
               ) : (
-                <p className="text-emerald-300 font-bold">✓ ¡Meta de volumen alcanzada!</p>
+                <p className="text-emerald-300 font-bold">✓ ¡Meta de clientes alcanzada!</p>
               )}
+              <p className="text-[10px] opacity-75 font-semibold pt-1">• Total de piezas vendidas: <span className="font-bold text-white">{logradoPiezas}</span> (informativo)</p>
             </div>
           </CardContent>
         </Card>
@@ -461,8 +465,8 @@ export default function SalesMobilePage() {
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Enfoque del Día</p>
             <p className="text-xs text-slate-300 italic leading-relaxed">
               {(() => {
-                const pct = ((data.presupuesto.porcentajeMonto + data.presupuesto.porcentajePiezas) / 2);
-                if (data.presupuesto.logradoMonto === 0 && data.presupuesto.logradoPiezas === 0) {
+                const pct = ((data.presupuesto.porcentajeMonto + (data.presupuesto.porcentajeClientes || 0)) / 2);
+                if (data.presupuesto.logradoMonto === 0 && (data.presupuesto.logradoClientes || 0) === 0) {
                   return "¡A la carga! Tu primera venta del periodo está a la vuelta de la esquina. ¡Mucho éxito hoy!";
                 }
                 if (pct >= 100) {

@@ -66,6 +66,7 @@ export async function GET(request: NextRequest) {
     });
 
     const logradoMonto = ventasPeriodo.reduce((acc, v) => acc + Number(v.montoPago), 0);
+    const logradoClientes = ventasPeriodo.length;
     const logradoPiezas = ventasPeriodo.reduce((acc, v) => acc + (v.piezas || 0), 0);
 
     // 2.1 Obtener Leads reales del periodo
@@ -104,9 +105,11 @@ export async function GET(request: NextRequest) {
         metaLeads: (presupuesto as any).metaLeads || 0,
         logradoMonto,
         logradoPiezas,
+        logradoClientes,
         logradoLeads,
         porcentajeMonto: Number(presupuesto.metaMonto) > 0 ? (logradoMonto / Number(presupuesto.metaMonto)) * 100 : 0,
         porcentajePiezas: presupuesto.metaPiezas > 0 ? (logradoPiezas / presupuesto.metaPiezas) * 100 : 0,
+        porcentajeClientes: presupuesto.metaPiezas > 0 ? (logradoClientes / presupuesto.metaPiezas) * 100 : 0,
         porcentajeLeads: (presupuesto as any).metaLeads > 0 ? (logradoLeads / (presupuesto as any).metaLeads) * 100 : 0,
         equipo: presupuesto.equipo?.nombre
       } : null,
