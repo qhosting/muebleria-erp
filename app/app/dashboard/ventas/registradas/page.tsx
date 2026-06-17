@@ -10,6 +10,14 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { 
   ShoppingBag, 
   Search, 
   Calendar, 
@@ -19,7 +27,9 @@ import {
   FileSpreadsheet, 
   RefreshCw,
   Clock,
-  UserCheck
+  UserCheck,
+  Edit,
+  Trash2
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -31,6 +41,19 @@ export default function VentasRegistradasPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVendedor, setSelectedVendedor] = useState('all');
+
+  // Edit dialog state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingSale, setEditingSale] = useState<any>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    nombreCompleto: '',
+    numContrato: '',
+    fechaVenta: '',
+    vendedorId: '',
+    piezas: 1,
+    montoPago: 0
+  });
 
   const fetchSales = useCallback(async () => {
     setLoading(true);
@@ -58,7 +81,7 @@ export default function VentasRegistradasPage() {
   }, [selectedVendedor]);
 
   useEffect(() => {
-    // Cargar la lista de vendedores para el selector de filtros
+    // Cargar la lista de vendedores para el selector de filtros y el formulario
     fetch('/api/users')
       .then(r => r.ok ? r.json() : [])
       .then(users => {
@@ -67,11 +90,71 @@ export default function VentasRegistradasPage() {
       .catch(() => {});
   }, []);
 
+  const handleEditClick = (sale: any) => {
+    setEditingSale(sale);
+    setEditFormData({
+      nombreCompleto: sale.nombreCompleto || '',
+      numContrato: sale.numContrato || '',
+      fechaVenta: sale.fechaVenta ? sale.fechaVenta.split('T')[0] : '',
+      vendedorId: sale.vendedorId || '',
+      piezas: sale.piezas || 1,
+      montoPago: Number(sale.montoPago || 0)
+    });
+    setEditOpen(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSale) return;
+    setSavingEdit(true);
+    try {
+      const response = await fetch(`/api/ventas/registradas/${editingSale.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editFormData)
+      });
+      if (response.ok) {
+        toast.success('Venta actualizada correctamente');
+        setEditOpen(false);
+        setEditingSale(null);
+        fetchSales();
+      } else {
+        const err = await response.json();
+        toast.error(err.error || 'Error al actualizar la venta');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Error de red al actualizar la venta');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeleteClick = async (saleId: string) => {
+    if (!confirm('¿Está seguro de eliminar esta venta permanentemente?')) return;
+    try {
+      const response = await fetch(`/api/ventas/registradas/${saleId}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        toast.success('Venta eliminada correctamente');
+        fetchSales();
+      } else {
+        const err = await response.json();
+        toast.error(err.error || 'Error al eliminar la venta');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Error de red al eliminar la venta');
+    }
+  };
+
   const totalMonto = sales.reduce((acc, sale) => acc + Number(sale.montoPago || 0), 0);
   const totalPiezas = sales.reduce((acc, sale) => acc + (sale.piezas || 0), 0);
 
   const userRole = (session?.user as any)?.role;
   const isSupervisor = ['admin', 'jefe_ventas', 'direccion'].includes(userRole);
+  const isAdminOrDireccion = ['admin', 'direccion'].includes(userRole);
 
   return (
     <DashboardLayout>
@@ -179,18 +262,19 @@ export default function VentasRegistradasPage() {
                   <th className="px-6 py-4">Vendedor</th>
                   <th className="px-6 py-4 text-center">Piezas</th>
                   <th className="px-6 py-4 text-right">Valor Contrato</th>
+                  {isAdminOrDireccion && <th className="px-6 py-4 text-right">Acciones</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
                 {loading ? (
                   Array(6).fill(0).map((_, i) => (
                     <tr key={i} className="animate-pulse">
-                      <td colSpan={6} className="px-6 py-6 h-12 bg-slate-50/20"></td>
+                      <td colSpan={isAdminOrDireccion ? 7 : 6} className="px-6 py-6 h-12 bg-slate-50/20"></td>
                     </tr>
                   ))
                 ) : sales.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={isAdminOrDireccion ? 7 : 6} className="px-6 py-12 text-center text-slate-500">
                       No se encontraron ventas registradas.
                     </td>
                   </tr>
@@ -231,6 +315,29 @@ export default function VentasRegistradasPage() {
                       <td className="px-6 py-4 text-right font-black text-slate-900 font-mono">
                         {formatCurrency(sale.montoPago)}
                       </td>
+                      {isAdminOrDireccion && (
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              title="Editar venta"
+                              onClick={() => handleEditClick(sale)}
+                            >
+                              <Edit className="w-4 h-4 text-slate-600" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              title="Eliminar venta" 
+                              className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                              onClick={() => handleDeleteClick(sale.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -239,6 +346,95 @@ export default function VentasRegistradasPage() {
           </div>
         </Card>
       </div>
+
+      {/* Edit Modal */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar Venta</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveEdit} className="space-y-4">
+            <div>
+              <Label htmlFor="nombreCompleto">Nombre del Cliente</Label>
+              <Input
+                id="nombreCompleto"
+                type="text"
+                value={editFormData.nombreCompleto}
+                onChange={(e) => setEditFormData({ ...editFormData, nombreCompleto: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="numContrato">Folio de Contrato</Label>
+              <Input
+                id="numContrato"
+                type="text"
+                value={editFormData.numContrato}
+                onChange={(e) => setEditFormData({ ...editFormData, numContrato: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="fechaVenta">Fecha de Venta</Label>
+              <Input
+                id="fechaVenta"
+                type="date"
+                value={editFormData.fechaVenta}
+                onChange={(e) => setEditFormData({ ...editFormData, fechaVenta: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="piezas">Piezas</Label>
+              <Input
+                id="piezas"
+                type="number"
+                min="1"
+                value={editFormData.piezas}
+                onChange={(e) => setEditFormData({ ...editFormData, piezas: parseInt(e.target.value) || 1 })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="montoPago">Valor del Contrato ($)</Label>
+              <Input
+                id="montoPago"
+                type="number"
+                min="0"
+                value={editFormData.montoPago}
+                onChange={(e) => setEditFormData({ ...editFormData, montoPago: parseFloat(e.target.value) || 0 })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="vendedorId">Vendedor</Label>
+              <Select 
+                value={editFormData.vendedorId} 
+                onValueChange={(val) => setEditFormData({ ...editFormData, vendedorId: val })}
+              >
+                <SelectTrigger id="vendedorId">
+                  <SelectValue placeholder="Seleccionar vendedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vendedores.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.name} ({v.codigoGestor || 'Sin Código'})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={savingEdit} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                {savingEdit ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
