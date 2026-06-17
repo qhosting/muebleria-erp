@@ -231,8 +231,8 @@ export default function SalesMobilePage() {
                 <div>
                   <p className="text-lg font-black">{totalLogroCl} / {totalPptoClientes}</p>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <span className="text-[10px] text-yellow-300 font-extrabold">{totalPorcentajeCl}%</span>
-                    <Progress value={totalPorcentajeCl} className="h-1 flex-1 bg-slate-850" />
+                    <span className="text-[11px] text-yellow-300 font-black tracking-wider">{totalPorcentajeCl}%</span>
+                    <Progress value={totalPorcentajeCl} className="h-1 flex-1 bg-slate-800" indicatorClassName="bg-yellow-400" />
                   </div>
                   <p className="text-[9px] text-slate-500 font-semibold mt-1">Pzs sold: {totalLogroPiezas} (info)</p>
                 </div>
@@ -426,14 +426,14 @@ export default function SalesMobilePage() {
               <div className="space-y-1">
                 <p className="text-xs uppercase opacity-70 font-bold">Monto ($)</p>
                 <p className="text-xl font-bold">{formatCurrency(data.presupuesto.logradoMonto)} / {formatCurrency(data.presupuesto.metaMonto)}</p>
-                <Progress value={data.presupuesto.porcentajeMonto} className="h-1.5 bg-white/20" />
-                <p className="text-[10px] text-right font-medium text-yellow-300 font-extrabold">{data.presupuesto.porcentajeMonto.toFixed(1)}%</p>
+                <Progress value={data.presupuesto.porcentajeMonto} className="h-1.5 bg-white/20" indicatorClassName="bg-emerald-400" />
+                <p className="text-[11px] text-right font-black text-yellow-300 tracking-wider">{data.presupuesto.porcentajeMonto.toFixed(1)}%</p>
               </div>
               <div className="space-y-1">
                 <p className="text-xs uppercase opacity-70 font-bold">Clientes</p>
                 <p className="text-xl font-bold">{logradoClientes} / {metaClientes}</p>
-                <Progress value={data.presupuesto.porcentajeClientes} className="h-1.5 bg-white/20" />
-                <p className="text-[10px] text-right font-medium text-yellow-300 font-extrabold">{data.presupuesto.porcentajeClientes.toFixed(1)}%</p>
+                <Progress value={data.presupuesto.porcentajeClientes} className="h-1.5 bg-white/20" indicatorClassName="bg-yellow-400" />
+                <p className="text-[11px] text-right font-black text-yellow-300 tracking-wider">{data.presupuesto.porcentajeClientes.toFixed(1)}%</p>
               </div>
             </div>
 
