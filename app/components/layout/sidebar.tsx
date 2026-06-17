@@ -325,7 +325,7 @@ export function Sidebar({ className, session }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-4 px-3 space-y-1">
+        <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
           {filteredNavigation.map((item) => {
             const isActive = pathname === item.href;
             const hasSubMenu = item.subItems && item.subItems.length > 0;
