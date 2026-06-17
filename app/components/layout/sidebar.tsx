@@ -166,6 +166,7 @@ const navigation: NavItem[] = [
       { name: 'Bóveda Digital', href: '/dashboard/ventas/boveda', icon: Database },
       { name: 'Solicitudes de Crédito', href: '/dashboard/ventas/solicitudes', icon: FileText },
       { name: 'Leads (AI Sofia)', href: '/dashboard/ventas/leads', icon: MessageSquare },
+      { name: 'Ventas Registradas', href: '/dashboard/ventas/registradas', icon: ShoppingBag },
       { name: 'Programa de Recompras', href: '/dashboard/ventas/recompras', icon: Gift },
       { name: 'Dashboard Ventas', href: '/mobile/ventas', icon: BarChart3 },
       { name: 'Metas y Presupuestos', href: '/dashboard/ventas/config', icon: Target, roles: ['admin', 'jefe_ventas', 'direccion'] },
