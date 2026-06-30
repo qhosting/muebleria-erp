@@ -560,7 +560,9 @@ class BluetoothPrinterService {
     cuentasTotales: number,
     cuentasEfectivo: number,
     cuentasBancarioManual: number,
-    cuentasBancarioBot: number
+    cuentasBancarioBot: number,
+    dp?: any,
+    dq?: any
   }, pagos: any[], range?: { from: string, to: string }): Promise<boolean> {
     try {
       let ticket = '';
@@ -650,6 +652,31 @@ class BluetoothPrinterService {
       ticket += 'GRAN TOTAL:   ' + this.rightAlignText(this.formatCurrency(granTotal), 18) + this.LF;
       ticket += this.COMMANDS.BOLD_OFF;
       ticket += this.createDivider() + this.LF;
+
+      if (stats.dq || stats.dp) {
+        ticket += this.COMMANDS.BOLD_ON;
+        ticket += 'DESGLOSE POR RUTA DE COBRO:' + this.LF;
+        ticket += this.COMMANDS.BOLD_OFF;
+        
+        if (stats.dq) {
+          ticket += 'RUTA DQ:     ' + this.rightAlignText(this.formatCurrency(stats.dq.total)) + this.LF;
+          ticket += '  Efectivo:  ' + this.rightAlignText(this.formatCurrency(stats.dq.efectivo)) + this.LF;
+          ticket += '  Bancario M:' + this.rightAlignText(this.formatCurrency(stats.dq.bancarioManual)) + this.LF;
+          ticket += '  Bancario B:' + this.rightAlignText(this.formatCurrency(stats.dq.bancarioBot)) + this.LF;
+          ticket += '  Cuentas:   ' + this.rightAlignText((stats.dq.cuentas || 0).toString()) + this.LF;
+        }
+        if (stats.dq && stats.dp) {
+          ticket += this.createDivider('.', 32) + this.LF;
+        }
+        if (stats.dp) {
+          ticket += 'RUTA DP:     ' + this.rightAlignText(this.formatCurrency(stats.dp.total)) + this.LF;
+          ticket += '  Efectivo:  ' + this.rightAlignText(this.formatCurrency(stats.dp.efectivo)) + this.LF;
+          ticket += '  Bancario M:' + this.rightAlignText(this.formatCurrency(stats.dp.bancarioManual)) + this.LF;
+          ticket += '  Bancario B:' + this.rightAlignText(this.formatCurrency(stats.dp.bancarioBot)) + this.LF;
+          ticket += '  Cuentas:   ' + this.rightAlignText((stats.dp.cuentas || 0).toString()) + this.LF;
+        }
+        ticket += this.createDivider() + this.LF;
+      }
 
       ticket += this.LF + this.LF + this.LF;
       ticket += this.COMMANDS.CUT;

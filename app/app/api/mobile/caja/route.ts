@@ -104,6 +104,58 @@ export async function GET(request: Request) {
 
     const cuentasTotales = new Set(pagos.map(p => p.clienteId)).size;
 
+    // Desglose por DP y DQ
+    const pagosDP = pagos.filter(p => p.cliente?.codigoCliente?.startsWith('DP'));
+    const pagosDQ = pagos.filter(p => p.cliente?.codigoCliente?.startsWith('DQ'));
+
+    // DP Stats
+    const dpPagosEfectivo = pagosDP.filter(p => {
+      const m = normalize(p.metodoPago);
+      return m === 'gestor' || m === 'efectivo' || m === 'contado';
+    });
+    const dpEfectivo = dpPagosEfectivo.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const dpCuentasEfectivo = new Set(dpPagosEfectivo.map(p => p.clienteId)).size;
+
+    const dpPagosBancarioManual = pagosDP.filter(p => {
+      const m = normalize(p.metodoPago);
+      return m === 'bancario' || m === 'transferencia' || m === 'deposito';
+    });
+    const dpBancarioManual = dpPagosBancarioManual.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const dpCuentasBancarioManual = new Set(dpPagosBancarioManual.map(p => p.clienteId)).size;
+
+    const dpPagosBancarioBot = pagosDP.filter(p => {
+      const m = normalize(p.metodoPago);
+      return m === 'bancario_bot' || m === 'bot' || m === 'whatsapp' || m === 'bancos bot' || m === 'bancos_bot';
+    });
+    const dpBancarioBot = dpPagosBancarioBot.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const dpCuentasBancarioBot = new Set(dpPagosBancarioBot.map(p => p.clienteId)).size;
+
+    const dpCuentasTotales = new Set(pagosDP.map(p => p.clienteId)).size;
+
+    // DQ Stats
+    const dqPagosEfectivo = pagosDQ.filter(p => {
+      const m = normalize(p.metodoPago);
+      return m === 'gestor' || m === 'efectivo' || m === 'contado';
+    });
+    const dqEfectivo = dqPagosEfectivo.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const dqCuentasEfectivo = new Set(dqPagosEfectivo.map(p => p.clienteId)).size;
+
+    const dqPagosBancarioManual = pagosDQ.filter(p => {
+      const m = normalize(p.metodoPago);
+      return m === 'bancario' || m === 'transferencia' || m === 'deposito';
+    });
+    const dqBancarioManual = dqPagosBancarioManual.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const dqCuentasBancarioManual = new Set(dqPagosBancarioManual.map(p => p.clienteId)).size;
+
+    const dqPagosBancarioBot = pagosDQ.filter(p => {
+      const m = normalize(p.metodoPago);
+      return m === 'bancario_bot' || m === 'bot' || m === 'whatsapp' || m === 'bancos bot' || m === 'bancos_bot';
+    });
+    const dqBancarioBot = dqPagosBancarioBot.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const dqCuentasBancarioBot = new Set(dqPagosBancarioBot.map(p => p.clienteId)).size;
+
+    const dqCuentasTotales = new Set(pagosDQ.map(p => p.clienteId)).size;
+
     return NextResponse.json({
       stats: {
         cobradoHoy: efectivo + bancarioManual + bancarioBot,
@@ -114,7 +166,27 @@ export async function GET(request: Request) {
         bancarioManual,
         cuentasBancarioManual,
         bancarioBot,
-        cuentasBancarioBot
+        cuentasBancarioBot,
+        dp: {
+          total: dpEfectivo + dpBancarioManual + dpBancarioBot,
+          cuentas: dpCuentasTotales,
+          efectivo: dpEfectivo,
+          cuentasEfectivo: dpCuentasEfectivo,
+          bancarioManual: dpBancarioManual,
+          cuentasBancarioManual: dpCuentasBancarioManual,
+          bancarioBot: dpBancarioBot,
+          cuentasBancarioBot: dpCuentasBancarioBot
+        },
+        dq: {
+          total: dqEfectivo + dqBancarioManual + dqBancarioBot,
+          cuentas: dqCuentasTotales,
+          efectivo: dqEfectivo,
+          cuentasEfectivo: dqCuentasEfectivo,
+          bancarioManual: dqBancarioManual,
+          cuentasBancarioManual: dqCuentasBancarioManual,
+          bancarioBot: dqBancarioBot,
+          cuentasBancarioBot: dqCuentasBancarioBot
+        }
       },
       pagos: pagos.map(p => ({
         id: p.id,

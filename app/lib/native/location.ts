@@ -1,12 +1,19 @@
 import { Capacitor } from '@capacitor/core';
 // En una build deNext.js para Capacitor, a veces el plugin necesita ser importado dinámicamente
 
+export interface UbicacionCobrador {
+    lat: number;
+    lng: number;
+    accuracy: number;
+    timestamp: number;
+}
+
 /**
  * Obtiene la ubicación actual del cobrador optimizando el consumo de batería.
  * @param highAccuracy - Si es true, usa GPS de alta precisión (más batería).
  * @param maxAge - Tiempo máximo (en ms) que puede tener una ubicación en caché.
  */
-export async function obtenerUbicacionCobrador(highAccuracy: boolean = true, maxAge: number = 0) {
+export async function obtenerUbicacionCobrador(highAccuracy: boolean = true, maxAge: number = 0): Promise<UbicacionCobrador> {
     const isNative = Capacitor.isNativePlatform();
 
     if (isNative) {
@@ -45,7 +52,7 @@ export async function obtenerUbicacionCobrador(highAccuracy: boolean = true, max
             throw new Error('Geolocalización no soportada en este navegador');
         }
 
-        return new Promise((resolve, reject) => {
+        return new Promise<UbicacionCobrador>((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     resolve({

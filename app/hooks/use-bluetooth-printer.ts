@@ -176,7 +176,9 @@ export function useBluetoothPrinter() {
     cuentasTotales: number,
     cuentasEfectivo: number,
     cuentasBancarioManual: number,
-    cuentasBancarioBot: number
+    cuentasBancarioBot: number,
+    dp?: any,
+    dq?: any
   }, pagos: any[], range?: { from: string, to: string }): Promise<boolean> => {
     if (!isConnected) {
       toast.error('Impresora no conectada');

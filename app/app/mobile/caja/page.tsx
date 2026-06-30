@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { usePlatform } from "@/hooks/usePlatform";
-import { Loader2, DollarSign, Printer, Download, CreditCard, ChevronUp, ChevronDown, CheckCircle2, Calendar, Filter, RefreshCw } from "lucide-react";
+import { Loader2, DollarSign, Printer, Download, CreditCard, ChevronUp, ChevronDown, CheckCircle2, Calendar, Filter, RefreshCw, Eye } from "lucide-react";
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { toast } from "sonner";
 import { formatCurrency, formatWhatsAppNumber } from "@/lib/utils";
+import { VisualizarTicketModal } from "@/components/mobile/visualizar-ticket-modal";
 import { ArqueoModal } from "@/components/mobile/arqueo-modal";
 import { sharePdfNative } from "@/lib/native/share";
 import dayjs from "dayjs";
@@ -16,7 +17,7 @@ export default function MobileCaja() {
     const { isNative } = usePlatform();
     const [loading, setLoading] = useState(true);
     const [isExpanded, setIsExpanded] = useState(false);
-    const [stats, setStats] = useState({
+    const [stats, setStats] = useState<any>({
         cobradoHoy: 0,
         pagosRegistrados: 0,
         cuentasTotales: 0,
@@ -26,12 +27,73 @@ export default function MobileCaja() {
         cuentasBancarioManual: 0,
         bancarioBot: 0,
         cuentasBancarioBot: 0,
+        dp: {
+            total: 0,
+            cuentas: 0,
+            efectivo: 0,
+            cuentasEfectivo: 0,
+            bancarioManual: 0,
+            cuentasBancarioManual: 0,
+            bancarioBot: 0,
+            cuentasBancarioBot: 0
+        },
+        dq: {
+            total: 0,
+            cuentas: 0,
+            efectivo: 0,
+            cuentasEfectivo: 0,
+            bancarioManual: 0,
+            cuentasBancarioManual: 0,
+            bancarioBot: 0,
+            cuentasBancarioBot: 0
+        }
     });
     const [pagos, setPagos] = useState<any[]>([]);
     const { isConnected, printTicket, printCollectionReport, printArqueo, connectToPrinter } = useBluetoothPrinter();
     const [printing, setPrinting] = useState<string | null>(null);
     const [selectedPago, setSelectedPago] = useState<any | null>(null);
     const [showArqueoModal, setShowArqueoModal] = useState(false);
+    const [showVisualizarModal, setShowVisualizarModal] = useState(false);
+    const [visualizarTicketData, setVisualizarTicketData] = useState<any | null>(null);
+
+    const handleVerTicket = (pago: any) => {
+        if (!pago) return;
+        
+        const data = {
+            numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-8)}`,
+            cliente: {
+                nombreCompleto: pago.cliente.nombreCompleto || "",
+                telefono: pago.cliente.telefono,
+                direccion: pago.cliente.direccionCompleta || pago.cliente.direccion || "",
+                diaPago: pago.cliente.diaPago
+            },
+            cobrador: {
+                nombre: pago.cobrador?.name || "Cobrador",
+                id: pago.cobrador?.id || ""
+            },
+            pago: {
+                monto: pago.monto,
+                interesMoratorio: pago.interesMoratorio,
+                gastosCobranza: pago.gastosCobranza,
+                tipoPago: pago.tipoPago,
+                metodoPago: pago.metodoPago,
+                concepto: pago.concepto,
+                fechaPago: pago.fechaPago
+            },
+            saldos: {
+                anterior: pago.saldoAnterior,
+                nuevo: pago.saldoNuevo,
+            },
+            empresa: {
+                nombre: 'Grupo Mueblero DASO',
+                direccion: 'Juarez Ote. 223, Centro, SJR. QRO',
+                telefono: 'Tel: 442 980 0772'
+            }
+        };
+
+        setVisualizarTicketData(data);
+        setShowVisualizarModal(true);
+    };
 
     // Calcular ciclo semanal de cobranza (Sábado a Viernes)
     const getWeekCycleDates = () => {
@@ -434,6 +496,77 @@ export default function MobileCaja() {
                 </div>
             </div>
 
+            {/* DESGLOSE POR RUTA / EMPRESA (DP & DQ) */}
+            <div className="grid grid-cols-2 gap-4">
+                {/* RUTA DQ */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 relative overflow-hidden shadow-md">
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/5 rounded-full blur-xl pointer-events-none"></div>
+                    <div className="relative z-10 space-y-3">
+                        <div className="flex justify-between items-center">
+                            <span className="bg-blue-950/80 border border-blue-800/50 text-blue-400 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">DQ</span>
+                            <span className="text-[9px] text-slate-500 font-bold">{stats.dq?.cuentas || 0} CTAS</span>
+                        </div>
+                        <div>
+                            <p className="text-2xl font-black text-white">{formatCurrency(stats.dq?.total || 0, 0)}</p>
+                        </div>
+                        <div className="space-y-1.5 pt-2 border-t border-slate-800/80 text-[11px]">
+                            <div className="flex justify-between text-slate-400">
+                                <span>Efectivo:</span>
+                                <span className="font-semibold text-slate-300">
+                                    {formatCurrency(stats.dq?.efectivo || 0, 0)} <span className="text-[9px] text-slate-500">({stats.dq?.cuentasEfectivo || 0})</span>
+                                </span>
+                            </div>
+                            <div className="flex justify-between text-slate-400">
+                                <span>Bancario M:</span>
+                                <span className="font-semibold text-slate-300">
+                                    {formatCurrency(stats.dq?.bancarioManual || 0, 0)} <span className="text-[9px] text-slate-500">({stats.dq?.cuentasBancarioManual || 0})</span>
+                                </span>
+                            </div>
+                            <div className="flex justify-between text-slate-400">
+                                <span>Bancario Bot:</span>
+                                <span className="font-semibold text-emerald-400">
+                                    {formatCurrency(stats.dq?.bancarioBot || 0, 0)} <span className="text-[9px] text-emerald-600/50">({stats.dq?.cuentasBancarioBot || 0})</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* RUTA DP */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 relative overflow-hidden shadow-md">
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-purple-500/5 rounded-full blur-xl pointer-events-none"></div>
+                    <div className="relative z-10 space-y-3">
+                        <div className="flex justify-between items-center">
+                            <span className="bg-purple-950/80 border border-purple-800/50 text-purple-400 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">DP</span>
+                            <span className="text-[9px] text-slate-500 font-bold">{stats.dp?.cuentas || 0} CTAS</span>
+                        </div>
+                        <div>
+                            <p className="text-2xl font-black text-white">{formatCurrency(stats.dp?.total || 0, 0)}</p>
+                        </div>
+                        <div className="space-y-1.5 pt-2 border-t border-slate-800/80 text-[11px]">
+                            <div className="flex justify-between text-slate-400">
+                                <span>Efectivo:</span>
+                                <span className="font-semibold text-slate-300">
+                                    {formatCurrency(stats.dp?.efectivo || 0, 0)} <span className="text-[9px] text-slate-500">({stats.dp?.cuentasEfectivo || 0})</span>
+                                </span>
+                            </div>
+                            <div className="flex justify-between text-slate-400">
+                                <span>Bancario M:</span>
+                                <span className="font-semibold text-slate-300">
+                                    {formatCurrency(stats.dp?.bancarioManual || 0, 0)} <span className="text-[9px] text-slate-500">({stats.dp?.cuentasBancarioManual || 0})</span>
+                                </span>
+                            </div>
+                            <div className="flex justify-between text-slate-400">
+                                <span>Bancario Bot:</span>
+                                <span className="font-semibold text-emerald-400">
+                                    {formatCurrency(stats.dp?.bancarioBot || 0, 0)} <span className="text-[9px] text-emerald-600/50">({stats.dp?.cuentasBancarioBot || 0})</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* ACCIONES DE CAJA */}
             <div className="grid grid-cols-2 gap-3">
                 <button 
@@ -646,6 +779,13 @@ export default function MobileCaja() {
                             </div>
 
                             <div className="pt-4 space-y-2">
+                                <button 
+                                    onClick={() => handleVerTicket(selectedPago)}
+                                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl flex items-center justify-center space-x-2 transition-all text-xs"
+                                >
+                                    <Eye className="w-4 h-4" />
+                                    <span>Visualizar Ticket</span>
+                                </button>
                                 <div className="flex gap-2">
                                     <button 
                                         onClick={() => handleReprintTicket(selectedPago.id)}
@@ -692,6 +832,14 @@ export default function MobileCaja() {
                 onClose={() => setShowArqueoModal(false)}
                 sistemaEfectivo={stats.efectivo}
                 onPrint={handlePrintArqueo}
+            />
+
+            <VisualizarTicketModal
+                isOpen={showVisualizarModal}
+                onClose={() => setShowVisualizarModal(false)}
+                ticketData={visualizarTicketData}
+                onPrint={selectedPago ? () => handleReprintTicket(selectedPago.id) : undefined}
+                isPrinting={selectedPago ? printing === selectedPago.id : false}
             />
         </div>
     );

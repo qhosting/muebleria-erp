@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake, RefreshCw, Phone, Hash } from "lucide-react";
+import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake, RefreshCw, Phone, Hash, Eye } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { VisualizarTicketModal } from "@/components/mobile/visualizar-ticket-modal";
 import { useSearchParams } from "next/navigation";
 import { usePlatform } from "@/hooks/usePlatform";
 import { formatWhatsAppNumber } from "@/lib/utils";
@@ -50,6 +51,56 @@ function MobileClientes() {
     const [metodoPago, setMetodoPago] = useState("GESTOR");
     const [lastPagoLocalId, setLastPagoLocalId] = useState<string | null>(null);
     const [concepto, setConcepto] = useState("");
+    const [showVisualizarModal, setShowVisualizarModal] = useState(false);
+    const [visualizarTicketData, setVisualizarTicketData] = useState<any | null>(null);
+
+    const handleVerTicket = async () => {
+        if (!selectedCliente) return;
+        
+        try {
+            const dbPago = lastPagoLocalId ? await db.pagos.get(lastPagoLocalId) : null;
+            const cobradorNombre = session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || "COBRADOR";
+            const cobradorId = (session?.user as any)?.id || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_id') : '') || "N/A";
+
+            const data = {
+                numeroRecibo: dbPago?.numeroRecibo || (dbPago?.localId ? `REC-${dbPago.localId.slice(-8)}` : `REC-temp`),
+                cliente: {
+                    nombreCompleto: selectedCliente.nombre,
+                    telefono: selectedCliente.telefono,
+                    direccion: selectedCliente.direccion || "",
+                    diaPago: selectedCliente.diaPago
+                },
+                cobrador: {
+                    nombre: cobradorNombre,
+                    id: dbPago?.cobradorId || cobradorId
+                },
+                pago: {
+                    monto: parseFloat(montoCobrar),
+                    interesMoratorio: parseFloat(interesMoratorio),
+                    gastosCobranza: parseFloat(gastosCobranza),
+                    tipoPago,
+                    metodoPago: dbPago?.metodoPago || metodoPago || 'efectivo',
+                    concepto: dbPago?.concepto || concepto || "Pago de cuota",
+                    fechaPago: dbPago?.fechaPago || new Date().toISOString()
+                },
+                saldos: {
+                    anterior: selectedCliente.saldo,
+                    nuevo: selectedCliente.saldo - parseFloat(montoCobrar)
+                },
+                empresa: {
+                    nombre: 'Grupo Mueblero DASO',
+                    direccion: 'Juarez Ote. 223, Centro, SJR. QRO',
+                    telefono: 'Tel: 442 980 0772'
+                }
+            };
+
+            setVisualizarTicketData(data);
+            setShowVisualizarModal(true);
+        } catch (error) {
+            console.error("Error al preparar visualización de ticket:", error);
+            toast.error("Error al previsualizar ticket");
+        }
+    };
     
     // Estados para historial de pagos
     const [historicoPagos, setHistoricoPagos] = useState<any[]>([]);
@@ -1094,22 +1145,31 @@ function MobileClientes() {
                                         <p className="text-slate-400 text-sm">El pago se ha guardado correctamente.</p>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2">
                                         <button
-                                            onClick={compartirReciboPDF}
-                                            className="bg-[#25D366] hover:bg-[#20bd5a] text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 shadow-lg active:scale-95 transition-transform"
+                                            onClick={handleVerTicket}
+                                            className="w-full bg-sky-600 hover:bg-sky-500 text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 shadow-lg active:scale-95 transition-transform"
                                         >
-                                            <Send className="w-4 h-4" />
-                                            <span>WhatsApp PDF</span>
+                                            <Eye className="w-4 h-4" />
+                                            <span>Visualizar Ticket</span>
                                         </button>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                onClick={compartirReciboPDF}
+                                                className="bg-[#25D366] hover:bg-[#20bd5a] text-white py-3 px-2 rounded-xl font-bold text-xs flex items-center justify-center space-x-1 shadow-lg active:scale-95 transition-transform"
+                                            >
+                                                <Send className="w-3.5 h-3.5" />
+                                                <span>WhatsApp PDF</span>
+                                            </button>
 
-                                        <button 
-                                            onClick={handleImprimirRecibo}
-                                            className="bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 active:scale-95 transition-transform"
-                                        >
-                                            <Printer className="w-4 h-4" />
-                                            <span>Imprimir</span>
-                                        </button>
+                                            <button 
+                                                onClick={handleImprimirRecibo}
+                                                className="bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 px-2 rounded-xl font-bold text-xs flex items-center justify-center space-x-1 active:scale-95 transition-transform"
+                                            >
+                                                <Printer className="w-3.5 h-3.5" />
+                                                <span>Imprimir</span>
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <button
@@ -1221,6 +1281,14 @@ function MobileClientes() {
                     isOnline={true}
                 />
             )}
+
+            {/* MODAL PREVISUALIZAR TICKET */}
+            <VisualizarTicketModal
+                isOpen={showVisualizarModal}
+                onClose={() => setShowVisualizarModal(false)}
+                ticketData={visualizarTicketData}
+                onPrint={handleImprimirRecibo}
+            />
         </div>
     );
 }
