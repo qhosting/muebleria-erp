@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake, RefreshCw, Phone, Hash, Eye } from "lucide-react";
+import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake, RefreshCw, Phone, Hash, Eye, Download } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { VisualizarTicketModal } from "@/components/mobile/visualizar-ticket-modal";
 import { useSearchParams } from "next/navigation";
@@ -557,7 +557,97 @@ function MobileClientes() {
         }
     };
 
-    const compartirReciboPDF = async () => {
+    const descargarReciboPDF = async () => {
+        if (!selectedCliente) return;
+
+        try {
+            if (!lastPagoLocalId) {
+                toast.error("No se encontró la referencia local del pago registrado");
+                return;
+            }
+
+            const dbPago = await db.pagos.get(lastPagoLocalId);
+            if (!dbPago) {
+                toast.error("No se encontró el pago en la base de datos local");
+                return;
+            }
+
+            toast.info("Generando comprobante PDF...");
+
+            const totalPago = parseFloat(montoCobrar) + parseFloat(interesMoratorio) + parseFloat(gastosCobranza);
+            const cobradorNombre = session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || "COBRADOR";
+
+            const ticketData = {
+                numeroRecibo: dbPago.numeroRecibo || `REC-${dbPago.localId.slice(-8)}`,
+                cliente: {
+                    nombreCompleto: selectedCliente.nombre,
+                    telefono: selectedCliente.telefono,
+                    direccion: selectedCliente.direccion || "",
+                    diaPago: selectedCliente.diaPago
+                },
+                cobrador: {
+                    nombre: cobradorNombre,
+                    id: dbPago.cobradorId
+                },
+                pago: {
+                    monto: totalPago,
+                    montoAbono: parseFloat(montoCobrar),
+                    interesMoratorio: parseFloat(interesMoratorio),
+                    gastosCobranza: parseFloat(gastosCobranza),
+                    tipoPago: dbPago.tipoPago,
+                    metodoPago: dbPago.metodoPago || 'efectivo',
+                    concepto: dbPago.concepto || "Pago de cuota",
+                    fechaPago: dbPago.fechaPago
+                },
+                saldos: {
+                    anterior: selectedCliente.saldo,
+                    nuevo: selectedCliente.saldo - parseFloat(montoCobrar)
+                },
+                empresa: {
+                    nombre: 'Grupo Mueblero DASO',
+                    direccion: 'Juarez Ote. 223, Centro, SJR. QRO',
+                    telefono: 'Tel: 442 980 0772'
+                }
+            };
+
+            const { generateReceiptPdf } = await import("@/lib/receipt-pdf");
+            const doc = await generateReceiptPdf(ticketData);
+
+            const clienteCodigo = selectedCliente.codigoCliente || selectedCliente.nombre?.replace(/\s+/g, '_') || 'cliente';
+            const pdfName = `Recibo_${clienteCodigo}_${ticketData.numeroRecibo}.pdf`;
+            const shareTitle = `Comprobante de Pago — ${selectedCliente.nombre}`;
+            const shareText = `Hola, te comparto el comprobante de tu pago por $${totalPago.toFixed(2)}.`;
+
+            const { sharePdfNative } = await import("@/lib/native/share");
+            const sharedNatively = await sharePdfNative(doc, pdfName, shareTitle, shareText);
+
+            if (sharedNatively) {
+                toast.success('PDF compartido exitosamente.');
+            } else {
+                const pdfOutput = doc.output('arraybuffer');
+                const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
+                const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
+                const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] });
+
+                if (canShare) {
+                    await navigator.share({
+                        title: shareTitle,
+                        text: shareText,
+                        files: [pdfFile],
+                    }).catch(() => {});
+                    toast.success('PDF compartido exitosamente.');
+                } else {
+                    doc.save(pdfName);
+                    toast.success('PDF descargado localmente.');
+                }
+            }
+        } catch (error) {
+            console.error("Error al generar PDF:", error);
+            toast.error("Error al generar o compartir el archivo PDF");
+        }
+    };
+
+    const compartirPorWhatsApp = async () => {
         if (!selectedCliente) return;
 
         try {
@@ -589,81 +679,18 @@ function MobileClientes() {
                 return;
             }
 
-            // 🚀 NUEVO: Si no hay red o el pago aún no se ha sincronizado en el servidor, generar PDF localmente y compartir nativamente
+            // Si no hay red o el pago aún no se ha sincronizado en el servidor, enviar mensaje de texto descriptivo por WhatsApp
             if (!navigator.onLine || dbPago.syncStatus !== 'synced' || !dbPago.id) {
-                toast.info("Generando comprobante PDF temporal (offline)...");
+                const numRecibo = dbPago.numeroRecibo || `REC-${dbPago.localId.slice(-8)}`;
+                const mensajeOffline = `Hola *${selectedCliente.nombre}* 👋, confirmamos el registro de tu pago provisional por *$${totalPago.toFixed(2)}* (Recibo: ${numRecibo}). Tan pronto tengamos conexión a internet, se sincronizará y recibirás tu comprobante digital definitivo. ¡Gracias!`;
                 
-                const cobradorNombre = session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || "COBRADOR";
-                
-                // Estructurar los datos del ticket para el generador local de PDF
-                const ticketData = {
-                    numeroRecibo: dbPago.numeroRecibo || `REC-${dbPago.localId.slice(-8)}`,
-                    cliente: {
-                        nombreCompleto: selectedCliente.nombre,
-                        telefono: selectedCliente.telefono,
-                        direccion: selectedCliente.direccion || "",
-                        diaPago: selectedCliente.diaPago
-                    },
-                    cobrador: {
-                        nombre: cobradorNombre,
-                        id: dbPago.cobradorId
-                    },
-                    pago: {
-                        monto: totalPago,
-                        montoAbono: parseFloat(montoCobrar),
-                        interesMoratorio: parseFloat(interesMoratorio),
-                        gastosCobranza: parseFloat(gastosCobranza),
-                        tipoPago: dbPago.tipoPago,
-                        metodoPago: dbPago.metodoPago || 'efectivo',
-                        concepto: dbPago.concepto || "Pago de cuota",
-                        fechaPago: dbPago.fechaPago
-                    },
-                    saldos: {
-                        anterior: selectedCliente.saldo,
-                        nuevo: selectedCliente.saldo - parseFloat(montoCobrar)
-                    },
-                    empresa: {
-                        nombre: 'Grupo Mueblero DASO',
-                        direccion: 'Juarez Ote. 223, Centro, SJR. QRO',
-                        telefono: 'Tel: 442 980 0772'
-                    }
-                };
-
-                const { generateReceiptPdf } = await import("@/lib/receipt-pdf");
-                const doc = await generateReceiptPdf(ticketData);
-
-                const clienteCodigo = selectedCliente.codigoCliente || selectedCliente.nombre?.replace(/\s+/g, '_') || 'cliente';
-                const pdfName = `Recibo_Temp_${clienteCodigo}_${ticketData.numeroRecibo}.pdf`;
-                const shareTitle = `Comprobante Temporal — ${selectedCliente.nombre}`;
-                const shareText = `Hola, te comparto el comprobante provisional de tu pago por $${totalPago.toFixed(2)} registrado offline. Se sincronizará automáticamente.`;
-
-                const { sharePdfNative } = await import("@/lib/native/share");
-                const sharedNatively = await sharePdfNative(doc, pdfName, shareTitle, shareText);
-
-                if (sharedNatively) {
-                    toast.success('PDF temporal compartido exitosamente.');
-                } else {
-                    // Fallback para web / navegadores móviles compatibles
-                    const pdfOutput = doc.output('arraybuffer');
-                    const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
-                    const pdfFile = new File([pdfBlob], pdfName, { type: 'application/pdf' });
-                    const canShare = typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] });
-
-                    if (canShare) {
-                        await navigator.share({
-                            title: shareTitle,
-                            text: shareText,
-                            files: [pdfFile],
-                        }).catch(() => {});
-                    } else {
-                        doc.save(pdfName);
-                        toast.success('PDF provisional descargado localmente.');
-                    }
-                }
+                const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensajeOffline)}`;
+                window.open(url, isNative ? '_system' : '_blank');
+                toast.success('Abriendo WhatsApp (modo offline)...');
                 return;
             }
 
-            toast.info('Generando enlace temporal de recibo...');
+            toast.info('Generando enlace de recibo...');
 
             // 3. Consultar la API para generar el enlace temporal firmado
             const response = await fetch(`/api/mobile/recibo/link?pagoId=${dbPago.id}`);
@@ -679,8 +706,8 @@ function MobileClientes() {
             window.open(url, isNative ? '_system' : '_blank');
             toast.success('Abriendo WhatsApp...');
         } catch (error: any) {
-            console.error("Error al compartir el recibo por WhatsApp:", error);
-            toast.error("Error al generar el enlace de WhatsApp o PDF");
+            console.error("Error al compartir por WhatsApp:", error);
+            toast.error("Error al abrir WhatsApp");
         }
     };
 
@@ -1190,7 +1217,7 @@ function MobileClientes() {
                                         <p className="text-slate-400 text-sm">El pago se ha guardado correctamente.</p>
                                     </div>
 
-                                    <div className="space-y-2">
+                                    <div className="space-y-2.5">
                                         <button
                                             onClick={handleVerTicket}
                                             className="w-full bg-sky-600 hover:bg-sky-500 text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 shadow-lg active:scale-95 transition-transform"
@@ -1200,21 +1227,28 @@ function MobileClientes() {
                                         </button>
                                         <div className="grid grid-cols-2 gap-2">
                                             <button
-                                                onClick={compartirReciboPDF}
-                                                className="bg-[#25D366] hover:bg-[#20bd5a] text-white py-3 px-2 rounded-xl font-bold text-xs flex items-center justify-center space-x-1 shadow-lg active:scale-95 transition-transform"
+                                                onClick={compartirPorWhatsApp}
+                                                className="bg-[#25D366] hover:bg-[#20bd5a] text-white py-3 px-3 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-lg active:scale-95 transition-transform"
                                             >
-                                                <Send className="w-3.5 h-3.5" />
-                                                <span>WhatsApp PDF</span>
+                                                <Send className="w-4 h-4" />
+                                                <span>WhatsApp</span>
                                             </button>
 
-                                            <button 
-                                                onClick={handleImprimirRecibo}
-                                                className="bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 px-2 rounded-xl font-bold text-xs flex items-center justify-center space-x-1 active:scale-95 transition-transform"
+                                            <button
+                                                onClick={descargarReciboPDF}
+                                                className="bg-indigo-600 hover:bg-indigo-500 text-white py-3 px-3 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-lg active:scale-95 transition-transform"
                                             >
-                                                <Printer className="w-3.5 h-3.5" />
-                                                <span>Imprimir</span>
+                                                <Download className="w-4 h-4" />
+                                                <span>Generar PDF</span>
                                             </button>
                                         </div>
+                                        <button 
+                                            onClick={() => handleImprimirRecibo()}
+                                            className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 active:scale-95 transition-transform"
+                                        >
+                                            <Printer className="w-4 h-4" />
+                                            <span>Imprimir Recibo</span>
+                                        </button>
                                     </div>
 
                                     <button
