@@ -101,6 +101,52 @@ function MobileClientes() {
             toast.error("Error al previsualizar ticket");
         }
     };
+
+    const handleVerTicketDeHistorial = (pago: any) => {
+        if (!selectedCliente) return;
+
+        try {
+            const cobradorNombre = session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || "COBRADOR";
+
+            const data = {
+                numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-8)}`,
+                cliente: {
+                    nombreCompleto: selectedCliente.nombre || selectedCliente.nombreCompleto || "",
+                    telefono: selectedCliente.telefono,
+                    direccion: selectedCliente.direccion || selectedCliente.direccionCompleta || "",
+                    diaPago: selectedCliente.diaPago
+                },
+                cobrador: {
+                    nombre: cobradorNombre,
+                    id: pago.cobradorId
+                },
+                pago: {
+                    monto: Number(pago.monto),
+                    interesMoratorio: Number(pago.interesMoratorio || 0),
+                    gastosCobranza: Number(pago.gastosCobranza || 0),
+                    tipoPago: pago.tipoPago,
+                    metodoPago: pago.metodoPago,
+                    concepto: pago.concepto || "Pago de cuota",
+                    fechaPago: pago.fechaPago
+                },
+                saldos: {
+                    anterior: Number(pago.saldoAnterior || 0),
+                    nuevo: Number(pago.saldoNuevo || 0),
+                },
+                empresa: {
+                    nombre: 'Grupo Mueblero DASO',
+                    direccion: 'Juarez Ote. 223, Centro, SJR. QRO',
+                    telefono: 'Tel: 442 980 0772'
+                }
+            };
+
+            setVisualizarTicketData(data);
+            setShowVisualizarModal(true);
+        } catch (error) {
+            console.error("Error al preparar visualización de ticket histórico:", error);
+            toast.error("Error al previsualizar ticket");
+        }
+    };
     
     // Estados para historial de pagos
     const [historicoPagos, setHistoricoPagos] = useState<any[]>([]);
@@ -461,26 +507,24 @@ function MobileClientes() {
         }
     };
 
-    const handleImprimirRecibo = async () => {
-        if (!selectedCliente || !isConnected) {
-            if (!isConnected) {
-                toast.error("Impresora no conectada", {
-                    action: {
-                        label: "Conectar",
-                        onClick: () => connectToPrinter()
-                    }
-                });
-            }
+    const handleImprimirRecibo = async (specificTicketData?: any) => {
+        if (!isConnected) {
+            toast.error("Impresora no conectada", {
+                action: {
+                    label: "Conectar",
+                    onClick: () => connectToPrinter()
+                }
+            });
             return;
         }
 
         try {
-            const ticketData = {
+            const ticketToPrint = specificTicketData || {
                 cliente: {
-                    nombreCompleto: selectedCliente.nombre,
-                    direccion: selectedCliente.direccion,
-                    diaPago: selectedCliente.diaPago,
-                    telefono: selectedCliente.telefono
+                    nombreCompleto: selectedCliente?.nombre || "",
+                    direccion: selectedCliente?.direccion || "",
+                    diaPago: selectedCliente?.diaPago || "",
+                    telefono: selectedCliente?.telefono || ""
                 },
                 cobrador: {
                     nombre: session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || "COBRADOR",
@@ -496,19 +540,20 @@ function MobileClientes() {
                     fechaPago: new Date().toISOString()
                 },
                 saldos: {
-                    anterior: selectedCliente.saldo,
-                    nuevo: selectedCliente.saldo - parseFloat(montoCobrar)
+                    anterior: selectedCliente?.saldo || 0,
+                    nuevo: (selectedCliente?.saldo || 0) - parseFloat(montoCobrar)
                 },
                 empresa: {
-                    nombre: "VERTEX ERP - MUEBLERIA",
-                    direccion: "CENTRO DE OPERACIONES"
+                    nombre: "Grupo Mueblero DASO",
+                    direccion: "Juarez Ote. 223, Centro, SJR. QRO",
+                    telefono: "Tel: 442 980 0772"
                 }
             };
 
-            await (printTicket as any)(ticketData);
+            await (printTicket as any)(ticketToPrint);
         } catch (error) {
             console.error("Error al imprimir recibo:", error);
-            toast.error("Error al imprimir el recibo");
+            toast.error("Error al imprimir");
         }
     };
 
@@ -1213,7 +1258,11 @@ function MobileClientes() {
                             ) : (
                                 <div className="space-y-3">
                                     {historicoPagos.map((pago) => (
-                                        <div key={pago.id} className="bg-slate-950/50 border border-slate-800/50 p-4 rounded-2xl flex justify-between items-center">
+                                        <div 
+                                            key={pago.id} 
+                                            onClick={() => handleVerTicketDeHistorial(pago)}
+                                            className="bg-slate-950/50 border border-slate-800/50 p-4 rounded-2xl flex justify-between items-center cursor-pointer hover:bg-slate-900/50 active:scale-[0.98] transition-all"
+                                        >
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm font-black text-white">${Number(pago.monto)}</span>
@@ -1228,9 +1277,12 @@ function MobileClientes() {
                                                     <span className="text-[10px] font-bold">{new Date(pago.fechaPago).toLocaleDateString()}</span>
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-[9px] text-slate-500 uppercase font-black">Concepto</p>
-                                                <p className="text-[10px] text-slate-300 font-bold">{pago.concepto || 'Pago Regular'}</p>
+                                            <div className="flex items-center gap-3 text-right">
+                                                <div>
+                                                    <p className="text-[9px] text-slate-500 uppercase font-black">Concepto</p>
+                                                    <p className="text-[10px] text-slate-300 font-bold">{pago.concepto || 'Pago Regular'}</p>
+                                                </div>
+                                                <Printer className="w-4 h-4 text-slate-500 hover:text-slate-250 transition-colors" />
                                             </div>
                                         </div>
                                     ))}
@@ -1287,7 +1339,7 @@ function MobileClientes() {
                 isOpen={showVisualizarModal}
                 onClose={() => setShowVisualizarModal(false)}
                 ticketData={visualizarTicketData}
-                onPrint={handleImprimirRecibo}
+                onPrint={() => handleImprimirRecibo(visualizarTicketData)}
             />
         </div>
     );
