@@ -147,6 +147,52 @@ function MobileClientes() {
             toast.error("Error al previsualizar ticket");
         }
     };
+
+    const handleImprimirDeHistorialDirecto = async (pago: any) => {
+        if (!selectedCliente) return;
+
+        try {
+            const cobradorNombre = session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || "COBRADOR";
+
+            const data = {
+                numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-8)}`,
+                cliente: {
+                    nombreCompleto: selectedCliente.nombre || selectedCliente.nombreCompleto || "",
+                    telefono: selectedCliente.telefono,
+                    direccion: selectedCliente.direccion || selectedCliente.direccionCompleta || "",
+                    diaPago: selectedCliente.diaPago
+                },
+                cobrador: {
+                    nombre: cobradorNombre,
+                    id: pago.cobradorId
+                },
+                pago: {
+                    monto: Number(pago.monto),
+                    interesMoratorio: Number(pago.interesMoratorio || 0),
+                    gastosCobranza: Number(pago.gastosCobranza || 0),
+                    tipoPago: pago.tipoPago,
+                    metodoPago: pago.metodoPago,
+                    concepto: pago.concepto || "Pago de cuota",
+                    fechaPago: pago.fechaPago
+                },
+                saldos: {
+                    anterior: Number(pago.saldoAnterior || 0),
+                    nuevo: Number(pago.saldoNuevo || 0),
+                },
+                empresa: {
+                    nombre: 'Grupo Mueblero DASO',
+                    direccion: 'Juarez Ote. 223, Centro, SJR. QRO',
+                    telefono: 'Tel: 442 980 0772'
+                }
+            };
+
+            toast.info("Enviando impresión...");
+            await handleImprimirRecibo(data);
+        } catch (error) {
+            console.error("Error en impresión directa desde historial:", error);
+            toast.error("Error al imprimir");
+        }
+    };
     
     // Estados para historial de pagos
     const [historicoPagos, setHistoricoPagos] = useState<any[]>([]);
@@ -1316,7 +1362,13 @@ function MobileClientes() {
                                                     <p className="text-[9px] text-slate-500 uppercase font-black">Concepto</p>
                                                     <p className="text-[10px] text-slate-300 font-bold">{pago.concepto || 'Pago Regular'}</p>
                                                 </div>
-                                                <Printer className="w-4 h-4 text-slate-500 hover:text-slate-250 transition-colors" />
+                                                <Printer 
+                                                    className="w-7 h-7 text-slate-400 hover:text-sky-400 transition-colors cursor-pointer p-1.5 rounded-full hover:bg-slate-800" 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleImprimirDeHistorialDirecto(pago);
+                                                    }}
+                                                />
                                             </div>
                                         </div>
                                     ))}
