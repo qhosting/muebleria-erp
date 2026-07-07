@@ -97,6 +97,7 @@ const navigation: NavItem[] = [
       { name: 'Monitoreo Vivo', href: '/dashboard/monitoreo', icon: Activity },
       { name: 'Análisis de Rutas', href: '/dashboard/rutas', icon: Route },
       { name: 'Campañas SMS', href: '/dashboard/sms', icon: MessageSquare },
+      { name: 'Lista Cobranza', href: '/dashboard/cobranza/lista-cobranza', icon: FileText },
     ]
   },
   {
