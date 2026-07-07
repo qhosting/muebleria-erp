@@ -29,6 +29,12 @@ interface Cliente {
     periodicidad: string;
     montoPago: number;
     saldoActual: number;
+    numContrato?: string;
+    fechaVenta?: string;
+    vendedor?: string;
+    descripcionProducto?: string;
+    importe1?: number;
+    importe2?: number;
 }
 
 export default function ListaCobranzaPage() {
@@ -128,16 +134,23 @@ export default function ListaCobranzaPage() {
         const cobradorName = getSelectedCobradorName();
         const csvContent = [
             [
-                "Codigo Cliente", "Nombre Completo", "Direccion", "Telefono",
-                "Dia Pago", "Periodicidad", "Monto Pago", "Saldo Actual"
+                "Contrato", "Codigo Cliente", "Nombre Completo", "Direccion", "Telefono",
+                "Dia Pago", "Periodicidad", "Producto", "Fecha Venta", "Vendedor",
+                "Precio Contado", "Vendido En", "Monto Pago", "Saldo Actual"
             ],
             ...clientes.map(c => [
+                `"${c.numContrato || "-"}"`,
                 `"${c.codigoCliente || "-"}"`,
                 `"${c.nombreCompleto || "-"}"`,
                 `"${c.direccionCompleta?.replace(/"/g, '""') || "-"}"`,
                 `"${c.telefono || "-"}"`,
                 `"${c.diaPago || "-"}"`,
                 `"${c.periodicidad || "-"}"`,
+                `"${c.descripcionProducto?.replace(/"/g, '""') || "-"}"`,
+                `"${c.fechaVenta ? new Date(c.fechaVenta).toLocaleDateString("es-MX") : "-"}"`,
+                `"${c.vendedor || "-"}"`,
+                c.importe1 || 0,
+                c.importe2 || 0,
                 c.montoPago,
                 c.saldoActual
             ])
@@ -280,26 +293,32 @@ export default function ListaCobranzaPage() {
                                 <table className="w-full text-sm text-left align-middle text-gray-600 border-collapse">
                                     <thead className="bg-[#1e293b] text-white text-[11px] font-semibold uppercase tracking-wider">
                                         <tr>
+                                            <th className="px-4 py-3 text-center border border-slate-700">Contrato</th>
                                             <th className="px-4 py-3 text-center border border-slate-700">Código</th>
                                             <th className="px-4 py-3 border border-slate-700">Cliente</th>
                                             <th className="px-4 py-3 border border-slate-700">Dirección</th>
                                             <th className="px-4 py-3 border border-slate-700">Teléfono</th>
                                             <th className="px-4 py-3 text-center border border-slate-700">Día Cobro</th>
                                             <th className="px-4 py-3 text-center border border-slate-700">Periodicidad</th>
-                                            <th className="px-4 py-3 text-right border border-slate-700">Pago Semanal</th>
+                                            <th className="px-4 py-3 border border-slate-700">Producto</th>
+                                            <th className="px-4 py-3 text-center border border-slate-700">Fecha Venta</th>
+                                            <th className="px-4 py-3 border border-slate-700">Vendedor</th>
+                                            <th className="px-4 py-3 text-right border border-slate-700">P. Contado</th>
+                                            <th className="px-4 py-3 text-right border border-slate-700">Vendido En</th>
+                                            <th className="px-4 py-3 text-right border border-slate-700">Abono Semanal</th>
                                             <th className="px-4 py-3 text-right border border-slate-700">Saldo Actual</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200 bg-white">
                                         {loading ? (
                                             <tr>
-                                                <td colSpan={8} className="py-8 text-center text-gray-500 text-xs">
+                                                <td colSpan={14} className="py-8 text-center text-gray-500 text-xs">
                                                     Cargando clientes de la ruta...
                                                 </td>
                                             </tr>
                                         ) : clientesFiltrados.length === 0 ? (
                                             <tr>
-                                                <td colSpan={8} className="py-12 text-center text-gray-500 text-xs">
+                                                <td colSpan={14} className="py-12 text-center text-gray-500 text-xs">
                                                     No se encontraron clientes asignados para este gestor en la semana elegida.
                                                 </td>
                                             </tr>
@@ -307,10 +326,13 @@ export default function ListaCobranzaPage() {
                                             <>
                                                 {clientesFiltrados.map((c) => (
                                                     <tr key={c.id} className="hover:bg-slate-50 transition-colors text-xs">
+                                                        <td className="px-4 py-2 text-center font-semibold font-mono text-gray-900 border border-gray-200">
+                                                            {c.numContrato || "-"}
+                                                        </td>
                                                         <td className="px-4 py-2 text-center font-bold font-mono text-gray-900 border border-gray-200">
                                                             {c.codigoCliente}
                                                         </td>
-                                                        <td className="px-4 py-2 font-medium text-gray-900 border border-gray-200">
+                                                        <td className="px-4 py-2 font-medium text-gray-900 border border-gray-200 whitespace-nowrap">
                                                             {c.nombreCompleto}
                                                         </td>
                                                         <td className="px-4 py-2 border border-gray-200 max-w-xs truncate" title={c.direccionCompleta}>
@@ -337,6 +359,21 @@ export default function ListaCobranzaPage() {
                                                                 {c.periodicidad}
                                                             </Badge>
                                                         </td>
+                                                        <td className="px-4 py-2 border border-gray-200 max-w-xs truncate" title={c.descripcionProducto}>
+                                                            {c.descripcionProducto || "-"}
+                                                        </td>
+                                                        <td className="px-4 py-2 text-center border border-gray-200 whitespace-nowrap">
+                                                            {c.fechaVenta ? new Date(c.fechaVenta).toLocaleDateString("es-MX") : "-"}
+                                                        </td>
+                                                        <td className="px-4 py-2 border border-gray-200 text-center">
+                                                            {c.vendedor || "-"}
+                                                        </td>
+                                                        <td className="px-4 py-2 text-right border border-gray-200">
+                                                            {c.importe1 ? formatCurrency(c.importe1) : "$0.00"}
+                                                        </td>
+                                                        <td className="px-4 py-2 text-right border border-gray-200">
+                                                            {c.importe2 ? formatCurrency(c.importe2) : "$0.00"}
+                                                        </td>
                                                         <td className="px-4 py-2 text-right border border-gray-200 font-semibold text-gray-900">
                                                             {formatCurrency(c.montoPago)}
                                                         </td>
@@ -347,7 +384,7 @@ export default function ListaCobranzaPage() {
                                                 ))}
                                                 {/* Fila de Totales */}
                                                 <tr className="bg-slate-50 font-bold text-xs text-slate-900 border-t-2 border-slate-300">
-                                                    <td colSpan={6} className="px-4 py-3 text-right border border-gray-200">
+                                                    <td colSpan={12} className="px-4 py-3 text-right border border-gray-200">
                                                         Total General
                                                     </td>
                                                     <td className="px-4 py-3 text-right border border-gray-200">
