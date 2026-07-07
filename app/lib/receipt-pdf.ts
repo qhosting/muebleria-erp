@@ -51,42 +51,49 @@ export async function generateReceiptPdf(ticketData: any) {
   // Cliente
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
-  doc.text('CLIENTE:', 6, 34);
+  doc.text('CLIENTE:', 6, 33);
   doc.setFont('helvetica', 'normal');
   const clienteNombre = ticketData.cliente?.nombreCompleto || ticketData.cliente?.nombre || 'Sin Nombre';
-  doc.text(clienteNombre.length > 36 ? clienteNombre.substring(0, 36) + '...' : clienteNombre, 25, 34);
+  doc.text(clienteNombre.length > 36 ? clienteNombre.substring(0, 36) + '...' : clienteNombre, 25, 33);
+
+  // Código / Contrato
+  doc.setFont('helvetica', 'bold');
+  doc.text('CÓDIGO/CONT:', 6, 37);
+  doc.setFont('helvetica', 'normal');
+  const clienteCodigo = ticketData.cliente?.codigoCliente || 'N/A';
+  doc.text(clienteCodigo, 25, 37);
 
   // Dirección
   doc.setFont('helvetica', 'bold');
-  doc.text('DIRECCIÓN:', 6, 38);
+  doc.text('DIRECCIÓN:', 6, 41);
   doc.setFont('helvetica', 'normal');
   const direccion = ticketData.cliente?.direccion || 'N/A';
-  doc.text(direccion.length > 36 ? direccion.substring(0, 36) + '...' : direccion, 25, 38);
+  doc.text(direccion.length > 36 ? direccion.substring(0, 36) + '...' : direccion, 25, 41);
 
   // Teléfono
   doc.setFont('helvetica', 'bold');
-  doc.text('TELÉFONO:', 6, 42);
+  doc.text('TELÉFONO:', 6, 45);
   doc.setFont('helvetica', 'normal');
-  doc.text(ticketData.cliente?.telefono || 'N/A', 25, 42);
+  doc.text(ticketData.cliente?.telefono || 'N/A', 25, 45);
 
   // Separador intermedio
   doc.setDrawColor(203, 213, 225);
-  doc.line(6, 44, width - 6, 44);
+  doc.line(6, 47, width - 6, 47);
 
   // Cobrador
   doc.setFont('helvetica', 'bold');
-  doc.text('ATENDIÓ:', 6, 48);
+  doc.text('ATENDIÓ:', 6, 51);
   doc.setFont('helvetica', 'normal');
-  doc.text(ticketData.cobrador?.nombre || 'COBRADOR', 25, 48);
+  doc.text(ticketData.cobrador?.nombre || 'COBRADOR', 25, 51);
 
   // Fecha y hora
   doc.setFont('helvetica', 'bold');
-  doc.text('FECHA:', 6, 52);
+  doc.text('FECHA:', 6, 55);
   doc.setFont('helvetica', 'normal');
   const fechaStr = ticketData.pago?.fechaPago 
     ? new Date(ticketData.pago.fechaPago).toLocaleString()
     : new Date().toLocaleString();
-  doc.text(fechaStr, 25, 52);
+  doc.text(fechaStr, 25, 55);
 
   // 3. Detalle de los Conceptos Recibidos (Tabla)
   let currentY = 62;

@@ -66,6 +66,7 @@ function MobileClientes() {
                 numeroRecibo: dbPago?.numeroRecibo || (dbPago?.localId ? `REC-${dbPago.localId.slice(-8)}` : `REC-temp`),
                 cliente: {
                     nombreCompleto: selectedCliente.nombre,
+                    codigoCliente: selectedCliente.codigoCliente || selectedCliente.numContrato || "",
                     telefono: selectedCliente.telefono,
                     direccion: selectedCliente.direccion || "",
                     diaPago: selectedCliente.diaPago
@@ -112,6 +113,7 @@ function MobileClientes() {
                 numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-8)}`,
                 cliente: {
                     nombreCompleto: selectedCliente.nombre || selectedCliente.nombreCompleto || "",
+                    codigoCliente: selectedCliente.codigoCliente || selectedCliente.numContrato || "",
                     telefono: selectedCliente.telefono,
                     direccion: selectedCliente.direccion || selectedCliente.direccionCompleta || "",
                     diaPago: selectedCliente.diaPago

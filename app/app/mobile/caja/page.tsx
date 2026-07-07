@@ -62,7 +62,8 @@ export default function MobileCaja() {
         const data = {
             numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-8)}`,
             cliente: {
-                nombreCompleto: pago.cliente.nombreCompleto || "",
+                nombreCompleto: pago.cliente.nombreCompleto || pago.cliente || "",
+                codigoCliente: pago.cliente.codigoCliente || pago.codigoCliente || "",
                 telefono: pago.cliente.telefono,
                 direccion: pago.cliente.direccionCompleta || pago.cliente.direccion || "",
                 diaPago: pago.cliente.diaPago

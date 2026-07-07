@@ -100,6 +100,11 @@ export function ReceiptClientPage({ ticketData, expiresAt }: ReceiptClientPagePr
                                 </span>
                                 <span className="font-bold text-slate-200 text-right max-w-[200px] truncate">
                                     {ticketData.cliente.nombreCompleto}
+                                    {ticketData.cliente.codigoCliente && (
+                                        <span className="block text-[10px] font-normal text-slate-500 mt-0.5">
+                                            Contrato: {ticketData.cliente.codigoCliente}
+                                        </span>
+                                    )}
                                 </span>
                             </div>
 

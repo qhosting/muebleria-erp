@@ -70,6 +70,7 @@ export interface TicketData {
   numeroRecibo?: string;
   cliente: {
     nombreCompleto: string;
+    codigoCliente?: string;
     telefono?: string;
     direccion: string;
     diaPago: string;
@@ -872,6 +873,9 @@ class BluetoothPrinterService {
       ticket += 'CLIENTE:' + this.LF;
       ticket += this.COMMANDS.BOLD_OFF;
       ticket += ticketData.cliente.nombreCompleto + this.LF;
+      if (ticketData.cliente.codigoCliente) {
+        ticket += 'Cod/Contrato: ' + ticketData.cliente.codigoCliente + this.LF;
+      }
 
       if (ticketData.cliente.telefono) {
         ticket += 'Tel: ' + ticketData.cliente.telefono + this.LF;

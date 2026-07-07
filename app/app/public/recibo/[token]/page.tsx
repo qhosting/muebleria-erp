@@ -30,9 +30,9 @@ export default async function PublicReceiptPage({ params }: PublicReceiptPagePro
                 cliente: {
                     select: {
                         nombreCompleto: true,
+                        codigoCliente: true,
                         telefono: true,
                         direccionCompleta: true,
-                        direccion: true,
                         diaPago: true,
                     }
                 },
@@ -54,8 +54,9 @@ export default async function PublicReceiptPage({ params }: PublicReceiptPagePro
             numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-8)}`,
             cliente: {
                 nombreCompleto: pago.cliente.nombreCompleto || 'Cliente',
+                codigoCliente: pago.cliente.codigoCliente || 'N/A',
                 telefono: pago.cliente.telefono || 'N/A',
-                direccion: pago.cliente.direccionCompleta || pago.cliente.direccion || 'N/A',
+                direccion: pago.cliente.direccionCompleta || 'N/A',
                 diaPago: pago.cliente.diaPago
             },
             cobrador: {

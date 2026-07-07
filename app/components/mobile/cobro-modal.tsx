@@ -112,6 +112,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
       numeroRecibo: numeroReciboFinal,
       cliente: {
         nombreCompleto: cliente.nombreCompleto || cliente.nombre || "",
+        codigoCliente: cliente.codigoCliente || cliente.numContrato || "",
         telefono: cliente.telefono,
         direccion: cliente.direccionCompleta || cliente.direccion || "",
         diaPago: cliente.diaPago

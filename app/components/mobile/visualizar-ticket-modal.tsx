@@ -8,6 +8,7 @@ export interface TicketData {
   numeroRecibo?: string;
   cliente: {
     nombreCompleto: string;
+    codigoCliente?: string;
     telefono?: string;
     direccion?: string;
     diaPago?: string | number;
@@ -147,6 +148,9 @@ export function VisualizarTicketModal({
             <div className="space-y-1 text-left">
               <p className="font-extrabold">CLIENTE:</p>
               <p className="leading-tight">{ticketData.cliente.nombreCompleto}</p>
+              {ticketData.cliente.codigoCliente && (
+                <p className="text-slate-500 text-xs font-semibold">Contrato: {ticketData.cliente.codigoCliente}</p>
+              )}
               {ticketData.cliente.telefono && <p>Tel: {ticketData.cliente.telefono}</p>}
               {ticketData.cliente.direccion && (
                 <p className="leading-tight text-slate-600">Dir: {ticketData.cliente.direccion}</p>

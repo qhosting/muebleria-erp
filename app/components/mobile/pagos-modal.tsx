@@ -200,6 +200,7 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
       numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-8)}`,
       cliente: {
         nombreCompleto: cliente.nombreCompleto || cliente.nombre || "",
+        codigoCliente: cliente.codigoCliente || cliente.numContrato || "",
         telefono: cliente.telefono,
         direccion: cliente.direccionCompleta || cliente.direccion || "",
         diaPago: cliente.diaPago
