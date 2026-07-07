@@ -18,6 +18,16 @@ interface User {
     name: string;
 }
 
+interface AgentSummary {
+    cobradorId: string;
+    agenteName: string;
+    cuentas: number;
+    totalMonto: number;
+    totalMoratorio: number;
+    montoBancario: number;
+    montoGestor: number;
+}
+
 export default function PagosGestorPage() {
     const { data: session } = useSession();
     const [cobradores, setCobradores] = useState<User[]>([]);
@@ -137,6 +147,51 @@ export default function PagosGestorPage() {
         toast.success("Descarga iniciada");
     };
 
+    const getSummaryByPrefix = (prefix: 'DP' | 'DQ'): AgentSummary[] => {
+        const map: Record<string, AgentSummary> = {};
+
+        detallado.forEach((pago) => {
+            const codigo = pago.cliente?.codigoCliente || '';
+            if (!codigo.toUpperCase().startsWith(prefix)) return;
+
+            const cobradorId = pago.cobradorId || 'sistema';
+            const agenteName = (pago.cobrador?.codigoGestor || pago.cobrador?.name || 'SISTEMA').toUpperCase();
+
+            if (!map[cobradorId]) {
+                map[cobradorId] = {
+                    cobradorId,
+                    agenteName,
+                    cuentas: 0,
+                    totalMonto: 0,
+                    totalMoratorio: 0,
+                    montoBancario: 0,
+                    montoGestor: 0,
+                };
+            }
+
+            const monto = Number(pago.monto);
+            const isBancario = (() => {
+                const m = (pago.metodoPago || '').toLowerCase();
+                return m.includes('banc') || m.includes('bot') || m.includes('transf') || m.includes('depo');
+            })();
+
+            map[cobradorId].cuentas += 1;
+            map[cobradorId].totalMonto += monto;
+
+            if (pago.tipoPago === 'moratorio') {
+                map[cobradorId].totalMoratorio += monto;
+            }
+
+            if (isBancario) {
+                map[cobradorId].montoBancario += monto;
+            } else {
+                map[cobradorId].montoGestor += monto;
+            }
+        });
+
+        return Object.values(map).sort((a, b) => a.agenteName.localeCompare(b.agenteName));
+    };
+
     return (
         <DashboardLayout>
             <div className="space-y-6">
@@ -238,6 +293,39 @@ export default function PagosGestorPage() {
                     </Card>
                 </div>
 
+                {/* Tablas de Resumen por Agente (DP y DQ) */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    {/* Tabla DQ */}
+                    {(tipoFiltro === "todos" || tipoFiltro === "DQ") && (
+                        <Card className={`shadow-sm border-gray-200 ${tipoFiltro !== "todos" ? "xl:col-span-2" : ""}`}>
+                            <CardHeader className="bg-slate-50 border-b py-4">
+                                <CardTitle className="text-lg text-slate-700 flex items-center gap-2">
+                                    <Building2 className="h-5 w-5 text-emerald-600" />
+                                    Resumen por Gestor - Clientes DQ
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                                <ResumenAgenteTable data={getSummaryByPrefix('DQ')} />
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Tabla DP */}
+                    {(tipoFiltro === "todos" || tipoFiltro === "DP") && (
+                        <Card className={`shadow-sm border-gray-200 ${tipoFiltro !== "todos" ? "xl:col-span-2" : ""}`}>
+                            <CardHeader className="bg-slate-50 border-b py-4">
+                                <CardTitle className="text-lg text-slate-700 flex items-center gap-2">
+                                    <Building2 className="h-5 w-5 text-blue-600" />
+                                    Resumen por Gestor - Clientes DP
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                                <ResumenAgenteTable data={getSummaryByPrefix('DP')} />
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
+
                 {/* Tabla Analítica */}
                 <Card>
                     <CardHeader className="bg-gray-50 border-b">
@@ -333,5 +421,97 @@ export default function PagosGestorPage() {
 
             </div>
         </DashboardLayout>
+    );
+}
+
+const calculateTotals = (summaries: AgentSummary[]) => {
+    return summaries.reduce((acc, curr) => ({
+        cuentas: acc.cuentas + curr.cuentas,
+        totalMonto: acc.totalMonto + curr.totalMonto,
+        totalMoratorio: acc.totalMoratorio + curr.totalMoratorio,
+        montoBancario: acc.montoBancario + curr.montoBancario,
+        montoGestor: acc.montoGestor + curr.montoGestor,
+    }), {
+        cuentas: 0,
+        totalMonto: 0,
+        totalMoratorio: 0,
+        montoBancario: 0,
+        montoGestor: 0,
+    });
+};
+
+function ResumenAgenteTable({ data }: { data: AgentSummary[] }) {
+    const totals = calculateTotals(data);
+
+    return (
+        <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left align-middle text-slate-700 border-collapse">
+                <thead className="bg-[#1e293b] text-white text-[11px] font-semibold uppercase tracking-wider">
+                    <tr>
+                        <th className="px-4 py-3 text-center border border-slate-700">Agente</th>
+                        <th className="px-4 py-3 text-center border border-slate-700">Cuentas</th>
+                        <th className="px-4 py-3 text-center border border-slate-700">Total Monto</th>
+                        <th className="px-4 py-3 text-center border border-slate-700">Total Moratorio</th>
+                        <th className="px-4 py-3 text-center border border-slate-700">Monto BANCARIO</th>
+                        <th className="px-4 py-3 text-center border border-slate-700">Monto GESTOR</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white">
+                    {data.length === 0 ? (
+                        <tr>
+                            <td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-xs">
+                                No hay transacciones registradas en este período.
+                            </td>
+                        </tr>
+                    ) : (
+                        <>
+                            {data.map((row) => (
+                                <tr key={row.cobradorId} className="hover:bg-slate-50 transition-colors text-xs">
+                                    <td className="px-4 py-2 text-center font-bold text-slate-900 border border-slate-200 font-mono">
+                                        {row.agenteName}
+                                    </td>
+                                    <td className="px-4 py-2 text-center text-slate-800 border border-slate-200">
+                                        {row.cuentas}
+                                    </td>
+                                    <td className="px-4 py-2 text-center text-slate-800 border border-slate-200 font-semibold text-slate-900">
+                                        {formatCurrency(row.totalMonto)}
+                                    </td>
+                                    <td className="px-4 py-2 text-center text-slate-800 border border-slate-200">
+                                        {formatCurrency(row.totalMoratorio)}
+                                    </td>
+                                    <td className="px-4 py-2 text-center text-slate-800 border border-slate-200">
+                                        {formatCurrency(row.montoBancario)}
+                                    </td>
+                                    <td className="px-4 py-2 text-center text-slate-800 border border-slate-200">
+                                        {formatCurrency(row.montoGestor)}
+                                    </td>
+                                </tr>
+                            ))}
+                            {/* Fila Total General */}
+                            <tr className="bg-slate-50 font-bold text-xs text-slate-900 border-t-2 border-slate-300">
+                                <td className="px-4 py-3 text-center border border-slate-200">
+                                    Total General
+                                </td>
+                                <td className="px-4 py-3 text-center border border-slate-200">
+                                    {totals.cuentas}
+                                </td>
+                                <td className="px-4 py-3 text-center border border-slate-200">
+                                    {formatCurrency(totals.totalMonto)}
+                                </td>
+                                <td className="px-4 py-3 text-center border border-slate-200">
+                                    {formatCurrency(totals.totalMoratorio)}
+                                </td>
+                                <td className="px-4 py-3 text-center border border-slate-200">
+                                    {formatCurrency(totals.montoBancario)}
+                                </td>
+                                <td className="px-4 py-3 text-center border border-slate-200">
+                                    {formatCurrency(totals.montoGestor)}
+                                </td>
+                            </tr>
+                        </>
+                    )}
+                </tbody>
+            </table>
+        </div>
     );
 }
