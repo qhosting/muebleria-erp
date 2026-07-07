@@ -28,6 +28,8 @@ import { EditPagoModal } from '@/components/pagos/EditPagoModal';
 interface Pago {
   id: string;
   monto: number;
+  interesMoratorio?: number;
+  gastosCobranza?: number;
   concepto: string;
   tipoPago: 'regular' | 'moratorio';
   fechaPago: string;
@@ -436,6 +438,11 @@ export default function PagosPage() {
                           <span className="font-medium text-green-600">
                             {formatCurrency(pago.monto)}
                           </span>
+                          {pago.interesMoratorio && pago.interesMoratorio > 0 ? (
+                            <div className="text-xs text-orange-600 font-medium">
+                              + {formatCurrency(pago.interesMoratorio)} moratorio
+                            </div>
+                          ) : null}
                           {pago.tipoPago === 'regular' && (
                             <div className="text-xs text-gray-500">
                               Saldo: {formatCurrency(pago.saldoAnterior)} → {formatCurrency(pago.saldoNuevo)}

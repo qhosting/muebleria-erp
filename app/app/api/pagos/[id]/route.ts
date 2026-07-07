@@ -125,7 +125,7 @@ export async function PUT(
 
     const pagoId = params.id;
     const body = await request.json();
-    const { concepto, metodoPago, tipoPago, cobradorId, fechaPago, monto } = body;
+    const { concepto, metodoPago, tipoPago, cobradorId, fechaPago, monto, interesMoratorio } = body;
 
     const pagoExistente = await prisma.pago.findUnique({
       where: { id: pagoId },
@@ -138,6 +138,7 @@ export async function PUT(
 
     const resultado = await prisma.$transaction(async (tx) => {
       const montoNuevo = monto !== undefined ? parseFloat(monto.toString()) : parseFloat(pagoExistente.monto.toString());
+      const interesMoratorioNuevo = interesMoratorio !== undefined ? parseFloat(interesMoratorio.toString()) : parseFloat(pagoExistente.interesMoratorio.toString());
       const tipoPagoNuevo = tipoPago !== undefined ? tipoPago : pagoExistente.tipoPago;
       
       let saldoNuevo = pagoExistente.saldoNuevo;
@@ -173,6 +174,7 @@ export async function PUT(
         where: { id: pagoId },
         data: {
           monto: montoNuevo,
+          interesMoratorio: interesMoratorioNuevo,
           concepto: concepto !== undefined ? concepto : pagoExistente.concepto,
           metodoPago: metodoPago !== undefined ? metodoPago : pagoExistente.metodoPago,
           tipoPago: tipoPagoNuevo,

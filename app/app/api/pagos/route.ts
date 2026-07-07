@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
 
     // Calcular estadísticas para el frontend
     const totalPagos = pagos.length;
-    const montoTotal = pagos.reduce((sum: any, p: any) => sum + parseFloat(p.monto.toString()), 0);
+    const montoTotal = pagos.reduce((sum: any, p: any) => sum + parseFloat(p.monto.toString()) + parseFloat(p.interesMoratorio?.toString() || '0') + parseFloat(p.gastosCobranza?.toString() || '0'), 0);
     const pagosRegulares = pagos.filter((p: any) => p.tipoPago === 'regular').length;
     const pagosMoratorios = pagos.filter((p: any) => p.tipoPago === 'moratorio').length;
     const ticketsImpresos = pagos.filter((p: any) => p.ticketImpreso).length;
@@ -92,6 +92,8 @@ export async function GET(request: NextRequest) {
     const pagosSerializados = pagos.map((pago: any) => ({
       ...pago,
       monto: parseFloat(pago.monto.toString()),
+      interesMoratorio: pago.interesMoratorio ? parseFloat(pago.interesMoratorio.toString()) : 0,
+      gastosCobranza: pago.gastosCobranza ? parseFloat(pago.gastosCobranza.toString()) : 0,
       saldoAnterior: parseFloat(pago.saldoAnterior.toString()),
       saldoNuevo: parseFloat(pago.saldoNuevo.toString()),
     }));

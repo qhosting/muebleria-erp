@@ -34,18 +34,20 @@ export function EditPagoModal({
     tipoPago: '',
     cobradorId: '',
     fechaPago: '',
-    monto: 0
+    monto: 0,
+    interesMoratorio: 0
   });
 
   useEffect(() => {
     if (pago) {
       setFormData({
         concepto: pago.concepto || '',
-        metodoPago: pago.metodoPago || 'gestor',
+        metodoPago: (pago.metodoPago || 'GESTOR').toUpperCase(),
         tipoPago: pago.tipoPago || 'regular',
         cobradorId: pago.cobradorId || '',
         fechaPago: pago.fechaPago ? new Date(pago.fechaPago).toISOString().split('T')[0] : '',
-        monto: pago.monto || 0
+        monto: pago.monto || 0,
+        interesMoratorio: pago.interesMoratorio || 0
       });
     }
   }, [pago, open]);
@@ -98,9 +100,21 @@ export function EditPagoModal({
                 type="number"
                 step="0.01"
                 value={formData.monto}
-                onChange={(e) => setFormData({ ...formData, monto: parseFloat(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, monto: parseFloat(e.target.value) || 0 })}
               />
             </div>
+            <div className="space-y-2">
+              <Label>Moratorio</Label>
+              <Input 
+                type="number"
+                step="0.01"
+                value={formData.interesMoratorio}
+                onChange={(e) => setFormData({ ...formData, interesMoratorio: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Saldo Anterior (Ref)</Label>
               <Input 
@@ -108,23 +122,6 @@ export function EditPagoModal({
                 value={pago?.saldoAnterior || 0}
                 className="bg-gray-50"
               />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Método de Pago</Label>
-              <Select 
-                value={formData.metodoPago} 
-                onValueChange={(v) => setFormData({ ...formData, metodoPago: v })}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="GESTOR">GESTOR</SelectItem>
-                  <SelectItem value="GESTOR BANCOS">GESTOR BANCOS</SelectItem>
-                  <SelectItem value="BANCOS BOT">BANCOS BOT</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             <div className="space-y-2">
@@ -140,6 +137,26 @@ export function EditPagoModal({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Método de Pago</Label>
+            <Select 
+              value={formData.metodoPago} 
+              onValueChange={(v) => setFormData({ ...formData, metodoPago: v })}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="GESTOR">GESTOR</SelectItem>
+                <SelectItem value="GESTOR BANCOS">GESTOR BANCOS</SelectItem>
+                <SelectItem value="BANCOS BOT">BANCOS BOT</SelectItem>
+                <SelectItem value="BANCARIO">BANCARIO</SelectItem>
+                <SelectItem value="EFECTIVO">EFECTIVO</SelectItem>
+                {!['GESTOR', 'GESTOR BANCOS', 'BANCOS BOT', 'BANCARIO', 'EFECTIVO'].includes(formData.metodoPago) && formData.metodoPago && (
+                  <SelectItem value={formData.metodoPago}>{formData.metodoPago}</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

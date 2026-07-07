@@ -85,21 +85,21 @@ export async function GET(request: Request) {
       const m = normalize(p.metodoPago);
       return m === 'gestor' || m === 'efectivo' || m === 'contado';
     });
-    const efectivo = pagosEfectivo.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const efectivo = pagosEfectivo.reduce((acc, p) => acc + parseFloat(p.monto.toString()) + parseFloat(p.interesMoratorio.toString()) + parseFloat(p.gastosCobranza.toString()), 0);
     const cuentasEfectivo = new Set(pagosEfectivo.map(p => p.clienteId)).size;
 
     const pagosBancarioManual = pagos.filter(p => {
       const m = normalize(p.metodoPago);
       return m === 'bancario' || m === 'transferencia' || m === 'deposito';
     });
-    const bancarioManual = pagosBancarioManual.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const bancarioManual = pagosBancarioManual.reduce((acc, p) => acc + parseFloat(p.monto.toString()) + parseFloat(p.interesMoratorio.toString()) + parseFloat(p.gastosCobranza.toString()), 0);
     const cuentasBancarioManual = new Set(pagosBancarioManual.map(p => p.clienteId)).size;
 
     const pagosBancarioBot = pagos.filter(p => {
       const m = normalize(p.metodoPago);
       return m === 'bancario_bot' || m === 'bot' || m === 'whatsapp' || m === 'bancos bot' || m === 'bancos_bot';
     });
-    const bancarioBot = pagosBancarioBot.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const bancarioBot = pagosBancarioBot.reduce((acc, p) => acc + parseFloat(p.monto.toString()) + parseFloat(p.interesMoratorio.toString()) + parseFloat(p.gastosCobranza.toString()), 0);
     const cuentasBancarioBot = new Set(pagosBancarioBot.map(p => p.clienteId)).size;
 
     const cuentasTotales = new Set(pagos.map(p => p.clienteId)).size;
@@ -113,21 +113,21 @@ export async function GET(request: Request) {
       const m = normalize(p.metodoPago);
       return m === 'gestor' || m === 'efectivo' || m === 'contado';
     });
-    const dpEfectivo = dpPagosEfectivo.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const dpEfectivo = dpPagosEfectivo.reduce((acc, p) => acc + parseFloat(p.monto.toString()) + parseFloat(p.interesMoratorio.toString()) + parseFloat(p.gastosCobranza.toString()), 0);
     const dpCuentasEfectivo = new Set(dpPagosEfectivo.map(p => p.clienteId)).size;
 
     const dpPagosBancarioManual = pagosDP.filter(p => {
       const m = normalize(p.metodoPago);
       return m === 'bancario' || m === 'transferencia' || m === 'deposito';
     });
-    const dpBancarioManual = dpPagosBancarioManual.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const dpBancarioManual = dpPagosBancarioManual.reduce((acc, p) => acc + parseFloat(p.monto.toString()) + parseFloat(p.interesMoratorio.toString()) + parseFloat(p.gastosCobranza.toString()), 0);
     const dpCuentasBancarioManual = new Set(dpPagosBancarioManual.map(p => p.clienteId)).size;
 
     const dpPagosBancarioBot = pagosDP.filter(p => {
       const m = normalize(p.metodoPago);
       return m === 'bancario_bot' || m === 'bot' || m === 'whatsapp' || m === 'bancos bot' || m === 'bancos_bot';
     });
-    const dpBancarioBot = dpPagosBancarioBot.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const dpBancarioBot = dpPagosBancarioBot.reduce((acc, p) => acc + parseFloat(p.monto.toString()) + parseFloat(p.interesMoratorio.toString()) + parseFloat(p.gastosCobranza.toString()), 0);
     const dpCuentasBancarioBot = new Set(dpPagosBancarioBot.map(p => p.clienteId)).size;
 
     const dpCuentasTotales = new Set(pagosDP.map(p => p.clienteId)).size;
@@ -137,21 +137,21 @@ export async function GET(request: Request) {
       const m = normalize(p.metodoPago);
       return m === 'gestor' || m === 'efectivo' || m === 'contado';
     });
-    const dqEfectivo = dqPagosEfectivo.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const dqEfectivo = dqPagosEfectivo.reduce((acc, p) => acc + parseFloat(p.monto.toString()) + parseFloat(p.interesMoratorio.toString()) + parseFloat(p.gastosCobranza.toString()), 0);
     const dqCuentasEfectivo = new Set(dqPagosEfectivo.map(p => p.clienteId)).size;
 
     const dqPagosBancarioManual = pagosDQ.filter(p => {
       const m = normalize(p.metodoPago);
       return m === 'bancario' || m === 'transferencia' || m === 'deposito';
     });
-    const dqBancarioManual = dqPagosBancarioManual.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const dqBancarioManual = dqPagosBancarioManual.reduce((acc, p) => acc + parseFloat(p.monto.toString()) + parseFloat(p.interesMoratorio.toString()) + parseFloat(p.gastosCobranza.toString()), 0);
     const dqCuentasBancarioManual = new Set(dqPagosBancarioManual.map(p => p.clienteId)).size;
 
     const dqPagosBancarioBot = pagosDQ.filter(p => {
       const m = normalize(p.metodoPago);
       return m === 'bancario_bot' || m === 'bot' || m === 'whatsapp' || m === 'bancos bot' || m === 'bancos_bot';
     });
-    const dqBancarioBot = dqPagosBancarioBot.reduce((acc, p) => acc + parseFloat(p.monto.toString()), 0);
+    const dqBancarioBot = dqPagosBancarioBot.reduce((acc, p) => acc + parseFloat(p.monto.toString()) + parseFloat(p.interesMoratorio.toString()) + parseFloat(p.gastosCobranza.toString()), 0);
     const dqCuentasBancarioBot = new Set(dqPagosBancarioBot.map(p => p.clienteId)).size;
 
     const dqCuentasTotales = new Set(pagosDQ.map(p => p.clienteId)).size;

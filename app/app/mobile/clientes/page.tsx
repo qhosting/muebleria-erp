@@ -501,7 +501,7 @@ function MobileClientes() {
         const pagoPayload = {
             clienteId: selectedCliente.id,
             cobradorId,
-            monto: montoTotal,
+            monto: parseFloat(montoCobrar),
             montoAbono: parseFloat(montoCobrar),
             interesMoratorio: parseFloat(interesMoratorio),
             gastosCobranza: parseFloat(gastosCobranza),
