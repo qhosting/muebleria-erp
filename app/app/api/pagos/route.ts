@@ -265,7 +265,7 @@ export async function POST(request: NextRequest) {
             '💰 Nuevo Depósito Recibido', 
             `${resultado.cobrador?.name} recibió ${formattedTotal} de ${resultado.cliente?.nombreCompleto}.`,
             '/dashboard/pagos'
-        ).catch((err) => console.error('Error background notify:', err));
+        ).catch((err: any) => console.error('Error background notify:', err));
     } catch (nError) {
         console.error('Error enviando notificación de pago:', nError);
     }
@@ -275,7 +275,7 @@ export async function POST(request: NextRequest) {
       try {
         const { RecomprasService } = await import('@/lib/recompras-service');
         RecomprasService.crearLeadPorLiquidacion(clienteId, 'El cliente liquidó su cuenta mediante un pago regular.')
-            .catch(err => console.error('Error background recompra:', err));
+            .catch((err: any) => console.error('Error background recompra:', err));
       } catch (rError) {
         console.error('Error al crear lead de recompra:', rError);
       }

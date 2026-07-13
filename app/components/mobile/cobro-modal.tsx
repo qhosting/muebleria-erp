@@ -88,14 +88,18 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
     }
   }, [isOpen, cliente]);
 
-  // Calcular nuevo saldo cuando cambia el monto o moratorio
+  // Calcular nuevo saldo cuando cambia el monto o moratorio o tipo de pago
   useEffect(() => {
     const abonoNum = parseFloat(montoAbono) || 0;
     const moratorioNum = parseFloat(interesMoratorio) || 0;
     const gastosNum = parseFloat(gastosCobranza) || 0;
 
     const montoTotal = abonoNum + moratorioNum + gastosNum;
-    const nuevoSaldo = Math.max(0, (cliente.saldoPendiente || cliente.saldo || 0) - abonoNum);
+    
+    let nuevoSaldo = cliente.saldoPendiente || cliente.saldo || 0;
+    if (['regular', 'abono', 'liquidacion'].includes(tipoPago)) {
+      nuevoSaldo = Math.max(0, nuevoSaldo - abonoNum);
+    }
 
     setCalculatedValues({
       saldoAnterior: cliente.saldoPendiente || cliente.saldo || 0,
@@ -105,7 +109,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
       interesMoratorio: moratorioNum,
       gastosCobranza: gastosNum
     });
-  }, [montoAbono, interesMoratorio, gastosCobranza, cliente.saldoPendiente, cliente.saldo]);
+  }, [montoAbono, interesMoratorio, gastosCobranza, tipoPago, cliente.saldoPendiente, cliente.saldo]);
 
   const createTicketData = (fechaPago: string, numeroReciboFinal: string): TicketData => {
     return {
@@ -396,7 +400,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
             
             {/* Abono a Saldo */}
             <div className="space-y-2">
-              <Label htmlFor="montoAbono" className="text-emerald-700 font-bold">Abono a Saldo *</Label>
+              <Label htmlFor="montoAbono" className="text-emerald-700 font-bold">Abono a Saldo</Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-emerald-500" />
                 <Input
@@ -408,7 +412,6 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
                   onChange={(e) => setMontoAbono(e.target.value)}
                   placeholder="0.00"
                   className="pl-9 border-emerald-200 focus-visible:ring-emerald-500"
-                  required
                 />
               </div>
             </div>
