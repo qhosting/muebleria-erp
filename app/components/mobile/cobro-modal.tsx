@@ -269,7 +269,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
       const clienteLocal = await db.clientes.get(cliente.id);
       if (clienteLocal) {
         let nuevoSaldo = Number(clienteLocal.saldoPendiente || clienteLocal.saldo || 0);
-        if (tipoPago === 'regular') {
+        if (['regular', 'abono', 'liquidacion'].includes(tipoPago)) {
           nuevoSaldo = Math.max(0, nuevoSaldo - calculatedValues.montoAbono);
         }
         await db.clientes.update(cliente.id, {

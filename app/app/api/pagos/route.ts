@@ -192,8 +192,8 @@ export async function POST(request: NextRequest) {
     const saldoAnterior = parseFloat(cliente.saldoActual.toString());
     let saldoNuevo = saldoAnterior;
 
-    // Solo los pagos regulares afectan el saldo principal
-    if (tipoPago === 'regular') {
+    // Solo los pagos regulares, abonos y liquidaciones afectan el saldo principal (moratorios no)
+    if (['regular', 'abono', 'liquidacion'].includes(tipoPago)) {
       saldoNuevo = Math.max(0, saldoAnterior - montoNumerico);
     }
 
@@ -243,8 +243,8 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Actualizar saldo del cliente si es pago regular
-      if (tipoPago === 'regular') {
+      // Actualizar saldo del cliente si es pago que afecta capital
+      if (['regular', 'abono', 'liquidacion'].includes(tipoPago)) {
         await prisma.cliente.update({
           where: { id: clienteId },
           data: { saldoActual: saldoNuevo },
@@ -260,21 +260,22 @@ export async function POST(request: NextRequest) {
         const totalRecibido = montoNumerico + interesNumerico + gastosNumerico;
         const formattedTotal = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(totalRecibido);
         
-        await notifyByRole(
+        notifyByRole(
             'admin', 
             '💰 Nuevo Depósito Recibido', 
             `${resultado.cobrador?.name} recibió ${formattedTotal} de ${resultado.cliente?.nombreCompleto}.`,
             '/dashboard/pagos'
-        );
+        ).catch((err) => console.error('Error background notify:', err));
     } catch (nError) {
         console.error('Error enviando notificación de pago:', nError);
     }
 
     // CHECK FOR ACCOUNT LIQUIDATION (RECOMPRA OPPORTUNITY)
-    if (saldoNuevo === 0 && tipoPago === 'regular') {
+    if (saldoNuevo === 0 && ['regular', 'abono', 'liquidacion'].includes(tipoPago)) {
       try {
         const { RecomprasService } = await import('@/lib/recompras-service');
-        await RecomprasService.crearLeadPorLiquidacion(clienteId, 'El cliente liquidó su cuenta mediante un pago regular.');
+        RecomprasService.crearLeadPorLiquidacion(clienteId, 'El cliente liquidó su cuenta mediante un pago regular.')
+            .catch(err => console.error('Error background recompra:', err));
       } catch (rError) {
         console.error('Error al crear lead de recompra:', rError);
       }
