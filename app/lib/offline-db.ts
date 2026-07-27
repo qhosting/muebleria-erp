@@ -204,3 +204,15 @@ export const getSyncStats = async (cobradorId: string) => {
     pendingSync: pendingSyncCount
   };
 };
+
+// Función para limpiar datos de otros gestores en IndexedDB
+export const clearPreviousGestorData = async (currentCobradorId: string) => {
+  if (!currentCobradorId) return;
+  try {
+    // Eliminar de db.clientes todos los clientes que NO pertenezcan al gestor actual o con cobradorAsignadoId indefinido
+    await db.clientes.filter(c => !c.cobradorAsignadoId || c.cobradorAsignadoId !== currentCobradorId).delete();
+  } catch (error) {
+    console.error('Error al limpiar datos de otros gestores:', error);
+  }
+};
+

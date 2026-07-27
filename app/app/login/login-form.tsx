@@ -220,12 +220,22 @@ export default function LoginForm() {
     }
   };
 
-  const handleSuccessfulLogin = async () => {
+    const handleSuccessfulLogin = async () => {
     // Redirigir según el rol
     const res = await fetch('/api/auth/session');
     const session = await res.json();
     const userRole = session.user.role;
     const userId = session.user.id;
+
+    // 🧹 Limpieza de IndexedDB para asegurar aislamiento de clientes por gestor
+    if (userId) {
+      try {
+        const { clearPreviousGestorData } = await import('@/lib/offline-db');
+        await clearPreviousGestorData(userId);
+      } catch (err) {
+        console.warn('Error clearing previous gestor data on login:', err);
+      }
+    }
 
     // --- SEGURIDAD DE DISPOSITIVO (SOLO COBRADORES/VENDEDORES EN NATIVO) ---
     if (Capacitor.isNativePlatform() && ['cobrador', 'vendedor', 'jefe_ventas'].includes(userRole)) {

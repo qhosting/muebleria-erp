@@ -190,7 +190,10 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
         // Procesar clientes iniciales solo si los hay y no se han procesado antes
         if (initialClientes.length > 0) {
           try {
-            // Verificar si ya existen clientes en IndexedDB para evitar duplicados
+            // Eliminar clientes que pertenezcan a otros gestores para evitar residuos
+            await db.clientes.filter(c => !c.cobradorAsignadoId || c.cobradorAsignadoId !== userId).delete();
+
+            // Verificar si ya existen clientes en IndexedDB para este usuario
             const existingClientes = await db.clientes
               .where('cobradorAsignadoId')
               .equals(userId)
@@ -202,6 +205,7 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
                 for (const cliente of initialClientes) {
                   await db.clientes.put({
                     ...cliente,
+                    cobradorAsignadoId: cliente.cobradorAsignadoId || userId,
                     lastSync: Date.now(),
                     syncStatus: 'synced' as const
                   });
@@ -244,6 +248,9 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
 
     const processInitialClientes = async () => {
       try {
+        // Eliminar clientes pertenecientes a otros gestores
+        await db.clientes.filter(c => !c.cobradorAsignadoId || c.cobradorAsignadoId !== userId).delete();
+
         // Solo procesar si hay clientes y no se han guardado antes
         const existingCount = await db.clientes
           .where('cobradorAsignadoId')
@@ -255,6 +262,7 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
             for (const cliente of initialClientes) {
               await db.clientes.put({
                 ...cliente,
+                cobradorAsignadoId: cliente.cobradorAsignadoId || userId,
                 lastSync: Date.now(),
                 syncStatus: 'synced' as const
               });

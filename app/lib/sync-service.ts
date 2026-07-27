@@ -1,6 +1,6 @@
 
 // Servicio de sincronización para PWA de cobranza móvil
-import { db, OfflineCliente, OfflinePago, OfflineMotarario, SyncQueue, generateLocalId, OfflineVerificacion } from './offline-db';
+import { db, OfflineCliente, OfflinePago, OfflineMotarario, SyncQueue, generateLocalId, OfflineVerificacion, clearPreviousGestorData } from './offline-db';
 import { toast } from 'sonner';
 import { apiFetch } from './api-config';
 
@@ -20,6 +20,9 @@ export class SyncService {
 
   // Inicializar sincronización automática
   public async initAutoSync(cobradorId: string) {
+    // 🧹 Limpieza automática de clientes pertenecientes a otros gestores
+    await clearPreviousGestorData(cobradorId);
+
     let settings = await db.settings.get(cobradorId);
     
     // 🚀 OPTIMIZACIÓN: Si no existen settings, inicializar con preferOffline: true por defecto
@@ -126,11 +129,15 @@ export class SyncService {
 
       // Limpiar clientes locales y agregar/actualizar los del servidor
       await db.transaction('rw', db.clientes, async () => {
+        // Eliminar clientes que pertenezcan a otros gestores o que no tengan cobradorAsignadoId
+        await db.clientes.filter(c => !c.cobradorAsignadoId || c.cobradorAsignadoId !== cobradorId).delete();
+        // Eliminar los anteriores de este cobrador para reescribirlos limpios
         await db.clientes.where('cobradorAsignadoId').equals(cobradorId).delete();
 
         for (const cliente of clientesServidor) {
           await db.clientes.put({
             ...cliente,
+            cobradorAsignadoId: cliente.cobradorAsignadoId || cobradorId,
             lastSync: Date.now(),
             syncStatus: 'synced' as const
           });

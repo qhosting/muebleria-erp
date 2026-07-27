@@ -13,7 +13,7 @@ import { VerificacionModal } from "@/components/mobile/verificacion-modal";
 import { ConvenioModal } from "@/components/mobile/convenio-modal";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { db } from "@/lib/offline-db";
+import { db, clearPreviousGestorData } from "@/lib/offline-db";
 
 export default function MobileClientesPage() {
     return (
@@ -43,6 +43,13 @@ function MobileClientes() {
     const [filtroCobro, setFiltroCobro] = useState<"todos" | "cobrados" | "nocobrados">("todos");
     const [filtroDia, setFiltroDia] = useState<string>("todos");
     const [filtroVd, setFiltroVd] = useState<"todos" | "pendiente">("todos");
+
+    useEffect(() => {
+        const currentUserId = (session?.user as any)?.id;
+        if (currentUserId) {
+            clearPreviousGestorData(currentUserId);
+        }
+    }, [session]);
     
     // Estados para el cobro
     const [interesMoratorio, setInteresMoratorio] = useState("0");
@@ -302,14 +309,17 @@ function MobileClientes() {
 
         const fetchOfflineClientes = async (reset: boolean) => {
             try {
-                let query = db.clientes.toCollection();
+                const currentUserId = (session?.user as any)?.id;
+                let query = db.clientes.filter(c => !currentUserId || c.cobradorAsignadoId === currentUserId);
                 
                 if (searchTerm) {
                     const searchLower = searchTerm.toLowerCase();
                     query = db.clientes.filter(c => 
-                        (c.nombreCompleto?.toLowerCase() || "").includes(searchLower) ||
-                        (c.direccion?.toLowerCase() || "").includes(searchLower) ||
-                        (c.codigoCliente?.toLowerCase() || "").includes(searchLower)
+                        (!currentUserId || c.cobradorAsignadoId === currentUserId) && (
+                            (c.nombreCompleto?.toLowerCase() || "").includes(searchLower) ||
+                            (c.direccion?.toLowerCase() || "").includes(searchLower) ||
+                            (c.codigoCliente?.toLowerCase() || "").includes(searchLower)
+                        )
                     );
                 }
 
@@ -383,10 +393,12 @@ function MobileClientes() {
 
         const syncToLocalDB = async (data: any[]) => {
             try {
+                const currentUserId = (session?.user as any)?.id;
                 const toPut = data.map(c => ({
                     id: c.id,
                     codigoCliente: c.codigoCliente,
                     nombreCompleto: c.nombre,
+                    cobradorAsignadoId: c.cobradorAsignadoId || currentUserId,
                     direccion: c.direccion,
                     diaPago: c.diaPago,
                     statusCuenta: c.estatus === 'aldia' ? 'activo' : (c.estatus === 'atrasado' ? 'activo' : c.estatus),

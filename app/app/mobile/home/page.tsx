@@ -93,11 +93,15 @@ export default function MobileHome() {
 
         const loadOfflineDashboard = async () => {
             try {
+                const currentUserId = (session?.user as any)?.id;
+
                 // 1. Calcular cobrado hoy desde base de datos local
                 const hoy = new Date();
                 hoy.setHours(0, 0, 0, 0);
                 
-                const pagosHoy = await db.pagos.where('fechaPago').aboveOrEqual(hoy.toISOString()).toArray();
+                const pagosHoy = currentUserId 
+                    ? await db.pagos.where('fechaPago').aboveOrEqual(hoy.toISOString()).filter(p => p.cobradorId === currentUserId).toArray()
+                    : await db.pagos.where('fechaPago').aboveOrEqual(hoy.toISOString()).toArray();
                 const totalCobrado = pagosHoy.reduce((acc, p) => acc + Number(p.monto), 0);
                 const cuentasCobradas = pagosHoy.length;
 
@@ -109,13 +113,14 @@ export default function MobileHome() {
                 inicioCicloLocal.setDate(hoyLocal.getDate() - diffToSaturdayLocal);
                 inicioCicloLocal.setHours(0, 0, 0, 0);
 
-                const clientesActivos = await db.clientes.where('statusCuenta').equals('activo').toArray();
+                const clientesActivos = currentUserId
+                    ? await db.clientes.where('statusCuenta').equals('activo').filter(c => c.cobradorAsignadoId === currentUserId).toArray()
+                    : await db.clientes.where('statusCuenta').equals('activo').toArray();
                 
                 // Obtener todos los pagos registrados localmente en este ciclo para verificar cuáles clientes ya pagaron
-                const pagosCiclo = await db.pagos
-                    .where('fechaPago')
-                    .aboveOrEqual(inicioCicloLocal.toISOString())
-                    .toArray();
+                const pagosCiclo = currentUserId
+                    ? await db.pagos.where('fechaPago').aboveOrEqual(inicioCicloLocal.toISOString()).filter(p => p.cobradorId === currentUserId).toArray()
+                    : await db.pagos.where('fechaPago').aboveOrEqual(inicioCicloLocal.toISOString()).toArray();
 
                 // IDs de clientes que ya pagaron en este ciclo (localmente)
                 const clientesQuePagaronLocal = new Set(
