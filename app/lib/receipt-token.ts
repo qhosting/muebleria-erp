@@ -3,12 +3,12 @@ import crypto from 'crypto';
 const SECRET_KEY = process.env.NEXTAUTH_SECRET || 'fallback-secret-key-12345';
 
 // Generar una clave de encriptación consistente a partir del SECRET_KEY
-function getEncryptionKey() {
+function getEncryptionKey(): any {
     return crypto.scryptSync(SECRET_KEY, 'muebleria-salt-99', 32);
 }
 
 // Vector de inicialización estático para simplificar la cadena hexadecimal
-const IV = Buffer.alloc(16, 0);
+const IV: any = Buffer.alloc(16, 0);
 
 /**
  * Genera un token encriptado que expira en 15 minutos para acceder temporalmente al recibo.

@@ -172,6 +172,19 @@ class BluetoothPrinterService {
     }
   }
 
+  // 🔧 Olvidar impresora por completo
+  forgetPrinter(): void {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(this.STORAGE_KEY_CONNECTED);
+      localStorage.removeItem(this.STORAGE_KEY_DEVICE_NAME);
+      localStorage.removeItem(this.STORAGE_KEY_DEVICE_ID);
+    }
+    this.lastConnectedDeviceId = null;
+    this.connection.device = null;
+    this.connection.server = null;
+    this.connection.isConnected = false;
+  }
+
   // 🔧 Cargar estado de conexión desde localStorage
   private loadConnectionState(): { wasConnected: boolean; deviceName: string | null; deviceId: string | null } {
     if (typeof window === 'undefined') {

@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Download, Filter, Receipt, Users, Banknote, Building2 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import * as XLSX from "xlsx";
 
 interface User {
     id: string;
@@ -98,53 +99,98 @@ export default function PagosGestorPage() {
 
         const prefijo = tipoFiltro === "DQ" ? "ClientesDQ-" : tipoFiltro === "DP" ? "ClientesDP-" : "General-";
 
-        const csvContent = [
-            [
-                "ID", "Fecha de pago", "Fecha y Hora", "Código Cliente",
-                "Nombre Cliente", "Referencia de pago", "Monto", "Agente",
-                "Concepto", "Periodicidad", "Día Cobro", "Teléfono",
-                "Moratorio", "Tipo"
-            ],
-            ...detallado.map(p => {
-                // Formateo de fechas
-                const fechaPagoSolo = new Date(p.fechaPago).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                const fechaYHora = new Date(p.fechaPago).toLocaleString('es-MX', {
-                    day: '2-digit', month: '2-digit', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit', second: '2-digit'
-                }).replace(',', '');
+        const wb = XLSX.utils.book_new();
 
-                // Referencia
-                let referencia = p.numeroRecibo || p.ticket?.referencia || p.ticket?.folio || "PENDIENTE";
-
-                // Moratorio (Solo valor numérico para que Excel lo sume)
-                const moratorioVal = p.tipoPago === "moratorio" ? p.monto : 0;
-
-                return [
-                    p.id,
-                    fechaPagoSolo,
-                    `"${fechaYHora}"`,
-                    `"${p.cliente?.codigoCliente || "-"}"`,
-                    `"${p.cliente?.nombreCompleto || "-"}"`,
-                    `"${referencia}"`,
-                    p.monto,
-                    `"${p.cobrador?.name?.toUpperCase() || "SISTEMA"}"`,
-                    `"${p.concepto || "ABONO"}"`,
-                    `"${p.cliente?.periodicidad?.toUpperCase() || "-"}"`,
-                    `"${p.cliente?.diaPago?.toUpperCase() || "-"}"`,
-                    `"${p.cliente?.telefono || "-"}"`,
-                    moratorioVal,
-                    `"${p.metodoPago?.toUpperCase() || "EFECTIVO"}"`
+        // Hoja 1: Resumen Clientes DQ (si aplica)
+        if (tipoFiltro === "todos" || tipoFiltro === "DQ") {
+            const summaryDQ = getSummaryByPrefix('DQ');
+            if (summaryDQ.length > 0) {
+                const totalsDQ = calculateTotals(summaryDQ);
+                const rowsDQ = [
+                    ...summaryDQ.map(r => ({
+                        "Agente": r.agenteName,
+                        "Cuentas": r.cuentas,
+                        "Total Monto": r.totalMonto,
+                        "Total Moratorio": r.totalMoratorio,
+                        "Monto BANCARIO": r.montoBancario,
+                        "Monto GESTOR": r.montoGestor
+                    })),
+                    {
+                        "Agente": "Total General",
+                        "Cuentas": totalsDQ.cuentas,
+                        "Total Monto": totalsDQ.totalMonto,
+                        "Total Moratorio": totalsDQ.totalMoratorio,
+                        "Monto BANCARIO": totalsDQ.montoBancario,
+                        "Monto GESTOR": totalsDQ.montoGestor
+                    }
                 ];
-            })
-        ].map(e => e.join(",")).join("\n");
+                const wsDQ = XLSX.utils.json_to_sheet(rowsDQ);
+                XLSX.utils.book_append_sheet(wb, wsDQ, "Resumen DQ");
+            }
+        }
 
-        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: "text/csv;charset=utf-8;" }); // BOM for Excel UTF-8
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `PagosGestor-${prefijo}${fechaDesde}.csv`;
-        a.click();
-        toast.success("Descarga iniciada");
+        // Hoja 2: Resumen Clientes DP (si aplica)
+        if (tipoFiltro === "todos" || tipoFiltro === "DP") {
+            const summaryDP = getSummaryByPrefix('DP');
+            if (summaryDP.length > 0) {
+                const totalsDP = calculateTotals(summaryDP);
+                const rowsDP = [
+                    ...summaryDP.map(r => ({
+                        "Agente": r.agenteName,
+                        "Cuentas": r.cuentas,
+                        "Total Monto": r.totalMonto,
+                        "Total Moratorio": r.totalMoratorio,
+                        "Monto BANCARIO": r.montoBancario,
+                        "Monto GESTOR": r.montoGestor
+                    })),
+                    {
+                        "Agente": "Total General",
+                        "Cuentas": totalsDP.cuentas,
+                        "Total Monto": totalsDP.totalMonto,
+                        "Total Moratorio": totalsDP.totalMoratorio,
+                        "Monto BANCARIO": totalsDP.montoBancario,
+                        "Monto GESTOR": totalsDP.montoGestor
+                    }
+                ];
+                const wsDP = XLSX.utils.json_to_sheet(rowsDP);
+                XLSX.utils.book_append_sheet(wb, wsDP, "Resumen DP");
+            }
+        }
+
+        // Hoja 3: Pagos Detallados
+        const detalleData = detallado.map(p => {
+            const fechaPagoSolo = new Date(p.fechaPago).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const fechaYHora = new Date(p.fechaPago).toLocaleString('es-MX', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            }).replace(',', '');
+
+            const referencia = p.numeroRecibo || p.ticket?.referencia || p.ticket?.folio || "PENDIENTE";
+            const moratorioVal = p.tipoPago === "moratorio" ? Number(p.monto) || 0 : 0;
+
+            return {
+                "ID": p.id,
+                "Fecha de pago": fechaPagoSolo,
+                "Fecha y Hora": fechaYHora,
+                "Código Cliente": p.cliente?.codigoCliente || "-",
+                "Nombre Cliente": p.cliente?.nombreCompleto || "-",
+                "Referencia de pago": referencia,
+                "Monto": Number(p.monto) || 0,
+                "Agente": (p.cobrador?.name || "SISTEMA").toUpperCase(),
+                "Concepto": p.concepto || "ABONO",
+                "Periodicidad": (p.cliente?.periodicidad || "-").toUpperCase(),
+                "Día Cobro": (p.cliente?.diaPago || "-").toUpperCase(),
+                "Teléfono": p.cliente?.telefono || "-",
+                "Moratorio": moratorioVal,
+                "Tipo": (p.metodoPago || "EFECTIVO").toUpperCase()
+            };
+        });
+
+        const wsDetalle = XLSX.utils.json_to_sheet(detalleData);
+        XLSX.utils.book_append_sheet(wb, wsDetalle, "Pagos Detallados");
+
+        XLSX.writeFile(wb, `PagosGestor-${prefijo}${fechaDesde}.xlsx`);
+        toast.success("Descarga de Excel iniciada");
     };
 
     const getSummaryByPrefix = (prefix: 'DP' | 'DQ'): AgentSummary[] => {

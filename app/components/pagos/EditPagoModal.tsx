@@ -147,12 +147,10 @@ export function EditPagoModal({
             >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="GESTOR">GESTOR</SelectItem>
-                <SelectItem value="GESTOR BANCOS">GESTOR BANCOS</SelectItem>
                 <SelectItem value="BANCOS BOT">BANCOS BOT</SelectItem>
                 <SelectItem value="BANCARIO">BANCARIO</SelectItem>
-                <SelectItem value="EFECTIVO">EFECTIVO</SelectItem>
-                {!['GESTOR', 'GESTOR BANCOS', 'BANCOS BOT', 'BANCARIO', 'EFECTIVO'].includes(formData.metodoPago) && formData.metodoPago && (
+                <SelectItem value="GESTOR">GESTOR</SelectItem>
+                {!['BANCOS BOT', 'BANCARIO', 'GESTOR'].includes(formData.metodoPago) && formData.metodoPago && (
                   <SelectItem value={formData.metodoPago}>{formData.metodoPago}</SelectItem>
                 )}
               </SelectContent>

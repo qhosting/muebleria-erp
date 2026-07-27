@@ -89,7 +89,14 @@ export function useBluetoothPrinter() {
       return false;
     } catch (error: any) {
       const message = error.message || 'Error conectando a la impresora';
-      toast.error(message);
+      
+      if (message.toLowerCase().includes('permission denied') || message.toLowerCase().includes('denegados')) {
+        toast.error('Permisos de Bluetooth denegados. Por favor, revisa la configuración de permisos de la aplicación o tu navegador.');
+      } else if (message.includes('User cancelled')) {
+        toast.error('Cancelaste la selección de impresora.');
+      } else {
+        toast.error(message);
+      }
       return false;
     } finally {
       setIsConnecting(false);
@@ -133,6 +140,15 @@ export function useBluetoothPrinter() {
     } catch (error: any) {
       toast.error('Error desconectando impresora');
     }
+  };
+
+  const forgetPrinter = () => {
+    bluetoothPrinter.forgetPrinter();
+    updateConnectionStatus();
+    setWasConnectedBefore(false);
+    setPreviousDeviceName(null);
+    setCanReconnect(false);
+    toast.success('Impresora olvidada (borrada)');
   };
 
   const printTicket = async (ticketData: TicketData): Promise<boolean> => {
@@ -263,6 +279,7 @@ export function useBluetoothPrinter() {
     printArqueo,
     printConvenio,
     printTestPage,
-    updateConnectionStatus
+    updateConnectionStatus,
+    forgetPrinter
   };
 }
