@@ -38,6 +38,7 @@ import { MotararioModal } from './motarario-modal';
 import { ConvenioModal } from './convenio-modal';
 import { VerificacionModal } from './verificacion-modal';
 import { ProfileModal } from './profile-modal';
+import { ComprobanteCapturaModal, ComprobanteData } from './comprobante-captura-modal';
 import { formatCurrency, getDayName } from '@/lib/utils';
 import { toast } from 'sonner';
 import { FooterVersion } from '@/components/version-info';
@@ -72,6 +73,14 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
   const [showConvenioModal, setShowConvenioModal] = useState(false);
   const [showVerificacionModal, setShowVerificacionModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [comprobanteCapturaData, setComprobanteCapturaData] = useState<ComprobanteData | null>(null);
+  const [showComprobanteCapturaModal, setShowComprobanteCapturaModal] = useState(false);
+
+  const handleShowComprobante = (data: ComprobanteData) => {
+    setComprobanteCapturaData(data);
+    setShowComprobanteCapturaModal(true);
+  };
+
   const [isOnline, setIsOnline] = useState(typeof window !== 'undefined' ? navigator.onLine : true);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -658,6 +667,7 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
               onClose={() => setShowCobroModal(false)}
               onSuccess={handleModalSuccess}
               isOnline={isOnline}
+              onShowComprobante={handleShowComprobante}
             />
 
             <PagosModal
@@ -700,6 +710,13 @@ export default function CobranzaMobile({ initialClientes = [], disableLayout = f
             )}
           </>
         )}
+
+        {/* Modal de Comprobante para Captura de Pantalla */}
+        <ComprobanteCapturaModal
+          isOpen={showComprobanteCapturaModal}
+          onClose={() => setShowComprobanteCapturaModal(false)}
+          data={comprobanteCapturaData}
+        />
 
         {/* Footer con información de versión */}
         <div className="mt-8 pt-4 border-t">

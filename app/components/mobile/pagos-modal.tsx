@@ -34,7 +34,8 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  Send
+  Send,
+  Camera
 } from 'lucide-react';
 import { OfflineCliente } from '@/lib/offline-db';
 import { Pago } from '@/lib/types';
@@ -46,6 +47,7 @@ import { sharePdfNative } from '@/lib/native/share';
 import { useBluetoothPrinter } from '@/hooks/use-bluetooth-printer';
 import { TicketData } from '@/lib/bluetooth-printer';
 import { PrinterConfigModal } from './printer-config-modal';
+import { ComprobanteCapturaModal, ComprobanteData } from './comprobante-captura-modal';
 import { Settings } from 'lucide-react';
 
 interface PagosModalProps {
@@ -75,6 +77,30 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
   const [convenios, setConvenios] = useState<any[]>([]);
   const [loadingConvenios, setLoadingConvenios] = useState(false);
   const [printingConvenioId, setPrintingConvenioId] = useState<string | null>(null);
+
+  const [capturaData, setCapturaData] = useState<ComprobanteData | null>(null);
+  const [showCapturaModal, setShowCapturaModal] = useState(false);
+
+  const handleVerComprobanteCaptura = (pago: Pago) => {
+    const data: ComprobanteData = {
+      numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-8).toUpperCase()}`,
+      clienteNombre: cliente.nombreCompleto || cliente.nombre || '',
+      clienteCodigo: cliente.codigoCliente || cliente.numContrato || cliente.id,
+      clienteTelefono: cliente.telefono,
+      fechaPago: typeof pago.fechaPago === 'string' ? pago.fechaPago : pago.fechaPago.toISOString(),
+      montoAbono: Number(pago.monto || 0),
+      interesMoratorio: Number(pago.interesMoratorio || 0),
+      gastosCobranza: Number(pago.gastosCobranza || 0),
+      montoTotal: Number(pago.monto || 0) + Number(pago.interesMoratorio || 0) + Number(pago.gastosCobranza || 0),
+      saldoAnterior: Number(pago.saldoAnterior || 0),
+      saldoNuevo: Number(pago.saldoNuevo || 0),
+      metodoPago: pago.metodoPago || 'GESTOR',
+      concepto: pago.concepto || 'Abono Regular',
+      cobradorNombre: pago.cobrador?.name || (session?.user as any)?.name || 'Gestor'
+    };
+    setCapturaData(data);
+    setShowCapturaModal(true);
+  };
 
   useEffect(() => {
     if (isOpen && cliente.id) {
@@ -663,11 +689,11 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => handleCompartirPagoPDF(pago)}
-                                    className="flex-1 h-7 text-xs bg-[#25D366] hover:bg-[#20bd5a] hover:text-white border-transparent text-white font-bold"
+                                    onClick={() => handleVerComprobanteCaptura(pago)}
+                                    className="flex-1 h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold border-none"
                                   >
-                                    <Send className="w-3.5 h-3.5 mr-1" />
-                                    WhatsApp PDF
+                                    <Camera className="w-3.5 h-3.5 mr-1" />
+                                    Ver p/ Captura
                                   </Button>
 
                                   <Button
@@ -860,6 +886,13 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
         <PrinterConfigModal
           isOpen={showPrinterConfig}
           onClose={() => setShowPrinterConfig(false)}
+        />
+
+        {/* Modal de Comprobante para Captura de Pantalla */}
+        <ComprobanteCapturaModal
+          isOpen={showCapturaModal}
+          onClose={() => setShowCapturaModal(false)}
+          data={capturaData}
         />
       </DialogContent>
     </Dialog>

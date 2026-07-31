@@ -35,15 +35,18 @@ import { TicketData } from '@/lib/bluetooth-printer';
 import { PrinterConfigModal } from './printer-config-modal';
 import { Switch } from '@/components/ui/switch';
 
+import { ComprobanteData } from './comprobante-captura-modal';
+
 interface CobroModalProps {
   cliente: OfflineCliente;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   isOnline: boolean;
+  onShowComprobante?: (data: ComprobanteData) => void;
 }
 
-export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: CobroModalProps) {
+export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline, onShowComprobante }: CobroModalProps) {
   const { data: session } = useSession();
   const [montoAbono, setMontoAbono] = useState('');
   const [interesMoratorio, setInteresMoratorio] = useState('');
@@ -283,8 +286,29 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline }: Co
         });
       }
 
+      const ticketDataObj: ComprobanteData = {
+        numeroRecibo: numeroRecibo || `REC-${localId.substring(0, 8).toUpperCase()}`,
+        clienteNombre: cliente.nombreCompleto || cliente.nombre || '',
+        clienteCodigo: cliente.codigoCliente || cliente.numContrato || cliente.id,
+        clienteTelefono: cliente.telefono,
+        fechaPago: pagoData.fechaPago,
+        montoAbono: calculatedValues.montoAbono,
+        interesMoratorio: calculatedValues.interesMoratorio,
+        gastosCobranza: calculatedValues.gastosCobranza,
+        montoTotal: calculatedValues.montoTotal,
+        saldoAnterior: calculatedValues.saldoAnterior,
+        saldoNuevo: calculatedValues.saldoNuevo,
+        metodoPago: metodoPago,
+        concepto: concepto || 'Abono Regular',
+        cobradorNombre: (session?.user as any)?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : null) || 'Cobrador'
+      };
+
       onSuccess();
       onClose();
+
+      if (onShowComprobante) {
+        onShowComprobante(ticketDataObj);
+      }
 
     } catch (error) {
       console.error('Error processing payments:', error);
