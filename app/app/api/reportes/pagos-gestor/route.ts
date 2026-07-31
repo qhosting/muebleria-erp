@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
                     select: { name: true, codigoGestor: true },
                 },
                 ticket: {
-                    select: { folio: true, referencia: true }
+                    select: { id: true, folio: true, referencia: true, claveRastreo: true }
                 }
             },
             orderBy: { fechaPago: 'asc' },

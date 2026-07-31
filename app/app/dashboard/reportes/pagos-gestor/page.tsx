@@ -39,7 +39,7 @@ export default function PagosGestorPage() {
     const [tipoFiltro, setTipoFiltro] = useState<string>("todos"); // 'todos', 'DQ', 'DP'
 
     const [fechaDesde, setFechaDesde] = useState(() => {
-        const d = new Date(); d.setDate(d.getDate() - 7);
+        const d = new Date(); d.setDate(d.getDate() - 30);
         return d.toISOString().split("T")[0];
     });
     const [fechaHasta, setFechaHasta] = useState(() => new Date().toISOString().split("T")[0]);
@@ -422,7 +422,7 @@ export default function PagosGestorPage() {
                                         const isDP = pago.cliente?.codigoCliente?.startsWith('DP');
 
                                         // Formatear referencia similar al export
-                                        const referencia = pago.numeroRecibo || pago.ticket?.referencia || pago.ticket?.folio || "PENDIENTE";
+                                        const referencia = pago.numeroRecibo || pago.ticket?.referencia || pago.ticket?.folio || pago.ticket?.id || pago.ticket?.claveRastreo || "PENDIENTE";
 
                                         // Fecha y Hora formateada
                                         const fechaCompleta = new Date(pago.fechaPago).toLocaleString('es-MX', {
