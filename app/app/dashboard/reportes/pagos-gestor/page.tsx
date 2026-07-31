@@ -95,8 +95,13 @@ export default function PagosGestorPage() {
     };
 
     const getMoratorioVal = (p: any): number => {
-        const interesMora = Number(p.interesMoratorio || 0);
-        if (interesMora > 0) return interesMora;
+        if (!p) return 0;
+        const rawMora = p.interesMoratorio;
+        const interesMora = typeof rawMora === 'object' && rawMora !== null
+            ? parseFloat(rawMora.toString?.() || '0')
+            : Number(rawMora || 0);
+
+        if (!isNaN(interesMora) && interesMora > 0) return interesMora;
         if (p.tipoPago === 'moratorio') return Number(p.monto || 0);
         return 0;
     };

@@ -80,6 +80,8 @@ export async function GET(request: NextRequest) {
 
         const detallado = pagos.map(p => {
             const monto = parseFloat(p.monto.toString());
+            const interesMoratorio = p.interesMoratorio ? parseFloat(p.interesMoratorio.toString()) : 0;
+            const gastosCobranza = p.gastosCobranza ? parseFloat(p.gastosCobranza.toString()) : 0;
             const isDP = p.cliente?.codigoCliente?.startsWith('DP');
             const isDQ = p.cliente?.codigoCliente?.startsWith('DQ');
 
@@ -93,7 +95,7 @@ export async function GET(request: NextRequest) {
 
             resumen.totalMonto += monto;
 
-            return { ...p, monto };
+            return { ...p, monto, interesMoratorio, gastosCobranza };
         });
 
         return NextResponse.json({
