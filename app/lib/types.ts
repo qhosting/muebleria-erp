@@ -113,6 +113,8 @@ export interface Pago {
   clienteId: string;
   cobradorId: string;
   monto: number;
+  interesMoratorio?: number;
+  gastosCobranza?: number;
   concepto?: string;
   tipoPago: TipoPago;
   fechaPago: Date;
