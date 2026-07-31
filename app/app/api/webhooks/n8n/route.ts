@@ -21,25 +21,21 @@ export async function POST(req: Request) {
         // }
 
         const body = await req.json();
-        let {
-            action, // 'create', 'pending', 'resolve'
-            contrato,
-            monto,
-            referencia,
-            folio,
-            fecha,
-            hr,
-            claverastreo,
-            remitente,
-            base64Data,
-            tipoArchivo
-        } = body;
+        let action = body.action;
+        let contrato = body.contrato || body.codigoCliente || body.cliente || body.contractId || body.metadata?.contrato;
+        let monto = body.monto || body.montoTotal || body.amount || body.metadata?.monto;
+        let referencia = body.referencia || body.ref || body.concept || body.metadata?.referencia;
+        let folio = body.folio || body.metadata?.folio;
+        let fecha = body.fecha || body.date || body.metadata?.fecha;
+        let hr = body.hr || body.hora || body.time || body.metadata?.hr;
+        let claverastreo = body.claverastreo || body.claveRastreo || body.clave_rastreo || body.trackingKey || body.metadata?.claverastreo;
+        let remitente = body.remitente || body.telefono || body.phone || body.sender || body.metadata?.remitente;
+        let base64Data = body.base64Data || body.base64 || body.image || body.metadata?.base64Data;
+        let tipoArchivo = body.tipoArchivo || body.mimeType || body.metadata?.tipoArchivo;
 
         // Limpieza defensiva de posibles signos '=' o espacios extras de las expresiones de n8n
         if (typeof contrato === "string") contrato = contrato.replace(/^=/, "").trim();
-        if (typeof monto === "string") {
-            monto = monto.replace(/^=/, "").trim();
-        }
+        if (typeof monto === "string") monto = monto.replace(/^=/, "").trim();
         if (typeof referencia === "string") referencia = referencia.replace(/^=/, "").trim();
         if (typeof folio === "string") folio = folio.replace(/^=/, "").trim();
         if (typeof claverastreo === "string") claverastreo = claverastreo.replace(/^=/, "").trim();
@@ -101,18 +97,46 @@ export async function POST(req: Request) {
             if (match) codigoFinal = match[0].toUpperCase();
         }
 
-        if (!codigoFinal) {
-            return NextResponse.json({ error: "Contrato no detectado en cuerpo ni referencia" }, { status: 400 });
-        }
-
-        // 2. Buscar Cliente
-        const cliente = await prisma.cliente.findUnique({
+        // Si no se pudo detectar cliente o contrato, guardar en Cola de Tesorería (Buzón) para que no se pierda
+        const cliente = codigoFinal ? await prisma.cliente.findUnique({
             where: { codigoCliente: codigoFinal },
             include: { cobradorAsignado: true }
-        });
+        }) : null;
 
         if (!cliente) {
-            return NextResponse.json({ error: `Cliente con contrato ${codigoFinal} no encontrado` }, { status: 404 });
+            let uniqueHash = base64Data 
+                ? crypto.createHash('md5').update(base64Data).digest('hex')
+                : crypto.createHash('md5').update(`${remitente || 'noref'}-${monto || 0}-${claverastreo || 'norastreo'}-${Date.now()}`).digest('hex');
+
+            await prisma.buzonTesoreria.upsert({
+                where: { hash: uniqueHash },
+                update: {
+                    estado: 'PENDIENTE',
+                    contractId: codigoFinal || null,
+                    monto: parseFloat(monto || '0') || 0,
+                    referencia: referencia !== 'null' ? referencia : null,
+                    base64Data: base64Data || null,
+                    metadata: { contrato: codigoFinal, monto, referencia, folio, fecha, hr, claverastreo, error: 'Cliente no encontrado o contrato por asignar' }
+                },
+                create: {
+                    telefono: remitente || "N/A",
+                    hash: uniqueHash,
+                    base64Data: base64Data || null,
+                    contractId: codigoFinal || null,
+                    monto: parseFloat(monto || '0') || 0,
+                    referencia: referencia !== 'null' ? referencia : null,
+                    fecha: new Date(),
+                    estado: 'PENDIENTE',
+                    metadata: { contrato: codigoFinal, monto, referencia, folio, fecha, hr, claverastreo, error: 'Cliente no encontrado o contrato por asignar' }
+                }
+            });
+
+            return NextResponse.json({
+                message: "Ticket registrado en la Cola de Tesorería (Buzón Pendiente) para asignación manual",
+                contrato: codigoFinal,
+                pendiente: true,
+                mensaje: `⚠️ Ticket guardado en *Cola de Tesorería*.\nContrato detectado: ${codigoFinal || 'Sin Contrato'}. Se puede conciliar manualmente desde el Dashboard.`
+            });
         }
 
         // 3. Verificar Duplicado
@@ -122,7 +146,7 @@ export async function POST(req: Request) {
                     claverastreo && claverastreo !== 'null' ? { claveRastreo: claverastreo } : { id: 'none' },
                     {
                         clienteId: cliente.id,
-                        monto: parseFloat(monto),
+                        monto: parseFloat(monto || '0'),
                         fecha: fecha ? new Date(fecha) : undefined,
                     }
                 ]
