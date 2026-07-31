@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
                     monto: montoPago,
                     concepto: ticket.concepto || `Aplicado desde tesorería (Ref: ${ticket.referencia || ticket.folio || ticket.id})`,
                     tipoPago: 'regular',
-                    fechaPago: ticket.fecha || new Date(),
+                    fechaPago: new Date(), // El pago se registra en la fecha actual de tesoreria
                     metodoPago: 'TESORERIA MANUAL',
                     saldoAnterior,
                     saldoNuevo,

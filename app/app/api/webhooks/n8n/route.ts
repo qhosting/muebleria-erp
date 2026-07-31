@@ -267,7 +267,7 @@ export async function POST(req: Request) {
                     gastosCobranza: 0,
                     concepto: movimientoBancario ? `TKT: ${newTicket.id} / MOV: ${movimientoBancario.id.slice(-8)}` : `TKT: ${newTicket.id} / PENDIENTE`,
                     tipoPago: tipoPagoStr as any,
-                    fechaPago: fechaTicket,
+                    fechaPago: new Date(), // Los pagos de bot se insertan con la fecha actual del envio para coincidir con la semana de cobranza
                     saldoAnterior: saldoAnterior,
                     saldoNuevo: saldoNuevo,
                     metodoPago: "BANCOS BOT",
