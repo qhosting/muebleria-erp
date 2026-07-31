@@ -22,12 +22,18 @@ export async function GET(request: NextRequest) {
         const where: any = {};
 
         if (search) {
+            const cleanSearch = search.trim();
             where.OR = [
-                { folio: { contains: search, mode: 'insensitive' } },
-                { referencia: { contains: search, mode: 'insensitive' } },
-                { concepto: { contains: search, mode: 'insensitive' } },
-                { cliente: { nombreCompleto: { contains: search, mode: 'insensitive' } } },
-                { cliente: { codigoCliente: { contains: search, mode: 'insensitive' } } },
+                { folio: { contains: cleanSearch, mode: 'insensitive' } },
+                { referencia: { contains: cleanSearch, mode: 'insensitive' } },
+                { claveRastreo: { contains: cleanSearch, mode: 'insensitive' } },
+                { id: { contains: cleanSearch, mode: 'insensitive' } },
+                { concepto: { contains: cleanSearch, mode: 'insensitive' } },
+                { remitente: { contains: cleanSearch, mode: 'insensitive' } },
+                { cuentaOrigen: { contains: cleanSearch, mode: 'insensitive' } },
+                { cuentaDestino: { contains: cleanSearch, mode: 'insensitive' } },
+                { cliente: { nombreCompleto: { contains: cleanSearch, mode: 'insensitive' } } },
+                { cliente: { codigoCliente: { contains: cleanSearch, mode: 'insensitive' } } },
             ];
         }
 

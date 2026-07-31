@@ -135,7 +135,7 @@ export default function TicketsPage() {
                             <div className="relative w-full sm:w-80">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                                 <Input
-                                    placeholder="Buscar folio, cliente, referencia..."
+                                    placeholder="Buscar folio, rastreo, cliente, ref..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="pl-9"
@@ -149,7 +149,7 @@ export default function TicketsPage() {
                                 <thead className="bg-gray-50/75 border-b border-gray-100 font-medium text-gray-700">
                                     <tr>
                                         <th scope="col" className="px-4 py-3">Fecha</th>
-                                        <th scope="col" className="px-4 py-3">Folio / Ref</th>
+                                        <th scope="col" className="px-4 py-3">Folio / Ref / Rastreo</th>
                                         <th scope="col" className="px-4 py-3">Cliente</th>
                                         <th scope="col" className="px-4 py-3">Gestor</th>
                                         <th scope="col" className="px-4 py-3 text-right">Monto</th>
@@ -182,7 +182,12 @@ export default function TicketsPage() {
                                                         {formatDate(ticket.fecha || ticket.creadoEn).split(' ')[0]}
                                                     </td>
                                                     <td className="px-4 py-3 font-mono text-sm text-gray-900">
-                                                        <div>{ticket.folio || ticket.referencia || `#${ticket.legacyId}`}</div>
+                                                        <div>{ticket.folio || ticket.referencia || ticket.claveRastreo || `#${ticket.legacyId}`}</div>
+                                                        {ticket.claveRastreo && ticket.claveRastreo !== ticket.folio && ticket.claveRastreo !== ticket.referencia && (
+                                                            <div className="text-[11px] text-blue-600 font-mono">
+                                                                Rastreo: {ticket.claveRastreo}
+                                                            </div>
+                                                        )}
                                                         <div className="text-[10px] text-gray-400 font-mono mt-0.5" title="Ticket ID">
                                                             ID: {ticket.id}
                                                         </div>
