@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
                 };
             }
             gestoresMap[cid].cantidadPagos++;
-            gestoresMap[cid].totalCobrado += Number(pago.monto);
+            gestoresMap[cid].totalCobrado += Number(pago.monto) + Number(pago.interesMoratorio || 0) + Number(pago.gastosCobranza || 0);
         });
 
         // Para el resumen DQ/DP Solo Bancos usaremos los tickets que tienen movimientos

@@ -63,15 +63,21 @@ export async function POST(request: NextRequest) {
                     cobradorId: userId,
                     fechaPago: { gte: hoy }
                 },
-                _sum: { monto: true }
+                _sum: { 
+                    monto: true,
+                    interesMoratorio: true,
+                    gastosCobranza: true
+                }
             });
+
+            const totalCobradoCalculado = Number(pagosHoy._sum.monto || 0) + Number(pagosHoy._sum.interesMoratorio || 0) + Number(pagosHoy._sum.gastosCobranza || 0);
 
             const closedSession = await (prisma as any).sesionCaja.update({
                 where: { id: abierta.id },
                 data: {
                     cierre: new Date(),
                     montoFinal: montoFinal || 0,
-                    totalCobrado: pagosHoy._sum.monto || 0,
+                    totalCobrado: totalCobradoCalculado,
                     estatus: 'cerrado',
                     observaciones: observaciones || ""
                 }

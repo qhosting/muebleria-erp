@@ -81,15 +81,12 @@ export async function GET(request: NextRequest) {
             }
 
             const monto = Number(pago.monto);
-            const mora = pago.tipoPago === 'moratorio' ? monto : 0; // En legacy parece que 'mora' es un campo, aquí discriminamos por tipoPago o podemos usar el campo mora si existiera
+            const interesMora = Number(pago.interesMoratorio || 0);
+            const mora = interesMora > 0 ? interesMora : (pago.tipoPago === 'moratorio' ? monto : 0);
 
             resumenMap[cobradorId].cuentas++;
             resumenMap[cobradorId].totalMonto += monto;
-
-            // Si el pago es de tipo moratorio, lo sumamos a mora (ajustar según lógica real vs legacy)
-            if (pago.tipoPago === 'moratorio') {
-                resumenMap[cobradorId].totalMora += monto;
-            }
+            resumenMap[cobradorId].totalMora += mora;
 
             // Clasificación Bancario vs Gestor (basado en metodoPago conteniendo 'banc', 'bot', 'transf', o 'depo')
             const isBancario = (() => {

@@ -94,6 +94,13 @@ export default function PagosGestorPage() {
         }
     };
 
+    const getMoratorioVal = (p: any): number => {
+        const interesMora = Number(p.interesMoratorio || 0);
+        if (interesMora > 0) return interesMora;
+        if (p.tipoPago === 'moratorio') return Number(p.monto || 0);
+        return 0;
+    };
+
     const exportarExcel = () => {
         if (detallado.length === 0) return;
 
@@ -166,7 +173,7 @@ export default function PagosGestorPage() {
             }).replace(',', '');
 
             const referencia = p.numeroRecibo || p.ticket?.referencia || p.ticket?.folio || "PENDIENTE";
-            const moratorioVal = p.tipoPago === "moratorio" ? Number(p.monto) || 0 : 0;
+            const moratorioVal = getMoratorioVal(p);
 
             return {
                 "ID": p.id,
@@ -224,9 +231,8 @@ export default function PagosGestorPage() {
             map[cobradorId].cuentas += 1;
             map[cobradorId].totalMonto += monto;
 
-            if (pago.tipoPago === 'moratorio') {
-                map[cobradorId].totalMoratorio += monto;
-            }
+            const moratorioVal = getMoratorioVal(pago);
+            map[cobradorId].totalMoratorio += moratorioVal;
 
             if (isBancario) {
                 map[cobradorId].montoBancario += monto;
@@ -448,8 +454,8 @@ export default function PagosGestorPage() {
                                                 <td className="px-3 py-2 uppercase text-[9px]">{pago.cliente?.periodicidad?.substring(0, 3) || "-"}</td>
                                                 <td className="px-3 py-2 uppercase text-[9px]">{pago.cliente?.diaPago?.substring(0, 3) || "-"}</td>
                                                 <td className="px-3 py-2 text-gray-500">{pago.cliente?.telefono || "-"}</td>
-                                                <td className="px-3 py-2 text-right text-red-600">
-                                                    {pago.tipoPago === "moratorio" ? formatCurrency(pago.monto) : "$0.00"}
+                                                <td className="px-3 py-2 text-right text-red-600 font-semibold">
+                                                    {getMoratorioVal(pago) > 0 ? formatCurrency(getMoratorioVal(pago)) : "$0.00"}
                                                 </td>
                                                 <td className="px-3 py-2">
                                                     <Badge variant="outline" className="text-[9px] uppercase">
