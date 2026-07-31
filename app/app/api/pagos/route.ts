@@ -32,11 +32,15 @@ export async function GET(request: NextRequest) {
     if (tipoPago) where.tipoPago = tipoPago;
 
     if (search) {
+      const cleanSearch = search.trim();
       where.OR = [
-        { concepto: { contains: search, mode: 'insensitive' } },
-        { cliente: { nombreCompleto: { contains: search, mode: 'insensitive' } } },
-        { cliente: { codigoCliente: { contains: search, mode: 'insensitive' } } },
-        { numeroRecibo: { contains: search, mode: 'insensitive' } },
+        { concepto: { contains: cleanSearch, mode: 'insensitive' } },
+        { cliente: { nombreCompleto: { contains: cleanSearch, mode: 'insensitive' } } },
+        { cliente: { codigoCliente: { contains: cleanSearch, mode: 'insensitive' } } },
+        { numeroRecibo: { contains: cleanSearch, mode: 'insensitive' } },
+        { localId: { contains: cleanSearch, mode: 'insensitive' } },
+        { id: { contains: cleanSearch, mode: 'insensitive' } },
+        { clienteId: { contains: cleanSearch, mode: 'insensitive' } },
       ];
     }
 

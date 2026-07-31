@@ -204,11 +204,17 @@ export default function PagosPage() {
     setPagoParaEditar(null);
   };
 
-  const filteredPagos = pagos.filter(pago =>
-    pago.cliente.nombreCompleto.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    pago.cliente.codigoCliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    pago.concepto.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPagos = pagos.filter(pago => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      (pago.cliente?.nombreCompleto || '').toLowerCase().includes(term) ||
+      (pago.cliente?.codigoCliente || '').toLowerCase().includes(term) ||
+      (pago.concepto || '').toLowerCase().includes(term) ||
+      (pago.localId || '').toLowerCase().includes(term) ||
+      (pago.id || '').toLowerCase().includes(term)
+    );
+  });
 
   if (!session) {
     return null;
