@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Phone, MapPin, Calendar, Printer, User, ShoppingBag, CreditCard, DollarSign, MessageSquare } from "lucide-react";
+import { X, Phone, MapPin, Calendar, Printer, User, ShoppingBag, CreditCard, DollarSign, MessageSquare, Copy } from "lucide-react";
 import { OfflineCliente } from "@/lib/offline-db";
 import { formatCurrency, getDayName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,14 @@ interface ProfileModalProps {
 
 export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
     const [sending, setSending] = useState(false);
+
+    const handleCopyText = (text: string, label: string) => {
+        if (!text) return;
+        navigator.clipboard.writeText(text);
+        toast.success(`${label} copiado: ${text}`);
+    };
+
+    const codigoVal = cliente.codigoCliente || cliente.numContrato || cliente.id;
 
     const handleWhatsAppAviso = async () => {
         const mensaje = `*AVISO DE COBRO - Grupo Mueblero DASO*\n\nHola ${cliente.nombreCompleto},\n\nLe enviamos un recordatorio de su estado de cuenta:\n\n*Saldo Actual:* ${formatCurrency(cliente.saldoPendiente)}\n*Saldo Vencido:* ${formatCurrency(cliente.saldoVencido || 0)}\n*Días de Atraso:* ${(cliente as any).diasVencidos || 0}\n\nFavor de regularizarse a la brevedad para evitar recargos. ¡Gracias!`;
@@ -80,15 +88,33 @@ export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
                     </button>
                 </div>
                 
-                <div className="overflow-y-auto p-6 space-y-8 custom-scrollbar">
-                    {/* Encabezado con Nombre */}
+                <div className="overflow-y-auto p-6 space-y-8 custom-scrollbar select-text">
+                    {/* Encabezado con Nombre y Código */}
                     <div className="flex items-center space-x-5">
                         <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-white text-3xl font-black mb-4">
                             {(cliente.nombreCompleto || cliente.nombre || "C").charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <h4 className="text-2xl font-black text-white leading-tight truncate">{cliente.nombreCompleto || cliente.nombre || "Sin Nombre"}</h4>
-                            <p className="text-sm text-slate-500 font-mono tracking-tighter mt-1 uppercase">ID: {cliente.id}</p>
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <span 
+                                    className="font-mono bg-blue-900/60 text-blue-300 font-bold px-2 py-0.5 rounded text-xs select-all flex items-center gap-1 cursor-pointer border border-blue-700/50"
+                                    onClick={() => handleCopyText(codigoVal, "Código de cliente")}
+                                >
+                                    {codigoVal}
+                                    <Copy className="w-3 h-3 text-blue-400 inline" />
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <h4 className="text-2xl font-black text-white leading-tight truncate select-text">{cliente.nombreCompleto || cliente.nombre || "Sin Nombre"}</h4>
+                                <button 
+                                    onClick={() => handleCopyText(cliente.nombreCompleto || cliente.nombre || "", "Nombre")}
+                                    className="text-slate-400 hover:text-white p-1"
+                                    title="Copiar nombre"
+                                >
+                                    <Copy className="w-4 h-4" />
+                                </button>
+                            </div>
+                            <p className="text-sm text-slate-500 font-mono tracking-tighter mt-1 uppercase select-all">ID: {cliente.id}</p>
                         </div>
                     </div>
 

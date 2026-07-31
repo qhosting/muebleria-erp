@@ -22,8 +22,10 @@ import {
   UserCheck,
   Handshake,
   MoreHorizontal,
-  Printer
+  Printer,
+  Copy
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { OfflineCliente } from '@/lib/offline-db';
 import { formatCurrency, getDayName } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -58,13 +60,28 @@ export function ClientCard({
 }: ClientCardProps) {
   const [calling, setCalling] = useState(false);
 
+  const handleCopy = (e: React.MouseEvent, textToCopy: string, label: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!textToCopy) return;
+    navigator.clipboard.writeText(textToCopy);
+    toast.success(`${label} copiado: ${textToCopy}`);
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+      return;
+    }
+    onVerPerfil?.(cliente);
+  };
+
   const handleCall = async () => {
     if (!cliente.telefono || calling) return;
 
     setCalling(true);
 
     try {
-      // Intentar abrir la app de teléfono
       if (onCall) {
         onCall(cliente.telefono);
       } else {
@@ -114,22 +131,49 @@ export function ClientCard({
     return <Badge variant="secondary">Activo</Badge>;
   };
 
+  const codigoClienteVal = cliente.codigoCliente || cliente.numContrato || cliente.id;
+
   return (
     <Card 
-      className="w-full active:scale-[0.98] transition-transform cursor-pointer overflow-hidden border-slate-200 shadow-sm hover:shadow-md"
-      onClick={() => onVerPerfil?.(cliente)}
+      className="w-full active:scale-[0.98] transition-transform cursor-pointer overflow-hidden border-slate-200 shadow-sm hover:shadow-md select-text"
+      onClick={handleCardClick}
     >
       <CardHeader className="pb-3 pt-4">
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-lg leading-tight truncate">
-              {cliente.nombreCompleto}
-            </h3>
-            <p className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1.5 font-medium">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span 
+                className="font-mono bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded text-xs select-all flex items-center gap-1 cursor-copy"
+                onClick={(e) => handleCopy(e, codigoClienteVal, "Código de cliente")}
+                title="Hacer clic para copiar código"
+              >
+                {codigoClienteVal}
+                <Copy className="w-3 h-3 text-blue-600 hover:text-blue-900 inline" />
+              </span>
+              <h3 
+                className="font-bold text-lg leading-tight truncate select-text"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {cliente.nombreCompleto}
+              </h3>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
+                onClick={(e) => handleCopy(e, cliente.nombreCompleto, "Nombre del cliente")}
+                title="Copiar nombre"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1.5 flex flex-wrap items-center gap-1.5 font-medium select-text">
               <Calendar className="w-4 h-4" />
               <span>{getDayName(cliente.diaPago)} - {formatCurrency(cliente.montoAcordado)}</span>
-              {cliente.numContrato && (
-                <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold text-slate-500 dark:text-slate-400">
+              {cliente.numContrato && cliente.numContrato !== codigoClienteVal && (
+                <span 
+                  className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold text-slate-500 dark:text-slate-400 select-all cursor-copy"
+                  onClick={(e) => handleCopy(e, cliente.numContrato!, "Contrato")}
+                >
                   Contrato: {cliente.numContrato}
                 </span>
               )}
