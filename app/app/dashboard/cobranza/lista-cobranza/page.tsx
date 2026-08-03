@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Download, Filter, FileText, Users, Phone, MapPin, Search, Calendar } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
 interface User {
