@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
 
 interface MorosidadReport {
     resumen: {
@@ -87,26 +88,38 @@ export default function MorosidadPage() {
         }
     };
 
-    const exportarCSV = () => {
-        if (!reporte) return;
-        const headers = ['Codigo', 'Cliente', 'Cobrador', 'Saldo Actual', 'Saldo Vencido', 'Dias Vencidos', 'Periodicidad'];
-        const rows = reporte.detalle.map(c => [
-            c.codigoCliente,
-            c.nombreCompleto,
-            c.cobradorAsignado?.name || 'N/A',
-            Math.round(c.saldoActual).toString(),
-            Math.round(c.saldoVencido).toString(),
-            c.diasVencidos.toString(),
-            c.periodicidad
-        ]);
+    const exportarExcel = () => {
+        if (!reporte || reporte.detalle.length === 0) {
+            toast.error('No hay datos para exportar');
+            return;
+        }
 
-        const csvContent = [headers, ...rows].map(r => r.join(',')).join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `reporte-morosidad-${new Date().toISOString().split('T')[0]}.csv`;
-        a.click();
+        const dataToExport = reporte.detalle.map(c => ({
+            'Código Cliente': c.codigoCliente || '-',
+            'Cliente': c.nombreCompleto || '-',
+            'Cobrador Asignado': c.cobradorAsignado?.name || 'N/A',
+            'Saldo Actual': c.saldoActual || 0,
+            'Saldo Vencido': c.saldoVencido || 0,
+            'Días Vencidos': c.diasVencidos || 0,
+            'Periodicidad': c.periodicidad || '-'
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Reporte Morosidad');
+
+        worksheet['!cols'] = [
+            { wch: 15 },
+            { wch: 30 },
+            { wch: 25 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 15 }
+        ];
+
+        XLSX.writeFile(workbook, `reporte-morosidad-${new Date().toISOString().split('T')[0]}.xlsx`);
+        toast.success('Reporte de morosidad exportado en Excel (.xlsx)');
     };
 
     if (!session) return null;
@@ -119,8 +132,8 @@ export default function MorosidadPage() {
                         <h1 className="text-2xl font-bold">Reporte de Morosidad</h1>
                         <p className="text-gray-500">Antigüedad de saldos y bloques de vencimiento</p>
                     </div>
-                    <Button onClick={exportarCSV} disabled={!reporte || loading}>
-                        <Download className="h-4 w-4 mr-2" /> Exportar CSV
+                    <Button onClick={exportarExcel} disabled={!reporte || loading} className="bg-green-600 hover:bg-green-700">
+                        <Download className="h-4 w-4 mr-2" /> Exportar a Excel
                     </Button>
                 </div>
 

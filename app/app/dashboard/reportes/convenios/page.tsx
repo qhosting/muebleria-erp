@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, Search, Calendar, Download, Handshake, Eye, MapPin } from "lucide-react";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 
@@ -96,29 +97,39 @@ export default function ConveniosReportPage() {
 
 
     const exportarExcel = () => {
-        if (convenios.length === 0) return;
+        if (convenios.length === 0) {
+            toast.error("No hay convenios para exportar");
+            return;
+        }
 
-        const csvContent = [
-            ["ID", "Fecha Acuerdo", "Codigo Cliente", "Nombre Cliente", "Tipo Convenio", "Monto Acordado", "Gestor", "Comentario"],
-            ...convenios.map(c => [
-                c.id,
-                c.fecha.split("T")[0],
-                c.cliente?.codigoCliente || "-",
-                `"${c.cliente?.nombreCompleto || "-"}"`,
-                `"${c.tipoConvenio || "-"}"`,
-                c.monto,
-                c.gestor?.name || "-",
-                `"${c.comentario || ""}"`
-            ])
-        ].map(e => e.join(",")).join("\n");
+        const dataToExport = convenios.map(c => ({
+            "ID": c.id,
+            "Fecha Acuerdo": c.fecha ? c.fecha.split("T")[0] : "-",
+            "Código Cliente": c.cliente?.codigoCliente || "-",
+            "Nombre Cliente": c.cliente?.nombreCompleto || "-",
+            "Tipo Convenio": c.tipoConvenio || "-",
+            "Monto Acordado": c.monto || 0,
+            "Gestor": c.gestor?.name || "-",
+            "Comentario": c.comentario || ""
+        }));
 
-        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: "text/csv;charset=utf-8;" });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `Reporte-Convenios-${fechaDesde}.csv`;
-        a.click();
-        toast.success("Reporte generado exitosamente");
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte Convenios");
+
+        worksheet['!cols'] = [
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 30 },
+            { wch: 20 },
+            { wch: 15 },
+            { wch: 20 },
+            { wch: 40 }
+        ];
+
+        XLSX.writeFile(workbook, `Reporte-Convenios-${fechaDesde}.xlsx`);
+        toast.success("Reporte de convenios exportado a Excel (.xlsx) exitosamente");
     };
 
     return (

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Download, Filter, FileText, Users, Phone, MapPin, Search, Calendar } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import * as XLSX from "xlsx";
 
 interface User {
     id: string;
@@ -129,40 +129,54 @@ export default function ListaCobranzaPage() {
     };
 
     const exportarExcel = () => {
-        if (clientes.length === 0) return;
+        if (clientes.length === 0) {
+            toast.error("No hay datos para exportar");
+            return;
+        }
 
         const cobradorName = getSelectedCobradorName();
-        const csvContent = [
-            [
-                "Contrato", "Codigo Cliente", "Nombre Completo", "Direccion", "Telefono",
-                "Dia Pago", "Periodicidad", "Producto", "Fecha Venta", "Vendedor",
-                "Precio Contado", "Vendido En", "Monto Pago", "Saldo Actual"
-            ],
-            ...clientes.map(c => [
-                `"${c.numContrato || "-"}"`,
-                `"${c.codigoCliente || "-"}"`,
-                `"${c.nombreCompleto || "-"}"`,
-                `"${c.direccionCompleta?.replace(/"/g, '""') || "-"}"`,
-                `"${c.telefono || "-"}"`,
-                `"${c.diaPago || "-"}"`,
-                `"${c.periodicidad || "-"}"`,
-                `"${c.descripcionProducto?.replace(/"/g, '""') || "-"}"`,
-                `"${c.fechaVenta ? new Date(c.fechaVenta).toLocaleDateString("es-MX") : "-"}"`,
-                `"${c.vendedor || "-"}"`,
-                c.importe1 || 0,
-                c.importe2 || 0,
-                c.montoPago,
-                c.saldoActual
-            ])
-        ].map(e => e.join(",")).join("\n");
+        
+        const dataToExport = clientes.map(c => ({
+            "Contrato": c.numContrato || "-",
+            "Código Cliente": c.codigoCliente || "-",
+            "Nombre Completo": c.nombreCompleto || "-",
+            "Dirección": c.direccionCompleta || "-",
+            "Teléfono": c.telefono || "-",
+            "Día Pago": c.diaPago || "-",
+            "Periodicidad": c.periodicidad || "-",
+            "Producto": c.descripcionProducto || "-",
+            "Fecha Venta": c.fechaVenta ? new Date(c.fechaVenta).toLocaleDateString("es-MX") : "-",
+            "Vendedor": c.vendedor || "-",
+            "Precio Contado": c.importe1 || 0,
+            "Vendido En": c.importe2 || 0,
+            "Monto Pago": c.montoPago || 0,
+            "Saldo Actual": c.saldoActual || 0
+        }));
 
-        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: "text/csv;charset=utf-8;" });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `ListaCobranza-${cobradorName}-Semana${semana}.csv`;
-        a.click();
-        toast.success("Descarga iniciada");
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Lista de Cobranza");
+
+        // Formatear ancho de columnas para mejor visualización
+        worksheet['!cols'] = [
+            { wch: 15 }, // Contrato
+            { wch: 15 }, // Código Cliente
+            { wch: 30 }, // Nombre Completo
+            { wch: 40 }, // Dirección
+            { wch: 15 }, // Teléfono
+            { wch: 12 }, // Día Pago
+            { wch: 15 }, // Periodicidad
+            { wch: 25 }, // Producto
+            { wch: 15 }, // Fecha Venta
+            { wch: 20 }, // Vendedor
+            { wch: 15 }, // Precio Contado
+            { wch: 15 }, // Vendido En
+            { wch: 15 }, // Monto Pago
+            { wch: 15 }  // Saldo Actual
+        ];
+
+        XLSX.writeFile(workbook, `ListaCobranza-${cobradorName}-Semana${semana}.xlsx`);
+        toast.success("Lista de cobranza exportada en Excel (.xlsx) exitosamente");
     };
 
     const clientesFiltrados = clientes.filter(c => 
