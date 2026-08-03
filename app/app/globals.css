@@ -187,8 +187,10 @@
     user-select: text;
   }
   
-  /* Habilitar selección de texto explícita en tarjetas y modales de cobrador */
-  .select-text {
+  /* Habilitar selección de texto explícita en tarjetas, vistas y modales de cobrador */
+  .select-text,
+  .select-text *,
+  p, h1, h2, h3, h4, h5, h6, span, div.select-text {
     -webkit-user-select: text !important;
     -moz-user-select: text !important;
     -ms-user-select: text !important;
@@ -197,8 +199,10 @@
   }
 
   .select-all,
+  .select-all *,
   .cursor-copy,
-  .copyable {
+  .copyable,
+  .copyable * {
     -webkit-user-select: all !important;
     -moz-user-select: all !important;
     -ms-user-select: all !important;
@@ -267,9 +271,9 @@
     /* Permitir scroll pero contener el efecto de rebote en los bordes */
     overscroll-behavior-y: contain;
     
-    /* Prevenir selección de texto accidental en layout general */
-    user-select: none;
-    -webkit-user-select: none;
+    /* Prevenir selección de texto accidental en botones o controles nativos */
+    user-select: text;
+    -webkit-user-select: text;
     
     /* Eliminar resaltado al tocar */
     -webkit-tap-highlight-color: transparent;
@@ -279,8 +283,8 @@
     overflow-y: auto;
   }
 
-  /* Permitir selección solo en inputs, áreas de texto y elementos de copia */
-  input, textarea, [contenteditable="true"], .select-text, .select-all, .copyable {
+  /* Permitir selección en inputs, áreas de texto, párrafos y elementos de copia */
+  input, textarea, [contenteditable="true"], .select-text, .select-text *, .select-all, .select-all *, .copyable, .copyable * {
     user-select: text !important;
     -webkit-user-select: text !important;
     -webkit-touch-callout: default !important;

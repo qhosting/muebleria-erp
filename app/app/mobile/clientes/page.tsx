@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake, RefreshCw, Phone, Hash, Eye, Download } from "lucide-react";
+import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake, RefreshCw, Phone, Hash, Eye, Download, Copy } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { VisualizarTicketModal } from "@/components/mobile/visualizar-ticket-modal";
 import { useSearchParams } from "next/navigation";
 import { usePlatform } from "@/hooks/usePlatform";
-import { formatWhatsAppNumber } from "@/lib/utils";
+import { formatWhatsAppNumber, copyToClipboard } from "@/lib/utils";
 import { sharePdfNative } from "@/lib/native/share";
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { VerificacionModal } from "@/components/mobile/verificacion-modal";
@@ -932,25 +932,64 @@ function MobileClientes() {
             </div>
 
             {/* LISTA DE CLIENTES */}
-            <div className="space-y-3">
+            <div className="space-y-3 select-text">
                 {filteredClientes.map((cliente) => (
                     <div
                         key={cliente.id}
-                        className="bg-slate-900 border border-slate-800 rounded-xl p-4 active:scale-[0.99] transition-transform"
-                        onClick={() => handleClienteClick(cliente)}
+                        className="bg-slate-900 border border-slate-800 rounded-xl p-4 active:scale-[0.99] transition-transform select-text cursor-pointer"
+                        onClick={(e) => {
+                            const selection = window.getSelection();
+                            if (selection && selection.toString().length > 0) return;
+                            handleClienteClick(cliente);
+                        }}
                     >
                         <div className="flex justify-between items-start">
-                            <div className="max-w-[70%]">
-                                <h3 className="font-bold text-slate-200 truncate">{cliente.nombre || 'Sin Nombre'}</h3>
+                            <div className="max-w-[70%] space-y-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    <h3 className="font-bold text-slate-200 truncate select-text">{cliente.nombre || 'Sin Nombre'}</h3>
+                                    <button
+                                        onClick={async (e) => {
+                                            e.stopPropagation();
+                                            const success = await copyToClipboard(cliente.nombre || '');
+                                            if (success) toast.success(`Nombre copiado: ${cliente.nombre}`);
+                                        }}
+                                        onTouchEnd={async (e) => {
+                                            e.stopPropagation();
+                                            const success = await copyToClipboard(cliente.nombre || '');
+                                            if (success) toast.success(`Nombre copiado: ${cliente.nombre}`);
+                                        }}
+                                        className="text-slate-500 hover:text-slate-200 p-0.5"
+                                        title="Copiar nombre"
+                                    >
+                                        <Copy className="w-3 h-3" />
+                                    </button>
+                                </div>
                                 {(cliente.numContrato || cliente.codigoCliente) && (
-                                    <div className="flex items-center gap-1 mt-0.5">
-                                        <Hash className="w-2.5 h-2.5 text-slate-600" />
-                                        <span className="text-[10px] text-slate-500 font-mono">{cliente.numContrato || cliente.codigoCliente}</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span 
+                                            className="text-[10px] text-sky-300 bg-sky-950/80 font-mono px-2 py-0.5 rounded border border-sky-700/60 select-all cursor-copy flex items-center gap-1 active:bg-sky-900"
+                                            onClick={async (e) => {
+                                                e.stopPropagation();
+                                                const code = cliente.numContrato || cliente.codigoCliente;
+                                                const success = await copyToClipboard(code);
+                                                if (success) toast.success(`Código/Contrato copiado: ${code}`);
+                                            }}
+                                            onTouchEnd={async (e) => {
+                                                e.stopPropagation();
+                                                const code = cliente.numContrato || cliente.codigoCliente;
+                                                const success = await copyToClipboard(code);
+                                                if (success) toast.success(`Código/Contrato copiado: ${code}`);
+                                            }}
+                                            title="Tocar para copiar código/contrato"
+                                        >
+                                            {cliente.numContrato || cliente.codigoCliente}
+                                            <Copy className="w-2.5 h-2.5 text-sky-400 inline flex-shrink-0" />
+                                        </span>
                                     </div>
                                 )}
-                                <div className="flex items-start text-slate-500 text-[11px] mt-1">
-                                    <MapPin className="w-3 h-3 mr-1 mt-0.5 flex-shrink-0" />
-                                    <span className="line-clamp-1">{cliente.direccion || 'Sin dirección'}</span>
+                                <div className="flex items-start text-slate-400 text-[11px] select-text pt-0.5">
+                                    <MapPin className="w-3 h-3 mr-1 mt-0.5 flex-shrink-0 text-slate-500" />
+                                    <span className="line-clamp-1 select-text">{cliente.direccion || 'Sin dirección'}</span>
                                 </div>
                             </div>
                             <div className="flex flex-col items-end gap-1">
@@ -965,15 +1004,15 @@ function MobileClientes() {
                             </div>
                         </div>
 
-                        <div className="mt-3 pt-3 border-t border-slate-800 flex justify-between items-end">
+                        <div className="mt-3 pt-3 border-t border-slate-800 flex justify-between items-end select-text">
                             <div className="flex gap-4">
-                                <div>
+                                <div className="select-text">
                                     <p className="text-[9px] text-slate-500 uppercase font-bold">Saldo</p>
-                                    <p className="text-base font-mono font-bold text-slate-200">${cliente.saldo || 0}</p>
+                                    <p className="text-base font-mono font-bold text-slate-200 select-text">${cliente.saldo || 0}</p>
                                 </div>
-                                <div>
+                                <div className="select-text">
                                     <p className="text-[9px] text-amber-500 uppercase font-bold">Vencido</p>
-                                    <p className="text-base font-mono font-bold text-amber-500">${Math.round(cliente.saldoVencido || 0)}</p>
+                                    <p className="text-base font-mono font-bold text-amber-500 select-text">${Math.round(cliente.saldoVencido || 0)}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
@@ -1015,10 +1054,10 @@ function MobileClientes() {
 
             {/* MODAL DE DETALLE DEL CLIENTE */}
             {detailCliente && (
-                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className="bg-slate-900 w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-slate-800 shadow-2xl overflow-hidden max-h-[95dvh] flex flex-col animate-in slide-in-from-bottom duration-300">
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200 select-text">
+                    <div className="bg-slate-900 w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-slate-800 shadow-2xl overflow-hidden max-h-[95dvh] flex flex-col animate-in slide-in-from-bottom duration-300 select-text">
                         <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
-                            <h3 className="font-bold text-white">Perfil del Cliente</h3>
+                            <h3 className="font-bold text-white select-text">Perfil del Cliente</h3>
                             <button
                                 onClick={() => {
                                     setDetailCliente(null);
@@ -1033,28 +1072,67 @@ function MobileClientes() {
                             </button>
                         </div>
 
-                        <div className="overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                            <div className="flex items-center space-x-4">
-                                <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-500 font-bold text-2xl">
+                        <div className="overflow-y-auto p-6 space-y-6 custom-scrollbar select-text">
+                            <div className="flex items-center space-x-4 select-text">
+                                <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-500 font-bold text-2xl flex-shrink-0">
                                     {(detailCliente.nombre || "S").charAt(0)}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <h4 className="text-xl font-bold text-white leading-tight truncate">{detailCliente.nombre || "Sin Nombre"}</h4>
+                                <div className="flex-1 min-w-0 select-text">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h4 className="text-xl font-bold text-white leading-tight truncate select-text">{detailCliente.nombre || "Sin Nombre"}</h4>
+                                        <button
+                                            onClick={async () => {
+                                                const success = await copyToClipboard(detailCliente.nombre || '');
+                                                if (success) toast.success(`Nombre copiado: ${detailCliente.nombre}`);
+                                            }}
+                                            className="text-slate-400 hover:text-white p-1 bg-slate-800 rounded border border-slate-700 active:scale-95"
+                                            title="Copiar Nombre"
+                                        >
+                                            <Copy className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
                                     {(detailCliente.numContrato || detailCliente.codigoCliente) ? (
-                                        <div className="flex items-center gap-1 mt-0.5">
-                                            <Hash className="w-3 h-3 text-slate-500" />
-                                            <span className="text-sm text-slate-400 font-mono font-bold">{detailCliente.numContrato || detailCliente.codigoCliente}</span>
+                                        <div className="flex items-center gap-2 mt-1.5">
+                                            <span
+                                                className="text-xs font-mono font-bold text-sky-300 bg-sky-950/80 px-2.5 py-1 rounded-md border border-sky-700/60 select-all cursor-copy flex items-center gap-1.5 active:bg-sky-900"
+                                                onClick={async () => {
+                                                    const code = detailCliente.numContrato || detailCliente.codigoCliente;
+                                                    const success = await copyToClipboard(code);
+                                                    if (success) toast.success(`Código/Contrato copiado: ${code}`);
+                                                }}
+                                                onTouchEnd={async () => {
+                                                    const code = detailCliente.numContrato || detailCliente.codigoCliente;
+                                                    const success = await copyToClipboard(code);
+                                                    if (success) toast.success(`Código/Contrato copiado: ${code}`);
+                                                }}
+                                                title="Tocar para copiar código/contrato"
+                                            >
+                                                {detailCliente.numContrato || detailCliente.codigoCliente}
+                                                <Copy className="w-3 h-3 text-sky-400 inline" />
+                                            </span>
                                         </div>
                                     ) : null}
                                     {detailCliente.telefono ? (
-                                        <a
-                                            href={`tel:${detailCliente.telefono}`}
-                                            onClick={e => e.stopPropagation()}
-                                            className="flex items-center gap-1.5 mt-1 text-emerald-400 hover:text-emerald-300 transition-colors"
-                                        >
-                                            <Phone className="w-3.5 h-3.5" />
-                                            <span className="text-sm font-mono">{detailCliente.telefono}</span>
-                                        </a>
+                                        <div className="flex items-center gap-2 mt-1.5">
+                                            <a
+                                                href={`tel:${detailCliente.telefono}`}
+                                                onClick={e => e.stopPropagation()}
+                                                className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 transition-colors select-text"
+                                            >
+                                                <Phone className="w-3.5 h-3.5" />
+                                                <span className="text-sm font-mono select-text">{detailCliente.telefono}</span>
+                                            </a>
+                                            <button
+                                                onClick={async () => {
+                                                    const success = await copyToClipboard(detailCliente.telefono || '');
+                                                    if (success) toast.success(`Teléfono copiado: ${detailCliente.telefono}`);
+                                                }}
+                                                className="text-slate-400 hover:text-white p-0.5"
+                                                title="Copiar teléfono"
+                                            >
+                                                <Copy className="w-3 h-3" />
+                                            </button>
+                                        </div>
                                     ) : null}
                                 </div>
                             </div>
@@ -1447,9 +1525,9 @@ function MobileClientes() {
 
 function InfoItem({ label, value, highlight = "text-slate-300" }: any) {
     return (
-        <div className="space-y-0.5">
-            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tight">{label}</p>
-            <p className={`text-sm font-bold truncate ${highlight}`}>{value}</p>
+        <div className="space-y-0.5 select-text">
+            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tight select-text">{label}</p>
+            <p className={`text-sm font-bold truncate select-text ${highlight}`}>{value}</p>
         </div>
     );
 }
