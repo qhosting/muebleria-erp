@@ -5,7 +5,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, Copy, X, Camera, ShieldCheck, DollarSign, Calendar, User, Receipt, Phone } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export interface ComprobanteData {
@@ -127,9 +127,23 @@ export function ComprobanteCapturaModal({
             <div className="border-t border-slate-800/80 pt-2 space-y-1">
               <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Cliente</span>
               <div className="text-sm font-bold text-white flex items-center justify-between">
-                <span className="truncate">{data.clienteNombre}</span>
-                <span className="font-mono bg-blue-900/60 text-blue-300 px-2 py-0.5 rounded text-[11px]">
+                <span className="truncate select-text">{data.clienteNombre}</span>
+                <span 
+                  className="font-mono bg-blue-900/80 text-blue-200 px-2 py-0.5 rounded text-[11px] select-all flex items-center gap-1 cursor-copy border border-blue-700/60 active:bg-blue-800"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const success = await copyToClipboard(data.clienteCodigo);
+                    if (success) toast.success(`Código copiado: ${data.clienteCodigo}`);
+                  }}
+                  onTouchEnd={async (e) => {
+                    e.stopPropagation();
+                    const success = await copyToClipboard(data.clienteCodigo);
+                    if (success) toast.success(`Código copiado: ${data.clienteCodigo}`);
+                  }}
+                  title="Tocar para copiar código"
+                >
                   {data.clienteCodigo}
+                  <Copy className="w-3 h-3 text-blue-300 inline flex-shrink-0" />
                 </span>
               </div>
             </div>

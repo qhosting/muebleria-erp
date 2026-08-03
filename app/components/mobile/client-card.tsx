@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { OfflineCliente } from '@/lib/offline-db';
-import { formatCurrency, getDayName } from '@/lib/utils';
+import { formatCurrency, getDayName, copyToClipboard } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -60,12 +60,16 @@ export function ClientCard({
 }: ClientCardProps) {
   const [calling, setCalling] = useState(false);
 
-  const handleCopy = (e: React.MouseEvent, textToCopy: string, label: string) => {
+  const handleCopy = async (e: React.SyntheticEvent, textToCopy: string, label: string) => {
     e.stopPropagation();
     e.preventDefault();
     if (!textToCopy) return;
-    navigator.clipboard.writeText(textToCopy);
-    toast.success(`${label} copiado: ${textToCopy}`);
+    const success = await copyToClipboard(textToCopy);
+    if (success) {
+      toast.success(`${label} copiado: ${textToCopy}`);
+    } else {
+      toast.error(`No se pudo copiar ${label}`);
+    }
   };
 
   const handleCardClick = (e: React.MouseEvent) => {
@@ -143,12 +147,13 @@ export function ClientCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span 
-                className="font-mono bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded text-xs select-all flex items-center gap-1 cursor-copy"
-                onClick={(e) => handleCopy(e, codigoClienteVal, "Código de cliente")}
-                title="Hacer clic para copiar código"
+                className="font-mono bg-blue-100 text-blue-900 font-bold px-2 py-0.5 rounded text-xs select-all flex items-center gap-1.5 cursor-copy border border-blue-200 active:bg-blue-200"
+                onClick={(e) => handleCopy(e, codigoClienteVal, "Código / Contrato")}
+                onTouchEnd={(e) => handleCopy(e, codigoClienteVal, "Código / Contrato")}
+                title="Tocar para copiar código/contrato"
               >
                 {codigoClienteVal}
-                <Copy className="w-3 h-3 text-blue-600 hover:text-blue-900 inline" />
+                <Copy className="w-3.5 h-3.5 text-blue-700 inline flex-shrink-0" />
               </span>
               <h3 
                 className="font-bold text-lg leading-tight truncate select-text"
@@ -161,6 +166,7 @@ export function ClientCard({
                 variant="ghost"
                 className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
                 onClick={(e) => handleCopy(e, cliente.nombreCompleto, "Nombre del cliente")}
+                onTouchEnd={(e) => handleCopy(e, cliente.nombreCompleto, "Nombre del cliente")}
                 title="Copiar nombre"
               >
                 <Copy className="w-3.5 h-3.5" />
@@ -171,10 +177,13 @@ export function ClientCard({
               <span>{getDayName(cliente.diaPago)} - {formatCurrency(cliente.montoAcordado)}</span>
               {cliente.numContrato && cliente.numContrato !== codigoClienteVal && (
                 <span 
-                  className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold text-slate-500 dark:text-slate-400 select-all cursor-copy"
-                  onClick={(e) => handleCopy(e, cliente.numContrato!, "Contrato")}
+                  className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold text-slate-600 dark:text-slate-300 select-all cursor-copy border border-slate-300 flex items-center gap-1 active:bg-slate-200"
+                  onClick={(e) => handleCopy(e, cliente.numContrato!, "Número de Contrato")}
+                  onTouchEnd={(e) => handleCopy(e, cliente.numContrato!, "Número de Contrato")}
+                  title="Tocar para copiar contrato"
                 >
                   Contrato: {cliente.numContrato}
+                  <Copy className="w-3 h-3 text-slate-500 inline flex-shrink-0" />
                 </span>
               )}
             </p>

@@ -2,7 +2,7 @@
 
 import { X, Phone, MapPin, Calendar, Printer, User, ShoppingBag, CreditCard, DollarSign, MessageSquare, Copy } from "lucide-react";
 import { OfflineCliente } from "@/lib/offline-db";
-import { formatCurrency, getDayName } from "@/lib/utils";
+import { formatCurrency, getDayName, copyToClipboard } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -16,10 +16,14 @@ interface ProfileModalProps {
 export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
     const [sending, setSending] = useState(false);
 
-    const handleCopyText = (text: string, label: string) => {
+    const handleCopyText = async (text: string, label: string) => {
         if (!text) return;
-        navigator.clipboard.writeText(text);
-        toast.success(`${label} copiado: ${text}`);
+        const success = await copyToClipboard(text);
+        if (success) {
+            toast.success(`${label} copiado: ${text}`);
+        } else {
+            toast.error(`No se pudo copiar ${label}`);
+        }
     };
 
     const codigoVal = cliente.codigoCliente || cliente.numContrato || cliente.id;
@@ -97,24 +101,43 @@ export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
                                 <span 
-                                    className="font-mono bg-blue-900/60 text-blue-300 font-bold px-2 py-0.5 rounded text-xs select-all flex items-center gap-1 cursor-pointer border border-blue-700/50"
+                                    className="font-mono bg-blue-900/80 text-blue-200 font-bold px-2.5 py-1 rounded text-xs select-all flex items-center gap-1.5 cursor-copy border border-blue-600/60 active:bg-blue-800"
                                     onClick={() => handleCopyText(codigoVal, "Código de cliente")}
+                                    onTouchEnd={() => handleCopyText(codigoVal, "Código de cliente")}
+                                    title="Tocar para copiar código"
                                 >
-                                    {codigoVal}
-                                    <Copy className="w-3 h-3 text-blue-400 inline" />
+                                    Código: {codigoVal}
+                                    <Copy className="w-3.5 h-3.5 text-blue-300 inline" />
                                 </span>
+                                {cliente.numContrato && cliente.numContrato !== codigoVal && (
+                                    <span 
+                                        className="font-mono bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded text-xs select-all flex items-center gap-1.5 cursor-copy border border-slate-700 active:bg-slate-700"
+                                        onClick={() => handleCopyText(cliente.numContrato!, "Contrato")}
+                                        onTouchEnd={() => handleCopyText(cliente.numContrato!, "Contrato")}
+                                        title="Tocar para copiar contrato"
+                                    >
+                                        Contrato: {cliente.numContrato}
+                                        <Copy className="w-3.5 h-3.5 text-slate-400 inline" />
+                                    </span>
+                                )}
                             </div>
                             <div className="flex items-center gap-2">
                                 <h4 className="text-2xl font-black text-white leading-tight truncate select-text">{cliente.nombreCompleto || cliente.nombre || "Sin Nombre"}</h4>
                                 <button 
                                     onClick={() => handleCopyText(cliente.nombreCompleto || cliente.nombre || "", "Nombre")}
+                                    onTouchEnd={() => handleCopyText(cliente.nombreCompleto || cliente.nombre || "", "Nombre")}
                                     className="text-slate-400 hover:text-white p-1"
                                     title="Copiar nombre"
                                 >
                                     <Copy className="w-4 h-4" />
                                 </button>
                             </div>
-                            <p className="text-sm text-slate-500 font-mono tracking-tighter mt-1 uppercase select-all">ID: {cliente.id}</p>
+                            <p 
+                                className="text-xs text-slate-400 font-mono tracking-tighter mt-1 uppercase select-all cursor-copy flex items-center gap-1"
+                                onClick={() => handleCopyText(cliente.id, "ID de cliente")}
+                            >
+                                ID: {cliente.id}
+                            </p>
                         </div>
                     </div>
 

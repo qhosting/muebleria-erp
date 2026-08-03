@@ -188,12 +188,23 @@
   }
   
   /* Habilitar selección de texto explícita en tarjetas y modales de cobrador */
-  .select-text,
-  .select-all {
+  .select-text {
     -webkit-user-select: text !important;
     -moz-user-select: text !important;
     -ms-user-select: text !important;
     user-select: text !important;
+    -webkit-touch-callout: default !important;
+  }
+
+  .select-all,
+  .cursor-copy,
+  .copyable {
+    -webkit-user-select: all !important;
+    -moz-user-select: all !important;
+    -ms-user-select: all !important;
+    user-select: all !important;
+    -webkit-touch-callout: default !important;
+    cursor: copy;
   }
   
   /* Prevenir zoom no deseado en inputs en iOS */
@@ -256,26 +267,25 @@
     /* Permitir scroll pero contener el efecto de rebote en los bordes */
     overscroll-behavior-y: contain;
     
-    /* Prevenir selección de texto accidental */
+    /* Prevenir selección de texto accidental en layout general */
     user-select: none;
     -webkit-user-select: none;
     
     /* Eliminar resaltado al tocar */
     -webkit-tap-highlight-color: transparent;
     
-    /* Prevenir menú contextual (iOS) */
-    -webkit-touch-callout: none;
-    
     /* Asegurar que el body sea el contenedor base */
     overflow-x: hidden;
     overflow-y: auto;
   }
 
-  /* Permitir selección solo en inputs y áreas de texto */
-  input, textarea, [contenteditable="true"] {
+  /* Permitir selección solo en inputs, áreas de texto y elementos de copia */
+  input, textarea, [contenteditable="true"], .select-text, .select-all, .copyable {
     user-select: text !important;
     -webkit-user-select: text !important;
+    -webkit-touch-callout: default !important;
   }
+
 
   /* Optimización para scroll fluido tipo nativo */
   .overflow-y-auto {

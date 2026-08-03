@@ -35,11 +35,12 @@ import {
   CheckCircle,
   Clock,
   Send,
-  Camera
+  Camera,
+  Copy
 } from 'lucide-react';
 import { OfflineCliente } from '@/lib/offline-db';
 import { Pago } from '@/lib/types';
-import { formatCurrency, formatDate, formatWhatsAppNumber } from '@/lib/utils';
+import { formatCurrency, formatDate, formatWhatsAppNumber, copyToClipboard } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -471,10 +472,31 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
                     {/* Información del cliente */}
                     <Card className="border-l-4 border-l-blue-500">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                          <User className="w-4 h-4" />
-                          {cliente.nombreCompleto || cliente.nombre || "Sin Nombre"}
-                        </CardTitle>
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <CardTitle className="text-sm flex items-center gap-2 select-text">
+                            <User className="w-4 h-4" />
+                            {cliente.nombreCompleto || cliente.nombre || "Sin Nombre"}
+                          </CardTitle>
+                          <span 
+                            className="font-mono bg-blue-100 text-blue-900 font-bold px-2 py-0.5 rounded text-xs select-all flex items-center gap-1 cursor-copy border border-blue-200 active:bg-blue-200"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const code = cliente.codigoCliente || cliente.numContrato || cliente.id;
+                              const success = await copyToClipboard(code);
+                              if (success) toast.success(`Código copiado: ${code}`);
+                            }}
+                            onTouchEnd={async (e) => {
+                              e.stopPropagation();
+                              const code = cliente.codigoCliente || cliente.numContrato || cliente.id;
+                              const success = await copyToClipboard(code);
+                              if (success) toast.success(`Código copiado: ${code}`);
+                            }}
+                            title="Tocar para copiar código"
+                          >
+                            {cliente.codigoCliente || cliente.numContrato || cliente.id}
+                            <Copy className="w-3 h-3 text-blue-700 inline flex-shrink-0" />
+                          </span>
+                        </div>
                       </CardHeader>
                       <CardContent className="space-y-2">
                         <div className="text-sm text-muted-foreground flex items-center gap-1">

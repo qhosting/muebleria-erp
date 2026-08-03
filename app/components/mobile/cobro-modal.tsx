@@ -24,11 +24,12 @@ import {
   CheckCircle,
   AlertTriangle,
   Printer,
-  Settings
+  Settings,
+  Copy
 } from 'lucide-react';
 import { db, OfflineCliente, OfflinePago, generateLocalId } from '@/lib/offline-db';
 import { syncService } from '@/lib/sync-service';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useBluetoothPrinter } from '@/hooks/use-bluetooth-printer';
 import { TicketData } from '@/lib/bluetooth-printer';
@@ -380,7 +381,28 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline, onSh
           {/* Información del cliente */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">{cliente.nombreCompleto || cliente.nombre || "Sin Nombre"}</CardTitle>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <CardTitle className="text-sm select-text">{cliente.nombreCompleto || cliente.nombre || "Sin Nombre"}</CardTitle>
+                <span 
+                  className="font-mono bg-blue-100 text-blue-900 font-bold px-2 py-0.5 rounded text-xs select-all flex items-center gap-1 cursor-copy border border-blue-200 active:bg-blue-200"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const code = cliente.codigoCliente || cliente.numContrato || cliente.id;
+                    const success = await copyToClipboard(code);
+                    if (success) toast.success(`Código copiado: ${code}`);
+                  }}
+                  onTouchEnd={async (e) => {
+                    e.stopPropagation();
+                    const code = cliente.codigoCliente || cliente.numContrato || cliente.id;
+                    const success = await copyToClipboard(code);
+                    if (success) toast.success(`Código copiado: ${code}`);
+                  }}
+                  title="Tocar para copiar código"
+                >
+                  {cliente.codigoCliente || cliente.numContrato || cliente.id}
+                  <Copy className="w-3 h-3 text-blue-700 inline flex-shrink-0" />
+                </span>
+              </div>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="grid grid-cols-2 gap-4 text-sm">
