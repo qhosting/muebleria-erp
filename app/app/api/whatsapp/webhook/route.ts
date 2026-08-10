@@ -6,6 +6,7 @@ import { redis } from '@/lib/redis';
 import { detectIntent, extractTicketFromImage } from '@/lib/ai-service';
 import { sendWahaMessage, getWahaConfig, getWahaMedia } from '@/lib/whatsapp';
 import { notifyByRole } from '@/lib/notifications';
+import { parseValidDate } from '@/lib/utils';
 
 // Cast prisma to any for flexibility with dynamically loaded models/fields
 const db = prisma as any;
@@ -276,7 +277,7 @@ async function handleTesoreria(from: string, payload: any, session: string, agen
                 contractId: contractId,
                 monto: parseFloat(extracted.monto) || 0,
                 referencia: extracted.referencia,
-                fecha: extracted.fecha ? new Date(extracted.fecha) : new Date(),
+                fecha: parseValidDate(extracted.fecha, extracted.hr),
                 metadata: extracted,
                 estado: 'PENDIENTE'
             }
@@ -362,6 +363,30 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
             return NextResponse.json({ status: 'client_not_found' });
         }
 
+        const ticketFecha = parseValidDate(extracted.fecha, extracted.hr);
+
+        // Verificar si ya existe un ticket reciente (últimos 15 min) para este cliente y monto
+        const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+        const existingTicket = await prisma.ticket.findFirst({
+            where: {
+                OR: [
+                    extracted.claverastreo ? { claveRastreo: extracted.claverastreo } : { id: 'none' },
+                    extracted.referencia ? { referencia: extracted.referencia } : { id: 'none' },
+                    extracted.folio ? { folio: extracted.folio } : { id: 'none' },
+                    {
+                        clienteId: clienteRecord.id,
+                        monto: parseFloat(extracted.monto || '0'),
+                        creadoEn: { gte: fifteenMinutesAgo }
+                    }
+                ]
+            }
+        });
+
+        if (existingTicket) {
+            console.log(`⚠️ Ticket duplicado detectado en WhatsApp webhook para cliente ${contractId} (ID existente: ${existingTicket.id}). Ignorando duplica.`);
+            return NextResponse.json({ status: 'duplicate_ignored', ticketId: existingTicket.id });
+        }
+
         // Generar el Ticket ID corto y Crear en la base de datos
         const shortTicketId = Math.random().toString(36).substring(2, 10).toUpperCase();
         const ticket = await prisma.ticket.create({
@@ -371,7 +396,7 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
                 monto: parseFloat(extracted.monto) || 0,
                 referencia: extracted.referencia,
                 folio: extracted.folio,
-                fecha: extracted.fecha ? new Date(extracted.fecha) : new Date(),
+                fecha: ticketFecha,
                 claveRastreo: extracted.claverastreo,
                 remitente: from,
                 concepto: 'TICKET WHATSAPP',
@@ -383,10 +408,13 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
         let movimiento: any = null;
         let tablaOrigen = '';
 
+        const parsedSearchFecha = (extracted.fecha && extracted.fecha !== 'null' && extracted.fecha !== 'undefined') ? new Date(extracted.fecha) : undefined;
+        const safeSearchFecha = (parsedSearchFecha && !isNaN(parsedSearchFecha.getTime())) ? parsedSearchFecha : undefined;
+
         const trackingClause = extracted.claverastreo ? { claveRastreo: extracted.claverastreo } : null;
         const abonoAndFechaClause = { 
             abono: parseFloat(extracted.monto),
-            fechaOperacion: extracted.fecha ? new Date(extracted.fecha) : undefined,
+            fechaOperacion: safeSearchFecha,
             ticketId: null
         };
 
@@ -469,7 +497,7 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
                         monto: montoPago,
                         concepto: `TKT: ${ticket.id} / Ref: ${extracted.referencia || 'N/A'}`,
                         tipoPago: tipoPagoStr as any,
-                        fechaPago: extracted.fecha ? new Date(extracted.fecha) : new Date(),
+                        fechaPago: ticketFecha,
                         metodoPago: 'BANCOS BOT',
                         saldoAnterior,
                         saldoNuevo,

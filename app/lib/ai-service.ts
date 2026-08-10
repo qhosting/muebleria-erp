@@ -294,8 +294,8 @@ export async function extractTicketFromImage(base64Image: string): Promise<any> 
         2. Prioridad 2 (Otros comprobantes): Si no encuentras una afiliación, busca el número de "AUTORIZACION".
         3. Prioridad 3 (Último recurso): Si ninguno de los anteriores existe, busca "FOLIO DE VENTA".
         4. Si no encuentras ninguno de los tres, el valor debe ser null.
-    - "fecha": La fecha de la operación, formateada como AAAA-MM-DD.
-    - "hr": La hora de la operación, formateada como HH:MM:SS (completa con :00 si es necesario).
+    - "fecha": La fecha de la operación, formateada como AAAA-MM-DD. Si la fecha no es claramente legible o no existe en la imagen, el valor debe ser estrictamente null.
+    - "hr": La hora de la operación, formateada como HH:MM:SS (completa con :00 si es necesario). Si no existe, el valor debe ser null.
     - "claverastreo": Busca un campo explícitamente llamado "CLAVE DE RASTREO". Si el valor aparece en dos líneas o párrafos, júntalos en una sola cadena de texto sin espacios ni guiones en medio. Si el campo no está claramente presente, el valor debe ser null.
 
     EJEMPLOS DE RESPUESTA:

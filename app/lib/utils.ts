@@ -70,6 +70,34 @@ export function formatDateTime(date: Date | string | null | undefined): string {
   }).format(dateObj);
 }
 
+/**
+ * Parsea una fecha de ticket de forma segura.
+ * Si la fecha proporcionada es nula, vacía, "null", "N/A" o inválida,
+ * toma la fecha y hora del momento en que se procesa/envía (new Date()).
+ */
+export function parseValidDate(dateInput?: Date | string | null, hrInput?: string | null): Date {
+  if (!dateInput || dateInput === 'null' || dateInput === 'undefined' || dateInput === 'N/A' || dateInput === 'none') {
+    return new Date();
+  }
+
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : new Date(dateInput.getTime());
+
+  if (isNaN(d.getTime())) {
+    return new Date();
+  }
+
+  if (hrInput && typeof hrInput === 'string' && hrInput !== 'null' && hrInput !== 'undefined') {
+    const parts = hrInput.split(':');
+    if (parts.length >= 2) {
+      d.setHours(parseInt(parts[0]) || 0);
+      d.setMinutes(parseInt(parts[1]) || 0);
+      d.setSeconds(parseInt(parts[2]) || 0);
+    }
+  }
+
+  return d;
+}
+
 export function getDayName(dayNumber: string): string {
   const days = {
     '1': 'Lunes',

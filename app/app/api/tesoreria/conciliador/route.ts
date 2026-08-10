@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { parseValidDate } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -214,7 +215,7 @@ export async function POST(request: NextRequest) {
 
         const ticket: any = await prisma.ticket.findUnique({ 
             where: { id: ticketId },
-            include: { cliente: true }
+            include: { cliente: true, pagos: true }
         });
 
         let movimiento: any = null;
@@ -265,6 +266,41 @@ export async function POST(request: NextRequest) {
                 data: { conciliado: true }
             })
         ];
+
+        // Si el ticket no tenía un pago previamente registrado, se inserta el pago y se actualiza el saldo del cliente
+        if ((!ticket.pagos || ticket.pagos.length === 0) && ticket.clienteId && ticket.cliente) {
+            const saldoAnterior = parseFloat(ticket.cliente.saldoActual.toString());
+            const montoPago = parseFloat(ticket.monto.toString());
+            const saldoNuevo = Math.max(0, saldoAnterior - montoPago);
+
+            const userId = (session.user as any)?.id;
+            const cobradorId = userId || ticket.cliente.cobradorAsignadoId || 'system';
+
+            // Determinar fecha válida de pago (del ticket, del movimiento o del momento de la conciliación)
+            const fechaPagoFinal = parseValidDate(ticket.fecha || movimiento.fechaOperacion);
+
+            operations.push(prisma.pago.create({
+                data: {
+                    clienteId: ticket.cliente.id,
+                    cobradorId: cobradorId,
+                    ticketId: ticket.id,
+                    monto: montoPago,
+                    concepto: ticket.concepto || `TKT: ${ticket.id} / Conciliación Bancaria`,
+                    tipoPago: 'regular',
+                    fechaPago: fechaPagoFinal,
+                    metodoPago: 'TESORERIA CONCILIADOR',
+                    saldoAnterior,
+                    saldoNuevo,
+                    sincronizado: true,
+                    banco: movimiento.bancoOrigen || 'CONCILIACION'
+                }
+            }));
+
+            operations.push(prisma.cliente.update({
+                where: { id: ticket.cliente.id },
+                data: { saldoActual: saldoNuevo }
+            }));
+        }
 
         if (tablaOrigen === 'movimientoSantander22001022837') {
             operations.push(prisma.movimientoSantander22001022837.update({

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import crypto from "crypto";
+import { parseValidDate } from "@/lib/utils";
 
 export async function GET(req: Request) {
     return NextResponse.json({ 
@@ -139,16 +140,27 @@ export async function POST(req: Request) {
             });
         }
 
-        // 3. Verificar Duplicado
+        // 3. Verificar Duplicado (Ventana de 15 minutos para evitar peticiones/webhooks concurrentes)
+        const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+        const parsedSearchDate = (fecha && fecha !== 'null' && fecha !== 'undefined') ? new Date(fecha) : undefined;
+        const safeSearchDate = (parsedSearchDate && !isNaN(parsedSearchDate.getTime())) ? parsedSearchDate : undefined;
+
         const existingTicket = await prisma.ticket.findFirst({
             where: {
                 OR: [
                     claverastreo && claverastreo !== 'null' ? { claveRastreo: claverastreo } : { id: 'none' },
+                    referencia && referencia !== 'null' ? { referencia: referencia } : { id: 'none' },
+                    folio && folio !== 'null' ? { folio: folio } : { id: 'none' },
                     {
                         clienteId: cliente.id,
                         monto: parseFloat(monto || '0'),
-                        fecha: fecha ? new Date(fecha) : undefined,
-                    }
+                        creadoEn: { gte: fifteenMinutesAgo }
+                    },
+                    ...(safeSearchDate ? [{
+                        clienteId: cliente.id,
+                        monto: parseFloat(monto || '0'),
+                        fecha: safeSearchDate
+                    }] : [])
                 ]
             }
         });
@@ -170,17 +182,8 @@ export async function POST(req: Request) {
             });
         }
 
-        // 4. Procesar Fecha/Hora
-        let fechaTicket = new Date();
-        if (fecha) {
-            fechaTicket = new Date(fecha);
-            if (hr && hr !== 'null') {
-                const [hours, minutes, seconds] = hr.split(':');
-                fechaTicket.setHours(parseInt(hours) || 0);
-                fechaTicket.setMinutes(parseInt(minutes) || 0);
-                fechaTicket.setSeconds(parseInt(seconds) || 0);
-            }
-        }
+        // 4. Procesar Fecha/Hora: Si no hay fecha o es nula/inválida, se toma la fecha y hora actual del momento del envío
+        const fechaTicket = parseValidDate(fecha, hr);
 
         // 5. Encontrar Cobrador o Admin para asociar al Pago
         let cobradorId = cliente.cobradorAsignadoId;
