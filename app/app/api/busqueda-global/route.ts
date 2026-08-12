@@ -25,9 +25,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Buscar clientes
+    // Buscar clientes (solo activos)
     const clientes = await prisma.cliente.findMany({
       where: {
+        statusCuenta: 'activo',
         OR: [
           { codigoCliente: { contains: query, mode: 'insensitive' } },
           { nombreCompleto: { contains: query, mode: 'insensitive' } },

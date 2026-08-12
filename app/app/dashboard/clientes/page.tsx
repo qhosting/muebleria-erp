@@ -63,6 +63,7 @@ export default function ClientesPage() {
     const diasMap = ['7', '1', '2', '3', '4', '5', '6']; // Ajustamos para que domingo=7
     return diasMap[today];
   });
+  const [selectedStatus, setSelectedStatus] = useState('activo');
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({
     total: 0,
@@ -102,7 +103,7 @@ export default function ClientesPage() {
   // Resetear a página 1 cuando cambian los filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedCobrador, selectedDiaPago, isConsolidated]);
+  }, [searchTerm, selectedCobrador, selectedDiaPago, selectedStatus, isConsolidated]);
 
   useEffect(() => {
     if (session) {
@@ -115,7 +116,7 @@ export default function ClientesPage() {
         setSelectedCobrador('');
       }
     }
-  }, [session, currentPage, searchTerm, selectedCobrador, selectedDiaPago, isConsolidated]);
+  }, [session, currentPage, searchTerm, selectedCobrador, selectedDiaPago, selectedStatus, isConsolidated]);
 
   const fetchClientes = async () => {
     try {
@@ -126,6 +127,7 @@ export default function ClientesPage() {
         search: searchTerm,
         cobrador: selectedCobrador === 'all' ? '' : selectedCobrador,
         diaPago: selectedDiaPago === 'todos' ? '' : selectedDiaPago,
+        status: selectedStatus,
         consolidated: isConsolidated ? 'true' : 'false',
       });
 
@@ -239,6 +241,29 @@ export default function ClientesPage() {
     } catch (error) {
       console.error('Error:', error);
       toast.error(error instanceof Error ? error.message : 'Error al desactivar cliente');
+    }
+  };
+
+  const handlePermanentDeleteCliente = async (cliente: Cliente) => {
+    if (!confirm(`⚠️ ATENCIÓN: ¿Está seguro de que desea ELIMINAR DEFINITIVAMENTE al cliente "${cliente.nombreCompleto}" (${cliente.codigoCliente})?\n\nEsta acción borrará permanentemente al cliente de la base de datos y NO se puede deshacer.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/clientes/${cliente.id}?permanent=true`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast.success('Cliente eliminado definitivamente de la base de datos');
+        fetchClientes();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al eliminar cliente permanentemente');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error(error instanceof Error ? error.message : 'Error al eliminar cliente permanentemente');
     }
   };
 
@@ -401,6 +426,16 @@ export default function ClientesPage() {
                   <SelectItem value="7">DOMINGO</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Estatus" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="activo">Solo Activos</SelectItem>
+                  <SelectItem value="inactivo">Solo Inactivos</SelectItem>
+                  <SelectItem value="all">Todos los Estatus</SelectItem>
+                </SelectContent>
+              </Select>
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center space-x-2">
                   <label className="text-sm font-medium text-gray-700">Consolidado</label>
@@ -539,11 +574,20 @@ export default function ClientesPage() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleDeleteCliente(cliente)}
-                                className="text-red-600"
+                                className="text-amber-600"
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Desactivar Cliente
                               </DropdownMenuItem>
+                              {userRole === 'admin' && (
+                                <DropdownMenuItem
+                                  onClick={() => handlePermanentDeleteCliente(cliente)}
+                                  className="text-red-600 font-semibold focus:text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2 text-red-600" />
+                                  Eliminar Definitivamente
+                                </DropdownMenuItem>
+                              )}
                             </>
                           )}
                         </DropdownMenuContent>

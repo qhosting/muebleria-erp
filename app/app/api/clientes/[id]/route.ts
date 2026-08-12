@@ -313,9 +313,36 @@ export async function DELETE(
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const permanent = searchParams.get('permanent') === 'true';
+
     const userRole = (session.user as any).role;
     if (userRole !== 'admin' && userRole !== 'gestor_cobranza') {
-      return NextResponse.json({ error: 'Solo administradores y gestores pueden desactivar clientes' }, { status: 403 });
+      return NextResponse.json({ error: 'Solo administradores y gestores pueden desactivar o eliminar clientes' }, { status: 403 });
+    }
+
+    if (permanent) {
+      if (userRole !== 'admin') {
+        return NextResponse.json({ error: 'Solo administradores pueden eliminar clientes definitivamente' }, { status: 403 });
+      }
+
+      await prisma.$transaction([
+        prisma.smsLog.deleteMany({ where: { clienteId: params.id } }),
+        prisma.avisoCobro.deleteMany({ where: { clienteId: params.id } }),
+        prisma.cuentaBancariaCliente.deleteMany({ where: { clienteId: params.id } }),
+        prisma.verificacionDomiciliaria.deleteMany({ where: { clienteId: params.id } }),
+        prisma.convenioPago.deleteMany({ where: { clienteId: params.id } }),
+        prisma.ticket.deleteMany({ where: { clienteId: params.id } }),
+        prisma.pago.deleteMany({ where: { clienteId: params.id } }),
+        prisma.motarario.deleteMany({ where: { clienteId: params.id } }),
+        prisma.movimientoBancario.updateMany({ where: { clienteId: params.id }, data: { clienteId: null } }),
+        prisma.movimientoBanorte0330253963.updateMany({ where: { clienteId: params.id }, data: { clienteId: null } }),
+        prisma.movimientoSantander22001022837.updateMany({ where: { clienteId: params.id }, data: { clienteId: null } }),
+        prisma.movimientoSantander65505732541.updateMany({ where: { clienteId: params.id }, data: { clienteId: null } }),
+        prisma.cliente.delete({ where: { id: params.id } }),
+      ]);
+
+      return NextResponse.json({ message: 'Cliente eliminado definitivamente de la base de datos' });
     }
 
     const clienteActual = await prisma.cliente.findUnique({
@@ -349,7 +376,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Cliente desactivado exitosamente' });
   } catch (error) {
-    console.error('Error al desactivar cliente:', error);
+    console.error('Error al eliminar/desactivar cliente:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

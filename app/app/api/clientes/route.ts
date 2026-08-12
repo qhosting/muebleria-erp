@@ -43,8 +43,13 @@ export async function GET(request: NextRequest) {
       where.cobradorAsignadoId = cobrador;
     }
 
-    if (status) {
-      where.statusCuenta = status;
+    if (status === 'all' || status === 'todos') {
+      // No filtrar por estatus (muestra tanto activos como inactivos)
+    } else if (status === 'inactivo') {
+      where.statusCuenta = 'inactivo';
+    } else {
+      // Por defecto ocultar clientes inactivos
+      where.statusCuenta = 'activo';
     }
 
     if (diaPago) {
