@@ -73,6 +73,7 @@ export default function ClientesPage() {
   });
 
   // Modal states
+  const [inactivatingLiquidados, setInactivatingLiquidados] = useState(false);
   const [syncingClients, setSyncingClients] = useState<Record<string, boolean>>({});
   const [clienteModalOpen, setClienteModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -267,6 +268,30 @@ export default function ClientesPage() {
     }
   };
 
+  const handleInactivarLiquidados = async () => {
+    if (!confirm('¿Desea buscar e inactivar automáticamente todos los clientes activos que tienen saldo $0 o menor?')) {
+      return;
+    }
+
+    try {
+      setInactivatingLiquidados(true);
+      const res = await fetch('/api/admin/inactivar-liquidados', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(data.message || 'Inactivación de liquidados completada');
+        fetchClientes();
+      } else {
+        const errData = await res.json();
+        toast.error(errData.error || 'Error al inactivar clientes liquidados');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Error al procesar la inactivación de liquidados');
+    } finally {
+      setInactivatingLiquidados(false);
+    }
+  };
+
   const handleSyncCliente = async (cliente: Cliente) => {
     if (!cliente.codigoCliente) {
       toast.error('El cliente no tiene un código de Contpaqi asignado.');
@@ -365,6 +390,15 @@ export default function ClientesPage() {
                   }}>
                     <DollarSign className="h-4 w-4 mr-2 text-amber-600" />
                     Saldos
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-red-400 text-red-700 hover:bg-red-50"
+                    disabled={inactivatingLiquidados}
+                    onClick={handleInactivarLiquidados}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2 text-red-500" />
+                    {inactivatingLiquidados ? 'Inactivando...' : 'Inactivar Liquidados ($0)'}
                   </Button>
                 </>
               )}
