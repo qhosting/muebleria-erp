@@ -1,5 +1,5 @@
 # Multi-stage build para optimizar el tamaño de la imagen
-FROM node:20-slim AS base
+FROM node:22-slim AS base
 
 # Instalar dependencias necesarias para Prisma y Debian
 RUN apt-get update && apt-get install -y openssl ca-certificates bash curl && rm -rf /var/lib/apt/lists/*
@@ -13,14 +13,16 @@ WORKDIR /app
 # Copiar archivos de dependencias
 COPY app/package.json app/package-lock.json ./
 
-# Instalar dependencias con npm (más compatible que yarn berry)
+# Instalar dependencias con npm con alta resiliencia de red
 RUN set -ex && \
     echo "📦 Configuring npm network resilience..." && \
+    npm config set registry https://registry.npmjs.org/ && \
     npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set maxsockets 10 && \
     echo "📦 Installing dependencies with npm..." && \
-    npm ci --legacy-peer-deps --network-timeout 1000000 2>&1 | tee /tmp/npm-install.log && \
+    (npm ci --legacy-peer-deps --network-timeout 1000000 || npm install --legacy-peer-deps --no-audit --no-fund) 2>&1 | tee /tmp/npm-install.log && \
     echo "📦 Verifying installation..." && \
     if [ ! -d "node_modules" ]; then \
     echo "❌ ERROR: node_modules not created!" && \
