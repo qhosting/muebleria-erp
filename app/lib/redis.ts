@@ -21,8 +21,8 @@ export const redis = globalForRedis.redis ?? new Redis(redisUrl, {
 });
 
 // Manejar errores de conexión de forma silenciosa para evitar crasheos
-redis.on('error', (err) => {
-  if (err.code === 'ECONNREFUSED') {
+redis.on('error', (err: any) => {
+  if (err?.code === 'ECONNREFUSED') {
     // No loguear excesivamente en producción si no es necesario
     console.warn(`[Redis] Error de conexión: ${err.message}. Verifique la variable REDIS.`);
   } else if (err.message.includes('NOAUTH') || err.message.includes('WRONGPASS')) {

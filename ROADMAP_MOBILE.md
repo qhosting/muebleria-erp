@@ -1,65 +1,58 @@
 # 📱 Roadmap: Aplicación Móvil & Modo Cobrador
-
+ 
 ## 🎯 Objetivo
-Digitalizar y optimizar la operación de cobranza en campo, proporcionando herramientas offline, geolocalización e impresión de tickets en tiempo real.
+Digitalizar y optimizar la operación de cobranza y ventas en campo, proporcionando herramientas 100% offline, geolocalización, formalización de créditos e impresión de tickets en tiempo real.
 
 ---
 
-## 📅 Estado de Desarrollo (Junio 2026)
+## 📅 Estado de Desarrollo (v3.0.0)
 
 ### 🟢 Fase 1: Infraestructura Base (100%)
-- [x] Configuración de Capacitor y Plugins (GPS, BT, Network).
-- [x] Arquitectura de almacenamiento local (Dexie/IndexedDB).
+- [x] Configuración de Capacitor y Plugins (GPS, BT, Network, Camera).
+- [x] Arquitectura de almacenamiento local (Dexie/IndexedDB con reconciliación de IDs).
 - [x] Lógica de autenticación con sesión persistente (Soporte offline NextAuth e inmunidad a caídas de red en DeviceLockGuard).
-- [x] Sincronización básica de clientes y pagos.
+- [x] Sincronización bidireccional de clientes y pagos.
 
 ### 🟢 Fase 2: Operación en Campo (100%)
-- [x] Lista de clientes asignados con búsqueda.
-- [x] Registro de pagos (Capital, Interés, Moras).
-- [x] Registro de "Motararios" (visitas sin pago).
-- [x] Impresión de tickets vía Bluetooth.
+- [x] Lista de clientes asignados con búsqueda y filtros por día de cobro.
+- [x] Registro de pagos (Capital, Interés, Moras) offline.
+- [x] Registro de "Motararios" (visitas sin pago con captura de motivos y fotos).
+- [x] Impresión de tickets vía Bluetooth térmica ESC/POS.
 - [x] Envío de recibos y Avisos de Cobro por WhatsApp (generación y compartición local offline de PDF).
-- [x] Refinar captura de gastos administrativos.
-- [x] Identificar depósitos bancarios (Gestor vs Bot) en CAJA.
+- [x] Captura de gastos de ruta y control de sesión de caja.
+- [x] Identificación y auditoría de depósitos bancarios.
 
-### 🟢 Fase 3: Optimización y Notificaciones (100%)
-- [x] Visualización de clientes en mapa (Leaflet).
-- [x] Apertura de navegación en Google Maps/Waze.
+### 🟢 Fase 3: Optimización y Navegación en Ruta (100%)
+- [x] Visualización de clientes en mapa interactivo (Leaflet).
+- [x] Apertura de navegación guiada en Google Maps/Waze.
 - [x] Algoritmo de ruta óptima (TSP).
-- [x] Registro de Avisos de Cobro (Auditoría).
+- [x] Registro de Avisos de Cobro (Auditoría con fotos geolocalizadas).
 - [x] Seguimiento de Convenios de Pago en la App.
-- [x] Indicadores de notificación (Red dots) en navegación.
-- [x] Registro de ubicación forzada al cobrar.
+- [x] Indicadores de estado de sincronización y conectividad en tiempo real.
+- [x] Registro forzoso de coordenadas GPS al registrar cobros.
 
-### 🟢 Fase 4: Build & Distribución Nativa (100%) ✅ *Junio 2026*
+### 🟢 Fase 4: Build & Distribución Nativa (100%)
 - [x] Script de build estático para Capacitor (`scripts/build-native.js`).
 - [x] Keystore de firma creado (`android/app/vertexerp-release.jks`).
 - [x] `signingConfigs` configurado en `android/app/build.gradle`.
 - [x] Integración de Firebase Cloud Messaging (FCM) con `google-services.json` y el plugin de Google Services.
 - [x] **APK Release firmado generado con FCM** — `app-release.apk` (9.28 MB).
   - App ID: `com.vertexerp.cobrador`
-  - Versión: `2.9.34` (versionCode 2)
+  - Versión: `3.0.0` (versionCode 3)
   - Herramienta: Capacitor 8 + Gradle + JDK 21
   - 12 plugins nativos incluidos (GPS, BT, Cámara, Push, etc.)
 
-### 🟠 Fase 5: Expansión e IA (30%)
-- [x] Registro de Leads en campo.
-- [ ] **Prioridad:** Conversión Lead -> Cliente desde la App (Flujo de aprobación).
-- [ ] **Pendiente:** Asistente de voz para notas de cobranza.
-- [ ] **Pendiente:** Dashboard de metas y gamificación para el cobrador.
+### 🟢 Fase 5: Expansión de Ventas y Formalización (100%)
+- [x] Registro de Leads / Prospectos en campo con geolocalización.
+- [x] **Formalización Lead → Solicitud → Cliente:** Aprobación de créditos con creación automática de cuenta, calendario de pagos y vinculación de expedientes en Bóveda.
+- [x] Bóveda Digital móvil para digitalización de INE, pagarés y comprobantes de domicilio.
+- [x] Tablero de metas y presupuestos mensuales por asesor con avance diario.
 
-### 🔵 Fase 6: Publicación Play Store (0%)
-- [ ] Crear cuenta Google Play Developer ($25 USD, pago único).
+### 🔵 Fase 6: Publicación Play Store & Próximas Mejoras (Backlog)
 - [ ] Generar AAB (Android App Bundle) para Play Store.
-- [ ] Crear assets: icono verde (192x192, 512x512), screenshots.
 - [ ] Subir a Play Console y enviar a revisión.
-
----
-
-## 🛠️ Próximos Pasos Inmediatos
-1. **Flujo Lead → Cliente:** Implementar la lógica para que el cobrador pueda formalizar un contrato desde el celular.
-2. **Testing en campo:** Instalar el APK en dispositivos de cobradores y recolectar feedback.
-3. **Play Store:** Publicar para distribución masiva.
+- [ ] Dictado por voz de notas de visita durante cobranza en ruta.
+- [ ] Firma digital biométrica en pantalla para pagarés.
 
 ---
 
@@ -72,4 +65,5 @@ Digitalizar y optimizar la operación de cobranza en campo, proporcionando herra
 | Key Password | `VertexERP2024!` |
 
 ---
-*Última actualización: 8 de Junio de 2026 (v2.9.35 con soporte robusto offline para NextAuth, compartición de recibos PDF offline y optimización de imágenes en IndexedDB)*
+*Última actualización: Versión 3.0.0 (Formalización integral de créditos, historial de inventario y soporte offline avanzado)*
+

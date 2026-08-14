@@ -244,9 +244,12 @@ export function DashboardClient({ session: initialSession }: DashboardClientProp
         {/* Quick Actions */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {userRole === 'cobrador' && (
-            <Card className="animate-fade-in hover:shadow-md transition-shadow cursor-pointer">
+            <Card 
+              onClick={() => router.push('/mobile/home')}
+              className="animate-fade-in hover:shadow-md transition-all hover:border-blue-400 cursor-pointer group"
+            >
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
+                <CardTitle className="flex items-center space-x-2 group-hover:text-blue-600 transition-colors">
                   <CreditCard className="h-5 w-5 text-blue-600" />
                   <span>Cobranza del Día</span>
                 </CardTitle>
@@ -264,9 +267,12 @@ export function DashboardClient({ session: initialSession }: DashboardClientProp
 
           {(userRole === 'admin' || userRole === 'gestor_cobranza') && (
             <>
-              <Card className="animate-fade-in hover:shadow-md transition-shadow cursor-pointer">
+              <Card 
+                onClick={() => router.push('/dashboard/clientes')}
+                className="animate-fade-in hover:shadow-md transition-all hover:border-green-400 cursor-pointer group"
+              >
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
+                  <CardTitle className="flex items-center space-x-2 group-hover:text-green-600 transition-colors">
                     <Users className="h-5 w-5 text-green-600" />
                     <span>Gestionar Clientes</span>
                   </CardTitle>
@@ -281,9 +287,12 @@ export function DashboardClient({ session: initialSession }: DashboardClientProp
                 </CardContent>
               </Card>
 
-              <Card className="animate-fade-in hover:shadow-md transition-shadow cursor-pointer">
+              <Card 
+                onClick={() => router.push('/dashboard/reportes')}
+                className="animate-fade-in hover:shadow-md transition-all hover:border-purple-400 cursor-pointer group"
+              >
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
+                  <CardTitle className="flex items-center space-x-2 group-hover:text-purple-600 transition-colors">
                     <TrendingUp className="h-5 w-5 text-purple-600" />
                     <span>Ver Reportes</span>
                   </CardTitle>
@@ -301,9 +310,12 @@ export function DashboardClient({ session: initialSession }: DashboardClientProp
           )}
 
           {(userRole === 'admin' || userRole === 'gestor_cobranza' || userRole === 'reporte_cobranza' || userRole === 'direccion') && (
-            <Card className="animate-fade-in hover:shadow-md transition-shadow cursor-pointer">
+            <Card 
+              onClick={() => router.push('/dashboard/morosidad')}
+              className="animate-fade-in hover:shadow-md transition-all hover:border-red-400 cursor-pointer group"
+            >
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
+                <CardTitle className="flex items-center space-x-2 group-hover:text-red-600 transition-colors">
                   <AlertTriangle className="h-5 w-5 text-red-600" />
                   <span>Morosidad</span>
                 </CardTitle>

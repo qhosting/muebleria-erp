@@ -12,8 +12,8 @@ export async function GET(req: NextRequest) {
   const campaignKey = searchParams.get('campaignKey');
   const diaCobro = searchParams.get('diaCobro'); // Opcional: LUNES, MARTES, etc.
 
-  const userRole = session.user.role;
-  const userId = session.user.id;
+  const userRole = (session?.user as any)?.role;
+  const userId = (session?.user as any)?.id;
 
   try {
     let whereClause: any = {

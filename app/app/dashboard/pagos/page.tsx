@@ -211,7 +211,7 @@ export default function PagosPage() {
       (pago.cliente?.nombreCompleto || '').toLowerCase().includes(term) ||
       (pago.cliente?.codigoCliente || '').toLowerCase().includes(term) ||
       (pago.concepto || '').toLowerCase().includes(term) ||
-      (pago.localId || '').toLowerCase().includes(term) ||
+      ((pago as any).localId || '').toLowerCase().includes(term) ||
       (pago.id || '').toLowerCase().includes(term)
     );
   });

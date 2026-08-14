@@ -70,7 +70,7 @@ export default function CobranzaPage() {
       
       // Si es cobrador en dispositivo móvil, redirigir a versión móvil
       if (isMobile && userRole === 'cobrador') {
-        router.push('/dashboard/cobranza-mobile');
+        router.push('/mobile/home');
         return;
       }
     };
@@ -188,7 +188,7 @@ export default function CobranzaPage() {
                 </Badge>
 
                 <Button 
-                  onClick={() => router.push('/dashboard/cobranza-mobile')}
+                  onClick={() => router.push('/mobile/home')}
                   className="flex items-center gap-2"
                 >
                   <Smartphone className="w-4 h-4" />
@@ -231,7 +231,7 @@ export default function CobranzaPage() {
               </div>
               
               <Button 
-                onClick={() => router.push('/dashboard/cobranza-mobile')}
+                onClick={() => router.push('/mobile/home')}
                 className="w-full sm:w-auto"
               >
                 <Smartphone className="w-4 h-4 mr-2" />

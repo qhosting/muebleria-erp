@@ -1,54 +1,43 @@
-# Roadmap - Pendientes y Futuras Mejoras
+# Roadmap - Pendientes y Futuras Mejoras (v3.0.0)
 
 Este documento detalla las características planificadas, mejoras técnicas y nuevas funcionalidades sugeridas para futuras versiones de VertexERP Muebles.
 
 ## 📅 Próximas Implementaciones (Backlog)
 
-### 🔴 Prioridad Alta (Q1 2026)
+### 🔴 Prioridad Alta (Q3/Q4 2026)
 
-#### 1. Aplicación Nativa Android 📱 (Solo Cobradores) [✅ EN PROGRESO - 90%]
-- **Alcance:** App exclusiva para cobradores en campo (no incluye módulos administrativos).
-- **Plugins Nativos:** Bluetooth para impresoras, GPS, almacenamiento offline (Dexie/Preferences).
-- **Funcionalidades:** Lista de clientes, registro de pagos con WhatsApp, caja diaria, mapas.
-- **Estado:** Vistas móviles creadas, lógica de sincronización offline implementada. Pendiente: Notificaciones Push.
+#### 1. Aplicación Nativa Android 📱 [✅ 100% OPERATIVA]
+- **Alcance:** App móvil unificada para cobradores y vendedores en campo.
+- **Plugins Nativos:** Impresión Bluetooth ESC/POS, GPS forzado en cobro, almacenamiento offline Dexie, Push FCM.
+- **Funcionalidades:** Lista de clientes, registro de cobros con PDF WhatsApp offline, arqueo de caja diaria, mapa con rutas TSP.
+- **Estado:** ✅ Build Release firmado (`com.vertexerp.cobrador`, v3.0.0).
 
-#### 2. Optimización Inteligente de Rutas [🟡 EN PROGRESO - 50%]
-- **Visualización en Mapa:** ✅ Implementado componente de mapa con Leaflet para la app móvil.
-- **Planificación de Recorrido:** ⏳ Pendiente algoritmo de optimización (TSP).
-- **Navegación:** ✅ Implementado botón para abrir Google Maps/Waze nativo.
+#### 2. Formalización de Créditos y Prospección [✅ 100% IMPLEMENTADO]
+- **Registro de Leads:** ✅ Captura geolocalizada en campo.
+- **Conversión y Aprobación:** ✅ Endpoint transaccional `/api/ventas/solicitudes/status` que genera cuenta de cliente, calendario de pagos, asigna vendedor/cobrador, vincula Bóveda Digital y descuenta inventario.
+- **Tablero de Metas:** ✅ Presupuestos por asesor con avance en tiempo real.
 
-#### 3. Notificaciones y Comunicación [🟡 EN PROGRESO - 40%]
-- **Integración con WhatsApp:** ✅ Implementado envío de recibos digitales vía wa.me desde la app móvil.
-- **Notificaciones Push:** ⏳ Pendiente configuración de Firebase Cloud Messaging (FCM).
-- **Recordatorios SMS:** ⏳ Pendiente integración con Twilio o similar.
+#### 3. Control de Inventario y Multialmacén [✅ 100% IMPLEMENTADO]
+- **Catálogo y Existencias:** ✅ Catálogo de muebles, sucursales y bodegas.
+- **Historial de Movimientos:** ✅ Auditoría completa con filtros por tipo (entrada, salida, venta, traspaso) y sucursal.
+- **Sincronización Contpaqi:** ✅ Conector con Contpaqi Comercial / Adminpaq.
 
-#### 4. Módulo de Ventas y Prospección [🟡 EN PROGRESO - 80%]
-- **Registro de Leads:** ✅ Implementado registro de prospectos en campo (PWA).
-- **Configuración de Metas:** ✅ Implementado sistema flexible por fecha (Monto, Piezas, Leads).
-- **Dashboard de Avance:** ✅ Visualización de cumplimiento en tiempo real.
-- **Conversión Lead -> Cliente:** ⏳ Pendiente (PENDIENTE).
-- **Metas de Conversión:** ⏳ Pendiente añadir "Clientes Nuevos" como métrica en presupuestos (PENDIENTE).
+#### 4. Pasarela de Pagos en Línea y Portal de Clientes [⏳ PENDIENTE]
+- **Portal de Autogestión:** Permitir que los clientes consulten su estado de cuenta y realicen abonos mediante SPEI o tarjeta de débito/crédito.
+- **Fichas de Pago Referenciadas:** Generación de referencias automáticas para tiendas de conveniencia (OXXO, 7-Eleven).
 
-#### 5. Mejoras en Importación de Datos [✅ COMPLETADO]
-- **Asistente de Migración:** ✅ Implementada herramienta de carga masiva desde Excel con vista previa y validación.
-- **Exportación Avanzada:** ⏳ Pendiente reportes personalizados en PDF/Excel.
+### 🟡 Prioridad Media
 
-### 🟡 Prioridad Media (Q2 2026)
+#### 5. Asistente de Voz y Reconocimiento de Notas
+- **Notas de Cobranza por Voz:** Transcripción automática de observaciones de visita mediante Web Speech API / Whisper.
+- **Firma Biométrica en Pantalla:** Captura de firma digital para pagarés y solicitudes de crédito en campo.
 
-#### 5. Gestión de Inventario Completa
-- **Control de Stock:** Módulo para administrar existencias de muebles en bodega y tiendas.
-- **Movimientos:** Registro de entradas, salidas y traspasos entre sucursales.
-- **Vinculación con Ventas:** Descuento automático del inventario al realizar una venta a crédito.
-
-#### 6. Pasarela de Pagos en Línea
-- **Portal de Cliente:** Permitir que los clientes consulten su saldo y realicen pagos en línea mediante tarjeta o transferencia.
-- **Referencias Bancarias:** Generación de fichas de depósito referenciadas (OXXO, Bancos).
+#### 6. Gamificación y Comisiones para Cobradores
+- **Incentivos en Ruta:** Visualización de metas diarias alcanzadas y bonos por cobranza efectiva.
 
 ### 🟢 Mejoras Técnicas y Mantenimiento
 
-#### 7. Calidad de Código y Testing
-- **Cobertura de Pruebas:** Implementar pruebas unitarias (Jest) y E2E (Playwright) para flujos críticos de cobranza.
-- **Refactorización:** Optimización de consultas a base de datos para grandes volúmenes de clientes.
+#### 7. Pruebas Automatizadas y Calidad
+- **Tests Unitarios & E2E:** Cobertura para conciliación bancaria y reconciliación offline de Dexie.
+- **Monitoreo y Telemetría:** Sentry / Prometheus para detección de anomalías en sincronización.
 
-#### 8. Internacionalización (i18n)
-- **Soporte Multi-idioma:** Abstraer textos de la interfaz para soportar inglés y otros idiomas, facilitando la expansión del software.

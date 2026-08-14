@@ -142,7 +142,7 @@ export default function MobileSmsCampaignPage() {
       const cliente = clientes.find(c => c.id === clientId);
       if (!cliente || !cliente.telefono) continue;
 
-      const message = template.templateText.replace(/\[nombre\]/g, cliente.nombreCompleto);
+      const message = messageBody.replace(/\[nombre\]/g, cliente.nombreCompleto);
       
       try {
         let result;

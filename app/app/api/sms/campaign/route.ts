@@ -11,8 +11,8 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const userRole = session.user.role;
-  const userId = session.user.id;
+  const userRole = (session?.user as any)?.role;
+  const userId = (session?.user as any)?.id;
 
   try {
     const { campaignKey, clients: selectedClients, templateText } = await req.json();
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     const campaign = await prisma.smsCampaign.create({
       data: {
         name: campaignName,
-        createdBy: session.user.name,
+        createdBy: session?.user?.name || 'Sistema',
       }
     });
 

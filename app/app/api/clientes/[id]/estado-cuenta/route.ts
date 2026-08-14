@@ -83,7 +83,7 @@ export async function GET(
 
     let montoFactura = 0;
     let pagoInicial = 0;
-    let pagoInicialDocId = null;
+    let pagoInicialDocId: any = null;
 
     const cargos: any[] = [];
     const abonos: any[] = [];

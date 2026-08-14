@@ -48,7 +48,7 @@ export default function SolicitudesCreditoPage() {
     const [showDigitalizador, setShowDigitalizador] = useState(false);
     const [selectedForDocs, setSelectedForDocs] = useState<any>(null);
     const { data: session } = useSession();
-    const isAdmin = ['admin', 'gestor_cobranza', 'jefe_ventas'].includes(session?.user?.role as string);
+    const isAdmin = ['admin', 'gestor_cobranza', 'jefe_ventas'].includes((session?.user as any)?.role as string);
 
     const [newSolicitud, setNewSolicitud] = useState({
         nombreCompleto: '',

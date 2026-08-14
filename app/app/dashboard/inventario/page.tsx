@@ -43,6 +43,10 @@ export default function InventarioPage() {
     const { data: session } = useSession();
     const [productos, setProductos] = useState<any[]>([]);
     const [sucursales, setSucursales] = useState<any[]>([]);
+    const [movimientos, setMovimientos] = useState<any[]>([]);
+    const [loadingMovimientos, setLoadingMovimientos] = useState(false);
+    const [filtroTipoMovimiento, setFiltroTipoMovimiento] = useState('ALL');
+    const [filtroSucursalMovimiento, setFiltroSucursalMovimiento] = useState('ALL');
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [isMovimientoOpen, setIsMovimientoOpen] = useState(false);
@@ -58,7 +62,28 @@ export default function InventarioPage() {
     useEffect(() => {
         fetchData();
         fetchContpaqiConfig();
+        fetchMovimientos();
     }, []);
+
+    const fetchMovimientos = async () => {
+        try {
+            setLoadingMovimientos(true);
+            const params = new URLSearchParams();
+            if (filtroTipoMovimiento !== 'ALL') params.append('tipo', filtroTipoMovimiento);
+            if (filtroSucursalMovimiento !== 'ALL') params.append('sucursalId', filtroSucursalMovimiento);
+            params.append('limit', '100');
+
+            const res = await fetch(`/api/inventario/movimientos?${params.toString()}`);
+            if (res.ok) {
+                const data = await res.json();
+                setMovimientos(Array.isArray(data) ? data : []);
+            }
+        } catch (error) {
+            console.error('Error cargando movimientos:', error);
+        } finally {
+            setLoadingMovimientos(false);
+        }
+    };
 
     const fetchContpaqiConfig = async () => {
         try {
@@ -358,10 +383,141 @@ export default function InventarioPage() {
                         </Card>
                     </TabsContent>
 
-                    <TabsContent value="movimientos">
+                    <TabsContent value="movimientos" className="mt-4">
                         <Card>
-                            <CardContent className="py-8 text-center text-gray-500">
-                                Funcionalidad de historial detallado en desarrollo...
+                            <CardHeader>
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <div>
+                                        <CardTitle>Historial de Movimientos de Inventario</CardTitle>
+                                        <CardDescription>Auditoría completa de entradas, salidas, traspasos y ventas</CardDescription>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Select 
+                                            value={filtroTipoMovimiento} 
+                                            onValueChange={(val) => {
+                                                setFiltroTipoMovimiento(val);
+                                                setTimeout(fetchMovimientos, 50);
+                                            }}
+                                        >
+                                            <SelectTrigger className="w-[140px] h-9 text-xs">
+                                                <SelectValue placeholder="Tipo de movimiento" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="ALL">Todos los tipos</SelectItem>
+                                                <SelectItem value="entrada">Entradas</SelectItem>
+                                                <SelectItem value="salida">Salidas</SelectItem>
+                                                <SelectItem value="traspaso">Traspasos</SelectItem>
+                                                <SelectItem value="venta">Ventas</SelectItem>
+                                                <SelectItem value="ajuste">Ajustes</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+
+                                        <Select 
+                                            value={filtroSucursalMovimiento} 
+                                            onValueChange={(val) => {
+                                                setFiltroSucursalMovimiento(val);
+                                                setTimeout(fetchMovimientos, 50);
+                                            }}
+                                        >
+                                            <SelectTrigger className="w-[160px] h-9 text-xs">
+                                                <SelectValue placeholder="Sucursal" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="ALL">Todas las sucursales</SelectItem>
+                                                {sucursales.map(s => (
+                                                    <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={fetchMovimientos} 
+                                            disabled={loadingMovimientos}
+                                            className="h-9 px-2 text-xs"
+                                        >
+                                            <RefreshCw className={`h-3.5 w-3.5 ${loadingMovimientos ? 'animate-spin' : ''}`} />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                {loadingMovimientos ? (
+                                    <div className="text-center py-12 text-slate-500 text-sm">
+                                        <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-blue-500" />
+                                        Cargando historial de movimientos...
+                                    </div>
+                                ) : movimientos.length === 0 ? (
+                                    <div className="text-center py-12 text-slate-500 text-sm">
+                                        <ArrowLeftRight className="h-8 w-8 text-slate-400 mx-auto mb-2 opacity-50" />
+                                        No hay movimientos registrados con los filtros seleccionados.
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b bg-gray-50 text-left text-xs font-semibold text-gray-600">
+                                                    <th className="p-3">Fecha</th>
+                                                    <th className="p-3">Tipo</th>
+                                                    <th className="p-3">Producto</th>
+                                                    <th className="p-3 text-center">Cantidad</th>
+                                                    <th className="p-3">Origen</th>
+                                                    <th className="p-3">Destino</th>
+                                                    <th className="p-3">Motivo / Referencia</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {movimientos.map((mov: any) => {
+                                                    const badgeVariant = 
+                                                        mov.tipoMovimiento === 'entrada' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                                                        mov.tipoMovimiento === 'salida' ? 'bg-rose-100 text-rose-800 border-rose-200' :
+                                                        mov.tipoMovimiento === 'venta' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                                                        mov.tipoMovimiento === 'traspaso' ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                                                        'bg-amber-100 text-amber-800 border-amber-200';
+
+                                                    return (
+                                                        <tr key={mov.id} className="hover:bg-slate-50 transition-colors">
+                                                            <td className="p-3 text-xs text-slate-600 font-mono">
+                                                                {new Date(mov.createdAt).toLocaleDateString('es-MX', {
+                                                                    day: '2-digit',
+                                                                    month: 'short',
+                                                                    year: 'numeric',
+                                                                    hour: '2-digit',
+                                                                    minute: '2-digit'
+                                                                })}
+                                                            </td>
+                                                            <td className="p-3">
+                                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${badgeVariant}`}>
+                                                                    {mov.tipoMovimiento}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-3">
+                                                                <div className="font-semibold text-slate-900">{mov.producto?.nombre || 'Producto'}</div>
+                                                                <div className="text-[11px] font-mono text-slate-400">{mov.producto?.codigo}</div>
+                                                            </td>
+                                                            <td className="p-3 text-center font-bold font-mono text-base text-slate-800">
+                                                                {mov.cantidad}
+                                                            </td>
+                                                            <td className="p-3 text-xs text-slate-600">
+                                                                {mov.sucursalOrigen?.nombre || '-'}
+                                                            </td>
+                                                            <td className="p-3 text-xs text-slate-600">
+                                                                {mov.sucursalDestino?.nombre || '-'}
+                                                            </td>
+                                                            <td className="p-3 text-xs text-slate-500">
+                                                                <div>{mov.motivo || 'Sin motivo especificado'}</div>
+                                                                {mov.referencia && (
+                                                                    <div className="text-[10px] font-mono text-slate-400 mt-0.5">Ref: {mov.referencia}</div>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     </TabsContent>

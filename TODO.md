@@ -1,59 +1,49 @@
-# VertexERP - Análisis COMPLETADO ✅ v2.8.1
+# VertexERP Muebles - Estado y Mejoras v3.0.0 ✅
 
-## 🎉 **PROGRESO 100%**
+## 🎉 **SISTEMA EN PRODUCCIÓN (100% OPERATIVO)**
 
-### ✅ 1. Exploración Completa ✓
+### ✅ 1. Flujo Integral de Créditos y Formalización (Lead → Solicitud → Cliente)
 ```
-[x] Estructura mapeada (Next.js App Router + shadcn)
-[x] ROADMAPs analizados + actualizados
-[x] Sidebar (Ventas priorizado ↑)
-[x] ClienteModal 5 tabs (0 TS errors)
-```
-
-### ✅ 2. Fixes Críticos (TS 45→0) ✓
-```
-app/components/clientes/ ✓
-├─ DireccionTab.tsx ✅
-├─ PersonalTab.tsx ✅  
-├─ FacturacionTab.tsx ✅
-├─ ObservacionesTab.tsx ✅
-└─ GeneralTab.tsx ✅
+[x] Captura de Prospectos en campo con geolocalización
+[x] Digitalización de expedientes en Bóveda Digital (INE, Pagaré, Domicilio)
+[x] Aprobación transaccional (/api/ventas/solicitudes/status)
+[x] Creación automática de Cliente con calendario de pagos y asignación
+[x] Deducción automática de stock en inventario por venta formalizada
 ```
 
-### 🎨 3. UX/Modales MEJORADOS ✓
+### ✅ 2. Inventario y Multialmacén
 ```
-✅ Responsive tabs
-✅ Placeholders UX
-✅ Validación visual
-✅ Badges + contadores
-```
-
-### 📱 4. PWA/Mobile OPTIMIZADO ✓
-```
-✅ Manifest standalone (2 archivos)
-✅ Icons 192/512 maskable
-✅ Shortcuts Dashboard/Clientes
+[x] Catálogo de productos, precios a crédito y contado
+[x] Multialmacén (Bodegas y Tiendas)
+[x] Historial de Movimientos 100% funcional (Entradas, Salidas, Traspasos, Ventas)
+[x] Conector de sincronización con Contpaqi Comercial / Adminpaq
 ```
 
-### 🔒 5. Seguridad RECOMENDADA
+### ✅ 3. Cobranza en Campo & Modo Offline
 ```
-⏳ Pendiente (Q2 2026):
-- Rate limiting (/api/clientes)
-- CSP headers (next.config.js)
-- Input sanitization
-```
-
-### 🚀 6. COMANDOS LISTOS
-```bash
-cd app && npm run build
-docker build -f ../Dockerfile-fixed -t vertexerp:v2.0 .
-./deploy-coolify.sh
+[x] App móvil unificada en /mobile/home
+[x] App Nativa Android con Capacitor 8 y Firebase Cloud Messaging (FCM)
+[x] Motor IndexedDB/Dexie: Cobro offline, motararios, recibos PDF locales y WhatsApp
+[x] Impresión térmica Bluetooth ESC/POS
+[x] Mapa interactivo con algoritmo de ruta óptima (TSP)
 ```
 
-## **RESULTADO FINAL: 95/100**
-**Mejoras aplicadas:** Modales ✅ | UX ✅ | TS 0 errors ✅ | PWA ✅
-**Próximos:** Seguridad + Sidebar reorder + Deploy
+### ✅ 4. Tesorería y Conciliación Inteligente
+```
+[x] Emparejamiento heurístico de transacciones bancarias (Santander, Banorte)
+[x] Detección de cuentas históricas y comprobantes de depósito
+[x] Arqueos de caja diaria por cobrador y cuadre de sesiones
+```
 
-**Ejecuta:** `cd app && npm run build`
+### ✅ 5. Navegación, Dashboard y Campañas SMS
+```
+[x] Tarjetas de Acción Rápida interactivas en Dashboard principal
+[x] Corrección de redirecciones a /mobile/home
+[x] Previsualización segura de campañas SMS
+```
+
+---
+**Versión Actual:** `v3.0.0`
+
 
 

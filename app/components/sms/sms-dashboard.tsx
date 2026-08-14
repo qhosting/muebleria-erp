@@ -97,7 +97,7 @@ export function SmsDashboard() {
   const fetchPreview = async () => {
     setLoading(true);
     try {
-      const key = mode === 'template' ? selectedTemplate.campaignKey : 'custom_manual';
+      const key = mode === 'template' ? (selectedTemplate?.campaignKey || 'recordatorio_preventivo') : 'custom_manual';
       const res = await fetch(`/api/sms/preview?campaignKey=${key}&diaCobro=${diaFilter}`);
       const data = await res.json();
       setPreviewClients(data);

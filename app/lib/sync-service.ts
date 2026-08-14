@@ -309,11 +309,11 @@ export class SyncService {
 
           // Limpiar las fotos de evidencia del local (ahorrar espacio en IndexedDB)
           const updatedDetalles = { ...v.detallesExtra, evidencia: [] };
-          await db.verificaciones.where('localId').equals(v.localId).modify({
-            id: vServidor.id,
-            syncStatus: 'synced',
-            lastSync: Date.now(),
-            detallesExtra: updatedDetalles
+          await db.verificaciones.where('localId').equals(v.localId).modify((obj: any) => {
+            obj.id = vServidor.id;
+            obj.syncStatus = 'synced';
+            obj.lastSync = Date.now();
+            obj.detallesExtra = updatedDetalles;
           });
 
           await db.syncQueue.where('localId').equals(v.localId).modify({ status: 'completed' });

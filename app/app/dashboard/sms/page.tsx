@@ -12,8 +12,8 @@ export default async function SmsPage() {
     redirect('/login');
   }
 
-  // Solo permitir a roles administrativos y gestores
-  if (!['admin', 'gestor_cobranza', 'reporte_cobranza'].includes(session.user.role)) {
+  const userRole = (session?.user as any)?.role;
+  if (!['admin', 'gestor_cobranza', 'reporte_cobranza'].includes(userRole)) {
     redirect('/dashboard');
   }
 
