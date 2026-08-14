@@ -148,9 +148,15 @@ export async function POST(req: Request) {
         const existingTicket = await prisma.ticket.findFirst({
             where: {
                 OR: [
-                    claverastreo && claverastreo !== 'null' ? { claveRastreo: claverastreo } : { id: 'none' },
-                    referencia && referencia !== 'null' ? { referencia: referencia } : { id: 'none' },
-                    folio && folio !== 'null' ? { folio: folio } : { id: 'none' },
+                    (claverastreo && claverastreo !== 'null' && claverastreo.length >= 10) ? { claveRastreo: claverastreo } : { id: 'none' },
+                    (referencia && referencia !== 'null') ? {
+                        clienteId: cliente.id,
+                        referencia: referencia
+                    } : { id: 'none' },
+                    (folio && folio !== 'null') ? {
+                        clienteId: cliente.id,
+                        folio: folio
+                    } : { id: 'none' },
                     {
                         clienteId: cliente.id,
                         monto: parseFloat(monto || '0'),
