@@ -2,7 +2,7 @@
 // Modal de cobro optimizado para móvil offline
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { obtenerUbicacionCobrador } from '@/lib/native/location';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -25,7 +25,8 @@ import {
   AlertTriangle,
   Printer,
   Settings,
-  Copy
+  Copy,
+  Loader2
 } from 'lucide-react';
 import { db, OfflineCliente, OfflinePago, generateLocalId } from '@/lib/offline-db';
 import { syncService } from '@/lib/sync-service';
@@ -57,6 +58,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline, onSh
   const [concepto, setConcepto] = useState('');
   const [numeroRecibo, setNumeroRecibo] = useState('');
   const [loading, setLoading] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [imprimirTicket, setImprimirTicket] = useState(true);
   const [showPrinterConfig, setShowPrinterConfig] = useState(false);
   const [calculatedValues, setCalculatedValues] = useState({
@@ -74,6 +76,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline, onSh
   // Reset form cuando se abre el modal
   useEffect(() => {
     if (isOpen) {
+      isSubmittingRef.current = false;
       setMontoAbono('');
       setInteresMoratorio('');
       setGastosCobranza('');
@@ -154,6 +157,12 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline, onSh
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // 🛡️ PROTECCIÓN ANTI MULTI-TAP INMEDIATA (SÍNCRONA)
+    if (isSubmittingRef.current || loading) {
+      console.warn('🛡️ [Multi-tap] Toque repetido bloqueado en botón Registrar.');
+      return;
+    }
+
     if (calculatedValues.montoTotal <= 0) {
       toast.error('Por favor ingrese un monto válido');
       return;
@@ -164,6 +173,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline, onSh
       return;
     }
 
+    isSubmittingRef.current = true;
     setLoading(true);
 
     try {
@@ -200,7 +210,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline, onSh
       if (isOnline) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout for poor signal
+          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout para redes celulares inestables
 
           const response = await fetch('/api/pagos', {
             method: 'POST',
@@ -316,6 +326,9 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline, onSh
       toast.error('Error al procesar el pago');
     } finally {
       setLoading(false);
+      setTimeout(() => {
+        isSubmittingRef.current = false;
+      }, 1000);
     }
   };
 
@@ -682,10 +695,13 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline, onSh
               <Button
                 type="submit"
                 disabled={loading || calculatedValues.montoTotal <= 0}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
-                  'Procesando...'
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Registrando...
+                  </span>
                 ) : (
                   <>
                     <Save className="w-4 h-4 mr-2" />

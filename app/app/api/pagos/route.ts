@@ -192,6 +192,62 @@ export async function POST(request: NextRequest) {
     const montoNumerico = parseFloat(monto);
     const interesNumerico = parseFloat(interesMoratorio.toString()) || 0;
     const gastosNumerico = parseFloat(gastosCobranza.toString()) || 0;
+
+    // --- 🛡️ BLINDAJE ANTI-DUPLICADOS (IDEMPOTENCIA POR localId Y VENTANA DE TIEMPO) ---
+    // 1. Verificación por localId (si viene desde la app móvil u offline sync)
+    if (localId) {
+      const pagoExistentePorLocalId = await prisma.pago.findFirst({
+        where: { localId },
+        include: {
+          cliente: {
+            select: {
+              codigoCliente: true,
+              nombreCompleto: true,
+            },
+          },
+          cobrador: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      if (pagoExistentePorLocalId) {
+        console.log(`🛡️ [Idempotencia] Pago con localId ${localId} ya existe en DB. Evitando duplicación.`);
+        return NextResponse.json(pagoExistentePorLocalId, { status: 200 });
+      }
+    }
+
+    // 2. Verificación anti multi-tap / doble envío en ventana corta (60 segundos)
+    const ventanaSeguridad = new Date(Date.now() - 60 * 1000);
+    const cobradorTargetId = userRole === 'cobrador' ? userId : (body.cobradorId || userId);
+    const pagoDuplicadoReciente = await prisma.pago.findFirst({
+      where: {
+        clienteId,
+        cobradorId: cobradorTargetId,
+        monto: montoNumerico,
+        createdAt: { gte: ventanaSeguridad }
+      },
+      include: {
+        cliente: {
+          select: {
+            codigoCliente: true,
+            nombreCompleto: true,
+          },
+        },
+        cobrador: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (pagoDuplicadoReciente) {
+      console.log(`🛡️ [Anti Multi-tap] Pago duplicado detectado para cliente ${clienteId} ($${montoNumerico}) creado hace <60s. Evitando duplicación.`);
+      return NextResponse.json(pagoDuplicadoReciente, { status: 200 });
+    }
     
     const saldoAnterior = parseFloat(cliente.saldoActual.toString());
     let saldoNuevo = saldoAnterior;

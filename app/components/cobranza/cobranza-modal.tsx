@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,8 @@ import {
   AlertTriangle,
   Calculator,
   Receipt,
-  Save
+  Save,
+  Loader2
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -34,6 +35,7 @@ export function CobranzaModal({ cliente, isOpen, onClose, onSuccess }: CobranzaM
   const [tipoPago, setTipoPago] = useState<TipoPago>('regular');
   const [concepto, setConcepto] = useState('');
   const [loading, setLoading] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const userId = (session?.user as any)?.id;
 
@@ -42,11 +44,18 @@ export function CobranzaModal({ cliente, isOpen, onClose, onSuccess }: CobranzaM
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // 🛡️ Multi-tap protection
+    if (isSubmittingRef.current || loading) {
+      console.warn('🛡️ [Multi-tap] Envío duplicado bloqueado en CobranzaModal.');
+      return;
+    }
+
     if (!monto || parseFloat(monto) <= 0) {
       toast.error('Por favor ingrese un monto válido');
       return;
     }
 
+    isSubmittingRef.current = true;
     setLoading(true);
 
     try {
@@ -75,6 +84,9 @@ export function CobranzaModal({ cliente, isOpen, onClose, onSuccess }: CobranzaM
       toast.error(error.message || 'Error al registrar pago');
     } finally {
       setLoading(false);
+      setTimeout(() => {
+        isSubmittingRef.current = false;
+      }, 1000);
     }
   };
 
