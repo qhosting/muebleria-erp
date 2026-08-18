@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getContpaqiService } from '@/lib/contpaqi-service';
 import mysql from 'mysql2/promise';
 
 export const dynamic = 'force-dynamic';
@@ -15,8 +16,20 @@ const MYSQL_CONFIG = {
 };
 
 /**
+ * Función auxiliar para determinar la empresa de Contpaqi a partir del código de cliente
+ * DQ... -> Empresa DQ
+ * DP... -> Empresa DP
+ */
+function obtenerEmpresaContpaqi(codigoCliente: string): string | undefined {
+  const cod = (codigoCliente || '').trim().toUpperCase();
+  if (cod.startsWith('DQ')) return 'DQ';
+  if (cod.startsWith('DP')) return 'DP';
+  return undefined;
+}
+
+/**
  * GET: Ejecuta la auditoría cruzada de pagos (Sábado a Viernes u otro rango) entre MySQL y PostgreSQL
- * Incluye desglose completo de Abonos (Capital), Intereses Moratorios y Gastos de Cobranza.
+ * Incluye desglose de Abonos, Intereses Moratorios y Estado de sincronización con Contpaqi API (DQ / DP).
  */
 export async function GET(request: NextRequest) {
   let connection: mysql.Connection | null = null;
@@ -106,6 +119,7 @@ export async function GET(request: NextRequest) {
       codigo: string;
       nombre: string;
       cobrador: string;
+      empresaContpaqi: string;
       saldoErp: number;
       saldoMysql: number;
       mysqlPagos: any[];
@@ -122,6 +136,7 @@ export async function GET(request: NextRequest) {
       diferenciaAbono: number;
       diferenciaMora: number;
       estado: 'CUADRADO' | 'DESFASE_MONTO' | 'FALTANTE_ERP' | 'FALTANTE_MYSQL';
+      estadoContpaqi: 'APLICADO' | 'PENDIENTE' | 'NO_APLICA';
     }>();
 
     // Procesar MySQL
@@ -133,6 +148,7 @@ export async function GET(request: NextRequest) {
           codigo: cod,
           nombre: p.nombre_ccliente || 'Sin Nombre',
           cobrador: p.codigo_gestor || 'Sin Asignar',
+          empresaContpaqi: obtenerEmpresaContpaqi(cod) || 'N/A',
           saldoErp: 0,
           saldoMysql: parseFloat(p.saldo_actualcli) || 0,
           mysqlPagos: [],
@@ -149,6 +165,7 @@ export async function GET(request: NextRequest) {
           diferenciaAbono: 0,
           diferenciaMora: 0,
           estado: 'CUADRADO',
+          estadoContpaqi: 'PENDIENTE',
         });
       }
       const item = clientesMap.get(cod)!;
@@ -188,6 +205,7 @@ export async function GET(request: NextRequest) {
           codigo: cod,
           nombre: p.cliente?.nombreCompleto || 'Sin Nombre',
           cobrador: p.cobrador?.name || 'Sin Asignar',
+          empresaContpaqi: obtenerEmpresaContpaqi(cod) || 'N/A',
           saldoErp: parseFloat(p.cliente?.saldoActual?.toString() || '0'),
           saldoMysql: 0,
           mysqlPagos: [],
@@ -204,6 +222,7 @@ export async function GET(request: NextRequest) {
           diferenciaAbono: 0,
           diferenciaMora: 0,
           estado: 'CUADRADO',
+          estadoContpaqi: 'PENDIENTE',
         });
       }
       const item = clientesMap.get(cod)!;
@@ -226,6 +245,7 @@ export async function GET(request: NextRequest) {
         montoTotal: totalRecibo,
         referencia: p.numeroRecibo || p.concepto || '',
         cobrador: p.cobrador?.name || '',
+        sincronizadoContpaqi: p.sincronizado || false,
       });
 
       item.erpAbono += abonoNum;
@@ -234,12 +254,15 @@ export async function GET(request: NextRequest) {
       item.erpTotal += totalRecibo;
     }
 
-    // Clasificar Estados y Calcular Diferencias
+    // Clasificar Estados y Contpaqi Status
     const listaResultados: any[] = [];
     let totalCuadrados = 0;
     let totalDesfaseMonto = 0;
     let totalFaltantesErp = 0;
     let totalFaltantesMysql = 0;
+
+    let totalContpaqiAplicados = 0;
+    let totalContpaqiPendientes = 0;
 
     let sumaAbonoMysql = 0;
     let sumaMoraMysql = 0;
@@ -276,6 +299,7 @@ export async function GET(request: NextRequest) {
       sumaGcobErp += item.erpGcob;
       sumaTotalErp += item.erpTotal;
 
+      // Estado ERP vs MySQL
       if (item.mysqlPagos.length > 0 && item.erpPagos.length === 0) {
         item.estado = 'FALTANTE_ERP';
         totalFaltantesErp++;
@@ -288,6 +312,20 @@ export async function GET(request: NextRequest) {
       } else {
         item.estado = 'CUADRADO';
         totalCuadrados++;
+      }
+
+      // Estado Contpaqi
+      if (item.erpPagos.length > 0) {
+        const todosSincronizados = item.erpPagos.every((p: any) => p.sincronizadoContpaqi);
+        if (todosSincronizados) {
+          item.estadoContpaqi = 'APLICADO';
+          totalContpaqiAplicados++;
+        } else {
+          item.estadoContpaqi = 'PENDIENTE';
+          totalContpaqiPendientes++;
+        }
+      } else {
+        item.estadoContpaqi = 'NO_APLICA';
       }
 
       listaResultados.push(item);
@@ -340,6 +378,10 @@ export async function GET(request: NextRequest) {
         totalFaltantesErp,
         totalFaltantesMysql,
         porcentajeCuadre,
+
+        // Contpaqi Stats
+        totalContpaqiAplicados,
+        totalContpaqiPendientes,
       },
       cobradores: listaCobradores,
       clientes: listaResultados,
@@ -356,7 +398,8 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST: Auto-alineación / Importación de pagos con abono y moratorios desde MySQL hacia ERP
+ * POST: Auto-alineación / Importación y Aplicación en Contpaqi API (DQ / DP)
+ * Regla: Solo se aplican los abonos de capital al Contpaqi API, NO los moratorios.
  */
 export async function POST(request: NextRequest) {
   let connection: mysql.Connection | null = null;
@@ -372,8 +415,90 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { fechaInicio, fechaFin, codigoCliente, cobradorFiltro = 'all' } = body;
+    const {
+      accion = 'auto_alinear', // 'auto_alinear' | 'aplicar_contpaqi'
+      fechaInicio,
+      fechaFin,
+      codigoCliente,
+      cobradorFiltro = 'all',
+      aplicarContpaqi = false,
+    } = body;
 
+    // =========================================================================
+    // ACCIÓN 1: APLICAR EN CONTPAQI PAGOS YA REGISTRADOS EN ERP
+    // =========================================================================
+    if (accion === 'aplicar_contpaqi') {
+      const dStart = new Date(`${fechaInicio}T00:00:00.000Z`);
+      const dEnd = new Date(`${fechaFin}T23:59:59.999Z`);
+
+      const whereClause: any = {
+        fechaPago: { gte: dStart, lte: dEnd },
+        monto: { gt: 0 }, // Solo abonos de capital mayores a 0
+      };
+
+      if (codigoCliente) {
+        whereClause.cliente = { codigoCliente: codigoCliente.trim().toUpperCase() };
+      }
+
+      const pagosParaContpaqi = await prisma.pago.findMany({
+        where: whereClause,
+        include: {
+          cliente: {
+            select: { codigoCliente: true, nombreCompleto: true }
+          }
+        },
+        orderBy: { fechaPago: 'asc' }
+      });
+
+      let contpaqiExitosos = 0;
+      let contpaqiErrores = 0;
+      const erroresDetalle: string[] = [];
+
+      for (const pago of pagosParaContpaqi) {
+        const cod = pago.cliente.codigoCliente;
+        const empresa = obtenerEmpresaContpaqi(cod);
+        const montoAbono = parseFloat(pago.monto.toString());
+
+        if (!empresa || montoAbono <= 0) continue;
+
+        try {
+          const contpaqiService = await getContpaqiService(prisma, empresa);
+          await contpaqiService.registrarPago({
+            codigoCliente: cod,
+            monto: montoAbono, // SOLO ABONO (Capital), NO MORATORIOS
+            fecha: pago.fechaPago,
+            folioTicket: pago.numeroRecibo || `ERP-#${pago.id}`,
+            referencia: `Corte ${fechaInicio} a ${fechaFin}`,
+            observaciones: `Abono aplicado desde Auditoría ERP (ID: ${pago.id})`,
+          }, empresa);
+
+          await prisma.pago.update({
+            where: { id: pago.id },
+            data: { sincronizado: true }
+          });
+
+          contpaqiExitosos++;
+        } catch (err: any) {
+          console.error(`❌ Error al aplicar pago a Contpaqi (${cod} - ${empresa}):`, err.message);
+          contpaqiErrores++;
+          if (erroresDetalle.length < 5) {
+            erroresDetalle.push(`${cod}: ${err.message}`);
+          }
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        mensaje: `Proceso Contpaqi finalizado: ${contpaqiExitosos} pagos aplicados exitosamente${contpaqiErrores > 0 ? `, ${contpaqiErrores} con error` : ''}.`,
+        contpaqiExitosos,
+        contpaqiErrores,
+        erroresDetalle,
+      });
+    }
+
+    // =========================================================================
+    // ACCIÓN 2: AUTO-ALINEAR (IMPORTAR DE MYSQL A ERP + OPCIONAL CONTPAQI)
+    // =========================================================================
     connection = await mysql.createConnection(MYSQL_CONFIG);
 
     let mysqlQuery = `
@@ -396,6 +521,7 @@ export async function POST(request: NextRequest) {
 
     let pagosInsertados = 0;
     let clientesActualizados = 0;
+    let contpaqiAplicadosCount = 0;
 
     for (const p of pagosMysql) {
       const cod = (p.cod_cliente || '').trim().toUpperCase();
@@ -437,7 +563,7 @@ export async function POST(request: NextRequest) {
         const saldoPrevio = parseFloat(cliente.saldoActual.toString());
         const saldoNvo = Math.max(0, saldoPrevio - abonoNum);
 
-        await prisma.pago.create({
+        const nuevoPago = await prisma.pago.create({
           data: {
             clienteId: cliente.id,
             cobradorId: cliente.cobradorAsignadoId || (session.user as any).id,
@@ -450,15 +576,42 @@ export async function POST(request: NextRequest) {
             numeroRecibo: p.ref_pago || `MYSQL-#${p.idpag}`,
             metodoPago: 'efectivo',
             concepto: `Alineación automática desde MySQL (ID: ${p.idpag}${moraNum > 0 ? ` + Mora $${moraNum}` : ''})`,
+            sincronizado: false,
           }
         });
 
-        // El abono a capital reduce el saldo (los moratorios y gastos son honorarios/recargos)
         if (abonoNum > 0) {
           await prisma.cliente.update({
             where: { id: cliente.id },
             data: { saldoActual: saldoNvo }
           });
+        }
+
+        // Si se solicitó aplicar directamente a Contpaqi
+        if (aplicarContpaqi && abonoNum > 0) {
+          const empresa = obtenerEmpresaContpaqi(cod);
+          if (empresa) {
+            try {
+              const contpaqiService = await getContpaqiService(prisma, empresa);
+              await contpaqiService.registrarPago({
+                codigoCliente: cod,
+                monto: abonoNum, // SOLO ABONO (Capital), NO MORATORIOS
+                fecha: fechaP,
+                folioTicket: p.ref_pago || `MYSQL-#${p.idpag}`,
+                referencia: `Alineación MySQL #${p.idpag}`,
+                observaciones: `Alineación automática corte ${fechaInicio} a ${fechaFin}`,
+              }, empresa);
+
+              await prisma.pago.update({
+                where: { id: nuevoPago.id },
+                data: { sincronizado: true }
+              });
+
+              contpaqiAplicadosCount++;
+            } catch (errContpaqi: any) {
+              console.warn(`⚠️ No se pudo aplicar pago a Contpaqi (${cod} - ${empresa}):`, errContpaqi.message);
+            }
+          }
         }
 
         pagosInsertados++;
@@ -468,9 +621,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      mensaje: `Alineación completada: ${pagosInsertados} pagos importados hacia ERP (incluyendo moratorios).`,
+      mensaje: `Alineación completada: ${pagosInsertados} pagos importados hacia ERP${contpaqiAplicadosCount > 0 ? ` (${contpaqiAplicadosCount} aplicados en Contpaqi)` : ''}.`,
       pagosInsertados,
       clientesActualizados,
+      contpaqiAplicadosCount,
     });
 
   } catch (error: any) {

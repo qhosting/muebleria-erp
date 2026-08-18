@@ -382,6 +382,20 @@ export class ContpaqiService {
         return await this.request('/api/documentos/afectar', 'POST', { id });
     }
 
+    async registrarPago(data: {
+        codigoCliente: string;
+        monto: number;
+        fecha: Date | string;
+        folioTicket: string;
+        referencia?: string;
+        observaciones?: string;
+        codigoConceptoAbono?: string;
+        codigoConceptoCargo?: string;
+    }, empresa?: string) {
+        const query = empresa ? `?empresa=${encodeURIComponent(empresa)}` : '';
+        return await this.request(`/api/Pagos${query}`, 'POST', data);
+    }
+
     // --- WEBHOOKS ---
 
     async suscribirWebhook(url: string, evento: string) {

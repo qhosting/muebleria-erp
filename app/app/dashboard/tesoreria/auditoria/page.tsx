@@ -32,7 +32,8 @@ import {
   DollarSign,
   Receipt,
   FileCheck2,
-  Coins,
+  Send,
+  Building2,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -86,7 +87,7 @@ interface SaltoCadenaItem {
   totalPagos: number;
 }
 
-// Interfaces Cruce MySQL vs ERP con Moratorios
+// Interfaces Cruce MySQL vs ERP con Moratorios y Contpaqi
 interface ResumenCruce {
   fechaInicio: string;
   fechaFin: string;
@@ -117,12 +118,17 @@ interface ResumenCruce {
   totalFaltantesErp: number;
   totalFaltantesMysql: number;
   porcentajeCuadre: number;
+
+  // Contpaqi
+  totalContpaqiAplicados: number;
+  totalContpaqiPendientes: number;
 }
 
 interface ClienteCruceItem {
   codigo: string;
   nombre: string;
   cobrador: string;
+  empresaContpaqi: string;
   saldoErp: number;
   saldoMysql: number;
   mysqlPagos: { id: number; fecha: string; montoAbono: number; mora: number; gcob: number; montoTotal: number; referencia: string; cobrador: string }[];
@@ -130,7 +136,7 @@ interface ClienteCruceItem {
   mysqlMora: number;
   mysqlGcob: number;
   mysqlTotal: number;
-  erpPagos: { id: string; fecha: string; montoAbono: number; mora: number; gcob: number; montoTotal: number; referencia: string; cobrador: string }[];
+  erpPagos: { id: string; fecha: string; montoAbono: number; mora: number; gcob: number; montoTotal: number; referencia: string; cobrador: string; sincronizadoContpaqi: boolean }[];
   erpAbono: number;
   erpMora: number;
   erpGcob: number;
@@ -139,6 +145,7 @@ interface ClienteCruceItem {
   diferenciaAbono: number;
   diferenciaMora: number;
   estado: 'CUADRADO' | 'DESFASE_MONTO' | 'FALTANTE_ERP' | 'FALTANTE_MYSQL';
+  estadoContpaqi: 'APLICADO' | 'PENDIENTE' | 'NO_APLICA';
 }
 
 export default function AuditoriaFinancieraPage() {
@@ -163,10 +170,12 @@ export default function AuditoriaFinancieraPage() {
   const [selectedCobrador, setSelectedCobrador] = useState<string>('all');
   const [cobradoresList, setCobradoresList] = useState<string[]>([]);
   const [filtroEstado, setFiltroEstado] = useState<string>('TODOS');
+  const [filtroContpaqi, setFiltroContpaqi] = useState<string>('TODOS');
   const [busquedaCliente, setBusquedaCliente] = useState<string>('');
 
   const [loadingCruce, setLoadingCruce] = useState(true);
   const [aligning, setAligning] = useState(false);
+  const [applyingContpaqi, setApplyingContpaqi] = useState(false);
   const [resumenCruce, setResumenCruce] = useState<ResumenCruce | null>(null);
   const [clientesCruce, setClientesCruce] = useState<ClienteCruceItem[]>([]);
   const [selectedClienteModal, setSelectedClienteModal] = useState<ClienteCruceItem | null>(null);
@@ -273,10 +282,10 @@ export default function AuditoriaFinancieraPage() {
   };
 
   // Función para auto-alinear / importar pagos faltantes de MySQL al ERP
-  const handleAlinearPagos = async (codigoCliente?: string) => {
+  const handleAlinearPagos = async (codigoCliente?: string, aplicarContpaqi: boolean = false) => {
     const msg = codigoCliente
-      ? `¿Importar pagos y moratorios faltantes de MySQL hacia el ERP para el cliente ${codigoCliente}?`
-      : `¿Auto-alinear pagos y moratorios del corte seleccionado (${fechaInicio} al ${fechaFin}) importando los registros faltantes de MySQL hacia el ERP?`;
+      ? `¿Importar pagos de MySQL hacia el ERP para el cliente ${codigoCliente}${aplicarContpaqi ? ' y aplicar abonos a Contpaqi' : ''}?`
+      : `¿Auto-alinear pagos del corte (${fechaInicio} al ${fechaFin}) importando faltantes de MySQL a ERP${aplicarContpaqi ? ' y aplicando abonos a Contpaqi' : ''}?`;
 
     if (!confirm(msg)) return;
 
@@ -286,10 +295,12 @@ export default function AuditoriaFinancieraPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          accion: 'auto_alinear',
           fechaInicio,
           fechaFin,
           cobradorFiltro: selectedCobrador,
           codigoCliente,
+          aplicarContpaqi,
         }),
       });
 
@@ -306,6 +317,44 @@ export default function AuditoriaFinancieraPage() {
       toast.error('Error de red al ejecutar alineación');
     } finally {
       setAligning(false);
+    }
+  };
+
+  // Función para aplicar pagos en Contpaqi Comercial API
+  const handleAplicarContpaqi = async (codigoCliente?: string) => {
+    const targetEmpresa = codigoCliente ? (codigoCliente.toUpperCase().startsWith('DQ') ? 'DQ' : 'DP') : 'DQ/DP';
+    const msg = codigoCliente
+      ? `¿Aplicar abono(s) en Contpaqi Comercial (${targetEmpresa}) para el cliente ${codigoCliente}?\n(Nota: Solo se aplica el capital, no moratorios).`
+      : `¿Aplicar TODOS los abonos registrados del corte (${fechaInicio} al ${fechaFin}) en Contpaqi Comercial API (DQ y DP)?\n(Nota: Solo se aplica el capital, no moratorios).`;
+
+    if (!confirm(msg)) return;
+
+    setApplyingContpaqi(true);
+    try {
+      const res = await fetch('/api/tesoreria/auditoria/cruce-mysql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accion: 'aplicar_contpaqi',
+          fechaInicio,
+          fechaFin,
+          codigoCliente,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(data.mensaje || 'Abonos enviados a Contpaqi.');
+        fetchCruce();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Error al conectar con Contpaqi API');
+      }
+    } catch (error) {
+      console.error('Error al aplicar Contpaqi:', error);
+      toast.error('Error de conexión con Contpaqi API');
+    } finally {
+      setApplyingContpaqi(false);
     }
   };
 
@@ -352,12 +401,17 @@ export default function AuditoriaFinancieraPage() {
     if (filtroEstado === 'FALTANTE_MYSQL' && c.estado !== 'FALTANTE_MYSQL') return false;
     if (filtroEstado === 'DESFASE_MONTO' && c.estado !== 'DESFASE_MONTO') return false;
 
+    // Filtro Contpaqi
+    if (filtroContpaqi === 'PENDIENTE' && c.estadoContpaqi !== 'PENDIENTE') return false;
+    if (filtroContpaqi === 'APLICADO' && c.estadoContpaqi !== 'APLICADO') return false;
+
     if (busquedaCliente.trim()) {
       const q = busquedaCliente.trim().toLowerCase();
       return (
         c.codigo.toLowerCase().includes(q) ||
         c.nombre.toLowerCase().includes(q) ||
-        c.cobrador.toLowerCase().includes(q)
+        c.cobrador.toLowerCase().includes(q) ||
+        c.empresaContpaqi.toLowerCase().includes(q)
       );
     }
 
@@ -379,7 +433,7 @@ export default function AuditoriaFinancieraPage() {
               </h1>
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Cruce de cortes semanales (Sábado a Viernes) considerando Abonos e Intereses Moratorios entre MySQL y ERP.
+              Cruce de cortes semanales (Sábado a Viernes), Intereses Moratorios y Aplicación en Contpaqi Comercial API (DQ / DP).
             </p>
           </div>
 
@@ -388,7 +442,7 @@ export default function AuditoriaFinancieraPage() {
               <TabsList className="bg-slate-100 dark:bg-slate-800 p-1">
                 <TabsTrigger value="cruce" className="text-xs font-semibold">
                   <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" />
-                  Cruce MySQL vs ERP
+                  Cruce MySQL vs ERP & Contpaqi
                 </TabsTrigger>
                 <TabsTrigger value="interna" className="text-xs font-semibold">
                   <ShieldAlert className="w-3.5 h-3.5 mr-1.5" />
@@ -400,7 +454,7 @@ export default function AuditoriaFinancieraPage() {
         </div>
 
         {/* ======================================================== */}
-        {/* PESTAÑA 1: CRUCE DE PAGOS MYSQL VS ERP                   */}
+        {/* PESTAÑA 1: CRUCE DE PAGOS MYSQL VS ERP & CONTPAQI       */}
         {/* ======================================================== */}
         {mainTab === 'cruce' && (
           <div className="space-y-6">
@@ -429,7 +483,7 @@ export default function AuditoriaFinancieraPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t">
                   {/* Fecha Inicio */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-semibold text-slate-500">Fecha Inicio (Sábado)</label>
@@ -471,13 +525,13 @@ export default function AuditoriaFinancieraPage() {
                   </div>
 
                   {/* Botones de Acción */}
-                  <div className="flex items-end gap-2">
+                  <div className="flex items-end gap-2 col-span-1 lg:col-span-2">
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={fetchCruce}
                       disabled={loadingCruce}
-                      className="h-8 text-xs flex-1 flex items-center justify-center gap-1.5"
+                      className="h-8 text-xs flex-1 flex items-center justify-center gap-1"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${loadingCruce ? 'animate-spin' : ''}`} />
                       Auditar
@@ -486,17 +540,28 @@ export default function AuditoriaFinancieraPage() {
                       size="sm"
                       onClick={() => handleAlinearPagos()}
                       disabled={loadingCruce || aligning || (resumenCruce?.totalFaltantesErp === 0)}
-                      className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white flex-1 flex items-center justify-center gap-1.5"
+                      className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white flex-1 flex items-center justify-center gap-1"
+                      title="Importar pagos faltantes de MySQL al ERP"
                     >
                       <Download className={`w-3.5 h-3.5 ${aligning ? 'animate-spin' : ''}`} />
                       Auto-Alinear
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleAplicarContpaqi()}
+                      disabled={loadingCruce || applyingContpaqi || (resumenCruce?.totalContpaqiPendientes === 0)}
+                      className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white flex-1 flex items-center justify-center gap-1"
+                      title="Aplicar abonos de capital a Contpaqi Comercial API (DQ y DP)"
+                    >
+                      <Send className={`w-3.5 h-3.5 ${applyingContpaqi ? 'animate-spin' : ''}`} />
+                      Contpaqi
                     </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Tarjetas KPI de Comparación con Desglose de Moratorio */}
+            {/* Tarjetas KPI de Comparación con Desglose de Moratorio y Contpaqi */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="border-l-4 border-l-blue-500 shadow-sm">
                 <CardHeader className="p-4 pb-2">
@@ -579,36 +644,45 @@ export default function AuditoriaFinancieraPage() {
               <Card className="border-l-4 border-l-emerald-500 shadow-sm">
                 <CardHeader className="p-4 pb-2">
                   <CardDescription className="flex justify-between items-center text-xs font-semibold uppercase">
-                    Cuadre por Cliente
-                    <FileCheck2 className="w-4 h-4 text-emerald-500" />
+                    Estado Contpaqi API
+                    <Building2 className="w-4 h-4 text-emerald-500" />
                   </CardDescription>
                   <CardTitle className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
-                    {loadingCruce ? '...' : `${resumenCruce?.porcentajeCuadre ?? 100}%`}
+                    {loadingCruce ? '...' : `${resumenCruce?.totalContpaqiAplicados ?? 0} Aplicados`}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0 text-xs text-slate-500">
-                  {resumenCruce?.totalCuadrados ?? 0} de {resumenCruce?.totalClientesAuditados ?? 0} clientes cuadrados
+                <CardContent className="p-4 pt-0 space-y-1 text-xs text-slate-500">
+                  <div className="flex justify-between">
+                    <span>Pendientes de envío:</span>
+                    <span className="font-mono font-bold text-amber-600">
+                      {resumenCruce?.totalContpaqiPendientes ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Cuadre Clientes:</span>
+                    <span className="font-mono">{resumenCruce?.porcentajeCuadre ?? 100}%</span>
+                  </div>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Tabla Detallada por Cliente con Columnas de Moratorio */}
+            {/* Tabla Detallada por Cliente con Columna Contpaqi */}
             <Card className="shadow-sm border-slate-200 dark:border-slate-800">
               <CardHeader className="p-4 border-b">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
-                    <CardTitle className="text-base font-semibold">Auditoría Cruzada por Cliente</CardTitle>
+                    <CardTitle className="text-base font-semibold">Auditoría Cruzada y Aplicación en Sistema</CardTitle>
                     <CardDescription className="text-xs">
-                      Comparativa de Abonos, Moratorios y Totales en mano por cliente en el corte seleccionado.
+                      Comparativa de movimientos por cliente, empresa asignada (DQ / DP) y estatus en Contpaqi Comercial.
                     </CardDescription>
                   </div>
 
                   {/* Filtros de la Tabla */}
                   <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                    <div className="relative flex-1 sm:w-52">
+                    <div className="relative flex-1 sm:w-48">
                       <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
                       <Input
-                        placeholder="Buscar cliente o código..."
+                        placeholder="Buscar cliente, código..."
                         value={busquedaCliente}
                         onChange={(e) => setBusquedaCliente(e.target.value)}
                         className="h-8 text-xs pl-8"
@@ -616,8 +690,8 @@ export default function AuditoriaFinancieraPage() {
                     </div>
 
                     <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-                      <SelectTrigger className="h-8 text-xs w-44">
-                        <SelectValue placeholder="Filtrar por estado" />
+                      <SelectTrigger className="h-8 text-xs w-36">
+                        <SelectValue placeholder="Estado ERP" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="TODOS">Todos ({clientesCruce.length})</SelectItem>
@@ -626,16 +700,31 @@ export default function AuditoriaFinancieraPage() {
                           {clientesCruce.filter((c) => c.estado !== 'CUADRADO').length})
                         </SelectItem>
                         <SelectItem value="FALTANTE_ERP">
-                          Faltantes en ERP ({resumenCruce?.totalFaltantesErp ?? 0})
+                          Falta en ERP ({resumenCruce?.totalFaltantesErp ?? 0})
                         </SelectItem>
                         <SelectItem value="DESFASE_MONTO">
-                          Desfase de Monto ({resumenCruce?.totalDesfaseMonto ?? 0})
+                          Desfase Monto ({resumenCruce?.totalDesfaseMonto ?? 0})
                         </SelectItem>
                         <SelectItem value="FALTANTE_MYSQL">
-                          Faltantes en MySQL ({resumenCruce?.totalFaltantesMysql ?? 0})
+                          Solo en ERP ({resumenCruce?.totalFaltantesMysql ?? 0})
                         </SelectItem>
                         <SelectItem value="CUADRADO">
                           100% Cuadrados ({resumenCruce?.totalCuadrados ?? 0})
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={filtroContpaqi} onValueChange={setFiltroContpaqi}>
+                      <SelectTrigger className="h-8 text-xs w-36">
+                        <SelectValue placeholder="Contpaqi" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="TODOS">Todos Contpaqi</SelectItem>
+                        <SelectItem value="PENDIENTE">
+                          Pendientes ({resumenCruce?.totalContpaqiPendientes ?? 0})
+                        </SelectItem>
+                        <SelectItem value="APLICADO">
+                          Aplicados ({resumenCruce?.totalContpaqiAplicados ?? 0})
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -647,57 +736,60 @@ export default function AuditoriaFinancieraPage() {
                 {loadingCruce ? (
                   <div className="p-8 text-center text-sm text-slate-500">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-600" />
-                    Cruzando pagos y moratorios entre bases de datos...
+                    Cruzando pagos y validando estatus Contpaqi...
                   </div>
                 ) : clientesFiltrados.length === 0 ? (
                   <div className="p-8 text-center text-sm text-slate-500">
                     <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-                    No se encontraron discrepancias con los filtros seleccionados.
+                    No se encontraron clientes con los filtros seleccionados.
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs text-left">
                       <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border-b">
                         <tr>
-                          <th className="p-2.5">Código</th>
+                          <th className="p-2.5">Código / Emp.</th>
                           <th className="p-2.5">Cliente</th>
                           <th className="p-2.5">Cobrador</th>
-                          <th className="p-2.5 text-right">MySQL (Abono + Mora)</th>
-                          <th className="p-2.5 text-right">ERP (Abono + Mora)</th>
                           <th className="p-2.5 text-right font-bold">Total MySQL</th>
                           <th className="p-2.5 text-right font-bold">Total ERP</th>
                           <th className="p-2.5 text-right">Diferencia</th>
-                          <th className="p-2.5 text-center">Estado</th>
-                          <th className="p-2.5 text-center">Acción</th>
+                          <th className="p-2.5 text-center">Estado ERP</th>
+                          <th className="p-2.5 text-center">Estado Contpaqi</th>
+                          <th className="p-2.5 text-center">Acciones</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
                         {clientesFiltrados.map((item, idx) => (
                           <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                            <td className="p-2.5 font-mono font-bold text-indigo-600">{item.codigo}</td>
+                            <td className="p-2.5 font-mono">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-indigo-600">{item.codigo}</span>
+                                <Badge variant="outline" className={`text-[9px] px-1 py-0 ${
+                                  item.empresaContpaqi === 'DQ' ? 'bg-amber-50 text-amber-700 border-amber-300' :
+                                  item.empresaContpaqi === 'DP' ? 'bg-purple-50 text-purple-700 border-purple-300' : ''
+                                }`}>
+                                  {item.empresaContpaqi}
+                                </Badge>
+                              </div>
+                            </td>
                             <td className="p-2.5 font-medium">{item.nombre}</td>
                             <td className="p-2.5 text-slate-500">{item.cobrador}</td>
-                            <td className="p-2.5 text-right font-mono text-slate-600">
-                              {formatCurrency(item.mysqlAbono)}
-                              {item.mysqlMora > 0 && (
-                                <span className="text-amber-600 font-semibold ml-1">
-                                  (+{formatCurrency(item.mysqlMora)})
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-2.5 text-right font-mono text-slate-600">
-                              {formatCurrency(item.erpAbono)}
-                              {item.erpMora > 0 && (
-                                <span className="text-amber-600 font-semibold ml-1">
-                                  (+{formatCurrency(item.erpMora)})
-                                </span>
-                              )}
-                            </td>
                             <td className="p-2.5 text-right font-mono font-bold text-blue-600">
                               {formatCurrency(item.mysqlTotal)}
+                              {item.mysqlMora > 0 && (
+                                <span className="text-[10px] text-amber-600 font-normal block">
+                                  (+{formatCurrency(item.mysqlMora)} mora)
+                                </span>
+                              )}
                             </td>
                             <td className="p-2.5 text-right font-mono font-bold text-indigo-600">
                               {formatCurrency(item.erpTotal)}
+                              {item.erpMora > 0 && (
+                                <span className="text-[10px] text-amber-600 font-normal block">
+                                  (+{formatCurrency(item.erpMora)} mora)
+                                </span>
+                              )}
                             </td>
                             <td
                               className={`p-2.5 text-right font-mono font-bold ${
@@ -729,26 +821,57 @@ export default function AuditoriaFinancieraPage() {
                               )}
                             </td>
                             <td className="p-2.5 text-center">
-                              {item.estado === 'FALTANTE_ERP' ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={aligning}
-                                  onClick={() => handleAlinearPagos(item.codigo)}
-                                  className="h-7 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200"
-                                >
-                                  Importar
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => setSelectedClienteModal(item)}
-                                  className="h-7 text-xs text-slate-500"
-                                >
-                                  Ver Recibos
-                                </Button>
+                              {item.estadoContpaqi === 'APLICADO' && (
+                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-300 text-[10px] flex items-center gap-1 mx-auto w-fit">
+                                  <Check className="w-3 h-3" /> Contpaqi OK
+                                </Badge>
                               )}
+                              {item.estadoContpaqi === 'PENDIENTE' && (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] mx-auto w-fit">
+                                  Pendiente
+                                </Badge>
+                              )}
+                              {item.estadoContpaqi === 'NO_APLICA' && (
+                                <span className="text-[10px] text-slate-400">Sin ERP</span>
+                              )}
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                {item.estado === 'FALTANTE_ERP' ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={aligning}
+                                    onClick={() => handleAlinearPagos(item.codigo)}
+                                    className="h-7 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200"
+                                  >
+                                    Importar
+                                  </Button>
+                                ) : (
+                                  <>
+                                    {item.estadoContpaqi === 'PENDIENTE' && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={applyingContpaqi}
+                                        onClick={() => handleAplicarContpaqi(item.codigo)}
+                                        className="h-7 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-300"
+                                        title={`Aplicar en Contpaqi ${item.empresaContpaqi}`}
+                                      >
+                                        Aplicar Contpaqi
+                                      </Button>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setSelectedClienteModal(item)}
+                                      className="h-7 text-xs text-slate-500"
+                                    >
+                                      Ver Recibos
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -765,10 +888,15 @@ export default function AuditoriaFinancieraPage() {
                 <div className="bg-white dark:bg-slate-900 rounded-xl max-w-2xl w-full border shadow-xl p-5 space-y-4">
                   <div className="flex justify-between items-start border-b pb-3">
                     <div>
-                      <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                        Recibos del Cliente: {selectedClienteModal.nombre}
-                      </h3>
-                      <p className="text-xs text-slate-500 font-mono">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                          Recibos del Cliente: {selectedClienteModal.nombre}
+                        </h3>
+                        <Badge variant="outline" className="text-xs">
+                          Empresa Contpaqi: {selectedClienteModal.empresaContpaqi}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-slate-500 font-mono mt-0.5">
                         Código: {selectedClienteModal.codigo} • Cobrador: {selectedClienteModal.cobrador}
                       </p>
                     </div>
@@ -827,7 +955,14 @@ export default function AuditoriaFinancieraPage() {
                               </div>
                               <div className="flex justify-between text-[10px] text-slate-500">
                                 <span>Abono: {formatCurrency(p.montoAbono)}</span>
-                                {p.mora > 0 && <span className="text-amber-600 font-semibold">Mora: +{formatCurrency(p.mora)}</span>}
+                                <div className="flex items-center gap-1">
+                                  {p.mora > 0 && <span className="text-amber-600 font-semibold">Mora: +{formatCurrency(p.mora)}</span>}
+                                  {p.sincronizadoContpaqi ? (
+                                    <Badge variant="outline" className="text-[9px] text-emerald-600 border-emerald-300 py-0">Contpaqi ✓</Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[9px] text-amber-600 border-amber-300 py-0">Pendiente</Badge>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -847,7 +982,20 @@ export default function AuditoriaFinancieraPage() {
                         }}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
                       >
-                        Importar Pagos y Moratorio al ERP
+                        Importar Pagos al ERP
+                      </Button>
+                    )}
+                    {selectedClienteModal.estadoContpaqi === 'PENDIENTE' && (
+                      <Button
+                        size="sm"
+                        disabled={applyingContpaqi}
+                        onClick={() => {
+                          handleAplicarContpaqi(selectedClienteModal.codigo);
+                          setSelectedClienteModal(null);
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs flex items-center gap-1"
+                      >
+                        <Send className="w-3 h-3" /> Aplicar en Contpaqi ({selectedClienteModal.empresaContpaqi})
                       </Button>
                     )}
                     <Button size="sm" variant="outline" onClick={() => setSelectedClienteModal(null)} className="text-xs">
