@@ -118,9 +118,14 @@ export class ContpaqiService {
         return this.normalizeArray(response);
     }
 
-    async getCliente(codigo: string) {
+    async getCliente(codigo: string, empresa?: string) {
+        const query = empresa ? `?empresa=${encodeURIComponent(empresa)}` : '';
         try {
-            return await this.request(`/api/clientes/${codigo}`);
+            const res = await this.request(`/api/clientes/${encodeURIComponent(codigo)}${query}`);
+            if (res && res.data && typeof res.data === 'object' && !Array.isArray(res.data)) {
+                return { ...res.data, ...res };
+            }
+            return res;
         } catch (error: any) {
             if (error.message?.includes('404')) {
                 return null;
@@ -446,26 +451,34 @@ export async function getContpaqiService(prisma?: any, empresaId?: string): Prom
 
             // Prioridad 2: Si se proporciona un empresaId (o por fallback), buscar credenciales específicas
             if (targetEmpresaId && c.empresas && Array.isArray(c.empresas)) {
-                const empresa = c.empresas.find((e: any) => e.id === targetEmpresaId);
+                const upperTarget = targetEmpresaId.toUpperCase();
+                const empresa = c.empresas.find((e: any) => 
+                    e.id === targetEmpresaId ||
+                    e.id?.toUpperCase() === upperTarget ||
+                    e.nombre?.toUpperCase().startsWith(upperTarget) ||
+                    e.baseDatos?.toUpperCase().startsWith(upperTarget) ||
+                    e.nombre?.toUpperCase().includes(upperTarget) ||
+                    e.baseDatos?.toUpperCase().includes(upperTarget)
+                );
+
                 if (empresa) {
-                    apiUrl = empresa.apiUrl || apiUrl;
-                    apiKey = empresa.apiKey || apiKey;
-                    let empresaContext = empresa.baseDatos || empresa.nombre || '';
+                    apiUrl = empresa.apiUrl || c.apiUrl || apiUrl;
+                    apiKey = empresa.apiKey || c.apiKey || apiKey;
+                    let empresaContext = empresa.baseDatos || empresa.nombre || upperTarget;
                     if (empresaContext.includes(' - ')) {
                         empresaContext = empresaContext.split(' - ')[0].trim();
                     }
-                    console.log(`🏢 Usando nombre estándar de empresa: ${empresaContext}`);
+                    console.log(`🏢 Usando configuración de empresa: ${empresaContext} (${apiUrl})`);
                     return new ContpaqiService({ apiUrl, apiKey, empresa: empresaContext });
                 } else {
-                    // Si el targetEmpresaId es un alias directo conocido (como DP o DQ), lo usamos directamente
-                    if (['DP', 'DQ'].includes(targetEmpresaId.toUpperCase())) {
-                        console.log(`🏢 Usando alias de empresa directo: ${targetEmpresaId}`);
-                        return new ContpaqiService({ apiUrl, apiKey, empresa: targetEmpresaId.toUpperCase() });
+                    // Si el targetEmpresaId es un alias directo conocido (como DP o DQ), usamos las credenciales de la primera empresa configurada
+                    const fallbackEmpresa = c.empresas[0];
+                    if (fallbackEmpresa) {
+                        apiUrl = fallbackEmpresa.apiUrl || c.apiUrl || apiUrl;
+                        apiKey = fallbackEmpresa.apiKey || c.apiKey || apiKey;
                     }
-
-                    if (targetEmpresaId !== 'default') {
-                        console.warn(`⚠️ No se encontró la empresa con ID: ${targetEmpresaId}, usando configuración base.`);
-                    }
+                    console.log(`🏢 Usando alias directo: ${upperTarget} con URL: ${apiUrl}`);
+                    return new ContpaqiService({ apiUrl, apiKey, empresa: upperTarget });
                 }
             }
         }

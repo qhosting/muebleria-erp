@@ -311,7 +311,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 4.2 Cargar saldos de Contpaqi desde estadoCuentaCache si existen
+    // 4.2 Cargar saldos de Contpaqi (Caché + Consulta rápida en vivo)
     if (todosCodigos.length > 0) {
       try {
         const clientesCache = await prisma.cliente.findMany({
@@ -332,6 +332,47 @@ export async function GET(request: NextRequest) {
             }
           }
         }
+
+        // Consultar en vivo para los clientes del corte (hasta 40 en paralelo)
+        const sinSaldo = Array.from(clientesMap.values()).filter((c) => c.saldoContpaqi === null).slice(0, 40);
+        if (sinSaldo.length > 0) {
+          const porEmp: Record<string, string[]> = {};
+          for (const it of sinSaldo) {
+            const emp = it.empresaContpaqi || 'DQ';
+            if (!porEmp[emp]) porEmp[emp] = [];
+            porEmp[emp].push(it.codigo);
+          }
+
+          for (const [emp, cods] of Object.entries(porEmp)) {
+            try {
+              const srv = await getContpaqiService(prisma, emp);
+              await Promise.allSettled(
+                cods.map(async (cod) => {
+                  try {
+                    const c = await srv.getCliente(cod, emp);
+                    let raw: any = c?.cSaldoActual ?? c?.csaldoactual ?? c?.cSaldo ?? c?.saldo ?? c?.CSALDOACTUAL ?? c?.CSALDO ?? c?.saldoActual ?? c?.saldoTotal ?? c?.cPendiente ?? c?.pendiente ?? c?.Saldo;
+                    if (raw === undefined || raw === null) {
+                      const ec = await srv.getClienteEstadoCuenta(cod, emp);
+                      if (ec) {
+                        raw = ec.saldoTotal ?? ec.saldo ?? ec.cSaldoActual ?? ec.cSaldo ?? ec.CSALDOACTUAL ?? ec.saldoActual;
+                      }
+                    }
+                    if (raw !== undefined && raw !== null && raw !== '') {
+                      const parsed = parseFloat(raw.toString()) || 0;
+                      const it = clientesMap.get(cod);
+                      if (it) {
+                        it.saldoContpaqi = parsed;
+                        it.diferenciaSaldoContpaqi = parseFloat((it.saldoErp - parsed).toFixed(2));
+                      }
+                    }
+                  } catch {}
+                })
+              );
+            } catch (err: any) {
+              console.warn(`Error al conectar con Contpaqi (${emp}):`, err.message);
+            }
+          }
+        }
       } catch (err) {
         console.warn('Advertencia al consultar cache Contpaqi:', err);
       }
@@ -344,6 +385,7 @@ export async function GET(request: NextRequest) {
     let totalFaltantesErp = 0;
     let totalFaltantesMysql = 0;
     let totalDesfaseSaldo = 0;
+    const cobradoresSet = new Set<string>();
 
     let totalContpaqiAplicados = 0;
     let totalContpaqiPendientes = 0;
@@ -359,6 +401,7 @@ export async function GET(request: NextRequest) {
     let sumaTotalErp = 0;
 
     for (const item of clientesMap.values()) {
+      cobradoresSet.add(item.cobrador);
       item.saldoErp = parseFloat((item.saldoErp || 0).toFixed(2));
       item.saldoMysql = parseFloat((item.saldoMysql || 0).toFixed(2));
       item.diferenciaSaldo = parseFloat((item.saldoErp - item.saldoMysql).toFixed(2));
@@ -395,14 +438,14 @@ export async function GET(request: NextRequest) {
       sumaGcobErp += item.erpGcob;
       sumaTotalErp += item.erpTotal;
 
-      // Estado ERP vs MySQL
+      // Determinar Estado de Cuadre
       if (item.mysqlPagos.length > 0 && item.erpPagos.length === 0) {
         item.estado = 'FALTANTE_ERP';
         totalFaltantesErp++;
-      } else if (item.mysqlPagos.length === 0 && item.erpPagos.length > 0) {
+      } else if (item.erpPagos.length > 0 && item.mysqlPagos.length === 0) {
         item.estado = 'FALTANTE_MYSQL';
         totalFaltantesMysql++;
-      } else if (Math.abs(item.diferencia) > 0.01 || item.mysqlPagos.length !== item.erpPagos.length) {
+      } else if (Math.abs(item.diferencia) > 0.01 || Math.abs(item.diferenciaAbono) > 0.01) {
         item.estado = 'DESFASE_MONTO';
         totalDesfaseMonto++;
       } else {
@@ -410,73 +453,54 @@ export async function GET(request: NextRequest) {
         totalCuadrados++;
       }
 
-      // Estado Contpaqi
-      if (item.erpPagos.length > 0) {
-        const todosSincronizados = item.erpPagos.every((p: any) => p.sincronizadoContpaqi);
-        if (todosSincronizados) {
+      // Determinar Estado Contpaqi
+      if (item.erpPagos.length === 0) {
+        item.estadoContpaqi = 'NO_APLICA';
+      } else {
+        const todosAplicados = item.erpPagos.every((p: any) => p.sincronizadoContpaqi);
+        if (todosAplicados) {
           item.estadoContpaqi = 'APLICADO';
           totalContpaqiAplicados++;
         } else {
           item.estadoContpaqi = 'PENDIENTE';
           totalContpaqiPendientes++;
         }
-      } else {
-        item.estadoContpaqi = 'NO_APLICA';
       }
 
       listaResultados.push(item);
     }
 
-    // Ordenar: primero los que tienen discrepancias ordenados por diferencia absoluta
+    // Ordenar: primero discrepancias de pagos o saldos, luego por código
     listaResultados.sort((a, b) => {
-      if (a.estado !== 'CUADRADO' && b.estado === 'CUADRADO') return -1;
-      if (a.estado === 'CUADRADO' && b.estado !== 'CUADRADO') return 1;
-      return Math.abs(b.diferencia) - Math.abs(a.diferencia);
+      const aDesfase = a.estado !== 'CUADRADO' || Math.abs(a.diferenciaSaldo) > 0.01 ? 1 : 0;
+      const bDesfase = b.estado !== 'CUADRADO' || Math.abs(b.diferenciaSaldo) > 0.01 ? 1 : 0;
+      if (aDesfase !== bDesfase) return bDesfase - aDesfase;
+      return a.codigo.localeCompare(b.codigo);
     });
 
-    const diferenciaGlobal = parseFloat((sumaTotalErp - sumaTotalMysql).toFixed(2));
-    const diferenciaAbonoGlobal = parseFloat((sumaAbonoErp - sumaAbonoMysql).toFixed(2));
-    const diferenciaMoraGlobal = parseFloat((sumaMoraErp - sumaMoraMysql).toFixed(2));
-
-    const totalClientesAuditados = listaResultados.length;
-    const porcentajeCuadre = totalClientesAuditados > 0
-      ? parseFloat(((totalCuadrados / totalClientesAuditados) * 100).toFixed(1))
-      : 100;
+    const listaCobradores = Array.from(cobradoresSet).sort();
 
     return NextResponse.json({
+      success: true,
       resumen: {
-        fechaInicio,
-        fechaFin,
-        cobradorFiltro,
-        totalPagosMysql: pagosMysql.length,
-        totalPagosErp: pagosErp.length,
-        
-        // MySQL
+        rangoFechas: { fechaInicio, fechaFin },
+        totalClientesAuditados: listaResultados.length,
+        totalCuadrados,
+        totalDesfaseMonto,
+        totalFaltantesErp,
+        totalFaltantesMysql,
+        totalDesfaseSaldo,
+        montoTotalMysql: parseFloat(sumaTotalMysql.toFixed(2)),
         montoAbonoMysql: parseFloat(sumaAbonoMysql.toFixed(2)),
         montoMoraMysql: parseFloat(sumaMoraMysql.toFixed(2)),
         montoGcobMysql: parseFloat(sumaGcobMysql.toFixed(2)),
-        montoTotalMysql: parseFloat(sumaTotalMysql.toFixed(2)),
-        
-        // ERP
+        montoTotalErp: parseFloat(sumaTotalErp.toFixed(2)),
         montoAbonoErp: parseFloat(sumaAbonoErp.toFixed(2)),
         montoMoraErp: parseFloat(sumaMoraErp.toFixed(2)),
         montoGcobErp: parseFloat(sumaGcobErp.toFixed(2)),
-        montoTotalErp: parseFloat(sumaTotalErp.toFixed(2)),
-        
-        // Diferencias
-        diferenciaGlobal,
-        diferenciaAbonoGlobal,
-        diferenciaMoraGlobal,
-
-        totalClientesAuditados,
-        totalCuadrados,
-        totalDesfaseMonto,
-        totalDesfaseSaldo,
-        totalFaltantesErp,
-        totalFaltantesMysql,
-        porcentajeCuadre,
-
-        // Contpaqi Stats
+        diferenciaGlobal: parseFloat((sumaTotalErp - sumaTotalMysql).toFixed(2)),
+        diferenciaAbonoGlobal: parseFloat((sumaAbonoErp - sumaAbonoMysql).toFixed(2)),
+        diferenciaMoraGlobal: parseFloat((sumaMoraErp - sumaMoraMysql).toFixed(2)),
         totalContpaqiAplicados,
         totalContpaqiPendientes,
       },
@@ -555,25 +579,31 @@ export async function POST(request: NextRequest) {
           await Promise.allSettled(
             listaCodigos.map(async (cod) => {
               try {
-                const c = await service.getCliente(cod);
-                if (c) {
-                  const raw = c.cSaldoActual ?? c.csaldoactual ?? c.cSaldo ?? c.saldo ?? c.CSALDOACTUAL ?? c.CSALDO;
-                  if (raw !== undefined && raw !== null) {
-                    const parsedSaldo = parseFloat(raw.toString()) || 0;
-                    resultados[cod] = { saldoContpaqi: parsedSaldo };
-                    
-                    // Actualizar cache en DB si existe el cliente
-                    prisma.cliente.updateMany({
-                      where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
-                      data: {
-                        estadoCuentaCache: {
-                          cachedAt: new Date().toISOString(),
-                          data: { saldoTotal: parsedSaldo, cSaldoActual: parsedSaldo }
-                        }
-                      }
-                    }).catch(() => {});
-                    return;
+                const c = await service.getCliente(cod, empresa);
+                let raw: any = c?.cSaldoActual ?? c?.csaldoactual ?? c?.cSaldo ?? c?.saldo ?? c?.CSALDOACTUAL ?? c?.CSALDO ?? c?.saldoActual ?? c?.saldoTotal ?? c?.cPendiente ?? c?.pendiente ?? c?.Saldo;
+
+                if (raw === undefined || raw === null) {
+                  const ec = await service.getClienteEstadoCuenta(cod, empresa);
+                  if (ec) {
+                    raw = ec.saldoTotal ?? ec.saldo ?? ec.cSaldoActual ?? ec.cSaldo ?? ec.CSALDOACTUAL ?? ec.saldoActual;
                   }
+                }
+
+                if (raw !== undefined && raw !== null && raw !== '') {
+                  const parsedSaldo = parseFloat(raw.toString()) || 0;
+                  resultados[cod] = { saldoContpaqi: parsedSaldo };
+                  
+                  // Actualizar cache en DB si existe el cliente
+                  prisma.cliente.updateMany({
+                    where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
+                    data: {
+                      estadoCuentaCache: {
+                        cachedAt: new Date().toISOString(),
+                        data: { saldoTotal: parsedSaldo, cSaldoActual: parsedSaldo }
+                      }
+                    }
+                  }).catch(() => {});
+                  return;
                 }
                 resultados[cod] = { saldoContpaqi: null, error: 'No reporta saldo' };
               } catch (e: any) {

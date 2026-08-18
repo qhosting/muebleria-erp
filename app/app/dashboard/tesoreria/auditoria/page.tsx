@@ -463,14 +463,23 @@ export default function AuditoriaFinancieraPage() {
           return prev;
         });
 
-        toast.success(data.mensaje || 'Saldos de Contpaqi actualizados.');
+        const totalConSaldo = Object.values(saldosMap).filter((s: any) => s.saldoContpaqi !== null).length;
+        const primerError = (Object.values(saldosMap).find((s: any) => s.error) as any)?.error;
+
+        if (totalConSaldo > 0) {
+          toast.success(`Se obtuvieron ${totalConSaldo} saldos desde Contpaqi API.`);
+        } else if (primerError) {
+          toast.error(`Contpaqi API: ${primerError}`);
+        } else {
+          toast.info('No se reportaron saldos para los clientes consultados en Contpaqi.');
+        }
       } else {
         const err = await res.json();
         toast.error(err.error || 'Error al consultar Contpaqi API');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al consultar saldos Contpaqi:', error);
-      toast.error('Error de red al consultar Contpaqi API');
+      toast.error(`Error de red: ${error.message || 'No se pudo conectar con el servidor'}`);
     } finally {
       setLoadingContpaqiSaldos(false);
     }
