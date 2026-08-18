@@ -466,13 +466,19 @@ export async function POST(request: NextRequest) {
         if (!empresa || montoAbono <= 0) continue;
 
         try {
+          // Extraer folio limpio de MySQL (ej. de 'MYSQL-#669292' -> '669292')
+          const idClean = pago.numeroRecibo
+            ? pago.numeroRecibo.replace(/^[^0-9]*/, '').replace(/[^0-9].*$/, '')
+            : pago.id;
+          const folioParaContpaqi = idClean || pago.numeroRecibo || `ERP-#${pago.id}`;
+
           const contpaqiService = await getContpaqiService(prisma, empresa);
           await contpaqiService.registrarPago({
             codigoCliente: cod,
             monto: montoAbono, // SOLO ABONO (Capital), NO MORATORIOS
             fecha: pago.fechaPago,
-            folioTicket: pago.numeroRecibo || `ERP-#${pago.id}`,
-            referencia: `Corte ${fechaInicio} a ${fechaFin}`,
+            folioTicket: folioParaContpaqi,
+            referencia: folioParaContpaqi,
             observaciones: `Abono aplicado desde Auditoría ERP (ID: ${pago.id})`,
           }, empresa);
 
