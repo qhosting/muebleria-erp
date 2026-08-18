@@ -395,6 +395,7 @@ export default function AuditoriaFinancieraPage() {
 
   // Filtrado de clientes para la tabla de cruce
   const clientesFiltrados = clientesCruce.filter((c) => {
+    if (filtroEstado === 'CON_PAGO_MYSQL' && c.mysqlPagos.length === 0) return false;
     if (filtroEstado === 'DIFERENCIAS' && c.estado === 'CUADRADO') return false;
     if (filtroEstado === 'CUADRADO' && c.estado !== 'CUADRADO') return false;
     if (filtroEstado === 'FALTANTE_ERP' && c.estado !== 'FALTANTE_ERP') return false;
@@ -695,6 +696,9 @@ export default function AuditoriaFinancieraPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="TODOS">Todos ({clientesCruce.length})</SelectItem>
+                        <SelectItem value="CON_PAGO_MYSQL">
+                          Con Pago en MySQL ({clientesCruce.filter((c) => c.mysqlPagos.length > 0).length})
+                        </SelectItem>
                         <SelectItem value="DIFERENCIAS">
                           Solo Discrepancias (
                           {clientesCruce.filter((c) => c.estado !== 'CUADRADO').length})
