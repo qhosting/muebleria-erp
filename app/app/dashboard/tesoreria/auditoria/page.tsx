@@ -34,7 +34,9 @@ import {
   FileCheck2,
   Send,
   Building2,
+  FileSpreadsheet,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -115,6 +117,7 @@ interface ResumenCruce {
   totalClientesAuditados: number;
   totalCuadrados: number;
   totalDesfaseMonto: number;
+  totalDesfaseSaldo?: number;
   totalFaltantesErp: number;
   totalFaltantesMysql: number;
   porcentajeCuadre: number;
@@ -131,6 +134,7 @@ interface ClienteCruceItem {
   empresaContpaqi: string;
   saldoErp: number;
   saldoMysql: number;
+  diferenciaSaldo: number;
   mysqlPagos: { id: number; fecha: string; montoAbono: number; mora: number; gcob: number; montoTotal: number; referencia: string; cobrador: string }[];
   mysqlAbono: number;
   mysqlMora: number;
@@ -393,10 +397,155 @@ export default function AuditoriaFinancieraPage() {
     }
   };
 
+  // Función para exportar auditoría a archivo Excel (.xlsx / .xls)
+  const handleExportarXLS = () => {
+    try {
+      if (mainTab === 'cruce') {
+        if (clientesFiltrados.length === 0) {
+          toast.error('No hay datos disponibles para exportar con los filtros actuales');
+          return;
+        }
+
+        const dataRows = clientesFiltrados.map((item) => ({
+          'Código': item.codigo,
+          'Empresa': item.empresaContpaqi,
+          'Cliente': item.nombre,
+          'Cobrador / Gestor': item.cobrador,
+          'Saldo Actual ERP': item.saldoErp,
+          'Saldo Actual MySQL': item.saldoMysql,
+          'Diferencia Saldo': item.diferenciaSaldo,
+          'Hay Dif Saldo': Math.abs(item.diferenciaSaldo) > 0.01 ? 'SI' : 'NO',
+          'Abono MySQL': item.mysqlAbono,
+          'Mora MySQL': item.mysqlMora,
+          'Gcob MySQL': item.mysqlGcob,
+          'Total Pagos MySQL': item.mysqlTotal,
+          'Abono ERP': item.erpAbono,
+          'Mora ERP': item.erpMora,
+          'Gcob ERP': item.erpGcob,
+          'Total Pagos ERP': item.erpTotal,
+          'Diferencia Pagos Periodo': item.diferencia,
+          'Estado Auditoría ERP': item.estado === 'CUADRADO' ? 'CUADRADO' :
+            item.estado === 'FALTANTE_ERP' ? 'FALTA EN ERP' :
+            item.estado === 'FALTANTE_MYSQL' ? 'SOLO EN ERP' : 'DESFASE EN MONTO',
+          'Estado Contpaqi': item.estadoContpaqi,
+          'Cant. Recibos MySQL': item.mysqlPagos.length,
+          'Cant. Recibos ERP': item.erpPagos.length,
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(dataRows);
+
+        // Ajuste de ancho de columnas
+        ws['!cols'] = [
+          { wch: 12 }, // Código
+          { wch: 10 }, // Empresa
+          { wch: 36 }, // Cliente
+          { wch: 22 }, // Cobrador
+          { wch: 18 }, // Saldo ERP
+          { wch: 18 }, // Saldo MySQL
+          { wch: 18 }, // Dif Saldo
+          { wch: 15 }, // Hay Dif Saldo
+          { wch: 15 }, // Abono MySQL
+          { wch: 14 }, // Mora MySQL
+          { wch: 14 }, // Gcob MySQL
+          { wch: 18 }, // Total MySQL
+          { wch: 15 }, // Abono ERP
+          { wch: 14 }, // Mora ERP
+          { wch: 14 }, // Gcob ERP
+          { wch: 18 }, // Total ERP
+          { wch: 22 }, // Dif Pagos
+          { wch: 20 }, // Estado ERP
+          { wch: 16 }, // Estado Contpaqi
+          { wch: 18 }, // Cant Recibos MySQL
+          { wch: 18 }, // Cant Recibos ERP
+        ];
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Auditoría Cruzada');
+
+        const fileName = `Auditoria_Cruce_${fechaInicio}_al_${fechaFin}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+        toast.success(`Reporte exportado exitosamente: ${fileName}`);
+      } else {
+        // Pestaña Integridad Interna ERP
+        const wb = XLSX.utils.book_new();
+
+        if (desfases.length > 0) {
+          const wsDesfases = XLSX.utils.json_to_sheet(
+            desfases.map((d) => ({
+              'Código': d.codigo,
+              'Cliente': d.nombre,
+              'Cobrador': d.cobrador,
+              'Saldo Base de Datos': d.saldoActualDB,
+              'Último Saldo en Pagos': d.ultimoSaldoPago,
+              'Diferencia': d.diferencia,
+              'Total Pagos': d.totalPagos,
+            }))
+          );
+          XLSX.utils.book_append_sheet(wb, wsDesfases, 'Desfases de Saldo');
+        }
+
+        if (duplicados.length > 0) {
+          const wsDuplicados = XLSX.utils.json_to_sheet(
+            duplicados.map((dp) => ({
+              'Código': dp.clienteCodigo,
+              'Cliente': dp.clienteNombre,
+              'Cobrador': dp.cobrador,
+              'Monto': dp.monto,
+              'Fecha': dp.fecha,
+              'Diferencia Segundos': dp.diffSegundos,
+              'ID Pago 1': dp.id1,
+              'ID Pago 2': dp.id2,
+            }))
+          );
+          XLSX.utils.book_append_sheet(wb, wsDuplicados, 'Pagos Duplicados');
+        }
+
+        if (saltosCadena.length > 0) {
+          const wsSaltos = XLSX.utils.json_to_sheet(
+            saltosCadena.map((s) => ({
+              'Código': s.codigo,
+              'Cliente': s.nombre,
+              'Cobrador': s.cobrador,
+              'Saldo Actual': s.saldoActual,
+              'Total Pagos': s.totalPagos,
+            }))
+          );
+          XLSX.utils.book_append_sheet(wb, wsSaltos, 'Saltos Cadena');
+        }
+
+        if (saldosNegativos.length > 0) {
+          const wsNegativos = XLSX.utils.json_to_sheet(
+            saldosNegativos.map((sn) => ({
+              'Código': sn.codigo,
+              'Cliente': sn.nombre,
+              'Cobrador': sn.cobrador,
+              'Saldo Negativo': sn.saldo,
+            }))
+          );
+          XLSX.utils.book_append_sheet(wb, wsNegativos, 'Saldos Negativos');
+        }
+
+        if (wb.SheetNames.length === 0) {
+          const wsVacio = XLSX.utils.json_to_sheet([{ 'Estado': 'Sin alertas de integridad' }]);
+          XLSX.utils.book_append_sheet(wb, wsVacio, 'Integridad');
+        }
+
+        const fileName = `Auditoria_Integridad_ERP_${new Date().toISOString().split('T')[0]}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+        toast.success(`Reporte exportado exitosamente: ${fileName}`);
+      }
+    } catch (error) {
+      console.error('Error al exportar a Excel:', error);
+      toast.error('Error al generar el archivo Excel');
+    }
+  };
+
   // Filtrado de clientes para la tabla de cruce
   const clientesFiltrados = clientesCruce.filter((c) => {
     if (filtroEstado === 'CON_PAGO_MYSQL' && c.mysqlPagos.length === 0) return false;
     if (filtroEstado === 'DIFERENCIAS' && c.estado === 'CUADRADO') return false;
+    if (filtroEstado === 'DIFERENCIAS_SALDO' && Math.abs(c.diferenciaSaldo || 0) <= 0.01) return false;
+    if (filtroEstado === 'DIFERENCIAS_CUALQUIERA' && c.estado === 'CUADRADO' && Math.abs(c.diferenciaSaldo || 0) <= 0.01) return false;
     if (filtroEstado === 'CUADRADO' && c.estado !== 'CUADRADO') return false;
     if (filtroEstado === 'FALTANTE_ERP' && c.estado !== 'FALTANTE_ERP') return false;
     if (filtroEstado === 'FALTANTE_MYSQL' && c.estado !== 'FALTANTE_MYSQL') return false;
@@ -557,6 +706,17 @@ export default function AuditoriaFinancieraPage() {
                       <Send className={`w-3.5 h-3.5 ${applyingContpaqi ? 'animate-spin' : ''}`} />
                       Contpaqi
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleExportarXLS}
+                      disabled={loadingCruce || clientesFiltrados.length === 0}
+                      className="h-8 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-300 flex-1 flex items-center justify-center gap-1 shadow-sm"
+                      title="Exportar auditoría a archivo Excel (.xlsx / .xls)"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                      Exportar XLS
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -691,7 +851,7 @@ export default function AuditoriaFinancieraPage() {
                     </div>
 
                     <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-                      <SelectTrigger className="h-8 text-xs w-36">
+                      <SelectTrigger className="h-8 text-xs w-44">
                         <SelectValue placeholder="Estado ERP" />
                       </SelectTrigger>
                       <SelectContent>
@@ -699,9 +859,14 @@ export default function AuditoriaFinancieraPage() {
                         <SelectItem value="CON_PAGO_MYSQL">
                           Con Pago en MySQL ({clientesCruce.filter((c) => c.mysqlPagos.length > 0).length})
                         </SelectItem>
+                        <SelectItem value="DIFERENCIAS_CUALQUIERA">
+                          Cualquier Discrepancia ({clientesCruce.filter((c) => c.estado !== 'CUADRADO' || Math.abs(c.diferenciaSaldo || 0) > 0.01).length})
+                        </SelectItem>
                         <SelectItem value="DIFERENCIAS">
-                          Solo Discrepancias (
-                          {clientesCruce.filter((c) => c.estado !== 'CUADRADO').length})
+                          Dif. en Pagos Periodo ({clientesCruce.filter((c) => c.estado !== 'CUADRADO').length})
+                        </SelectItem>
+                        <SelectItem value="DIFERENCIAS_SALDO">
+                          Dif. en Saldo Actual ({clientesCruce.filter((c) => Math.abs(c.diferenciaSaldo || 0) > 0.01).length})
                         </SelectItem>
                         <SelectItem value="FALTANTE_ERP">
                           Falta en ERP ({resumenCruce?.totalFaltantesErp ?? 0})
@@ -732,6 +897,18 @@ export default function AuditoriaFinancieraPage() {
                         </SelectItem>
                       </SelectContent>
                     </Select>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleExportarXLS}
+                      disabled={loadingCruce || clientesFiltrados.length === 0}
+                      className="h-8 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-300 flex items-center gap-1 shadow-sm"
+                      title="Descargar archivo Excel con los datos actuales"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                      Exportar XLS
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -755,9 +932,10 @@ export default function AuditoriaFinancieraPage() {
                           <th className="p-2.5">Código / Emp.</th>
                           <th className="p-2.5">Cliente</th>
                           <th className="p-2.5">Cobrador</th>
+                          <th className="p-2.5 text-right font-bold">Saldo Actual</th>
                           <th className="p-2.5 text-right font-bold">Total MySQL</th>
                           <th className="p-2.5 text-right font-bold">Total ERP</th>
-                          <th className="p-2.5 text-right">Diferencia</th>
+                          <th className="p-2.5 text-right">Dif. Pagos</th>
                           <th className="p-2.5 text-center">Estado ERP</th>
                           <th className="p-2.5 text-center">Estado Contpaqi</th>
                           <th className="p-2.5 text-center">Acciones</th>
@@ -779,6 +957,30 @@ export default function AuditoriaFinancieraPage() {
                             </td>
                             <td className="p-2.5 font-medium">{item.nombre}</td>
                             <td className="p-2.5 text-slate-500">{item.cobrador}</td>
+                            
+                            {/* Columna: Saldo Actual del Cliente (ERP vs MySQL con indicador de diferencia) */}
+                            <td className="p-2.5 text-right font-mono">
+                              <div className="font-bold text-slate-800 dark:text-slate-200">
+                                {formatCurrency(item.saldoErp)}
+                              </div>
+                              <div className="text-[10px] text-slate-500 flex items-center justify-end gap-1 mt-0.5">
+                                <span>MySQL: {formatCurrency(item.saldoMysql)}</span>
+                                {Math.abs(item.diferenciaSaldo) > 0.01 ? (
+                                  <Badge
+                                    variant="destructive"
+                                    className="text-[9px] px-1 py-0 h-4 font-mono font-bold"
+                                    title={`Diferencia en saldo: ${formatCurrency(item.diferenciaSaldo)} (ERP - MySQL)`}
+                                  >
+                                    Dif: {formatCurrency(item.diferenciaSaldo)}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-emerald-600 font-semibold text-[10px]" title="Saldo Actual sincronizado entre ERP y MySQL">
+                                    ✓
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
                             <td className="p-2.5 text-right font-mono font-bold text-blue-600">
                               {formatCurrency(item.mysqlTotal)}
                               {item.mysqlMora > 0 && (
@@ -914,6 +1116,41 @@ export default function AuditoriaFinancieraPage() {
                     </Button>
                   </div>
 
+                  {/* Resumen de Saldos Actuales del Cliente */}
+                  <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border text-xs">
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase font-semibold">Saldo Actual ERP</span>
+                      <span className="font-bold font-mono text-sm text-slate-800 dark:text-slate-200">
+                        {formatCurrency(selectedClienteModal.saldoErp)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase font-semibold">Saldo Actual MySQL</span>
+                      <span className="font-bold font-mono text-sm text-slate-800 dark:text-slate-200">
+                        {formatCurrency(selectedClienteModal.saldoMysql)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase font-semibold">Diferencia de Saldo</span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className={`font-bold font-mono text-sm ${
+                          Math.abs(selectedClienteModal.diferenciaSaldo) > 0.01 ? 'text-rose-600' : 'text-emerald-600'
+                        }`}>
+                          {formatCurrency(selectedClienteModal.diferenciaSaldo)}
+                        </span>
+                        {Math.abs(selectedClienteModal.diferenciaSaldo) > 0.01 ? (
+                          <Badge variant="destructive" className="text-[9px] px-1 py-0 h-4 font-mono font-bold">
+                            Desfase
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 text-[9px] px-1 py-0 h-4">
+                            Cuadrado
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     {/* Lista MySQL */}
                     <div className="border rounded-lg p-3 space-y-2 bg-slate-50 dark:bg-slate-800/40">
@@ -1046,6 +1283,17 @@ export default function AuditoriaFinancieraPage() {
                 >
                   <Wrench className={`w-4 h-4 ${reconcilingInterna ? 'animate-spin' : ''}`} />
                   Auto-Reconciliar Todo
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportarXLS}
+                  disabled={loadingInterna}
+                  className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-300 flex items-center gap-2 shadow-sm"
+                  title="Exportar alertas de integridad interna a Excel"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  Exportar XLS
                 </Button>
               </div>
             </div>

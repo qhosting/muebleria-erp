@@ -255,12 +255,60 @@ export async function GET(request: NextRequest) {
       item.erpTotal += totalRecibo;
     }
 
+    // 4.1 Enriquecer saldos actuales reales de ERP y MySQL
+    const todosCodigos = Array.from(clientesMap.keys());
+    if (todosCodigos.length > 0) {
+      try {
+        const clientesErpDb = await prisma.cliente.findMany({
+          where: { codigoCliente: { in: todosCodigos, mode: 'insensitive' } },
+          select: { codigoCliente: true, nombreCompleto: true, saldoActual: true },
+        });
+        const mapErpDb = new Map(clientesErpDb.map((c) => [c.codigoCliente.toUpperCase(), c]));
+
+        let mapMysqlDb = new Map<string, any>();
+        if (connection) {
+          try {
+            const placeholders = todosCodigos.map(() => '?').join(',');
+            const [catCli]: any = await connection.query(
+              `SELECT cod_cliente, saldo_actualcli, nombre_ccliente FROM cat_clientes WHERE cod_cliente IN (${placeholders})`,
+              todosCodigos
+            );
+            if (Array.isArray(catCli)) {
+              mapMysqlDb = new Map(catCli.map((c: any) => [(c.cod_cliente || '').trim().toUpperCase(), c]));
+            }
+          } catch (err) {
+            console.warn('Advertencia al consultar cat_clientes en MySQL:', err);
+          }
+        }
+
+        for (const [cod, item] of clientesMap.entries()) {
+          const cErp = mapErpDb.get(cod);
+          if (cErp) {
+            item.saldoErp = parseFloat(cErp.saldoActual?.toString() || '0');
+            if (item.nombre === 'Sin Nombre' && cErp.nombreCompleto) {
+              item.nombre = cErp.nombreCompleto;
+            }
+          }
+          const cMysql = mapMysqlDb.get(cod);
+          if (cMysql && cMysql.saldo_actualcli !== undefined && cMysql.saldo_actualcli !== null && cMysql.saldo_actualcli !== '') {
+            item.saldoMysql = parseFloat(cMysql.saldo_actualcli) || item.saldoMysql;
+            if (item.nombre === 'Sin Nombre' && cMysql.nombre_ccliente) {
+              item.nombre = cMysql.nombre_ccliente;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Error al enriquecer saldos actuales:', err);
+      }
+    }
+
     // Clasificar Estados y Contpaqi Status
     const listaResultados: any[] = [];
     let totalCuadrados = 0;
     let totalDesfaseMonto = 0;
     let totalFaltantesErp = 0;
     let totalFaltantesMysql = 0;
+    let totalDesfaseSaldo = 0;
 
     let totalContpaqiAplicados = 0;
     let totalContpaqiPendientes = 0;
@@ -276,6 +324,10 @@ export async function GET(request: NextRequest) {
     let sumaTotalErp = 0;
 
     for (const item of clientesMap.values()) {
+      item.saldoErp = parseFloat((item.saldoErp || 0).toFixed(2));
+      item.saldoMysql = parseFloat((item.saldoMysql || 0).toFixed(2));
+      item.diferenciaSaldo = parseFloat((item.saldoErp - item.saldoMysql).toFixed(2));
+
       item.mysqlAbono = parseFloat(item.mysqlAbono.toFixed(2));
       item.mysqlMora = parseFloat(item.mysqlMora.toFixed(2));
       item.mysqlGcob = parseFloat(item.mysqlGcob.toFixed(2));
@@ -289,6 +341,10 @@ export async function GET(request: NextRequest) {
       item.diferencia = parseFloat((item.erpTotal - item.mysqlTotal).toFixed(2));
       item.diferenciaAbono = parseFloat((item.erpAbono - item.mysqlAbono).toFixed(2));
       item.diferenciaMora = parseFloat((item.erpMora - item.mysqlMora).toFixed(2));
+
+      if (Math.abs(item.diferenciaSaldo) > 0.01) {
+        totalDesfaseSaldo++;
+      }
 
       sumaAbonoMysql += item.mysqlAbono;
       sumaMoraMysql += item.mysqlMora;
@@ -376,6 +432,7 @@ export async function GET(request: NextRequest) {
         totalClientesAuditados,
         totalCuadrados,
         totalDesfaseMonto,
+        totalDesfaseSaldo,
         totalFaltantesErp,
         totalFaltantesMysql,
         porcentajeCuadre,
