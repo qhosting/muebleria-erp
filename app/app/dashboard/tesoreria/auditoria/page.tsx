@@ -932,7 +932,7 @@ export default function AuditoriaFinancieraPage() {
                           <th className="p-2.5">Código / Emp.</th>
                           <th className="p-2.5">Cliente</th>
                           <th className="p-2.5">Cobrador</th>
-                          <th className="p-2.5 text-right font-bold">Saldo Actual</th>
+                          <th className="p-2.5 text-right font-bold min-w-[140px]">Saldo Actual</th>
                           <th className="p-2.5 text-right font-bold">Total MySQL</th>
                           <th className="p-2.5 text-right font-bold">Total ERP</th>
                           <th className="p-2.5 text-right">Dif. Pagos</th>
@@ -958,17 +958,19 @@ export default function AuditoriaFinancieraPage() {
                             <td className="p-2.5 font-medium">{item.nombre}</td>
                             <td className="p-2.5 text-slate-500">{item.cobrador}</td>
                             
-                            {/* Columna: Saldo Actual del Cliente (ERP vs MySQL con indicador de diferencia) */}
-                            <td className="p-2.5 text-right font-mono">
-                              <div className="font-bold text-slate-800 dark:text-slate-200">
+                            {/* Columna: Saldo Actual del Cliente (ERP vs MySQL con indicador de diferencia completo) */}
+                            <td className="p-2.5 text-right font-mono whitespace-nowrap">
+                              <div className="font-bold text-slate-900 dark:text-white text-xs">
                                 {formatCurrency(item.saldoErp)}
                               </div>
-                              <div className="text-[10px] text-slate-500 flex items-center justify-end gap-1 mt-0.5">
-                                <span>MySQL: {formatCurrency(item.saldoMysql)}</span>
+                              <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                                <span className="text-[10px] text-slate-500">
+                                  MySQL: {formatCurrency(item.saldoMysql)}
+                                </span>
                                 {Math.abs(item.diferenciaSaldo) > 0.01 ? (
                                   <Badge
                                     variant="destructive"
-                                    className="text-[9px] px-1 py-0 h-4 font-mono font-bold"
+                                    className="text-[10px] px-1.5 py-0.5 h-auto font-mono font-bold whitespace-nowrap shadow-none"
                                     title={`Diferencia en saldo: ${formatCurrency(item.diferenciaSaldo)} (ERP - MySQL)`}
                                   >
                                     Dif: {formatCurrency(item.diferenciaSaldo)}
