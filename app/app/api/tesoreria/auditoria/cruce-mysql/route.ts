@@ -64,7 +64,8 @@ export async function GET(request: NextRequest) {
     const [gestoresMysql]: any = await connection.query(
       `SELECT DISTINCT codigo_gestor FROM pagos WHERE codigo_gestor IS NOT NULL AND codigo_gestor != '' ORDER BY codigo_gestor`
     );
-    const listaCobradores = gestoresMysql.map((g: any) => g.codigo_gestor);
+    const cobradoresMysql = Array.isArray(gestoresMysql) ? gestoresMysql.map((g: any) => g.codigo_gestor) : [];
+    const cobradoresSet = new Set<string>(cobradoresMysql);
 
     // 2. Query de pagos en MySQL (montop, mora, gcob)
     let mysqlQuery = `
@@ -385,7 +386,6 @@ export async function GET(request: NextRequest) {
     let totalFaltantesErp = 0;
     let totalFaltantesMysql = 0;
     let totalDesfaseSaldo = 0;
-    const cobradoresSet = new Set<string>();
 
     let totalContpaqiAplicados = 0;
     let totalContpaqiPendientes = 0;
