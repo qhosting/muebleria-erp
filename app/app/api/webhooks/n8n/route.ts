@@ -26,7 +26,8 @@ export async function POST(req: Request) {
         let contrato = body.contrato || body.codigoCliente || body.cliente || body.contractId || body.metadata?.contrato;
         let monto = body.monto || body.montoTotal || body.amount || body.metadata?.monto;
         let referencia = body.referencia || body.ref || body.concept || body.metadata?.referencia;
-        let folio = body.folio || body.metadata?.folio;
+        let folio = body.folio || body.ticketIdOrigen || body.idpag || body.legacyId || body.metadata?.folio;
+        let legacyIdNum = parseInt(body.idpag || body.legacyId || body.ticketIdOrigen || '0') || null;
         let fecha = body.fecha || body.date || body.metadata?.fecha;
         let hr = body.hr || body.hora || body.time || body.metadata?.hr;
         let claverastreo = body.claverastreo || body.claveRastreo || body.clave_rastreo || body.trackingKey || body.metadata?.claverastreo;
@@ -34,9 +35,9 @@ export async function POST(req: Request) {
         let base64Data = body.base64Data || body.base64 || body.image || body.metadata?.base64Data;
         let tipoArchivo = body.tipoArchivo || body.mimeType || body.metadata?.tipoArchivo;
 
-        // Limpieza defensiva de posibles signos '=' o espacios extras de las expresiones de n8n
+        // Limpieza defensiva de posibles signos '=', '$', comas o espacios extras de las expresiones de n8n
         if (typeof contrato === "string") contrato = contrato.replace(/^=/, "").trim();
-        if (typeof monto === "string") monto = monto.replace(/^=/, "").trim();
+        if (typeof monto === "string") monto = monto.replace(/[\$=,]/g, "").trim();
         if (typeof referencia === "string") referencia = referencia.replace(/^=/, "").trim();
         if (typeof folio === "string") folio = folio.replace(/^=/, "").trim();
         if (typeof claverastreo === "string") claverastreo = claverastreo.replace(/^=/, "").trim();
@@ -149,6 +150,7 @@ export async function POST(req: Request) {
             where: {
                 clienteId: cliente.id,
                 OR: [
+                    (legacyIdNum) ? { legacyId: legacyIdNum } : { id: 'none' },
                     (claverastreo && claverastreo !== 'null' && claverastreo.length >= 10) ? { claveRastreo: claverastreo } : { id: 'none' },
                     (referencia && referencia !== 'null') ? { referencia: referencia } : { id: 'none' },
                     (folio && folio !== 'null') ? { folio: folio } : { id: 'none' },
@@ -202,6 +204,7 @@ export async function POST(req: Request) {
             const newTicket = await tx.ticket.create({
                 data: {
                     id: shortTicketId,
+                    legacyId: legacyIdNum || null,
                     clienteId: cliente.id,
                     monto: parseFloat(monto),
                     referencia: referencia !== 'null' ? referencia : null,
