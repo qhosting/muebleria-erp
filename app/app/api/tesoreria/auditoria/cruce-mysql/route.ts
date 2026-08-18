@@ -122,6 +122,7 @@ export async function GET(request: NextRequest) {
       empresaContpaqi: string;
       saldoErp: number;
       saldoMysql: number;
+      saldoContpaqi: number | null;
       mysqlPagos: any[];
       mysqlAbono: number;
       mysqlMora: number;
@@ -135,6 +136,8 @@ export async function GET(request: NextRequest) {
       diferencia: number;
       diferenciaAbono: number;
       diferenciaMora: number;
+      diferenciaSaldo: number;
+      diferenciaSaldoContpaqi: number | null;
       estado: 'CUADRADO' | 'DESFASE_MONTO' | 'FALTANTE_ERP' | 'FALTANTE_MYSQL';
       estadoContpaqi: 'APLICADO' | 'PENDIENTE' | 'NO_APLICA';
     }>();
@@ -151,6 +154,7 @@ export async function GET(request: NextRequest) {
           empresaContpaqi: obtenerEmpresaContpaqi(cod) || 'N/A',
           saldoErp: 0,
           saldoMysql: parseFloat(p.saldo_actualcli) || 0,
+          saldoContpaqi: null,
           mysqlPagos: [],
           mysqlAbono: 0,
           mysqlMora: 0,
@@ -164,6 +168,8 @@ export async function GET(request: NextRequest) {
           diferencia: 0,
           diferenciaAbono: 0,
           diferenciaMora: 0,
+          diferenciaSaldo: 0,
+          diferenciaSaldoContpaqi: null,
           estado: 'CUADRADO',
           estadoContpaqi: 'PENDIENTE',
         });
@@ -208,6 +214,7 @@ export async function GET(request: NextRequest) {
           empresaContpaqi: obtenerEmpresaContpaqi(cod) || 'N/A',
           saldoErp: parseFloat(p.cliente?.saldoActual?.toString() || '0'),
           saldoMysql: 0,
+          saldoContpaqi: null,
           mysqlPagos: [],
           mysqlAbono: 0,
           mysqlMora: 0,
@@ -221,6 +228,8 @@ export async function GET(request: NextRequest) {
           diferencia: 0,
           diferenciaAbono: 0,
           diferenciaMora: 0,
+          diferenciaSaldo: 0,
+          diferenciaSaldoContpaqi: null,
           estado: 'CUADRADO',
           estadoContpaqi: 'PENDIENTE',
         });
@@ -302,6 +311,32 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // 4.2 Cargar saldos de Contpaqi desde estadoCuentaCache si existen
+    if (todosCodigos.length > 0) {
+      try {
+        const clientesCache = await prisma.cliente.findMany({
+          where: { codigoCliente: { in: todosCodigos, mode: 'insensitive' } },
+          select: { codigoCliente: true, estadoCuentaCache: true }
+        });
+        for (const cc of clientesCache) {
+          const cod = cc.codigoCliente.toUpperCase();
+          const item = clientesMap.get(cod);
+          if (item && cc.estadoCuentaCache) {
+            const cacheObj = (cc.estadoCuentaCache as any)?.data || cc.estadoCuentaCache;
+            const rawSaldo = cacheObj?.saldoTotal ?? cacheObj?.saldo ?? cacheObj?.cSaldoActual ?? cacheObj?.saldoActual;
+            if (rawSaldo !== undefined && rawSaldo !== null) {
+              item.saldoContpaqi = parseFloat(rawSaldo.toString()) || null;
+              if (item.saldoContpaqi !== null) {
+                item.diferenciaSaldoContpaqi = parseFloat((item.saldoErp - item.saldoContpaqi).toFixed(2));
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Advertencia al consultar cache Contpaqi:', err);
+      }
+    }
+
     // Clasificar Estados y Contpaqi Status
     const listaResultados: any[] = [];
     let totalCuadrados = 0;
@@ -327,6 +362,10 @@ export async function GET(request: NextRequest) {
       item.saldoErp = parseFloat((item.saldoErp || 0).toFixed(2));
       item.saldoMysql = parseFloat((item.saldoMysql || 0).toFixed(2));
       item.diferenciaSaldo = parseFloat((item.saldoErp - item.saldoMysql).toFixed(2));
+      if (item.saldoContpaqi !== null) {
+        item.saldoContpaqi = parseFloat(item.saldoContpaqi.toFixed(2));
+        item.diferenciaSaldoContpaqi = parseFloat((item.saldoErp - item.saldoContpaqi).toFixed(2));
+      }
 
       item.mysqlAbono = parseFloat(item.mysqlAbono.toFixed(2));
       item.mysqlMora = parseFloat(item.mysqlMora.toFixed(2));
@@ -474,13 +513,88 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      accion = 'auto_alinear', // 'auto_alinear' | 'aplicar_contpaqi'
+      accion = 'auto_alinear', // 'auto_alinear' | 'aplicar_contpaqi' | 'consultar_saldos_contpaqi'
       fechaInicio,
       fechaFin,
       codigoCliente,
+      codigos,
       cobradorFiltro = 'all',
       aplicarContpaqi = false,
     } = body;
+
+    // =========================================================================
+    // ACCIÓN 0: CONSULTAR SALDOS EN VIVO DESDE CONTPAQI API
+    // =========================================================================
+    if (accion === 'consultar_saldos_contpaqi') {
+      const targetCodigos: string[] = Array.isArray(codigos) && codigos.length > 0
+        ? codigos
+        : codigoCliente
+        ? [codigoCliente]
+        : [];
+
+      if (targetCodigos.length === 0) {
+        return NextResponse.json({ error: 'Faltan códigos de clientes a consultar' }, { status: 400 });
+      }
+
+      const resultados: Record<string, { saldoContpaqi: number | null; error?: string }> = {};
+
+      // Agrupar códigos por empresa (DQ / DP)
+      const porEmpresa: Record<string, string[]> = {};
+      for (const cod of targetCodigos) {
+        const cClean = (cod || '').trim().toUpperCase();
+        if (!cClean) continue;
+        const emp = obtenerEmpresaContpaqi(cClean) || 'DQ';
+        if (!porEmpresa[emp]) porEmpresa[emp] = [];
+        porEmpresa[emp].push(cClean);
+      }
+
+      for (const [empresa, listaCodigos] of Object.entries(porEmpresa)) {
+        try {
+          const service = await getContpaqiService(prisma, empresa);
+          
+          await Promise.allSettled(
+            listaCodigos.map(async (cod) => {
+              try {
+                const c = await service.getCliente(cod);
+                if (c) {
+                  const raw = c.cSaldoActual ?? c.csaldoactual ?? c.cSaldo ?? c.saldo ?? c.CSALDOACTUAL ?? c.CSALDO;
+                  if (raw !== undefined && raw !== null) {
+                    const parsedSaldo = parseFloat(raw.toString()) || 0;
+                    resultados[cod] = { saldoContpaqi: parsedSaldo };
+                    
+                    // Actualizar cache en DB si existe el cliente
+                    prisma.cliente.updateMany({
+                      where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
+                      data: {
+                        estadoCuentaCache: {
+                          cachedAt: new Date().toISOString(),
+                          data: { saldoTotal: parsedSaldo, cSaldoActual: parsedSaldo }
+                        }
+                      }
+                    }).catch(() => {});
+                    return;
+                  }
+                }
+                resultados[cod] = { saldoContpaqi: null, error: 'No reporta saldo' };
+              } catch (e: any) {
+                resultados[cod] = { saldoContpaqi: null, error: e.message };
+              }
+            })
+          );
+        } catch (err: any) {
+          console.warn(`Error al conectar con Contpaqi para empresa ${empresa}:`, err.message);
+          for (const cod of listaCodigos) {
+            resultados[cod] = { saldoContpaqi: null, error: err.message };
+          }
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        saldos: resultados,
+        mensaje: `Se consultaron ${Object.keys(resultados).length} saldos en Contpaqi API.`
+      });
+    }
 
     // =========================================================================
     // ACCIÓN 1: APLICAR EN CONTPAQI PAGOS YA REGISTRADOS EN ERP

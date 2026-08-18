@@ -134,7 +134,9 @@ interface ClienteCruceItem {
   empresaContpaqi: string;
   saldoErp: number;
   saldoMysql: number;
+  saldoContpaqi: number | null;
   diferenciaSaldo: number;
+  diferenciaSaldoContpaqi: number | null;
   mysqlPagos: { id: number; fecha: string; montoAbono: number; mora: number; gcob: number; montoTotal: number; referencia: string; cobrador: string }[];
   mysqlAbono: number;
   mysqlMora: number;
@@ -180,6 +182,7 @@ export default function AuditoriaFinancieraPage() {
   const [loadingCruce, setLoadingCruce] = useState(true);
   const [aligning, setAligning] = useState(false);
   const [applyingContpaqi, setApplyingContpaqi] = useState(false);
+  const [loadingContpaqiSaldos, setLoadingContpaqiSaldos] = useState(false);
   const [resumenCruce, setResumenCruce] = useState<ResumenCruce | null>(null);
   const [clientesCruce, setClientesCruce] = useState<ClienteCruceItem[]>([]);
   const [selectedClienteModal, setSelectedClienteModal] = useState<ClienteCruceItem | null>(null);
@@ -397,6 +400,82 @@ export default function AuditoriaFinancieraPage() {
     }
   };
 
+  // Función para consultar saldos en vivo desde Contpaqi Comercial API
+  const handleConsultarSaldosContpaqi = async (codigoCliente?: string) => {
+    const codigosParaConsultar = codigoCliente
+      ? [codigoCliente]
+      : clientesFiltrados.map((c) => c.codigo);
+
+    if (codigosParaConsultar.length === 0) {
+      toast.error('No hay clientes seleccionados para consultar');
+      return;
+    }
+
+    setLoadingContpaqiSaldos(true);
+    toast.info(
+      codigoCliente
+        ? `Consultando saldo de ${codigoCliente} en Contpaqi API...`
+        : `Consultando saldos de ${codigosParaConsultar.length} clientes en Contpaqi API...`
+    );
+
+    try {
+      const res = await fetch('/api/tesoreria/auditoria/cruce-mysql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accion: 'consultar_saldos_contpaqi',
+          codigos: codigosParaConsultar,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const saldosMap = data.saldos || {};
+
+        setClientesCruce((prev) =>
+          prev.map((c) => {
+            const entry = saldosMap[c.codigo.toUpperCase()];
+            if (entry && entry.saldoContpaqi !== undefined) {
+              const saldoContpaqi = entry.saldoContpaqi;
+              const difContpaqi = saldoContpaqi !== null ? parseFloat((c.saldoErp - saldoContpaqi).toFixed(2)) : null;
+              return {
+                ...c,
+                saldoContpaqi,
+                diferenciaSaldoContpaqi: difContpaqi,
+              };
+            }
+            return c;
+          })
+        );
+
+        setSelectedClienteModal((prev) => {
+          if (!prev) return null;
+          const entry = saldosMap[prev.codigo.toUpperCase()];
+          if (entry && entry.saldoContpaqi !== undefined) {
+            const saldoContpaqi = entry.saldoContpaqi;
+            const difContpaqi = saldoContpaqi !== null ? parseFloat((prev.saldoErp - saldoContpaqi).toFixed(2)) : null;
+            return {
+              ...prev,
+              saldoContpaqi,
+              diferenciaSaldoContpaqi: difContpaqi,
+            };
+          }
+          return prev;
+        });
+
+        toast.success(data.mensaje || 'Saldos de Contpaqi actualizados.');
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Error al consultar Contpaqi API');
+      }
+    } catch (error) {
+      console.error('Error al consultar saldos Contpaqi:', error);
+      toast.error('Error de red al consultar Contpaqi API');
+    } finally {
+      setLoadingContpaqiSaldos(false);
+    }
+  };
+
   // Función para exportar auditoría a archivo Excel (.xlsx / .xls)
   const handleExportarXLS = () => {
     try {
@@ -413,7 +492,9 @@ export default function AuditoriaFinancieraPage() {
           'Cobrador / Gestor': item.cobrador,
           'Saldo Actual ERP': item.saldoErp,
           'Saldo Actual MySQL': item.saldoMysql,
-          'Diferencia Saldo': item.diferenciaSaldo,
+          'Diferencia Saldo (ERP - MySQL)': item.diferenciaSaldo,
+          'Saldo Contpaqi API': item.saldoContpaqi !== null ? item.saldoContpaqi : 'N/A',
+          'Dif. Saldo vs Contpaqi': item.diferenciaSaldoContpaqi !== null ? item.diferenciaSaldoContpaqi : 'N/A',
           'Hay Dif Saldo': Math.abs(item.diferenciaSaldo) > 0.01 ? 'SI' : 'NO',
           'Abono MySQL': item.mysqlAbono,
           'Mora MySQL': item.mysqlMora,
@@ -442,7 +523,9 @@ export default function AuditoriaFinancieraPage() {
           { wch: 22 }, // Cobrador
           { wch: 18 }, // Saldo ERP
           { wch: 18 }, // Saldo MySQL
-          { wch: 18 }, // Dif Saldo
+          { wch: 22 }, // Dif Saldo ERP - MySQL
+          { wch: 20 }, // Saldo Contpaqi API
+          { wch: 22 }, // Dif Saldo vs Contpaqi
           { wch: 15 }, // Hay Dif Saldo
           { wch: 15 }, // Abono MySQL
           { wch: 14 }, // Mora MySQL
@@ -545,7 +628,8 @@ export default function AuditoriaFinancieraPage() {
     if (filtroEstado === 'CON_PAGO_MYSQL' && c.mysqlPagos.length === 0) return false;
     if (filtroEstado === 'DIFERENCIAS' && c.estado === 'CUADRADO') return false;
     if (filtroEstado === 'DIFERENCIAS_SALDO' && Math.abs(c.diferenciaSaldo || 0) <= 0.01) return false;
-    if (filtroEstado === 'DIFERENCIAS_CUALQUIERA' && c.estado === 'CUADRADO' && Math.abs(c.diferenciaSaldo || 0) <= 0.01) return false;
+    if (filtroEstado === 'DIFERENCIAS_CONTPAQI' && (c.saldoContpaqi === null || Math.abs((c.saldoErp || 0) - c.saldoContpaqi) <= 0.01)) return false;
+    if (filtroEstado === 'DIFERENCIAS_CUALQUIERA' && c.estado === 'CUADRADO' && Math.abs(c.diferenciaSaldo || 0) <= 0.01 && (c.saldoContpaqi === null || Math.abs((c.saldoErp || 0) - c.saldoContpaqi) <= 0.01)) return false;
     if (filtroEstado === 'CUADRADO' && c.estado !== 'CUADRADO') return false;
     if (filtroEstado === 'FALTANTE_ERP' && c.estado !== 'FALTANTE_ERP') return false;
     if (filtroEstado === 'FALTANTE_MYSQL' && c.estado !== 'FALTANTE_MYSQL') return false;
@@ -709,6 +793,17 @@ export default function AuditoriaFinancieraPage() {
                     <Button
                       size="sm"
                       variant="outline"
+                      onClick={() => handleConsultarSaldosContpaqi()}
+                      disabled={loadingCruce || loadingContpaqiSaldos || clientesFiltrados.length === 0}
+                      className="h-8 text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-300 flex-1 flex items-center justify-center gap-1 shadow-sm"
+                      title="Consultar saldos actuales en vivo desde Contpaqi Comercial API"
+                    >
+                      <Building2 className={`w-3.5 h-3.5 text-purple-600 ${loadingContpaqiSaldos ? 'animate-spin' : ''}`} />
+                      Saldos Contpaqi
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
                       onClick={handleExportarXLS}
                       disabled={loadingCruce || clientesFiltrados.length === 0}
                       className="h-8 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-300 flex-1 flex items-center justify-center gap-1 shadow-sm"
@@ -860,13 +955,16 @@ export default function AuditoriaFinancieraPage() {
                           Con Pago en MySQL ({clientesCruce.filter((c) => c.mysqlPagos.length > 0).length})
                         </SelectItem>
                         <SelectItem value="DIFERENCIAS_CUALQUIERA">
-                          Cualquier Discrepancia ({clientesCruce.filter((c) => c.estado !== 'CUADRADO' || Math.abs(c.diferenciaSaldo || 0) > 0.01).length})
+                          Cualquier Discrepancia ({clientesCruce.filter((c) => c.estado !== 'CUADRADO' || Math.abs(c.diferenciaSaldo || 0) > 0.01 || (c.saldoContpaqi !== null && Math.abs((c.saldoErp || 0) - c.saldoContpaqi) > 0.01)).length})
                         </SelectItem>
                         <SelectItem value="DIFERENCIAS">
                           Dif. en Pagos Periodo ({clientesCruce.filter((c) => c.estado !== 'CUADRADO').length})
                         </SelectItem>
                         <SelectItem value="DIFERENCIAS_SALDO">
-                          Dif. en Saldo Actual ({clientesCruce.filter((c) => Math.abs(c.diferenciaSaldo || 0) > 0.01).length})
+                          Dif. Saldo ERP vs MySQL ({clientesCruce.filter((c) => Math.abs(c.diferenciaSaldo || 0) > 0.01).length})
+                        </SelectItem>
+                        <SelectItem value="DIFERENCIAS_CONTPAQI">
+                          Dif. Saldo vs Contpaqi ({clientesCruce.filter((c) => c.saldoContpaqi !== null && Math.abs((c.saldoErp || 0) - c.saldoContpaqi) > 0.01).length})
                         </SelectItem>
                         <SelectItem value="FALTANTE_ERP">
                           Falta en ERP ({resumenCruce?.totalFaltantesErp ?? 0})
@@ -932,7 +1030,8 @@ export default function AuditoriaFinancieraPage() {
                           <th className="p-2.5">Código / Emp.</th>
                           <th className="p-2.5">Cliente</th>
                           <th className="p-2.5">Cobrador</th>
-                          <th className="p-2.5 text-right font-bold min-w-[140px]">Saldo Actual</th>
+                          <th className="p-2.5 text-right font-bold min-w-[130px]">Saldo ERP / MySQL</th>
+                          <th className="p-2.5 text-right font-bold min-w-[140px]">Saldo Contpaqi API</th>
                           <th className="p-2.5 text-right font-bold">Total MySQL</th>
                           <th className="p-2.5 text-right font-bold">Total ERP</th>
                           <th className="p-2.5 text-right">Dif. Pagos</th>
@@ -958,7 +1057,7 @@ export default function AuditoriaFinancieraPage() {
                             <td className="p-2.5 font-medium">{item.nombre}</td>
                             <td className="p-2.5 text-slate-500">{item.cobrador}</td>
                             
-                            {/* Columna: Saldo Actual del Cliente (ERP vs MySQL con indicador de diferencia completo) */}
+                            {/* Columna: Saldo Actual ERP vs MySQL */}
                             <td className="p-2.5 text-right font-mono whitespace-nowrap">
                               <div className="font-bold text-slate-900 dark:text-white text-xs">
                                 {formatCurrency(item.saldoErp)}
@@ -981,6 +1080,46 @@ export default function AuditoriaFinancieraPage() {
                                   </span>
                                 )}
                               </div>
+                            </td>
+
+                            {/* Columna: Saldo Actual Contpaqi API */}
+                            <td className="p-2.5 text-right font-mono whitespace-nowrap">
+                              {item.saldoContpaqi !== null ? (
+                                <div>
+                                  <div className="font-bold text-purple-700 dark:text-purple-300 text-xs">
+                                    {formatCurrency(item.saldoContpaqi)}
+                                  </div>
+                                  <div className="flex items-center justify-end gap-1 mt-0.5">
+                                    {Math.abs((item.saldoErp || 0) - item.saldoContpaqi) > 0.01 ? (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[9px] px-1.5 py-0.5 h-auto font-mono text-amber-700 bg-amber-50 border-amber-300 whitespace-nowrap"
+                                        title={`Diferencia ERP vs Contpaqi: ${formatCurrency(item.saldoErp - item.saldoContpaqi)}`}
+                                      >
+                                        Dif: {formatCurrency(item.saldoErp - item.saldoContpaqi)}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-emerald-600 font-semibold text-[10px]" title="Saldo idéntico al ERP">
+                                        ✓ Igual ERP
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-end gap-1">
+                                  <span className="text-[10px] text-slate-400 italic">No cargado</span>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    disabled={loadingContpaqiSaldos}
+                                    onClick={() => handleConsultarSaldosContpaqi(item.codigo)}
+                                    className="h-6 w-6 p-0 text-slate-400 hover:text-purple-600 hover:bg-purple-50"
+                                    title="Consultar saldo en Contpaqi API"
+                                  >
+                                    <RefreshCw className={`w-3 h-3 ${loadingContpaqiSaldos ? 'animate-spin' : ''}`} />
+                                  </Button>
+                                </div>
+                              )}
                             </td>
 
                             <td className="p-2.5 text-right font-mono font-bold text-blue-600">
@@ -1093,7 +1232,7 @@ export default function AuditoriaFinancieraPage() {
             {/* Modal de Detalle de Recibos de un Cliente con Desglose de Moratorio */}
             {selectedClienteModal && (
               <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                <div className="bg-white dark:bg-slate-900 rounded-xl max-w-2xl w-full border shadow-xl p-5 space-y-4">
+                <div className="bg-white dark:bg-slate-900 rounded-xl max-w-3xl w-full border shadow-xl p-5 space-y-4">
                   <div className="flex justify-between items-start border-b pb-3">
                     <div>
                       <div className="flex items-center gap-2">
@@ -1118,24 +1257,42 @@ export default function AuditoriaFinancieraPage() {
                     </Button>
                   </div>
 
-                  {/* Resumen de Saldos Actuales del Cliente */}
-                  <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border text-xs">
+                  {/* Resumen de Saldos Actuales del Cliente: ERP vs MySQL vs Contpaqi */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border text-xs">
                     <div>
-                      <span className="text-slate-500 block text-[10px] uppercase font-semibold">Saldo Actual ERP</span>
+                      <span className="text-slate-500 block text-[10px] uppercase font-semibold">Saldo ERP</span>
                       <span className="font-bold font-mono text-sm text-slate-800 dark:text-slate-200">
                         {formatCurrency(selectedClienteModal.saldoErp)}
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-[10px] uppercase font-semibold">Saldo Actual MySQL</span>
+                      <span className="text-slate-500 block text-[10px] uppercase font-semibold">Saldo MySQL</span>
                       <span className="font-bold font-mono text-sm text-slate-800 dark:text-slate-200">
                         {formatCurrency(selectedClienteModal.saldoMysql)}
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-[10px] uppercase font-semibold">Diferencia de Saldo</span>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`font-bold font-mono text-sm ${
+                      <span className="text-slate-500 block text-[10px] uppercase font-semibold">Saldo Contpaqi API</span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-bold font-mono text-sm text-purple-700 dark:text-purple-300">
+                          {selectedClienteModal.saldoContpaqi !== null ? formatCurrency(selectedClienteModal.saldoContpaqi) : 'Sin consultar'}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={loadingContpaqiSaldos}
+                          onClick={() => handleConsultarSaldosContpaqi(selectedClienteModal.codigo)}
+                          className="h-5 w-5 p-0 text-purple-600 hover:bg-purple-100"
+                          title="Consultar saldo en vivo en Contpaqi"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${loadingContpaqiSaldos ? 'animate-spin' : ''}`} />
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase font-semibold">Dif. ERP vs MySQL</span>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className={`font-bold font-mono text-xs ${
                           Math.abs(selectedClienteModal.diferenciaSaldo) > 0.01 ? 'text-rose-600' : 'text-emerald-600'
                         }`}>
                           {formatCurrency(selectedClienteModal.diferenciaSaldo)}
@@ -1146,7 +1303,7 @@ export default function AuditoriaFinancieraPage() {
                           </Badge>
                         ) : (
                           <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 text-[9px] px-1 py-0 h-4">
-                            Cuadrado
+                            OK
                           </Badge>
                         )}
                       </div>
