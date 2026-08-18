@@ -235,6 +235,7 @@ export async function GET(request: NextRequest) {
       const moraNum = parseFloat(p.interesMoratorio?.toString() || '0') || 0;
       const gcobNum = parseFloat(p.gastosCobranza?.toString() || '0') || 0;
       const totalRecibo = abonoNum + moraNum + gcobNum;
+      const fueAplicadoContpaqi = p.banco === 'CONTPAQI_APLICADO' || (p.concepto && p.concepto.includes('[CONTPAQI'));
 
       item.erpPagos.push({
         id: p.id,
@@ -245,7 +246,7 @@ export async function GET(request: NextRequest) {
         montoTotal: totalRecibo,
         referencia: p.numeroRecibo || p.concepto || '',
         cobrador: p.cobrador?.name || '',
-        sincronizadoContpaqi: p.sincronizado || false,
+        sincronizadoContpaqi: fueAplicadoContpaqi || false,
       });
 
       item.erpAbono += abonoNum;
@@ -434,6 +435,9 @@ export async function POST(request: NextRequest) {
       const whereClause: any = {
         fechaPago: { gte: dStart, lte: dEnd },
         monto: { gt: 0 }, // Solo abonos de capital mayores a 0
+        NOT: {
+          banco: 'CONTPAQI_APLICADO',
+        },
       };
 
       if (codigoCliente) {
@@ -474,7 +478,11 @@ export async function POST(request: NextRequest) {
 
           await prisma.pago.update({
             where: { id: pago.id },
-            data: { sincronizado: true }
+            data: {
+              banco: 'CONTPAQI_APLICADO',
+              sincronizado: true,
+              concepto: `${pago.concepto || ''} [CONTPAQI_OK: ${new Date().toISOString()}]`.trim(),
+            }
           });
 
           contpaqiExitosos++;
@@ -604,7 +612,11 @@ export async function POST(request: NextRequest) {
 
               await prisma.pago.update({
                 where: { id: nuevoPago.id },
-                data: { sincronizado: true }
+                data: {
+                  banco: 'CONTPAQI_APLICADO',
+                  sincronizado: true,
+                  concepto: `${nuevoPago.concepto || ''} [CONTPAQI_OK: ${new Date().toISOString()}]`.trim(),
+                }
               });
 
               contpaqiAplicadosCount++;
