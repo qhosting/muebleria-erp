@@ -42,7 +42,8 @@ import {
   Activity,
   ShoppingBag,
   Gift,
-  Database
+  Database,
+  ShieldCheck
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -141,6 +142,7 @@ const navigation: NavItem[] = [
       { name: 'Bancos', href: '/dashboard/tesoreria/bancos', icon: Landmark },
       { name: 'Conciliador', href: '/dashboard/tesoreria/conciliador', icon: RefreshCcw },
       { name: 'Control de Caja', href: '/dashboard/tesoreria/caja', icon: Wallet },
+      { name: 'Auditoría Cuentas', href: '/dashboard/tesoreria/auditoria', icon: ShieldCheck },
     ]
   },
   {
