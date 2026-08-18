@@ -16,6 +16,7 @@ const MYSQL_CONFIG = {
 
 /**
  * GET: Ejecuta la auditoría cruzada de pagos (Sábado a Viernes u otro rango) entre MySQL y PostgreSQL
+ * Incluye desglose completo de Abonos (Capital), Intereses Moratorios y Gastos de Cobranza.
  */
 export async function GET(request: NextRequest) {
   let connection: mysql.Connection | null = null;
@@ -52,9 +53,9 @@ export async function GET(request: NextRequest) {
     );
     const listaCobradores = gestoresMysql.map((g: any) => g.codigo_gestor);
 
-    // 2. Query de pagos en MySQL
+    // 2. Query de pagos en MySQL (montop, mora, gcob)
     let mysqlQuery = `
-      SELECT idpag, cod_cliente, nombre_ccliente, fechap, fechahora, montop, ref_pago, codigo_gestor, saldo_actualcli
+      SELECT idpag, cod_cliente, nombre_ccliente, fechap, fechahora, montop, mora, gcob, ref_pago, codigo_gestor, saldo_actualcli
       FROM pagos
       WHERE DATE(fechap) >= ? AND DATE(fechap) <= ?
     `;
@@ -108,10 +109,18 @@ export async function GET(request: NextRequest) {
       saldoErp: number;
       saldoMysql: number;
       mysqlPagos: any[];
+      mysqlAbono: number;
+      mysqlMora: number;
+      mysqlGcob: number;
       mysqlTotal: number;
       erpPagos: any[];
+      erpAbono: number;
+      erpMora: number;
+      erpGcob: number;
       erpTotal: number;
       diferencia: number;
+      diferenciaAbono: number;
+      diferenciaMora: number;
       estado: 'CUADRADO' | 'DESFASE_MONTO' | 'FALTANTE_ERP' | 'FALTANTE_MYSQL';
     }>();
 
@@ -127,23 +136,44 @@ export async function GET(request: NextRequest) {
           saldoErp: 0,
           saldoMysql: parseFloat(p.saldo_actualcli) || 0,
           mysqlPagos: [],
+          mysqlAbono: 0,
+          mysqlMora: 0,
+          mysqlGcob: 0,
           mysqlTotal: 0,
           erpPagos: [],
+          erpAbono: 0,
+          erpMora: 0,
+          erpGcob: 0,
           erpTotal: 0,
           diferencia: 0,
+          diferenciaAbono: 0,
+          diferenciaMora: 0,
           estado: 'CUADRADO',
         });
       }
       const item = clientesMap.get(cod)!;
+      const abonoNum = parseFloat(p.montop) || 0;
+      const moraNum = parseFloat(p.mora) || 0;
+      const gcobNum = parseFloat(p.gcob) || 0;
+      const totalRecibo = abonoNum + moraNum + gcobNum;
+
       item.mysqlPagos.push({
         id: p.idpag,
         fecha: p.fechap ? new Date(p.fechap).toISOString().slice(0, 10) : '',
         hora: p.fechahora || '',
-        monto: parseFloat(p.montop) || 0,
+        montoAbono: abonoNum,
+        mora: moraNum,
+        gcob: gcobNum,
+        montoTotal: totalRecibo,
         referencia: p.ref_pago || '',
         cobrador: p.codigo_gestor || '',
       });
-      item.mysqlTotal += parseFloat(p.montop) || 0;
+
+      item.mysqlAbono += abonoNum;
+      item.mysqlMora += moraNum;
+      item.mysqlGcob += gcobNum;
+      item.mysqlTotal += totalRecibo;
+
       if (p.saldo_actualcli) {
         item.saldoMysql = parseFloat(p.saldo_actualcli) || item.saldoMysql;
       }
@@ -161,10 +191,18 @@ export async function GET(request: NextRequest) {
           saldoErp: parseFloat(p.cliente?.saldoActual?.toString() || '0'),
           saldoMysql: 0,
           mysqlPagos: [],
+          mysqlAbono: 0,
+          mysqlMora: 0,
+          mysqlGcob: 0,
           mysqlTotal: 0,
           erpPagos: [],
+          erpAbono: 0,
+          erpMora: 0,
+          erpGcob: 0,
           erpTotal: 0,
           diferencia: 0,
+          diferenciaAbono: 0,
+          diferenciaMora: 0,
           estado: 'CUADRADO',
         });
       }
@@ -173,33 +211,70 @@ export async function GET(request: NextRequest) {
       if (p.cobrador?.name && item.cobrador === 'Sin Asignar') {
         item.cobrador = p.cobrador.name;
       }
+
+      const abonoNum = parseFloat(p.monto.toString()) || 0;
+      const moraNum = parseFloat(p.interesMoratorio?.toString() || '0') || 0;
+      const gcobNum = parseFloat(p.gastosCobranza?.toString() || '0') || 0;
+      const totalRecibo = abonoNum + moraNum + gcobNum;
+
       item.erpPagos.push({
         id: p.id,
         fecha: p.fechaPago.toISOString().slice(0, 10),
-        monto: parseFloat(p.monto.toString()),
+        montoAbono: abonoNum,
+        mora: moraNum,
+        gcob: gcobNum,
+        montoTotal: totalRecibo,
         referencia: p.numeroRecibo || p.concepto || '',
         cobrador: p.cobrador?.name || '',
       });
-      item.erpTotal += parseFloat(p.monto.toString());
+
+      item.erpAbono += abonoNum;
+      item.erpMora += moraNum;
+      item.erpGcob += gcobNum;
+      item.erpTotal += totalRecibo;
     }
 
-    // Clasificar Estados
+    // Clasificar Estados y Calcular Diferencias
     const listaResultados: any[] = [];
     let totalCuadrados = 0;
     let totalDesfaseMonto = 0;
     let totalFaltantesErp = 0;
     let totalFaltantesMysql = 0;
 
-    let sumaMontoMysql = 0;
-    let sumaMontoErp = 0;
+    let sumaAbonoMysql = 0;
+    let sumaMoraMysql = 0;
+    let sumaGcobMysql = 0;
+    let sumaTotalMysql = 0;
+
+    let sumaAbonoErp = 0;
+    let sumaMoraErp = 0;
+    let sumaGcobErp = 0;
+    let sumaTotalErp = 0;
 
     for (const item of clientesMap.values()) {
+      item.mysqlAbono = parseFloat(item.mysqlAbono.toFixed(2));
+      item.mysqlMora = parseFloat(item.mysqlMora.toFixed(2));
+      item.mysqlGcob = parseFloat(item.mysqlGcob.toFixed(2));
       item.mysqlTotal = parseFloat(item.mysqlTotal.toFixed(2));
-      item.erpTotal = parseFloat(item.erpTotal.toFixed(2));
-      item.diferencia = parseFloat((item.erpTotal - item.mysqlTotal).toFixed(2));
 
-      sumaMontoMysql += item.mysqlTotal;
-      sumaMontoErp += item.erpTotal;
+      item.erpAbono = parseFloat(item.erpAbono.toFixed(2));
+      item.erpMora = parseFloat(item.erpMora.toFixed(2));
+      item.erpGcob = parseFloat(item.erpGcob.toFixed(2));
+      item.erpTotal = parseFloat(item.erpTotal.toFixed(2));
+
+      item.diferencia = parseFloat((item.erpTotal - item.mysqlTotal).toFixed(2));
+      item.diferenciaAbono = parseFloat((item.erpAbono - item.mysqlAbono).toFixed(2));
+      item.diferenciaMora = parseFloat((item.erpMora - item.mysqlMora).toFixed(2));
+
+      sumaAbonoMysql += item.mysqlAbono;
+      sumaMoraMysql += item.mysqlMora;
+      sumaGcobMysql += item.mysqlGcob;
+      sumaTotalMysql += item.mysqlTotal;
+
+      sumaAbonoErp += item.erpAbono;
+      sumaMoraErp += item.erpMora;
+      sumaGcobErp += item.erpGcob;
+      sumaTotalErp += item.erpTotal;
 
       if (item.mysqlPagos.length > 0 && item.erpPagos.length === 0) {
         item.estado = 'FALTANTE_ERP';
@@ -218,14 +293,17 @@ export async function GET(request: NextRequest) {
       listaResultados.push(item);
     }
 
-    // Ordenar: primero los que tienen discrepancias (Faltantes y Desfases) ordenados por diferencia absoluta
+    // Ordenar: primero los que tienen discrepancias ordenados por diferencia absoluta
     listaResultados.sort((a, b) => {
       if (a.estado !== 'CUADRADO' && b.estado === 'CUADRADO') return -1;
       if (a.estado === 'CUADRADO' && b.estado !== 'CUADRADO') return 1;
       return Math.abs(b.diferencia) - Math.abs(a.diferencia);
     });
 
-    const diferenciaGlobal = parseFloat((sumaMontoErp - sumaMontoMysql).toFixed(2));
+    const diferenciaGlobal = parseFloat((sumaTotalErp - sumaTotalMysql).toFixed(2));
+    const diferenciaAbonoGlobal = parseFloat((sumaAbonoErp - sumaAbonoMysql).toFixed(2));
+    const diferenciaMoraGlobal = parseFloat((sumaMoraErp - sumaMoraMysql).toFixed(2));
+
     const totalClientesAuditados = listaResultados.length;
     const porcentajeCuadre = totalClientesAuditados > 0
       ? parseFloat(((totalCuadrados / totalClientesAuditados) * 100).toFixed(1))
@@ -238,9 +316,24 @@ export async function GET(request: NextRequest) {
         cobradorFiltro,
         totalPagosMysql: pagosMysql.length,
         totalPagosErp: pagosErp.length,
-        montoTotalMysql: sumaMontoMysql,
-        montoTotalErp: sumaMontoErp,
+        
+        // MySQL
+        montoAbonoMysql: parseFloat(sumaAbonoMysql.toFixed(2)),
+        montoMoraMysql: parseFloat(sumaMoraMysql.toFixed(2)),
+        montoGcobMysql: parseFloat(sumaGcobMysql.toFixed(2)),
+        montoTotalMysql: parseFloat(sumaTotalMysql.toFixed(2)),
+        
+        // ERP
+        montoAbonoErp: parseFloat(sumaAbonoErp.toFixed(2)),
+        montoMoraErp: parseFloat(sumaMoraErp.toFixed(2)),
+        montoGcobErp: parseFloat(sumaGcobErp.toFixed(2)),
+        montoTotalErp: parseFloat(sumaTotalErp.toFixed(2)),
+        
+        // Diferencias
         diferenciaGlobal,
+        diferenciaAbonoGlobal,
+        diferenciaMoraGlobal,
+
         totalClientesAuditados,
         totalCuadrados,
         totalDesfaseMonto,
@@ -263,7 +356,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST: Auto-alineación / Importación de pagos faltantes desde MySQL hacia ERP
+ * POST: Auto-alineación / Importación de pagos con abono y moratorios desde MySQL hacia ERP
  */
 export async function POST(request: NextRequest) {
   let connection: mysql.Connection | null = null;
@@ -284,7 +377,7 @@ export async function POST(request: NextRequest) {
     connection = await mysql.createConnection(MYSQL_CONFIG);
 
     let mysqlQuery = `
-      SELECT idpag, cod_cliente, nombre_ccliente, fechap, fechahora, montop, ref_pago, codigo_gestor, saldo_actualcli
+      SELECT idpag, cod_cliente, nombre_ccliente, fechap, fechahora, montop, mora, gcob, ref_pago, codigo_gestor, saldo_actualcli
       FROM pagos
       WHERE DATE(fechap) >= ? AND DATE(fechap) <= ?
     `;
@@ -315,8 +408,11 @@ export async function POST(request: NextRequest) {
 
       if (!cliente) continue;
 
-      const montoNum = parseFloat(p.montop) || 0;
-      if (montoNum <= 0) continue;
+      const abonoNum = parseFloat(p.montop) || 0;
+      const moraNum = parseFloat(p.mora) || 0;
+      const gcobNum = parseFloat(p.gcob) || 0;
+
+      if (abonoNum <= 0 && moraNum <= 0 && gcobNum <= 0) continue;
 
       const fechaP = p.fechap ? new Date(p.fechap) : new Date();
 
@@ -329,7 +425,7 @@ export async function POST(request: NextRequest) {
       const yaExiste = await prisma.pago.findFirst({
         where: {
           clienteId: cliente.id,
-          monto: montoNum,
+          monto: abonoNum,
           fechaPago: {
             gte: dMin,
             lte: dMax,
@@ -339,26 +435,31 @@ export async function POST(request: NextRequest) {
 
       if (!yaExiste) {
         const saldoPrevio = parseFloat(cliente.saldoActual.toString());
-        const saldoNvo = Math.max(0, saldoPrevio - montoNum);
+        const saldoNvo = Math.max(0, saldoPrevio - abonoNum);
 
         await prisma.pago.create({
           data: {
             clienteId: cliente.id,
             cobradorId: cliente.cobradorAsignadoId || (session.user as any).id,
-            monto: montoNum,
+            monto: abonoNum,
+            interesMoratorio: moraNum,
+            gastosCobranza: gcobNum,
             fechaPago: fechaP,
             saldoAnterior: saldoPrevio,
             saldoNuevo: saldoNvo,
             numeroRecibo: p.ref_pago || `MYSQL-#${p.idpag}`,
             metodoPago: 'efectivo',
-            concepto: `Alineación automática desde MySQL (ID: ${p.idpag})`,
+            concepto: `Alineación automática desde MySQL (ID: ${p.idpag}${moraNum > 0 ? ` + Mora $${moraNum}` : ''})`,
           }
         });
 
-        await prisma.cliente.update({
-          where: { id: cliente.id },
-          data: { saldoActual: saldoNvo }
-        });
+        // El abono a capital reduce el saldo (los moratorios y gastos son honorarios/recargos)
+        if (abonoNum > 0) {
+          await prisma.cliente.update({
+            where: { id: cliente.id },
+            data: { saldoActual: saldoNvo }
+          });
+        }
 
         pagosInsertados++;
         clientesActualizados++;
@@ -367,7 +468,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      mensaje: `Alineación completada: ${pagosInsertados} pagos importados hacia ERP.`,
+      mensaje: `Alineación completada: ${pagosInsertados} pagos importados hacia ERP (incluyendo moratorios).`,
       pagosInsertados,
       clientesActualizados,
     });

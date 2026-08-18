@@ -32,6 +32,7 @@ import {
   DollarSign,
   Receipt,
   FileCheck2,
+  Coins,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -85,16 +86,31 @@ interface SaltoCadenaItem {
   totalPagos: number;
 }
 
-// Interfaces Cruce MySQL vs ERP
+// Interfaces Cruce MySQL vs ERP con Moratorios
 interface ResumenCruce {
   fechaInicio: string;
   fechaFin: string;
   cobradorFiltro: string;
   totalPagosMysql: number;
   totalPagosErp: number;
+  
+  // MySQL
+  montoAbonoMysql: number;
+  montoMoraMysql: number;
+  montoGcobMysql: number;
   montoTotalMysql: number;
+  
+  // ERP
+  montoAbonoErp: number;
+  montoMoraErp: number;
+  montoGcobErp: number;
   montoTotalErp: number;
+  
+  // Diferencias
   diferenciaGlobal: number;
+  diferenciaAbonoGlobal: number;
+  diferenciaMoraGlobal: number;
+
   totalClientesAuditados: number;
   totalCuadrados: number;
   totalDesfaseMonto: number;
@@ -109,11 +125,19 @@ interface ClienteCruceItem {
   cobrador: string;
   saldoErp: number;
   saldoMysql: number;
-  mysqlPagos: { id: number; fecha: string; monto: number; referencia: string; cobrador: string }[];
+  mysqlPagos: { id: number; fecha: string; montoAbono: number; mora: number; gcob: number; montoTotal: number; referencia: string; cobrador: string }[];
+  mysqlAbono: number;
+  mysqlMora: number;
+  mysqlGcob: number;
   mysqlTotal: number;
-  erpPagos: { id: string; fecha: string; monto: number; referencia: string; cobrador: string }[];
+  erpPagos: { id: string; fecha: string; montoAbono: number; mora: number; gcob: number; montoTotal: number; referencia: string; cobrador: string }[];
+  erpAbono: number;
+  erpMora: number;
+  erpGcob: number;
   erpTotal: number;
   diferencia: number;
+  diferenciaAbono: number;
+  diferenciaMora: number;
   estado: 'CUADRADO' | 'DESFASE_MONTO' | 'FALTANTE_ERP' | 'FALTANTE_MYSQL';
 }
 
@@ -251,8 +275,8 @@ export default function AuditoriaFinancieraPage() {
   // Función para auto-alinear / importar pagos faltantes de MySQL al ERP
   const handleAlinearPagos = async (codigoCliente?: string) => {
     const msg = codigoCliente
-      ? `¿Importar pagos faltantes de MySQL hacia el ERP para el cliente ${codigoCliente}?`
-      : `¿Auto-alinear pagos del corte seleccionado (${fechaInicio} al ${fechaFin}) importando los pagos faltantes de MySQL hacia el ERP?`;
+      ? `¿Importar pagos y moratorios faltantes de MySQL hacia el ERP para el cliente ${codigoCliente}?`
+      : `¿Auto-alinear pagos y moratorios del corte seleccionado (${fechaInicio} al ${fechaFin}) importando los registros faltantes de MySQL hacia el ERP?`;
 
     if (!confirm(msg)) return;
 
@@ -322,14 +346,12 @@ export default function AuditoriaFinancieraPage() {
 
   // Filtrado de clientes para la tabla de cruce
   const clientesFiltrados = clientesCruce.filter((c) => {
-    // Filtro por Estado
     if (filtroEstado === 'DIFERENCIAS' && c.estado === 'CUADRADO') return false;
     if (filtroEstado === 'CUADRADO' && c.estado !== 'CUADRADO') return false;
     if (filtroEstado === 'FALTANTE_ERP' && c.estado !== 'FALTANTE_ERP') return false;
     if (filtroEstado === 'FALTANTE_MYSQL' && c.estado !== 'FALTANTE_MYSQL') return false;
     if (filtroEstado === 'DESFASE_MONTO' && c.estado !== 'DESFASE_MONTO') return false;
 
-    // Filtro por búsqueda
     if (busquedaCliente.trim()) {
       const q = busquedaCliente.trim().toLowerCase();
       return (
@@ -357,7 +379,7 @@ export default function AuditoriaFinancieraPage() {
               </h1>
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Cruce de cortes semanales (Sábado a Viernes) entre MySQL y ERP, y diagnóstico de integridad de cuentas.
+              Cruce de cortes semanales (Sábado a Viernes) considerando Abonos e Intereses Moratorios entre MySQL y ERP.
             </p>
           </div>
 
@@ -474,7 +496,7 @@ export default function AuditoriaFinancieraPage() {
               </CardContent>
             </Card>
 
-            {/* Tarjetas KPI de Comparación */}
+            {/* Tarjetas KPI de Comparación con Desglose de Moratorio */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="border-l-4 border-l-blue-500 shadow-sm">
                 <CardHeader className="p-4 pb-2">
@@ -486,8 +508,15 @@ export default function AuditoriaFinancieraPage() {
                     {loadingCruce ? '...' : formatCurrency(resumenCruce?.montoTotalMysql ?? 0)}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0 text-xs text-slate-500">
-                  {resumenCruce?.totalPagosMysql ?? 0} pagos en base MySQL
+                <CardContent className="p-4 pt-0 space-y-1 text-xs text-slate-500">
+                  <div className="flex justify-between">
+                    <span>Abono a Saldo:</span>
+                    <span className="font-mono font-medium">{formatCurrency(resumenCruce?.montoAbonoMysql ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                    <span>Interés Moratorio:</span>
+                    <span className="font-mono font-bold">+{formatCurrency(resumenCruce?.montoMoraMysql ?? 0)}</span>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -501,8 +530,15 @@ export default function AuditoriaFinancieraPage() {
                     {loadingCruce ? '...' : formatCurrency(resumenCruce?.montoTotalErp ?? 0)}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0 text-xs text-slate-500">
-                  {resumenCruce?.totalPagosErp ?? 0} pagos en base ERP
+                <CardContent className="p-4 pt-0 space-y-1 text-xs text-slate-500">
+                  <div className="flex justify-between">
+                    <span>Abono a Saldo:</span>
+                    <span className="font-mono font-medium">{formatCurrency(resumenCruce?.montoAbonoErp ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                    <span>Interés Moratorio:</span>
+                    <span className="font-mono font-bold">+{formatCurrency(resumenCruce?.montoMoraErp ?? 0)}</span>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -528,8 +564,15 @@ export default function AuditoriaFinancieraPage() {
                     {loadingCruce ? '...' : formatCurrency(resumenCruce?.diferenciaGlobal ?? 0)}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0 text-xs text-slate-500">
-                  Diferencia: {(resumenCruce?.totalPagosErp ?? 0) - (resumenCruce?.totalPagosMysql ?? 0)} pagos
+                <CardContent className="p-4 pt-0 space-y-1 text-xs text-slate-500">
+                  <div className="flex justify-between">
+                    <span>Dif. Abonos:</span>
+                    <span className="font-mono">{formatCurrency(resumenCruce?.diferenciaAbonoGlobal ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Dif. Moratorios:</span>
+                    <span className="font-mono">{formatCurrency(resumenCruce?.diferenciaMoraGlobal ?? 0)}</span>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -549,14 +592,14 @@ export default function AuditoriaFinancieraPage() {
               </Card>
             </div>
 
-            {/* Tabla Detallada por Cliente */}
+            {/* Tabla Detallada por Cliente con Columnas de Moratorio */}
             <Card className="shadow-sm border-slate-200 dark:border-slate-800">
               <CardHeader className="p-4 border-b">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
                     <CardTitle className="text-base font-semibold">Auditoría Cruzada por Cliente</CardTitle>
                     <CardDescription className="text-xs">
-                      Comparativa 1 a 1 de movimientos y totales por cliente en el corte seleccionado.
+                      Comparativa de Abonos, Moratorios y Totales en mano por cliente en el corte seleccionado.
                     </CardDescription>
                   </div>
 
@@ -604,7 +647,7 @@ export default function AuditoriaFinancieraPage() {
                 {loadingCruce ? (
                   <div className="p-8 text-center text-sm text-slate-500">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-600" />
-                    Cruzando pagos entre bases de datos...
+                    Cruzando pagos y moratorios entre bases de datos...
                   </div>
                 ) : clientesFiltrados.length === 0 ? (
                   <div className="p-8 text-center text-sm text-slate-500">
@@ -619,10 +662,10 @@ export default function AuditoriaFinancieraPage() {
                           <th className="p-2.5">Código</th>
                           <th className="p-2.5">Cliente</th>
                           <th className="p-2.5">Cobrador</th>
-                          <th className="p-2.5 text-center">Pagos MySQL</th>
-                          <th className="p-2.5 text-center">Pagos ERP</th>
-                          <th className="p-2.5 text-right">Total MySQL</th>
-                          <th className="p-2.5 text-right">Total ERP</th>
+                          <th className="p-2.5 text-right">MySQL (Abono + Mora)</th>
+                          <th className="p-2.5 text-right">ERP (Abono + Mora)</th>
+                          <th className="p-2.5 text-right font-bold">Total MySQL</th>
+                          <th className="p-2.5 text-right font-bold">Total ERP</th>
                           <th className="p-2.5 text-right">Diferencia</th>
                           <th className="p-2.5 text-center">Estado</th>
                           <th className="p-2.5 text-center">Acción</th>
@@ -634,18 +677,28 @@ export default function AuditoriaFinancieraPage() {
                             <td className="p-2.5 font-mono font-bold text-indigo-600">{item.codigo}</td>
                             <td className="p-2.5 font-medium">{item.nombre}</td>
                             <td className="p-2.5 text-slate-500">{item.cobrador}</td>
-                            <td className="p-2.5 text-center">
-                              <Badge variant="outline" className="font-mono text-[10px]">
-                                {item.mysqlPagos.length}
-                              </Badge>
+                            <td className="p-2.5 text-right font-mono text-slate-600">
+                              {formatCurrency(item.mysqlAbono)}
+                              {item.mysqlMora > 0 && (
+                                <span className="text-amber-600 font-semibold ml-1">
+                                  (+{formatCurrency(item.mysqlMora)})
+                                </span>
+                              )}
                             </td>
-                            <td className="p-2.5 text-center">
-                              <Badge variant="outline" className="font-mono text-[10px]">
-                                {item.erpPagos.length}
-                              </Badge>
+                            <td className="p-2.5 text-right font-mono text-slate-600">
+                              {formatCurrency(item.erpAbono)}
+                              {item.erpMora > 0 && (
+                                <span className="text-amber-600 font-semibold ml-1">
+                                  (+{formatCurrency(item.erpMora)})
+                                </span>
+                              )}
                             </td>
-                            <td className="p-2.5 text-right font-mono">{formatCurrency(item.mysqlTotal)}</td>
-                            <td className="p-2.5 text-right font-mono">{formatCurrency(item.erpTotal)}</td>
+                            <td className="p-2.5 text-right font-mono font-bold text-blue-600">
+                              {formatCurrency(item.mysqlTotal)}
+                            </td>
+                            <td className="p-2.5 text-right font-mono font-bold text-indigo-600">
+                              {formatCurrency(item.erpTotal)}
+                            </td>
                             <td
                               className={`p-2.5 text-right font-mono font-bold ${
                                 Math.abs(item.diferencia) > 0.01 ? 'text-rose-600' : 'text-slate-400'
@@ -706,7 +759,7 @@ export default function AuditoriaFinancieraPage() {
               </CardContent>
             </Card>
 
-            {/* Modal de Detalle de Recibos de un Cliente */}
+            {/* Modal de Detalle de Recibos de un Cliente con Desglose de Moratorio */}
             {selectedClienteModal && (
               <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
                 <div className="bg-white dark:bg-slate-900 rounded-xl max-w-2xl w-full border shadow-xl p-5 space-y-4">
@@ -739,11 +792,17 @@ export default function AuditoriaFinancieraPage() {
                       {selectedClienteModal.mysqlPagos.length === 0 ? (
                         <p className="text-xs text-slate-400 italic">Sin pagos en MySQL</p>
                       ) : (
-                        <div className="space-y-1 max-h-48 overflow-y-auto">
+                        <div className="space-y-1.5 max-h-56 overflow-y-auto">
                           {selectedClienteModal.mysqlPagos.map((p, i) => (
-                            <div key={i} className="text-[11px] p-1.5 bg-white dark:bg-slate-800 rounded border flex justify-between">
-                              <span>{p.fecha} ({p.referencia || `#${p.id}`})</span>
-                              <span className="font-bold font-mono">{formatCurrency(p.monto)}</span>
+                            <div key={i} className="text-[11px] p-2 bg-white dark:bg-slate-800 rounded border space-y-0.5">
+                              <div className="flex justify-between font-medium">
+                                <span>{p.fecha} ({p.referencia || `#${p.id}`})</span>
+                                <span className="font-bold font-mono text-blue-600">{formatCurrency(p.montoTotal)}</span>
+                              </div>
+                              <div className="flex justify-between text-[10px] text-slate-500">
+                                <span>Abono: {formatCurrency(p.montoAbono)}</span>
+                                {p.mora > 0 && <span className="text-amber-600 font-semibold">Mora: +{formatCurrency(p.mora)}</span>}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -759,11 +818,17 @@ export default function AuditoriaFinancieraPage() {
                       {selectedClienteModal.erpPagos.length === 0 ? (
                         <p className="text-xs text-slate-400 italic">Sin pagos en ERP</p>
                       ) : (
-                        <div className="space-y-1 max-h-48 overflow-y-auto">
+                        <div className="space-y-1.5 max-h-56 overflow-y-auto">
                           {selectedClienteModal.erpPagos.map((p, i) => (
-                            <div key={i} className="text-[11px] p-1.5 bg-white dark:bg-slate-800 rounded border flex justify-between">
-                              <span>{p.fecha} ({p.referencia || 'Pago'})</span>
-                              <span className="font-bold font-mono">{formatCurrency(p.monto)}</span>
+                            <div key={i} className="text-[11px] p-2 bg-white dark:bg-slate-800 rounded border space-y-0.5">
+                              <div className="flex justify-between font-medium">
+                                <span>{p.fecha} ({p.referencia || 'Recibo'})</span>
+                                <span className="font-bold font-mono text-indigo-600">{formatCurrency(p.montoTotal)}</span>
+                              </div>
+                              <div className="flex justify-between text-[10px] text-slate-500">
+                                <span>Abono: {formatCurrency(p.montoAbono)}</span>
+                                {p.mora > 0 && <span className="text-amber-600 font-semibold">Mora: +{formatCurrency(p.mora)}</span>}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -782,7 +847,7 @@ export default function AuditoriaFinancieraPage() {
                         }}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
                       >
-                        Importar Pagos al ERP
+                        Importar Pagos y Moratorio al ERP
                       </Button>
                     )}
                     <Button size="sm" variant="outline" onClick={() => setSelectedClienteModal(null)} className="text-xs">
