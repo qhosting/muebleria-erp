@@ -177,7 +177,7 @@ export async function GET(request: NextRequest) {
         id: p.id,
         fecha: p.fechaPago.toISOString().slice(0, 10),
         monto: parseFloat(p.monto.toString()),
-        referencia: p.referencia || '',
+        referencia: p.numeroRecibo || p.concepto || '',
         cobrador: p.cobrador?.name || '',
       });
       item.erpTotal += parseFloat(p.monto.toString());
@@ -344,14 +344,14 @@ export async function POST(request: NextRequest) {
         await prisma.pago.create({
           data: {
             clienteId: cliente.id,
-            cobradorId: cliente.cobradorId || (session.user as any).id,
+            cobradorId: cliente.cobradorAsignadoId || (session.user as any).id,
             monto: montoNum,
             fechaPago: fechaP,
             saldoAnterior: saldoPrevio,
             saldoNuevo: saldoNvo,
-            referencia: p.ref_pago || `MYSQL-IMPORT-#${p.idpag}`,
+            numeroRecibo: p.ref_pago || `MYSQL-#${p.idpag}`,
             metodoPago: 'efectivo',
-            notas: `Alineación automática desde MySQL (ID: ${p.idpag})`,
+            concepto: `Alineación automática desde MySQL (ID: ${p.idpag})`,
           }
         });
 
