@@ -1,0 +1,15 @@
+Windows Registry Editor Version 5.00
+
+; =====================================================
+; Configuracion RDP CAL - Modo Per User
+; Servidor de licencias: VORTEX-520 (local)
+; =====================================================
+
+; Modo de licencia via Politica de Grupo (GPO local)
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services]
+"LicensingMode"=dword:00000004
+"LicenseServers"="VORTEX-520"
+
+; Modo de licencia en RCM
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Terminal Server\RCM]
+"LicensingMode"=dword:00000004

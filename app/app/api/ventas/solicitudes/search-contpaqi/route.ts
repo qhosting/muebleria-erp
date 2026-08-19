@@ -33,16 +33,33 @@ export async function GET(req: NextRequest) {
             return false;
         });
 
-        // Mapeamos a un formato simplificado y seguro
-        const results = matches.map((c: any) => ({
-            codigo: c.codigo || c.cCodigoCliente,
-            nombre: c.nombre || c.cNombreCliente,
-            rfc: c.cRFC,
-            saldo: Number(c.cSaldoActual || 0),
-            clasificacion: c.cNombreClasificacion1 || "Sin clasificar",
-            tipo: c.cTextoExtra1 || "Regular", // Asumiendo que el tipo (Bueno, Malo) está en un texto extra
-            direccion: `${c.cNombreCalle || ''} ${c.cNumeroExterior || ''}, ${c.cColonia || ''}, ${c.cCiudad || ''}`.trim()
-        }));
+        // Mapeamos a un formato simplificado y seguro con saldo real de estado de cuenta
+        const results = await Promise.all(
+            matches.slice(0, 15).map(async (c: any) => {
+                const codigo = c.codigo || c.cCodigoCliente;
+                let saldoReal = Number(c.cSaldoActual || c.saldo || 0);
+
+                if (codigo) {
+                    try {
+                        const empresa = codigo.startsWith('DP') ? 'DP' : 'DQ';
+                        const ec = await contpaqi.getClienteEstadoCuenta(codigo, empresa);
+                        if (ec && (ec.saldoActual !== undefined || ec.saldoTotal !== undefined)) {
+                            saldoReal = Number(ec.saldoActual ?? ec.saldoTotal ?? saldoReal);
+                        }
+                    } catch (_) {}
+                }
+
+                return {
+                    codigo,
+                    nombre: c.nombre || c.cNombreCliente,
+                    rfc: c.cRFC,
+                    saldo: saldoReal,
+                    clasificacion: c.cNombreClasificacion1 || "Sin clasificar",
+                    tipo: c.cTextoExtra1 || "Regular",
+                    direccion: `${c.cNombreCalle || ''} ${c.cNumeroExterior || ''}, ${c.cColonia || ''}, ${c.cCiudad || ''}`.trim()
+                };
+            })
+        );
 
         return NextResponse.json(results);
     } catch (error: any) {

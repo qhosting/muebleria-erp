@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-    const contrato = 'DP2605137';
+    const contrato = process.argv[2] || 'DP2608003';
     console.log(`=== INVESTIGANDO CONTRATO ${contrato} ===`);
 
     const cliente = await prisma.cliente.findUnique({

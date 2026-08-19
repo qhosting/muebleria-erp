@@ -579,14 +579,14 @@ export async function POST(request: NextRequest) {
           await Promise.allSettled(
             listaCodigos.map(async (cod) => {
               try {
-                const c = await service.getCliente(cod, empresa);
-                let raw: any = c?.cSaldoActual ?? c?.csaldoactual ?? c?.cSaldo ?? c?.saldo ?? c?.CSALDOACTUAL ?? c?.CSALDO ?? c?.saldoActual ?? c?.saldoTotal ?? c?.cPendiente ?? c?.pendiente ?? c?.Saldo;
+                // 1. Consultar estado de cuenta en vivo (calcula saldo real de documentos en ContPAQi)
+                const ec = await service.getClienteEstadoCuenta(cod, empresa);
+                let raw: any = ec?.saldoActual ?? ec?.saldoTotal ?? ec?.cSaldoActual ?? ec?.saldo ?? ec?.CSALDOACTUAL ?? ec?.cSaldo;
 
+                // 2. Fallback a cliente general si no hubo respuesta en estado de cuenta
                 if (raw === undefined || raw === null) {
-                  const ec = await service.getClienteEstadoCuenta(cod, empresa);
-                  if (ec) {
-                    raw = ec.saldoTotal ?? ec.saldo ?? ec.cSaldoActual ?? ec.cSaldo ?? ec.CSALDOACTUAL ?? ec.saldoActual;
-                  }
+                  const c = await service.getCliente(cod, empresa);
+                  raw = c?.cSaldoActual ?? c?.csaldoactual ?? c?.cSaldo ?? c?.saldo ?? c?.CSALDOACTUAL ?? c?.CSALDO ?? c?.saldoActual ?? c?.saldoTotal ?? c?.cPendiente ?? c?.pendiente ?? c?.Saldo;
                 }
 
                 if (raw !== undefined && raw !== null && raw !== '') {
@@ -599,7 +599,7 @@ export async function POST(request: NextRequest) {
                     data: {
                       estadoCuentaCache: {
                         cachedAt: new Date().toISOString(),
-                        data: { saldoTotal: parsedSaldo, cSaldoActual: parsedSaldo }
+                        data: { saldoTotal: parsedSaldo, cSaldoActual: parsedSaldo, estadoCuenta: ec }
                       }
                     }
                   }).catch(() => {});
