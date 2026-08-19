@@ -28,6 +28,49 @@ function obtenerEmpresaContpaqi(codigoCliente: string): string | undefined {
 }
 
 /**
+ * Consulta y resuelve el saldo fiel de Contpaqi Comercial Premium
+ */
+async function obtenerSaldoPrecisoContpaqi(srv: any, cod: string, emp: string): Promise<{ saldo: number | null; estadoCuenta: any }> {
+  try {
+    const docs = await srv.getClientDocumentos(cod);
+    if (Array.isArray(docs) && docs.length > 0) {
+      const pagares = docs.filter((d: any) => d.codigoConcepto?.trim() === '16' && !d.cancelado);
+      const totalPagares = pagares.reduce((acc: number, d: any) => acc + (parseFloat(d.total) || 0), 0);
+
+      if (totalPagares > 0) {
+        const abonos101 = docs.filter((d: any) => d.codigoConcepto?.trim() === '101' && !d.cancelado);
+        const facturaInicial = docs.find((d: any) => d.codigoConcepto?.trim() === '100' && !d.cancelado);
+
+        const abonosCobranza = facturaInicial
+          ? abonos101.filter((d: any) =>
+              !(d.referencia && d.referencia.toLowerCase().includes('factura')) &&
+              !(new Date(d.fecha).getTime() <= new Date(facturaInicial.fecha).getTime() && (d.referencia || '').includes(String(facturaInicial.folio)))
+            )
+          : abonos101;
+
+        const totalAbonosCobranza = abonosCobranza.reduce((acc: number, d: any) => acc + (parseFloat(d.total) || 0), 0);
+        const saldoDoc = parseFloat((totalPagares - totalAbonosCobranza).toFixed(2));
+        return { saldo: saldoDoc, estadoCuenta: { tipo: 'DOCUMENTOS', totalPagares, totalAbonosCobranza, saldoCalculado: saldoDoc } };
+      }
+    }
+  } catch (err) {}
+
+  try {
+    const ec = await srv.getClienteEstadoCuenta(cod, emp);
+    let raw: any = ec?.saldoActual ?? ec?.saldoTotal ?? ec?.cSaldoActual ?? ec?.saldo ?? ec?.CSALDOACTUAL ?? ec?.cSaldo;
+    if (raw === undefined || raw === null) {
+      const c = await srv.getCliente(cod, emp);
+      raw = c?.cSaldoActual ?? c?.csaldoactual ?? c?.cSaldo ?? c?.saldo ?? c?.CSALDOACTUAL ?? c?.CSALDO ?? c?.saldoActual ?? c?.saldoTotal ?? c?.cPendiente ?? c?.pendiente ?? c?.Saldo;
+    }
+    if (raw !== undefined && raw !== null && raw !== '') {
+      return { saldo: parseFloat(raw.toString()) || 0, estadoCuenta: ec };
+    }
+  } catch (err) {}
+
+  return { saldo: null, estadoCuenta: null };
+}
+
+/**
  * GET: Ejecuta la auditoría cruzada de pagos (Sábado a Viernes u otro rango) entre MySQL y PostgreSQL
  * Incluye desglose de Abonos, Intereses Moratorios y Estado de sincronización con Contpaqi API (DQ / DP).
  */
@@ -350,18 +393,9 @@ export async function GET(request: NextRequest) {
               await Promise.allSettled(
                 cods.map(async (cod) => {
                   try {
-                    // 1. Consultar estado de cuenta en vivo (calcula saldo real de documentos en ContPAQi)
-                    const ec = await srv.getClienteEstadoCuenta(cod, emp);
-                    let raw: any = ec?.saldoActual ?? ec?.saldoTotal ?? ec?.cSaldoActual ?? ec?.saldo ?? ec?.CSALDOACTUAL ?? ec?.cSaldo;
+                    const { saldo: parsed, estadoCuenta: ec } = await obtenerSaldoPrecisoContpaqi(srv, cod, emp);
 
-                    // 2. Fallback a cliente general si no hubo respuesta en estado de cuenta
-                    if (raw === undefined || raw === null) {
-                      const c = await srv.getCliente(cod, emp);
-                      raw = c?.cSaldoActual ?? c?.csaldoactual ?? c?.cSaldo ?? c?.saldo ?? c?.CSALDOACTUAL ?? c?.CSALDO ?? c?.saldoActual ?? c?.saldoTotal ?? c?.cPendiente ?? c?.pendiente ?? c?.Saldo;
-                    }
-
-                    if (raw !== undefined && raw !== null && raw !== '') {
-                      const parsed = parseFloat(raw.toString()) || 0;
+                    if (parsed !== null && parsed !== undefined) {
                       const it = clientesMap.get(cod);
                       if (it) {
                         it.saldoContpaqi = parsed;
@@ -592,18 +626,9 @@ export async function POST(request: NextRequest) {
           await Promise.allSettled(
             listaCodigos.map(async (cod) => {
               try {
-                // 1. Consultar estado de cuenta en vivo (calcula saldo real de documentos en ContPAQi)
-                const ec = await service.getClienteEstadoCuenta(cod, empresa);
-                let raw: any = ec?.saldoActual ?? ec?.saldoTotal ?? ec?.cSaldoActual ?? ec?.saldo ?? ec?.CSALDOACTUAL ?? ec?.cSaldo;
+                const { saldo: parsedSaldo, estadoCuenta: ec } = await obtenerSaldoPrecisoContpaqi(service, cod, empresa);
 
-                // 2. Fallback a cliente general si no hubo respuesta en estado de cuenta
-                if (raw === undefined || raw === null) {
-                  const c = await service.getCliente(cod, empresa);
-                  raw = c?.cSaldoActual ?? c?.csaldoactual ?? c?.cSaldo ?? c?.saldo ?? c?.CSALDOACTUAL ?? c?.CSALDO ?? c?.saldoActual ?? c?.saldoTotal ?? c?.cPendiente ?? c?.pendiente ?? c?.Saldo;
-                }
-
-                if (raw !== undefined && raw !== null && raw !== '') {
-                  const parsedSaldo = parseFloat(raw.toString()) || 0;
+                if (parsedSaldo !== null && parsedSaldo !== undefined) {
                   resultados[cod] = { saldoContpaqi: parsedSaldo };
                   
                   // Actualizar cache en DB si existe el cliente
