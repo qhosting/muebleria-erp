@@ -823,20 +823,38 @@ export async function POST(request: NextRequest) {
 
       const fechaP = p.fechap ? new Date(p.fechap) : new Date();
 
-      // Verificar si ya existe este pago en ERP por cliente, fecha y monto similar
-      const dMin = new Date(fechaP);
-      dMin.setHours(0, 0, 0, 0);
-      const dMax = new Date(fechaP);
-      dMax.setHours(23, 59, 59, 999);
+      // 1. Extraer ID del ticket o referencia si existe en ref_pago
+      const refClean = (p.ref_pago || '').trim();
+      const ticketMatch = refClean.match(/TICKET\s*(?:ID:)?\s*(\d+)/i) || refClean.match(/TKT:\s*([A-Za-z0-9]+)/i);
+      const ticketId = ticketMatch ? ticketMatch[1] : null;
+
+      // 2. Ventana de tiempo ampliada (±36 horas) para compensar zonas horarias UTC vs Local
+      const dMin = new Date(fechaP.getTime() - 36 * 3600 * 1000);
+      const dMax = new Date(fechaP.getTime() + 36 * 3600 * 1000);
+
+      // 3. Buscar si ya existe por recibo, concepto con ID de MySQL o coincidencia de monto en fecha
+      const condicionesOr: any[] = [
+        { numeroRecibo: `MYSQL-#${p.idpag}` },
+        { concepto: { contains: `ID: ${p.idpag}` } },
+        ...(refClean ? [{ numeroRecibo: refClean }] : []),
+        ...(ticketId ? [
+          { numeroRecibo: { contains: ticketId } },
+          { concepto: { contains: ticketId } }
+        ] : []),
+        {
+          fechaPago: { gte: dMin, lte: dMax },
+          OR: [
+            { monto: abonoNum },
+            ...(moraNum > 0 ? [{ monto: abonoNum + moraNum }] : []),
+            ...(gcobNum > 0 ? [{ monto: abonoNum + moraNum + gcobNum }] : []),
+          ]
+        }
+      ];
 
       const yaExiste = await prisma.pago.findFirst({
         where: {
           clienteId: cliente.id,
-          monto: abonoNum,
-          fechaPago: {
-            gte: dMin,
-            lte: dMax,
-          }
+          OR: condicionesOr
         }
       });
 
