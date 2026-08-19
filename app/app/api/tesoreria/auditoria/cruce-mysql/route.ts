@@ -339,7 +339,7 @@ export async function GET(request: NextRequest) {
         if (sinSaldo.length > 0) {
           const porEmp: Record<string, string[]> = {};
           for (const it of sinSaldo) {
-            const emp = it.empresaContpaqi || 'DQ';
+            const emp = obtenerEmpresaContpaqi(it.codigo) || 'DQ';
             if (!porEmp[emp]) porEmp[emp] = [];
             porEmp[emp].push(it.codigo);
           }
@@ -350,14 +350,16 @@ export async function GET(request: NextRequest) {
               await Promise.allSettled(
                 cods.map(async (cod) => {
                   try {
-                    const c = await srv.getCliente(cod, emp);
-                    let raw: any = c?.cSaldoActual ?? c?.csaldoactual ?? c?.cSaldo ?? c?.saldo ?? c?.CSALDOACTUAL ?? c?.CSALDO ?? c?.saldoActual ?? c?.saldoTotal ?? c?.cPendiente ?? c?.pendiente ?? c?.Saldo;
+                    // 1. Consultar estado de cuenta en vivo (calcula saldo real de documentos en ContPAQi)
+                    const ec = await srv.getClienteEstadoCuenta(cod, emp);
+                    let raw: any = ec?.saldoActual ?? ec?.saldoTotal ?? ec?.cSaldoActual ?? ec?.saldo ?? ec?.CSALDOACTUAL ?? ec?.cSaldo;
+
+                    // 2. Fallback a cliente general si no hubo respuesta en estado de cuenta
                     if (raw === undefined || raw === null) {
-                      const ec = await srv.getClienteEstadoCuenta(cod, emp);
-                      if (ec) {
-                        raw = ec.saldoTotal ?? ec.saldo ?? ec.cSaldoActual ?? ec.cSaldo ?? ec.CSALDOACTUAL ?? ec.saldoActual;
-                      }
+                      const c = await srv.getCliente(cod, emp);
+                      raw = c?.cSaldoActual ?? c?.csaldoactual ?? c?.cSaldo ?? c?.saldo ?? c?.CSALDOACTUAL ?? c?.CSALDO ?? c?.saldoActual ?? c?.saldoTotal ?? c?.cPendiente ?? c?.pendiente ?? c?.Saldo;
                     }
+
                     if (raw !== undefined && raw !== null && raw !== '') {
                       const parsed = parseFloat(raw.toString()) || 0;
                       const it = clientesMap.get(cod);
@@ -365,6 +367,17 @@ export async function GET(request: NextRequest) {
                         it.saldoContpaqi = parsed;
                         it.diferenciaSaldoContpaqi = parseFloat((it.saldoErp - parsed).toFixed(2));
                       }
+
+                      // Guardar en cache de base de datos
+                      prisma.cliente.updateMany({
+                        where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
+                        data: {
+                          estadoCuentaCache: {
+                            cachedAt: new Date().toISOString(),
+                            data: { saldoTotal: parsed, cSaldoActual: parsed, estadoCuenta: ec }
+                          }
+                        }
+                      }).catch(() => {});
                     }
                   } catch {}
                 })

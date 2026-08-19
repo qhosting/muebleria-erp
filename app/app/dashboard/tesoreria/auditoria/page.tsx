@@ -1220,7 +1220,12 @@ export default function AuditoriaFinancieraPage() {
                                     <Button
                                       size="sm"
                                       variant="ghost"
-                                      onClick={() => setSelectedClienteModal(item)}
+                                      onClick={() => {
+                                        setSelectedClienteModal(item);
+                                        if (item.saldoContpaqi === null) {
+                                          handleConsultarSaldosContpaqi(item.codigo);
+                                        }
+                                      }}
                                       className="h-7 text-xs text-slate-500"
                                     >
                                       Ver Recibos
