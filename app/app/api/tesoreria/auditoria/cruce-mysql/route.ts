@@ -52,15 +52,15 @@ async function obtenerSaldoPrecisoContpaqi(srv: any, cod: string, emp: string, p
       const totalPagares = pagares.reduce((acc: number, d: any) => acc + (parseFloat(d.total) || 0), 0);
 
       if (totalPagares > 0) {
-        const abonos101 = docs.filter((d: any) => d.codigoConcepto?.trim() === '101' && !d.cancelado);
+        const abonos = docs.filter((d: any) => (d.codigoConcepto?.trim() === '101' || d.codigoConcepto?.trim() === '102') && !d.cancelado);
         const facturaInicial = docs.find((d: any) => d.codigoConcepto?.trim() === '100' && !d.cancelado);
 
         const abonosCobranza = facturaInicial
-          ? abonos101.filter((d: any) =>
+          ? abonos.filter((d: any) =>
               !(d.referencia && d.referencia.toLowerCase().includes('factura')) &&
               !(new Date(d.fecha).getTime() <= new Date(facturaInicial.fecha).getTime() && (d.referencia || '').includes(String(facturaInicial.folio)))
             )
-          : abonos101;
+          : abonos;
 
         const totalAbonosCobranza = abonosCobranza.reduce((acc: number, d: any) => acc + (parseFloat(d.total) || 0), 0);
         let saldoDoc = parseFloat((totalPagares - totalAbonosCobranza).toFixed(2));
