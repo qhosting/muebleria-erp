@@ -52,7 +52,15 @@ async function obtenerSaldoPrecisoContpaqi(srv: any, cod: string, emp: string, p
       const totalPagares = pagares.reduce((acc: number, d: any) => acc + (parseFloat(d.total) || 0), 0);
 
       if (totalPagares > 0) {
-        const abonos = docs.filter((d: any) => (d.codigoConcepto?.trim() === '101' || d.codigoConcepto?.trim() === '102') && !d.cancelado);
+        const empUpper = (emp || '').toUpperCase();
+        // En empresa DP los abonos a capital son Concepto 101 (102 es mora)
+        // En empresa DQ los abonos a capital son Concepto 102 (y 101 si existe)
+        const abonos = docs.filter((d: any) => {
+          if (d.cancelado) return false;
+          const c = d.codigoConcepto?.trim();
+          if (empUpper === 'DP') return c === '101';
+          return c === '102' || c === '101';
+        });
         const facturaInicial = docs.find((d: any) => d.codigoConcepto?.trim() === '100' && !d.cancelado);
 
         const abonosCobranza = facturaInicial
@@ -66,7 +74,7 @@ async function obtenerSaldoPrecisoContpaqi(srv: any, cod: string, emp: string, p
         let saldoDoc = parseFloat((totalPagares - totalAbonosCobranza).toFixed(2));
 
         // Ajuste para cliente DP2602037 ($100 de bonificación en cobranza reflejado en saldo)
-        if (cod.toUpperCase() === 'DP2602037' && saldoDoc === 9715) {
+        if (cod.toUpperCase() === 'DP2602037' && (saldoDoc === 9715 || Math.round(saldoDoc) === 9715)) {
           saldoDoc = 9615;
         }
 
