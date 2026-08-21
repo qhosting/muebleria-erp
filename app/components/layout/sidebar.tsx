@@ -43,7 +43,8 @@ import {
   ShoppingBag,
   Gift,
   Database,
-  ShieldCheck
+  ShieldCheck,
+  Layers
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -143,6 +144,7 @@ const navigation: NavItem[] = [
       { name: 'Conciliador', href: '/dashboard/tesoreria/conciliador', icon: RefreshCcw },
       { name: 'Control de Caja', href: '/dashboard/tesoreria/caja', icon: Wallet },
       { name: 'Auditoría Cuentas', href: '/dashboard/tesoreria/auditoria', icon: ShieldCheck },
+      { name: 'Auditoría de Saldos', href: '/dashboard/tesoreria/auditoria-saldos', icon: Layers },
     ]
   },
   {
