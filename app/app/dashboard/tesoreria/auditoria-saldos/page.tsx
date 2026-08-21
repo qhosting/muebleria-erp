@@ -30,7 +30,11 @@ import {
   Check,
   Building2,
   Receipt,
-  Download
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -99,6 +103,21 @@ export default function AuditoriaSaldosPage() {
   const [busqueda, setBusqueda] = useState<string>('');
   const [activeSearch, setActiveSearch] = useState<string>('');
 
+  // Paginación
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(100);
+  const [paginationInfo, setPaginationInfo] = useState<{
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  }>({
+    page: 1,
+    limit: 100,
+    total: 0,
+    totalPages: 1,
+  });
+
   // Datos
   const [resumen, setResumen] = useState<ResumenAuditoriaSaldos | null>(null);
   const [cobradoresList, setCobradoresList] = useState<string[]>([]);
@@ -118,13 +137,17 @@ export default function AuditoriaSaldosPage() {
         cobrador: cobradorFiltro,
         estado: estadoFiltro,
         search: activeSearch,
-        limit: '50',
+        page: page.toString(),
+        limit: pageSize.toString(),
       });
       const res = await fetch(`/api/tesoreria/auditoria-saldos?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setResumen(data.resumen || null);
         setClientes(data.clientes || []);
+        if (data.pagination) {
+          setPaginationInfo(data.pagination);
+        }
         if (data.cobradores && Array.isArray(data.cobradores)) {
           setCobradoresList(data.cobradores);
         }
@@ -142,16 +165,18 @@ export default function AuditoriaSaldosPage() {
 
   useEffect(() => {
     fetchAuditData();
-  }, [empresaFiltro, cobradorFiltro, estadoFiltro, activeSearch]);
+  }, [empresaFiltro, cobradorFiltro, estadoFiltro, activeSearch, page, pageSize]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setPage(1);
     setActiveSearch(busqueda.trim());
   };
 
   const handleClearSearch = () => {
     setBusqueda('');
     setActiveSearch('');
+    setPage(1);
   };
 
   // Selección individual / masiva
@@ -603,6 +628,92 @@ export default function AuditoriaSaldosPage() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Barra de Paginación */}
+            {paginationInfo.total > 0 && (
+              <div className="p-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-600">
+                <div className="flex items-center gap-2">
+                  <span>Mostrar</span>
+                  <Select
+                    value={pageSize.toString()}
+                    onValueChange={(val) => {
+                      setPageSize(parseInt(val));
+                      setPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-24 bg-white text-xs">
+                      <SelectValue placeholder="50" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                      <SelectItem value="250">250</SelectItem>
+                      <SelectItem value="500">500</SelectItem>
+                      <SelectItem value="1000">1000</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span>por página</span>
+                  <span className="text-gray-400 mx-1">|</span>
+                  <span>
+                    Mostrando{' '}
+                    <strong>
+                      {Math.min((page - 1) * pageSize + 1, paginationInfo.total)} -{' '}
+                      {Math.min(page * pageSize, paginationInfo.total)}
+                    </strong>{' '}
+                    de <strong>{paginationInfo.total}</strong> clientes activos
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2 bg-white"
+                    onClick={() => setPage(1)}
+                    disabled={page <= 1 || loading}
+                    title="Primera página"
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2 bg-white"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1 || loading}
+                    title="Página anterior"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+
+                  <span className="px-3 py-1 font-medium bg-white border border-gray-200 rounded text-gray-800">
+                    Página {page} de {Math.max(1, paginationInfo.totalPages)}
+                  </span>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2 bg-white"
+                    onClick={() => setPage((p) => Math.min(paginationInfo.totalPages, p + 1))}
+                    disabled={page >= paginationInfo.totalPages || loading}
+                    title="Página siguiente"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2 bg-white"
+                    onClick={() => setPage(paginationInfo.totalPages)}
+                    disabled={page >= paginationInfo.totalPages || loading}
+                    title="Última página"
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

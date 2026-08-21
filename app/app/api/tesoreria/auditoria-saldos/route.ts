@@ -47,7 +47,33 @@ export async function GET(request: NextRequest) {
     );
     const cobradoresList = Array.isArray(cobradoresRows) ? cobradoresRows.map((r: any) => r.codigo_gestor) : [];
 
-    // 2. Query de clientes base desde MySQL
+    // 2. Query de conteo total para paginación real
+    let countQuery = `
+      SELECT COUNT(*) as total
+      FROM cat_clientes
+      WHERE 1=1
+    `;
+    const countParams: any[] = [];
+
+    if (empresaFiltro !== 'all') {
+      countQuery += ` AND cod_cliente LIKE ?`;
+      countParams.push(`${empresaFiltro}%`);
+    }
+
+    if (cobradorFiltro !== 'all') {
+      countQuery += ` AND codigo_gestor = ?`;
+      countParams.push(cobradorFiltro);
+    }
+
+    if (search) {
+      countQuery += ` AND (cod_cliente LIKE ? OR nombre_ccliente LIKE ?)`;
+      countParams.push(`%${search}%`, `%${search}%`);
+    }
+
+    const [countResult]: any = await connection.query(countQuery, countParams);
+    const totalCount = countResult?.[0]?.total || 0;
+
+    // 3. Query de clientes base desde MySQL
     let query = `
       SELECT cod_cliente, nombre_ccliente, saldo_actualcli, codigo_gestor, status_cliente
       FROM cat_clientes
@@ -76,9 +102,9 @@ export async function GET(request: NextRequest) {
     const [clientesRows]: any = await connection.query(query, params);
     const clientesBase = Array.isArray(clientesRows) ? clientesRows : [];
 
-    // 3. Auditar cada cliente en paralelo (hasta 15 a la vez para no saturar)
+    // 4. Auditar cada cliente en paralelo (hasta 15 a la vez para no saturar)
     const auditados: any[] = [];
-    const BATCH_SIZE = 10;
+    const BATCH_SIZE = 15;
     for (let i = 0; i < clientesBase.length; i += BATCH_SIZE) {
       const batch = clientesBase.slice(i, i + BATCH_SIZE);
       const batchResults = await Promise.allSettled(
@@ -131,7 +157,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       resumen: {
-        totalAuditados: auditados.length,
+        totalAuditados: totalCount,
+        totalEnPagina: auditados.length,
         totalCuadrados,
         totalConDesfase,
         totalConPendientes,
@@ -142,7 +169,8 @@ export async function GET(request: NextRequest) {
       pagination: {
         page,
         limit,
-        total: clientesBase.length
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limit) || 1
       }
     });
   } catch (error: any) {
