@@ -1,4 +1,3 @@
-
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -15,25 +14,29 @@ interface KeyboardShortcut {
 const shortcuts: KeyboardShortcut[] = [
   {
     key: 'd',
-    ctrl: true,
+    alt: true,
+    shift: true,
     description: 'Ir al Dashboard',
     action: () => {}
   },
   {
     key: 'c',
-    ctrl: true,
+    alt: true,
+    shift: true,
     description: 'Ir a Clientes',
     action: () => {}
   },
   {
     key: 'p',
-    ctrl: true,
+    alt: true,
+    shift: true,
     description: 'Ir a Pagos',
     action: () => {}
   },
   {
     key: 'r',
-    ctrl: true,
+    alt: true,
+    shift: true,
     description: 'Ir a Reportes',
     action: () => {}
   },
@@ -50,7 +53,7 @@ export function useKeyboardShortcuts() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignorar si está escribiendo en un input
+      // Ignorar si está escribiendo en un input o elemento editable
       const target = e.target as HTMLElement;
       if (
         target.tagName === 'INPUT' ||
@@ -60,32 +63,37 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // Ctrl + D: Dashboard
-      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
-        e.preventDefault();
-        router.push('/dashboard');
-      }
+      const key = e.key.toLowerCase();
 
-      // Ctrl + C: Clientes
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-        e.preventDefault();
-        router.push('/dashboard/clientes');
-      }
+      // Navegación con Alt + Shift (evita colisiones con Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Z, Ctrl+P, Ctrl+R, etc.)
+      if (e.altKey && e.shiftKey) {
+        // Alt + Shift + D: Dashboard
+        if (key === 'd') {
+          e.preventDefault();
+          router.push('/dashboard');
+        }
 
-      // Ctrl + P: Pagos
-      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
-        e.preventDefault();
-        router.push('/dashboard/pagos');
-      }
+        // Alt + Shift + C: Clientes
+        if (key === 'c') {
+          e.preventDefault();
+          router.push('/dashboard/clientes');
+        }
 
-      // Ctrl + R: Reportes
-      if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
-        e.preventDefault();
-        router.push('/dashboard/reportes');
+        // Alt + Shift + P: Pagos
+        if (key === 'p') {
+          e.preventDefault();
+          router.push('/dashboard/pagos');
+        }
+
+        // Alt + Shift + R: Reportes
+        if (key === 'r') {
+          e.preventDefault();
+          router.push('/dashboard/reportes');
+        }
       }
 
       // Shift + ?: Ayuda
-      if (e.shiftKey && e.key === '?') {
+      if (e.shiftKey && (e.key === '?' || e.key === '/') && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         mostrarAyuda();
       }
@@ -100,10 +108,10 @@ export function useKeyboardShortcuts() {
 🔥 Atajos de Teclado:
 
 Ctrl + K: Búsqueda global
-Ctrl + D: Dashboard
-Ctrl + C: Clientes
-Ctrl + P: Pagos
-Ctrl + R: Reportes
+Alt + Shift + D: Dashboard
+Alt + Shift + C: Clientes
+Alt + Shift + P: Pagos
+Alt + Shift + R: Reportes
 Shift + ?: Esta ayuda
     `;
     toast(mensaje, { duration: 5000 });
@@ -111,3 +119,4 @@ Shift + ?: Esta ayuda
 
   return { mostrarAyuda };
 }
+
