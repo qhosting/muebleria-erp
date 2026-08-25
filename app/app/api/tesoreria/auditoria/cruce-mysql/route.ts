@@ -870,21 +870,20 @@ export async function POST(request: NextRequest) {
       const dMin = new Date(fechaP.getTime() - 36 * 3600 * 1000);
       const dMax = new Date(fechaP.getTime() + 36 * 3600 * 1000);
 
-      // 3. Buscar si ya existe por recibo, concepto con ID de MySQL o coincidencia de monto en fecha
+      // 3. Buscar si ya existe por ID específico de MySQL o coincidencia en la misma ventana de fecha (±36h)
       const condicionesOr: any[] = [
         { numeroRecibo: `MYSQL-#${p.idpag}` },
         { concepto: { contains: `ID: ${p.idpag}` } },
-        ...(refClean ? [{ numeroRecibo: refClean }] : []),
-        ...(ticketId ? [
-          { numeroRecibo: { contains: ticketId } },
-          { concepto: { contains: ticketId } }
-        ] : []),
         {
           fechaPago: { gte: dMin, lte: dMax },
           OR: [
             { monto: abonoNum },
             ...(moraNum > 0 ? [{ monto: abonoNum + moraNum }] : []),
             ...(gcobNum > 0 ? [{ monto: abonoNum + moraNum + gcobNum }] : []),
+            ...(ticketId ? [
+              { numeroRecibo: { contains: ticketId } },
+              { concepto: { contains: ticketId } }
+            ] : [])
           ]
         }
       ];

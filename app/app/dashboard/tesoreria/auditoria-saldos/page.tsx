@@ -100,6 +100,7 @@ export default function AuditoriaSaldosPage() {
   const [empresaFiltro, setEmpresaFiltro] = useState<string>('all');
   const [cobradorFiltro, setCobradorFiltro] = useState<string>('all');
   const [estadoFiltro, setEstadoFiltro] = useState<string>('all');
+  const [statusCuentaFiltro, setStatusCuentaFiltro] = useState<string>('activo'); // activo por defecto
   const [busqueda, setBusqueda] = useState<string>('');
   const [activeSearch, setActiveSearch] = useState<string>('');
 
@@ -136,6 +137,7 @@ export default function AuditoriaSaldosPage() {
         empresa: empresaFiltro,
         cobrador: cobradorFiltro,
         estado: estadoFiltro,
+        statusCuenta: statusCuentaFiltro,
         search: activeSearch,
         page: page.toString(),
         limit: pageSize.toString(),
@@ -165,7 +167,7 @@ export default function AuditoriaSaldosPage() {
 
   useEffect(() => {
     fetchAuditData();
-  }, [empresaFiltro, cobradorFiltro, estadoFiltro, activeSearch, page, pageSize]);
+  }, [empresaFiltro, cobradorFiltro, estadoFiltro, statusCuentaFiltro, activeSearch, page, pageSize]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -403,7 +405,7 @@ export default function AuditoriaSaldosPage() {
         {/* Barra de Filtros y Búsqueda */}
         <Card className="border-gray-200 shadow-sm">
           <CardContent className="p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
               {/* Buscador */}
               <form onSubmit={handleSearchSubmit} className="lg:col-span-2 relative flex gap-2">
                 <div className="relative flex-1">
@@ -434,6 +436,18 @@ export default function AuditoriaSaldosPage() {
                   <SelectItem value="all">Todas las Empresas</SelectItem>
                   <SelectItem value="DP">DP - Crédito</SelectItem>
                   <SelectItem value="DQ">DQ - Querétaro</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Filtro Estatus de Cuenta */}
+              <Select value={statusCuentaFiltro} onValueChange={setStatusCuentaFiltro}>
+                <SelectTrigger className="bg-white">
+                  <SelectValue placeholder="Estatus de Cuenta" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="activo">Solo Cuentas Activas</SelectItem>
+                  <SelectItem value="inactivo">Solo Cuentas Inactivas</SelectItem>
+                  <SelectItem value="all">Todos los Estatus</SelectItem>
                 </SelectContent>
               </Select>
 

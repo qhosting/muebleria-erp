@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
     const empresaFiltro = searchParams.get('empresa') || 'all'; // all, DP, DQ
     const cobradorFiltro = searchParams.get('cobrador') || 'all';
     const estadoFiltro = searchParams.get('estado') || 'all'; // all, DESFASE, CUADRADO, PENDIENTES
+    const statusCuentaFiltro = searchParams.get('statusCuenta') || 'activo'; // activo, inactivo, all
     const search = (searchParams.get('search') || '').trim();
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '30');
@@ -47,6 +48,16 @@ export async function GET(request: NextRequest) {
     );
     const cobradoresList = Array.isArray(cobradoresRows) ? cobradoresRows.map((r: any) => r.codigo_gestor) : [];
 
+    // 1.1 Filtrar clientes según su estatus en el ERP si no es 'all'
+    let codigosValidosERP: string[] | null = null;
+    if (statusCuentaFiltro !== 'all') {
+      const clientesErp = await prisma.cliente.findMany({
+        where: { statusCuenta: statusCuentaFiltro as any },
+        select: { codigoCliente: true }
+      });
+      codigosValidosERP = clientesErp.map((c) => c.codigoCliente.toUpperCase());
+    }
+
     // 2. Query de conteo total para paginación real
     let countQuery = `
       SELECT COUNT(*) as total
@@ -54,6 +65,27 @@ export async function GET(request: NextRequest) {
       WHERE 1=1
     `;
     const countParams: any[] = [];
+
+    if (codigosValidosERP) {
+      if (codigosValidosERP.length === 0) {
+        return NextResponse.json({
+          success: true,
+          resumen: {
+            totalAuditados: 0,
+            totalEnPagina: 0,
+            totalCuadrados: 0,
+            totalConDesfase: 0,
+            totalConPendientes: 0,
+            sumaDiscrepanciaTotal: 0
+          },
+          cobradores: cobradoresList,
+          clientes: [],
+          pagination: { page: 1, limit, total: 0, totalPages: 1 }
+        });
+      }
+      countQuery += ` AND UPPER(cod_cliente) IN (?)`;
+      countParams.push(codigosValidosERP);
+    }
 
     if (empresaFiltro !== 'all') {
       countQuery += ` AND cod_cliente LIKE ?`;
@@ -80,6 +112,11 @@ export async function GET(request: NextRequest) {
       WHERE 1=1
     `;
     const params: any[] = [];
+
+    if (codigosValidosERP) {
+      query += ` AND UPPER(cod_cliente) IN (?)`;
+      params.push(codigosValidosERP);
+    }
 
     if (empresaFiltro !== 'all') {
       query += ` AND cod_cliente LIKE ?`;
