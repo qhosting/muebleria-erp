@@ -189,7 +189,6 @@ export default function AuditoriaFinancieraPage() {
 
   // Estados Auditoría Interna
   const [loadingInterna, setLoadingInterna] = useState(false);
-  const [reconcilingInterna, setReconcilingInterna] = useState(false);
   const [resumenInterna, setResumenInterna] = useState<ResumenAuditoria | null>(null);
   const [duplicados, setDuplicados] = useState<DuplicadoItem[]>([]);
   const [saldosNegativos, setSaldosNegativos] = useState<SaldoNegativoItem[]>([]);
@@ -288,11 +287,11 @@ export default function AuditoriaFinancieraPage() {
     setFechaFin(ultimoDia.toISOString().split('T')[0]);
   };
 
-  // Función para auto-alinear / importar pagos faltantes de MySQL al ERP
+  // Función para auto-alinear / importar pagos faltantes de MySQL al ERP (SÍ actualiza saldo al importar)
   const handleAlinearPagos = async (codigoCliente?: string, aplicarContpaqi: boolean = false) => {
     const msg = codigoCliente
-      ? `¿Importar pagos de MySQL hacia el ERP para el cliente ${codigoCliente}${aplicarContpaqi ? ' y aplicar abonos a Contpaqi' : ''}?`
-      : `¿Auto-alinear pagos del corte (${fechaInicio} al ${fechaFin}) importando faltantes de MySQL a ERP${aplicarContpaqi ? ' y aplicando abonos a Contpaqi' : ''}?`;
+      ? `¿Importar pagos de MySQL hacia el ERP para el cliente ${codigoCliente}? Esto registrará el pago y actualizará el saldo del cliente descontando el abono.`
+      : `¿Auto-alinear pagos del corte (${fechaInicio} al ${fechaFin}) importando faltantes de MySQL a ERP? Esto actualizará los saldos de los clientes correspondientes.`;
 
     if (!confirm(msg)) return;
 
@@ -313,15 +312,15 @@ export default function AuditoriaFinancieraPage() {
 
       if (res.ok) {
         const data = await res.json();
-        toast.success(data.mensaje || 'Alineación completada exitosamente.');
+        toast.success(data.mensaje || 'Importación y actualización de saldos completada exitosamente.');
         fetchCruce();
       } else {
         const err = await res.json();
-        toast.error(err.error || 'Error al alinear pagos');
+        toast.error(err.error || 'Error al importar pagos');
       }
     } catch (error) {
-      console.error('Error al alinear:', error);
-      toast.error('Error de red al ejecutar alineación');
+      console.error('Error al importar pagos:', error);
+      toast.error('Error de red al ejecutar importación');
     } finally {
       setAligning(false);
     }
@@ -365,42 +364,7 @@ export default function AuditoriaFinancieraPage() {
     }
   };
 
-  // Función para auto-reconciliar interno ERP
-  const handleReconciliarInterno = async (codigoCliente?: string) => {
-    const confirmMsg = codigoCliente
-      ? `¿Reconciliar saldos para el cliente ${codigoCliente}?`
-      : '¿Deseas ejecutar la auto-reconciliación global de saldos en el ERP?';
-
-    if (!confirm(confirmMsg)) return;
-
-    setReconcilingInterna(true);
-    try {
-      const res = await fetch('/api/tesoreria/auditoria', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accion: codigoCliente ? 'reconciliar_cliente' : 'reconciliar_todo',
-          codigoCliente,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        toast.success(data.mensaje || 'Reconciliación completada.');
-        fetchAuditoriaInterna();
-      } else {
-        const err = await res.json();
-        toast.error(err.error || 'Error al reconciliar');
-      }
-    } catch (error) {
-      console.error('Error al reconciliar:', error);
-      toast.error('Error de conexión');
-    } finally {
-      setReconcilingInterna(false);
-    }
-  };
-
-  // Función para consultar saldos en vivo desde Contpaqi Comercial API
+  // Función para consultar saldos en vivo desde Contpaqi Comercial API (INFORMATIVA)
   const handleConsultarSaldosContpaqi = async (codigoCliente?: string) => {
     const codigosParaConsultar = codigoCliente
       ? [codigoCliente]
@@ -726,7 +690,7 @@ export default function AuditoriaFinancieraPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t">
                   {/* Fecha Inicio */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-semibold text-slate-500">Fecha Inicio (Sábado)</label>
@@ -766,56 +730,61 @@ export default function AuditoriaFinancieraPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
 
-                  {/* Botones de Acción */}
-                  <div className="flex items-end gap-2 col-span-1 lg:col-span-2">
+                {/* Botonera de Acciones (Fila Completa, Responsiva y sin Recortes) */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={fetchCruce}
                       disabled={loadingCruce}
-                      className="h-8 text-xs flex-1 flex items-center justify-center gap-1"
+                      className="h-8 text-xs px-3 font-semibold flex items-center gap-1.5 shadow-sm"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${loadingCruce ? 'animate-spin' : ''}`} />
-                      Auditar
+                      Auditar Cruce
                     </Button>
                     <Button
                       size="sm"
                       onClick={() => handleAlinearPagos()}
                       disabled={loadingCruce || aligning || (resumenCruce?.totalFaltantesErp === 0)}
-                      className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white flex-1 flex items-center justify-center gap-1"
-                      title="Importar pagos faltantes de MySQL al ERP"
+                      className="h-8 text-xs px-3 font-semibold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-sm"
+                      title="Importar pagos faltantes de MySQL al ERP y actualizar saldos"
                     >
                       <Download className={`w-3.5 h-3.5 ${aligning ? 'animate-spin' : ''}`} />
-                      Auto-Alinear
+                      Auto-Alinear Faltantes
                     </Button>
                     <Button
                       size="sm"
                       onClick={() => handleAplicarContpaqi()}
                       disabled={loadingCruce || applyingContpaqi || (resumenCruce?.totalContpaqiPendientes === 0)}
-                      className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white flex-1 flex items-center justify-center gap-1"
+                      className="h-8 text-xs px-3 font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-sm"
                       title="Aplicar abonos de capital a Contpaqi Comercial API (DQ y DP)"
                     >
                       <Send className={`w-3.5 h-3.5 ${applyingContpaqi ? 'animate-spin' : ''}`} />
-                      Contpaqi
+                      Aplicar en Contpaqi
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => handleConsultarSaldosContpaqi()}
                       disabled={loadingCruce || loadingContpaqiSaldos || clientesFiltrados.length === 0}
-                      className="h-8 text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-300 flex-1 flex items-center justify-center gap-1 shadow-sm"
+                      className="h-8 text-xs px-3 font-semibold bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-300 flex items-center gap-1.5 shadow-sm"
                       title="Consultar saldos actuales en vivo desde Contpaqi Comercial API"
                     >
                       <Building2 className={`w-3.5 h-3.5 text-purple-600 ${loadingContpaqiSaldos ? 'animate-spin' : ''}`} />
-                      Saldos Contpaqi
+                      Consultar Saldos Contpaqi
                     </Button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={handleExportarXLS}
                       disabled={loadingCruce || clientesFiltrados.length === 0}
-                      className="h-8 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-300 flex-1 flex items-center justify-center gap-1 shadow-sm"
+                      className="h-8 text-xs px-3 font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-300 flex items-center gap-1.5 shadow-sm"
                       title="Exportar auditoría a archivo Excel (.xlsx / .xls)"
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
@@ -1442,20 +1411,11 @@ export default function AuditoriaFinancieraPage() {
                   variant="outline"
                   size="sm"
                   onClick={fetchAuditoriaInterna}
-                  disabled={loadingInterna || reconcilingInterna}
+                  disabled={loadingInterna}
                   className="flex items-center gap-2"
                 >
                   <RefreshCw className={`w-4 h-4 ${loadingInterna ? 'animate-spin' : ''}`} />
                   Diagnóstico
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => handleReconciliarInterno()}
-                  disabled={loadingInterna || reconcilingInterna || (resumenInterna?.totalAlertas === 0)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
-                >
-                  <Wrench className={`w-4 h-4 ${reconcilingInterna ? 'animate-spin' : ''}`} />
-                  Auto-Reconciliar Todo
                 </Button>
                 <Button
                   variant="outline"
@@ -1573,7 +1533,7 @@ export default function AuditoriaFinancieraPage() {
                               <th className="p-2 text-right">Saldo BD</th>
                               <th className="p-2 text-right">Último Pago</th>
                               <th className="p-2 text-right">Diferencia</th>
-                              <th className="p-2 text-center">Acción</th>
+                              <th className="p-2 text-center">Estado</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y">
@@ -1588,14 +1548,9 @@ export default function AuditoriaFinancieraPage() {
                                   {formatCurrency(item.diferencia)}
                                 </td>
                                 <td className="p-2 text-center">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 text-xs"
-                                    onClick={() => handleReconciliarInterno(item.codigo)}
-                                  >
-                                    Reconciliar
-                                  </Button>
+                                  <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">
+                                    Desfase detectado
+                                  </Badge>
                                 </td>
                               </tr>
                             ))}
@@ -1621,7 +1576,7 @@ export default function AuditoriaFinancieraPage() {
                               <th className="p-2">Fecha</th>
                               <th className="p-2 text-right">Monto</th>
                               <th className="p-2 text-center">Intervalo</th>
-                              <th className="p-2 text-center">Acción</th>
+                              <th className="p-2 text-center">Estado</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y">
@@ -1637,14 +1592,9 @@ export default function AuditoriaFinancieraPage() {
                                   </Badge>
                                 </td>
                                 <td className="p-2 text-center">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 text-xs"
-                                    onClick={() => handleReconciliarInterno(item.clienteCodigo)}
-                                  >
-                                    Limpiar
-                                  </Button>
+                                  <Badge variant="destructive" className="text-[10px]">
+                                    Duplicado
+                                  </Badge>
                                 </td>
                               </tr>
                             ))}
@@ -1669,7 +1619,7 @@ export default function AuditoriaFinancieraPage() {
                               <th className="p-2">Cliente</th>
                               <th className="p-2 text-right">Saldo Actual</th>
                               <th className="p-2 text-center">Total Pagos</th>
-                              <th className="p-2 text-center">Acción</th>
+                              <th className="p-2 text-center">Estado</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y">
@@ -1680,14 +1630,9 @@ export default function AuditoriaFinancieraPage() {
                                 <td className="p-2 text-right font-mono">{formatCurrency(item.saldoActual)}</td>
                                 <td className="p-2 text-center">{item.totalPagos}</td>
                                 <td className="p-2 text-center">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 text-xs"
-                                    onClick={() => handleReconciliarInterno(item.codigo)}
-                                  >
-                                    Reconstruir
-                                  </Button>
+                                  <Badge variant="outline" className="text-[10px] text-purple-600 border-purple-300">
+                                    Salto en cadena
+                                  </Badge>
                                 </td>
                               </tr>
                             ))}

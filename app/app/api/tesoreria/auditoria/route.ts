@@ -164,122 +164,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Acceso restringido a administradores y tesorería' }, { status: 403 });
     }
 
-    const body = await request.json();
-    const { accion = 'reconciliar_todo', codigoCliente } = body;
-
-    let codigosAProcesar: string[] = [];
-
-    if (codigoCliente) {
-      codigosAProcesar = [codigoCliente.trim().toUpperCase()];
-    } else {
-      const clientes = await prisma.cliente.findMany({
-        where: { statusCuenta: 'activo' },
-        select: { codigoCliente: true }
-      });
-      codigosAProcesar = clientes.map(c => c.codigoCliente);
-    }
-
-    let totalDuplicadosEliminados = 0;
-    let totalClientesReconciliados = 0;
-
-    for (const codigo of codigosAProcesar) {
-      const cliente = await prisma.cliente.findUnique({
-        where: { codigoCliente: codigo },
-        include: {
-          pagos: {
-            orderBy: [
-              { fechaPago: 'asc' },
-              { createdAt: 'asc' }
-            ]
-          }
-        }
-      });
-
-      if (!cliente || cliente.pagos.length === 0) continue;
-
-      const pagos = cliente.pagos;
-      const duplicadosIds: string[] = [];
-
-      // 1. Eliminar duplicados con < 120s
-      for (let i = 0; i < pagos.length; i++) {
-        for (let j = i + 1; j < pagos.length; j++) {
-          const p1 = pagos[i];
-          const p2 = pagos[j];
-          const m1 = parseFloat(p1.monto.toString());
-          const m2 = parseFloat(p2.monto.toString());
-
-          if (m1 === m2 && m1 > 0 && !duplicadosIds.includes(p2.id)) {
-            const t1 = new Date(p1.createdAt).getTime();
-            const t2 = new Date(p2.createdAt).getTime();
-            const diffSec = Math.abs(t2 - t1) / 1000;
-
-            if (diffSec <= 120) {
-              duplicadosIds.push(p2.id);
-            }
-          }
-        }
-      }
-
-      if (duplicadosIds.length > 0) {
-        await prisma.pago.deleteMany({
-          where: { id: { in: duplicadosIds } }
-        });
-        totalDuplicadosEliminados += duplicadosIds.length;
-      }
-
-      // 2. Reconstruir cadena de saldos
-      const pagosLimpios = await prisma.pago.findMany({
-        where: { clienteId: cliente.id },
-        orderBy: [
-          { fechaPago: 'asc' },
-          { createdAt: 'asc' }
-        ]
-      });
-
-      if (pagosLimpios.length > 0) {
-        let runningSaldo = parseFloat(pagosLimpios[0].saldoAnterior.toString());
-
-        for (let i = 0; i < pagosLimpios.length; i++) {
-          const p = pagosLimpios[i];
-          const monto = parseFloat(p.monto.toString());
-          const saldoAnt = runningSaldo;
-          const saldoNvo = Math.max(0, saldoAnt - monto);
-
-          if (parseFloat(p.saldoAnterior.toString()) !== saldoAnt || parseFloat(p.saldoNuevo.toString()) !== saldoNvo) {
-            await prisma.pago.update({
-              where: { id: p.id },
-              data: {
-                saldoAnterior: saldoAnt,
-                saldoNuevo: saldoNvo
-              }
-            });
-          }
-
-          runningSaldo = saldoNvo;
-        }
-
-        // 3. Ajustar saldo actual si hay diferencia
-        if (parseFloat(cliente.saldoActual.toString()) !== runningSaldo) {
-          await prisma.cliente.update({
-            where: { id: cliente.id },
-            data: { saldoActual: runningSaldo }
-          });
-        }
-
-        totalClientesReconciliados++;
-      }
-    }
-
+    // Módulo exclusivamente informativo: no se permiten mutaciones de saldos
     return NextResponse.json({
-      success: true,
-      mensaje: `Reconciliación completada exitosamente.`,
-      clientesProcesados: totalClientesReconciliados,
-      duplicadosEliminados: totalDuplicadosEliminados,
-      timestamp: new Date().toISOString()
-    });
+      error: 'El módulo de Auditoría es estrictamente informativo. No se permiten modificaciones ni reconciliaciones de saldo desde esta vista.'
+    }, { status: 400 });
 
   } catch (error: any) {
     console.error('Error en POST /api/tesoreria/auditoria:', error);
     return NextResponse.json({ error: error.message || 'Error interno' }, { status: 500 });
   }
 }
+

@@ -816,7 +816,7 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // ACCIÓN 2: AUTO-ALINEAR (IMPORTAR DE MYSQL A ERP + OPCIONAL CONTPAQI)
+    // ACCIÓN 2: AUTO-ALINEAR / IMPORTAR MOVIMIENTOS (ACTUALIZA EL SALDO DEL CLIENTE)
     // =========================================================================
     connection = await mysql.createConnection(MYSQL_CONFIG);
 
@@ -916,6 +916,7 @@ export async function POST(request: NextRequest) {
           }
         });
 
+        // Al importar el movimiento, SÍ se descuenta el abono del saldo actual del cliente en el ERP
         if (abonoNum > 0) {
           await prisma.cliente.update({
             where: { id: cliente.id },
@@ -961,7 +962,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      mensaje: `Alineación completada: ${pagosInsertados} pagos importados hacia ERP${contpaqiAplicadosCount > 0 ? ` (${contpaqiAplicadosCount} aplicados en Contpaqi)` : ''}.`,
+      mensaje: `Importación completada: ${pagosInsertados} pagos importados y saldos actualizados en ERP${contpaqiAplicadosCount > 0 ? ` (${contpaqiAplicadosCount} aplicados en Contpaqi)` : ''}.`,
       pagosInsertados,
       clientesActualizados,
       contpaqiAplicadosCount,
