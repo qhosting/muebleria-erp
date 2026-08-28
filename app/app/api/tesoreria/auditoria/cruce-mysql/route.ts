@@ -858,47 +858,57 @@ export async function POST(request: NextRequest) {
         include: { cobradorAsignado: true }
       });
 
-      // Si no existe en ERP, crearlo automáticamente desde cat_clientes de MySQL
+      // Si no existe en ERP, crearlo automáticamente con todos los campos requeridos del esquema
       if (!cliente) {
         try {
           const [cliRows]: any = await connection.query(
             'SELECT * FROM cat_clientes WHERE cod_cliente = ? LIMIT 1',
             [cod]
           );
-          if (Array.isArray(cliRows) && cliRows.length > 0) {
-            const cData = cliRows[0];
-            let cobradorId: string | null = null;
-            if (cData.codigo_gestor) {
-              const cobUser = await prisma.user.findFirst({
-                where: {
-                  OR: [
-                    { username: { equals: cData.codigo_gestor, mode: 'insensitive' } },
-                    { name: { contains: cData.codigo_gestor, mode: 'insensitive' } }
-                  ]
-                }
-              });
-              if (cobUser) cobradorId = cobUser.id;
-            }
+          const cData = Array.isArray(cliRows) && cliRows.length > 0 ? cliRows[0] : null;
 
-            const sVal = parseFloat(cData.saldo_actualcli) || 0;
-            cliente = await prisma.cliente.create({
-              data: {
-                codigoCliente: cod,
-                nombreCompleto: cData.nombre_ccliente || `Cliente ${cod}`,
-                telefono: cData.tel1_cliente || null,
-                direccion: cData.dir_cliente || null,
-                colonia: cData.colonia_cliente || null,
-                ciudad: cData.poblacion_cliente || null,
-                saldoActual: sVal,
-                saldoTotal: sVal,
-                statusCuenta: 'activo',
-                cobradorAsignadoId: cobradorId,
-              },
-              include: { cobradorAsignado: true }
+          const gestorCode = cData?.codigo_gestor || p.codigo_gestor || null;
+          let cobradorId: string | null = null;
+          if (gestorCode) {
+            const cobUser = await prisma.user.findFirst({
+              where: {
+                OR: [
+                  { username: { equals: gestorCode, mode: 'insensitive' } },
+                  { name: { contains: gestorCode, mode: 'insensitive' } },
+                  { codigoGestor: { equals: gestorCode, mode: 'insensitive' } }
+                ]
+              }
             });
+            if (cobUser) cobradorId = cobUser.id;
           }
-        } catch (errCli) {
-          console.warn(`No se pudo auto-crear el cliente ${cod} en ERP:`, errCli);
+
+          const sVal = parseFloat(cData?.saldo_actualcli || p.saldo_actualcli || '0') || 0;
+          const dir = cData?.dir_cliente || cData?.direccion || 'Sin dirección registrada';
+          const nom = cData?.nombre_ccliente || p.nombre_ccliente || `Cliente ${cod}`;
+
+          cliente = await prisma.cliente.create({
+            data: {
+              codigoCliente: cod,
+              nombreCompleto: nom,
+              direccionCompleta: dir,
+              calle: cData?.dir_cliente || null,
+              colonia: cData?.colonia_cliente || null,
+              ciudad: cData?.poblacion_cliente || null,
+              telefono: cData?.tel1_cliente || null,
+              vendedor: cData?.vendedor || 'Sistema',
+              fechaVenta: cData?.fecha_alta ? new Date(cData.fecha_alta) : new Date(),
+              descripcionProducto: cData?.articulo || 'Venta a crédito',
+              diaPago: cData?.dia_cobro || 'Lunes',
+              montoPago: parseFloat(cData?.importe1 || '0') || 0,
+              periodicidad: 'semanal',
+              saldoActual: sVal,
+              statusCuenta: 'activo',
+              cobradorAsignadoId: cobradorId,
+            },
+            include: { cobradorAsignado: true }
+          });
+        } catch (errCli: any) {
+          console.error(`Error al auto-crear el cliente ${cod} en ERP:`, errCli.message);
         }
       }
 
