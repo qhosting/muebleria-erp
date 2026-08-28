@@ -820,6 +820,18 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     connection = await mysql.createConnection(MYSQL_CONFIG);
 
+    // Obtener un usuario de respaldo válido para foreign keys de cobradorId en Pago
+    const defaultUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { role: 'admin' },
+          { role: 'cobrador' },
+          { isActive: true }
+        ]
+      }
+    });
+    const fallbackUserId = (session?.user as any)?.id || defaultUser?.id || 'admin';
+
     let mysqlQuery = `
       SELECT idpag, cod_cliente, nombre_ccliente, fechap, fechahora, montop, mora, gcob, ref_pago, codigo_gestor, saldo_actualcli
       FROM pagos
@@ -828,7 +840,7 @@ export async function POST(request: NextRequest) {
     const mysqlParams: any[] = [];
 
     if (codigoCliente) {
-      mysqlQuery += ` AND cod_cliente = ?`;
+      mysqlQuery += ` AND UPPER(TRIM(cod_cliente)) = ?`;
       mysqlParams.push(codigoCliente.trim().toUpperCase());
     } else {
       if (fechaInicio && fechaFin) {
@@ -836,13 +848,74 @@ export async function POST(request: NextRequest) {
         mysqlParams.push(fechaInicio, fechaFin);
       }
       if (cobradorFiltro !== 'all') {
-        mysqlQuery += ` AND (codigo_gestor = ? OR cod_cliente LIKE ?)`;
+        mysqlQuery += ` AND (codigo_gestor = ? OR UPPER(TRIM(cod_cliente)) LIKE ?)`;
         mysqlParams.push(cobradorFiltro, `${cobradorFiltro}%`);
       }
     }
 
     mysqlQuery += ` ORDER BY fechap ASC`;
     const [pagosMysql]: any = await connection.query(mysqlQuery, mysqlParams);
+
+    // Si se solicitó un cliente específico que no tiene pagos en la tabla pagos,
+    // o antes de procesar los pagos, aseguramos que el cliente exista en el ERP
+    if (codigoCliente) {
+      const codBuscado = codigoCliente.trim().toUpperCase();
+      let clienteDirecto = await prisma.cliente.findFirst({
+        where: { codigoCliente: { equals: codBuscado, mode: 'insensitive' } }
+      });
+
+      if (!clienteDirecto) {
+        try {
+          const [cliDirectoRows]: any = await connection.query(
+            'SELECT * FROM cat_clientes WHERE UPPER(TRIM(cod_cliente)) = ? LIMIT 1',
+            [codBuscado]
+          );
+          const cd = Array.isArray(cliDirectoRows) && cliDirectoRows.length > 0 ? cliDirectoRows[0] : null;
+          
+          let cobradorId: string | null = null;
+          const gCod = cd?.codigo_gestor || null;
+          if (gCod) {
+            const cobUser = await prisma.user.findFirst({
+              where: {
+                OR: [
+                  { codigoGestor: { equals: gCod, mode: 'insensitive' } },
+                  { name: { contains: gCod, mode: 'insensitive' } },
+                  { email: { contains: gCod, mode: 'insensitive' } }
+                ]
+              }
+            });
+            if (cobUser) cobradorId = cobUser.id;
+          }
+
+          const sVal = parseFloat(cd?.saldo_actualcli || '0') || 0;
+          const dir = cd?.dir_cliente || cd?.direccion || 'Sin dirección registrada';
+          const nom = cd?.nombre_ccliente || `Cliente ${codBuscado}`;
+
+          await prisma.cliente.create({
+            data: {
+              codigoCliente: codBuscado,
+              nombreCompleto: nom,
+              direccionCompleta: dir,
+              calle: cd?.dir_cliente || null,
+              colonia: cd?.colonia_cliente || null,
+              ciudad: cd?.poblacion_cliente || null,
+              telefono: cd?.tel1_cliente || null,
+              vendedor: cd?.vendedor || 'Sistema',
+              fechaVenta: cd?.fecha_alta ? new Date(cd.fecha_alta) : new Date(),
+              descripcionProducto: cd?.articulo || 'Venta a crédito',
+              diaPago: cd?.dia_cobro || 'Lunes',
+              montoPago: parseFloat(cd?.importe1 || '0') || 0,
+              periodicidad: 'semanal',
+              saldoActual: sVal,
+              statusCuenta: 'activo',
+              cobradorAsignadoId: cobradorId || fallbackUserId,
+            }
+          });
+        } catch (errDir: any) {
+          console.error(`Error al auto-crear cliente directo ${codBuscado}:`, errDir.message);
+        }
+      }
+    }
 
     let pagosInsertados = 0;
     let clientesActualizados = 0;
@@ -862,7 +935,7 @@ export async function POST(request: NextRequest) {
       if (!cliente) {
         try {
           const [cliRows]: any = await connection.query(
-            'SELECT * FROM cat_clientes WHERE cod_cliente = ? LIMIT 1',
+            'SELECT * FROM cat_clientes WHERE UPPER(TRIM(cod_cliente)) = ? LIMIT 1',
             [cod]
           );
           const cData = Array.isArray(cliRows) && cliRows.length > 0 ? cliRows[0] : null;
@@ -873,9 +946,9 @@ export async function POST(request: NextRequest) {
             const cobUser = await prisma.user.findFirst({
               where: {
                 OR: [
-                  { username: { equals: gestorCode, mode: 'insensitive' } },
+                  { codigoGestor: { equals: gestorCode, mode: 'insensitive' } },
                   { name: { contains: gestorCode, mode: 'insensitive' } },
-                  { codigoGestor: { equals: gestorCode, mode: 'insensitive' } }
+                  { email: { contains: gestorCode, mode: 'insensitive' } }
                 ]
               }
             });
@@ -903,7 +976,7 @@ export async function POST(request: NextRequest) {
               periodicidad: 'semanal',
               saldoActual: sVal,
               statusCuenta: 'activo',
-              cobradorAsignadoId: cobradorId,
+              cobradorAsignadoId: cobradorId || fallbackUserId,
             },
             include: { cobradorAsignado: true }
           });
@@ -980,66 +1053,70 @@ export async function POST(request: NextRequest) {
       const saldoPrevio = parseFloat(cliente.saldoActual.toString());
       const saldoNvo = Math.max(0, saldoPrevio - abonoNum);
 
-      const nuevoPago = await prisma.pago.create({
-        data: {
-          clienteId: cliente.id,
-          cobradorId: cliente.cobradorAsignadoId || (session.user as any).id,
-          monto: abonoNum,
-          interesMoratorio: moraNum,
-          gastosCobranza: gcobNum,
-          fechaPago: fechaP,
-          saldoAnterior: saldoPrevio,
-          saldoNuevo: saldoNvo,
-          numeroRecibo: p.ref_pago || `MYSQL-#${p.idpag}`,
-          metodoPago: 'efectivo',
-          concepto: `Alineación automática desde MySQL (ID: ${p.idpag}${moraNum > 0 ? ` + Mora $${moraNum}` : ''})`,
-          sincronizado: false,
-        }
-      });
-
-      // Al importar el movimiento, SÍ se descuenta el abono del saldo actual del cliente en el ERP
-      if (abonoNum > 0) {
-        await prisma.cliente.update({
-          where: { id: cliente.id },
-          data: { saldoActual: saldoNvo }
+      try {
+        const nuevoPago = await prisma.pago.create({
+          data: {
+            clienteId: cliente.id,
+            cobradorId: cliente.cobradorAsignadoId || fallbackUserId,
+            monto: abonoNum,
+            interesMoratorio: moraNum,
+            gastosCobranza: gcobNum,
+            fechaPago: fechaP,
+            saldoAnterior: saldoPrevio,
+            saldoNuevo: saldoNvo,
+            numeroRecibo: p.ref_pago || `MYSQL-#${p.idpag}`,
+            metodoPago: 'efectivo',
+            concepto: `Alineación automática desde MySQL (ID: ${p.idpag}${moraNum > 0 ? ` + Mora $${moraNum}` : ''})`,
+            sincronizado: false,
+          }
         });
-        // Actualizar saldoPrevio en memoria para siguientes pagos del mismo cliente en el mismo ciclo
-        cliente.saldoActual = saldoNvo as any;
-      }
 
-      // Si se solicitó aplicar directamente a Contpaqi
-      if (aplicarContpaqi && abonoNum > 0) {
-        const empresa = obtenerEmpresaContpaqi(cod);
-        if (empresa) {
-          try {
-            const contpaqiService = await getContpaqiService(prisma, empresa);
-            await contpaqiService.registrarPago({
-              codigoCliente: cod,
-              monto: abonoNum, // SOLO ABONO (Capital), NO MORATORIOS
-              fecha: fechaP,
-              folioTicket: p.ref_pago || `MYSQL-#${p.idpag}`,
-              referencia: `Alineación MySQL #${p.idpag}`,
-              observaciones: `Alineación automática corte ${fechaInicio} a ${fechaFin}`,
-            }, empresa);
+        // Al importar el movimiento, SÍ se descuenta el abono del saldo actual del cliente en el ERP
+        if (abonoNum > 0) {
+          await prisma.cliente.update({
+            where: { id: cliente.id },
+            data: { saldoActual: saldoNvo }
+          });
+          // Actualizar saldoPrevio en memoria para siguientes pagos del mismo cliente en el mismo ciclo
+          cliente.saldoActual = saldoNvo as any;
+        }
 
-            await prisma.pago.update({
-              where: { id: nuevoPago.id },
-              data: {
-                banco: 'CONTPAQI_APLICADO',
-                sincronizado: true,
-                concepto: `${nuevoPago.concepto || ''} [CONTPAQI_OK: ${new Date().toISOString()}]`.trim(),
-              }
-            });
+        // Si se solicitó aplicar directamente a Contpaqi
+        if (aplicarContpaqi && abonoNum > 0) {
+          const empresa = obtenerEmpresaContpaqi(cod);
+          if (empresa) {
+            try {
+              const contpaqiService = await getContpaqiService(prisma, empresa);
+              await contpaqiService.registrarPago({
+                codigoCliente: cod,
+                monto: abonoNum, // SOLO ABONO (Capital), NO MORATORIOS
+                fecha: fechaP,
+                folioTicket: p.ref_pago || `MYSQL-#${p.idpag}`,
+                referencia: `Alineación MySQL #${p.idpag}`,
+                observaciones: `Alineación automática corte ${fechaInicio} a ${fechaFin}`,
+              }, empresa);
 
-            contpaqiAplicadosCount++;
-          } catch (errContpaqi: any) {
-            console.warn(`⚠️ No se pudo aplicar pago a Contpaqi (${cod} - ${empresa}):`, errContpaqi.message);
+              await prisma.pago.update({
+                where: { id: nuevoPago.id },
+                data: {
+                  banco: 'CONTPAQI_APLICADO',
+                  sincronizado: true,
+                  concepto: `${nuevoPago.concepto || ''} [CONTPAQI_OK: ${new Date().toISOString()}]`.trim(),
+                }
+              });
+
+              contpaqiAplicadosCount++;
+            } catch (errContpaqi: any) {
+              console.warn(`⚠️ No se pudo aplicar pago a Contpaqi (${cod} - ${empresa}):`, errContpaqi.message);
+            }
           }
         }
-      }
 
-      pagosInsertados++;
-      clientesActualizados++;
+        pagosInsertados++;
+        clientesActualizados++;
+      } catch (errPago: any) {
+        console.error(`Error al insertar pago MySQL #${p.idpag} para ${cod}:`, errPago.message);
+      }
     }
 
     return NextResponse.json({

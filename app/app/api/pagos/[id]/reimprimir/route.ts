@@ -36,7 +36,8 @@ export async function POST(
           select: {
             id: true,
             name: true,
-            username: true,
+            codigoGestor: true,
+            email: true,
           },
         },
       },
