@@ -9,21 +9,21 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // Property name                    Node type (short)         Flags
 // Imagen                             convertToFile
 // AnalyzeImage                       openAi                     [creds]
-// InsertarTicket                     mySql                      [creds]
+// InsertarTicket                     httpRequest
 // ExtraeDatos                        code
 // Mensaje                            code
 // EnrutadorPrincipal                 code
 // SelectorDeAccion                   switch
-// GuardarTicketPendiente             mySql                      [creds] [alwaysOutput]
+// GuardarTicketPendiente             httpRequest
 // GenerarMensajeDePeticion           code
-// BuscarTicketPendiente              mySql                      [creds] [alwaysOutput]
+// BuscarTicketPendiente              httpRequest
 // SeEncontroPendiente                if
-// EliminarPendiente                  mySql                      [creds]
-// IntentarConciliacionInteligente    mySql                      [creds]
+// EliminarPendiente                  code
+// IntentarConciliacionInteligente    code
 // HttpRequest                        httpRequest
 // Code1                              code
 // ValidacionExitosa                  if
-// ExecuteASqlQuery                   mySql                      [creds] [alwaysOutput]
+// ExecuteASqlQuery                   httpRequest
 // Switch_                            switch
 // SantanderCsv                       convertToFile
 // BanorteCsv                         convertToFile
@@ -33,11 +33,11 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // ExtraerDatosSantander              extractFromFile
 // ExtraerDatosBanorte                extractFromFile
 // Switch1                            switch
-// InsertarBanorte                    mySql                      [creds]
-// InsertaSantander                   mySql                      [creds]
+// InsertarBanorte                    httpRequest
+// InsertaSantander                   httpRequest
 // GranEnrutador                      code
 // GranEnrutador2                     switch
-// IntentarConciliacionPorTicket      mySql                      [creds]
+// IntentarConciliacionPorTicket      code
 // HayTicketsPorConciliar             if
 // GenerarMensajeSinNovedades         code
 // ConciliacionExitosa1               if
@@ -45,7 +45,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // MensajeRemitente                   httpRequest
 // GenerarResumenParaAdmin            code
 // EnviarMensajeAlAdmin1              httpRequest
-// ObtenerTicketsPendientes1          mySql                      [creds] [alwaysOutput]
+// ObtenerTicketsPendientes1          httpRequest
 // HayTicketsPorConciliar1            if
 // GenerarMensajeSinNovedades1        code
 // ConciliacionExitosa2               if
@@ -53,10 +53,10 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // GenerarResumenParaAdmin1           code
 // EnviarMensajeAlAdmin6              httpRequest
 // DiarioConciliacionSpei             scheduleTrigger
-// ObtenerTicketsConClaveDeRastreo    mySql                      [creds] [alwaysOutput]
+// ObtenerTicketsConClaveDeRastreo    httpRequest
 // GenerarMensajeDeFormatoInvalido    code
 // EnviarMensajeDeErrorDeFormato      httpRequest
-// BuscarClientePorTelefono           mySql                      [creds] [alwaysOutput]
+// BuscarClientePorTelefono           httpRequest
 // ClienteEncontrado                  if
 // ConciliarDeposito                  scheduleTrigger
 // ValidarRespuestaDeTexto            code
@@ -67,16 +67,16 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // Merge                              merge
 // EstandarizarVariablesDeImagen      set
 // UnirDatosDeBusqueda                set                        [alwaysOutput]
-// AsignaGestor                       mySql                      [creds]
-// IntentarConciliacionDepositoEfectivo mySql                      [creds]
+// AsignaGestor                       code
+// IntentarConciliacionDepositoEfectivo code
 // EnvioDeSaldos                      scheduleTrigger
-// ObtenerPagosPendientesDeNotificar  mySql                      [creds] [alwaysOutput]
+// ObtenerPagosPendientesDeNotificar  httpRequest
 // Code3                              code
-// ActualizarTicketEnviado            mySql                      [creds]
-// ActualizarTicketEnviado1           mySql                      [creds]
+// ActualizarTicketEnviado            httpRequest
+// ActualizarTicketEnviado1           code
 // If_                                if
 // If1                                if
-// NumeroInvalido                     mySql                      [creds]
+// NumeroInvalido                     httpRequest
 // EnviarPorWaha                      httpRequest
 // WebhookWaha                        webhook
 // TieneImagen                        if
@@ -262,69 +262,28 @@ export class Tickets2Workflow {
     @node({
         id: '01db9b1e-612f-4431-8512-1c61f339cd75',
         name: 'Insertar_Ticket',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.4,
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
         position: [2224, 784],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
     })
     InsertarTicket = {
-        operation: 'executeQuery',
-        query: `SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
-
-START TRANSACTION;
-
--- Obtenemos todas las variables base
-SET @remitente = '{{ $("EXTRAE_DATOS").item.json.remitente }}';
-SET @contrato = '{{ $("EXTRAE_DATOS").item.json.contrato }}';
-
--- Convertir monto null/vacío a 0
-SET @montoRaw = '{{ $("EXTRAE_DATOS").item.json.monto }}';
-SET @monto = IF(@montoRaw = 'null' OR @montoRaw = '', 0, @montoRaw);
-
--- Truncamos y convertimos la palabra 'null' al valor NULL de base de datos
-SET @referenciaRaw = '{{ $("EXTRAE_DATOS").item.json.referencia }}';
-SET @referencia = IF(@referenciaRaw = 'null' OR @referenciaRaw = '', NULL, LEFT(@referenciaRaw, 50));
-
-SET @folioRaw = '{{ $("EXTRAE_DATOS").item.json.folio }}';
-SET @folio = IF(@folioRaw = 'null' OR @folioRaw = '', NULL, LEFT(@folioRaw, 50));
-
-SET @claverastreoRaw = '{{ $("EXTRAE_DATOS").item.json.claverastreo }}';
-SET @claverastreo = IF(@claverastreoRaw = 'null' OR @claverastreoRaw = '', NULL, LEFT(@claverastreoRaw, 50));
-
--- Validamos la Fecha y Hora. Si n8n devolvió "null", usamos la fecha y hora actual del sistema
-SET @fechaRaw = '{{ $("EXTRAE_DATOS").item.json.fecha }}';
-SET @fecha = IF(@fechaRaw = 'null' OR @fechaRaw = '', CURRENT_DATE(), @fechaRaw);
-
-SET @hrRaw = '{{ $("EXTRAE_DATOS").item.json.hr }}';
-SET @hr = IF(@hrRaw = 'null' OR @hrRaw = '', CURRENT_TIME(), @hrRaw);
-
--- --- Nueva lógica de validación (más robusta) ---
-SET @existing_ticket_id = (
-    SELECT id FROM ticket
-    WHERE
-        -- Opción 1: La clave de rastreo ya existe (para SPEI/transferencias)
-        (@claverastreo IS NOT NULL AND claverastreo = @claverastreo COLLATE utf8mb4_general_ci)
-        OR
-        -- Opción 2: Coincide la combinación única (para efectivo u otros)
-        (contrato = @contrato COLLATE utf8mb4_general_ci AND fecha = @fecha AND monto = @monto AND hr = @hr)
-    LIMIT 1
-);
--- --------------------------------------------------
-
-IF @existing_ticket_id IS NULL THEN
-    -- Si no existe, insertamos el nuevo ticket
-    INSERT INTO ticket (contrato, monto, referencia, folio, fecha, hr, claverastreo, remitente, concepto, cuentaorigen, cuentadestino)
-    VALUES (@contrato, @monto, @referencia, @folio, @fecha, @hr, @claverastreo, @remitente, 'TICKET WHATSAPP', 'NO IDENTIFICADO', 'NO IDENTIFICADO');
-
-    UPDATE cat_clientes SET bancos = 'NOCONCILIADO', pagar = '1' WHERE cod_cliente = @contrato COLLATE utf8mb4_general_ci;
-    SELECT LAST_INSERT_ID() AS ticket_id, 0 AS ya_existe;
-ELSE
-    -- Si ya existe, solo devolvemos su ID
-    SELECT @existing_ticket_id AS ticket_id, 1 AS ya_existe;
-END IF;
-
-COMMIT;
-`,
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={
+  "action": "create",
+  "contrato": "{{ $('EXTRAE_DATOS').item.json.contrato }}",
+  "monto": "{{ $('EXTRAE_DATOS').item.json.monto }}",
+  "referencia": "{{ $('EXTRAE_DATOS').item.json.referencia }}",
+  "folio": "{{ $('EXTRAE_DATOS').item.json.folio }}",
+  "claverastreo": "{{ $('EXTRAE_DATOS').item.json.claverastreo }}",
+  "fecha": "{{ $('EXTRAE_DATOS').item.json.fecha }}",
+  "hr": "{{ $('EXTRAE_DATOS').item.json.hr }}",
+  "remitente": "{{ $('EXTRAE_DATOS').item.json.remitente }}",
+  "base64Data": "{{ $('Estandarizar Variables de Imagen').item.json.base64 }}",
+  "tipoArchivo": "{{ $('Estandarizar Variables de Imagen').item.json.mimetype }}"
+}`,
         options: {},
     };
 
@@ -637,25 +596,23 @@ return [{
     };
 
     @node({
-        id: '1cf6f3e7-fc8d-4ea4-bc5c-da76a66e0290',
-        name: 'Guardar Ticket Pendiente',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
-        position: [112, 896],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
-        alwaysOutputData: true,
+        id: '9cb20f26-e17f-44a8-9279-3d07e60ee95e',
+        name: 'Guardar_Ticket_Pendiente',
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
+        position: [-224, 1072],
     })
     GuardarTicketPendiente = {
-        operation: 'executeQuery',
-        query: `INSERT INTO pending_tickets (remitente, base64_data, tipo_archivo)
-VALUES (
-  '{{ $('Enrutador Principal').item.json.body.data.key.remoteJid }}',
-  '{{ $('Enrutador Principal').item.json.body.data.message.base64 }}',
-  '{{ $('Enrutador Principal').item.json.body.data.message.imageMessage.mimetype }}'
-)
-ON DUPLICATE KEY UPDATE
-  base64_data = VALUES(base64_data),
-  tipo_archivo = VALUES(tipo_archivo);`,
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={
+  "action": "pending",
+  "remitente": "{{ $("Enrutador Principal").item.json.body.data.key.remoteJid }}",
+  "base64Data": "{{ $("Descargar Media Waha").item.json.data }}",
+  "tipoArchivo": "{{ $("Descargar Media Waha").item.json.mimetype }}"
+}`,
         options: {},
     };
 
@@ -677,19 +634,22 @@ return [{
     };
 
     @node({
-        id: '2abcaa64-eab6-41b2-b6de-bd6e140e9bf6',
-        name: 'Buscar Ticket Pendiente',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
-        position: [-96, 1040],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
-        alwaysOutputData: true,
+        id: 'be8b1fc5-257c-4861-ad77-3e8ea5e8f192',
+        name: 'Buscar_Ticket_Pendiente',
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
+        position: [-448, 1264],
     })
     BuscarTicketPendiente = {
-        operation: 'executeQuery',
-        query: `SELECT base64_data, tipo_archivo
-FROM pending_tickets
-WHERE remitente = '{{ $json.body.data.key.remoteJid }}';`,
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={
+  "action": "resolve",
+  "remitente": "{{ $("Enrutador Principal").item.json.body.data.key.remoteJid }}",
+  "contrato": "{{ $("Validar Respuesta de Texto").item.json.contrato }}"
+}`,
         options: {},
     };
 
@@ -726,103 +686,25 @@ WHERE remitente = '{{ $json.body.data.key.remoteJid }}';`,
     };
 
     @node({
-        id: 'db0a04b3-d82a-4980-89e7-c4d7fdf0a2b5',
-        name: 'Eliminar Pendiente',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
-        position: [928, 1024],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
+        id: '9f5a7da0-3c2f-4e08-9df8-b541a3bc8ef0',
+        name: 'Eliminar_Pendiente',
+        type: 'n8n-nodes-base.code',
+        version: 2,
+        position: [0, 1264],
     })
     EliminarPendiente = {
-        operation: 'executeQuery',
-        query: "DELETE FROM pending_tickets WHERE remitente = '{{ $json.remitente }}';",
-        options: {},
+        jsCode: 'return $input.all();',
     };
 
     @node({
-        id: 'e7085d02-ce4a-43e7-9660-1645239a4c0a',
-        name: 'Intentar Conciliación Inteligente',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
-        position: [2640, 784],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
-        alwaysOutputData: false,
+        id: '67cb1565-d419-4824-8b63-95844855f4c4',
+        name: 'Intentar_Conciliacion_Inteligente',
+        type: 'n8n-nodes-base.code',
+        version: 2,
+        position: [2672, 784],
     })
     IntentarConciliacionInteligente = {
-        operation: 'executeQuery',
-        query: `SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
-
-START TRANSACTION;
-SET time_zone = '-06:00';
-SET lc_time_names = 'es_ES';
-
--- PASO 1: OBTENER DATOS DEL TICKET
-SET @ticketId = '{{ $json.ticketId }}';
-SET @contrato = '{{ $json.contrato }}';
-SET @montoPago = '{{ $json.monto }}';
-SET @fechaPago = CURDATE();
-SET @hr = '{{ $json.hr }}';
-SET @claverastreo = '{{ $json.claverastreo }}';
-SET @remitente = '{{ $("EXTRAE_DATOS").item.json.remitente }}';
-
--- VALIDACIÓN: Si ticketId o contrato son inválidos, no hacer nada
-IF @ticketId IS NOT NULL AND @ticketId != '' AND @ticketId != 'undefined' AND @contrato IS NOT NULL AND @contrato != '' AND @contrato != 'undefined' THEN
-
-    -- PASO 2: OBTENER DATOS DEL CLIENTE
-    SELECT nombre_ccliente, codigo_gestor, periodicidad_cliente, saldo_actualcli, id_ges, tel1_cliente
-    INTO @nombreCliente, @codigoGestor, @periodicidadCliente, @saldoActual, @idGes, @tel1Cliente
-    FROM cat_clientes WHERE cod_cliente = @contrato COLLATE utf8mb4_general_ci LIMIT 1;
-
-    SET @nuevoSaldo = ROUND(CAST(@saldoActual AS DECIMAL(10,2)) - CAST(@montoPago AS DECIMAL(10,2)), 2);
-
-    -- PASO 3: INTENTAR LA CONCILIACIÓN
-    SET @movimientoId = (
-        SELECT ec.id FROM estado_de_cuenta ec
-        WHERE ec.clave_rastreo IS NOT NULL AND ec.clave_rastreo != '' AND ec.clave_rastreo = @claverastreo COLLATE utf8mb4_general_ci
-        AND (ec.ticket_id IS NULL OR ec.ticket_id = @ticketId)
-        LIMIT 1
-    );
-
-    -- PASO 4: APLICAR EL PAGO
-    SET @refPago = IF(@movimientoId IS NOT NULL, CONCAT('TICKET ID: ', @ticketId, ' / MOV. ID: ', @movimientoId), CONCAT('TICKET ID: ', @ticketId, ' / PENDIENTE'));
-
-    INSERT IGNORE INTO pagos (
-        ticket_id_origen, ref_pago, fechap, fechahora, cod_cliente, nombre_ccliente,
-        montop, codigo_gestor, sucursal, periodicidad_cliente,
-        dia_cobro, tel1_cliente, mora, tipocap, saldo_actualcli, id_ges
-    ) VALUES (
-        @ticketId, @refPago, @fechaPago, NOW(), @contrato, @nombreCliente,
-        @montoPago, @codigoGestor, 'PC QUERETARO', @periodicidadCliente,
-        UPPER(DAYNAME(@fechaPago)), @tel1Cliente, 0, 'BANCARIO', @nuevoSaldo, @idGes
-    );
-
-    -- PASO 5: LÓGICA DE ACTUALIZACIÓN
-    IF ROW_COUNT() > 0 THEN
-        SET @new_payment_id = LAST_INSERT_ID();
-        UPDATE ticket SET idpago = @new_payment_id WHERE id = @ticketId;
-        UPDATE cat_clientes SET saldo_actualcli = @nuevoSaldo WHERE cod_cliente = @contrato COLLATE utf8mb4_general_ci;
-    ELSE
-        SELECT idpag INTO @new_payment_id FROM pagos WHERE ticket_id_origen = @ticketId LIMIT 1;
-    END IF;
-
-    -- PASO 6: ACTUALIZAR ESTADOS DE CONCILIACIÓN
-    IF @movimientoId IS NOT NULL THEN
-        UPDATE ticket SET conciliado = 1, idbancos = @movimientoId WHERE id = @ticketId;
-        UPDATE estado_de_cuenta SET ticket_id = @ticketId, cod_cliente = @contrato, gestor = @codigoGestor, fecha_identificado = NOW() WHERE id = @movimientoId;
-        UPDATE cat_clientes SET bancos = 'CONCILIADO' WHERE cod_cliente = @contrato COLLATE utf8mb4_general_ci;
-        
-        SELECT 'EXITO' AS estado, @new_payment_id AS idPagoGenerado, @ticketId as ticketId, @contrato as cod_cliente, @nuevoSaldo as saldo_actual, @movimientoId as movimientoId;
-    ELSE
-        SELECT 'FALLO' AS estado, @new_payment_id AS idPagoGenerado, @ticketId as ticketId, @contrato as cod_cliente, @nuevoSaldo as saldo_actual, NULL as movimientoId;
-    END IF;
-
-ELSE
-    -- Datos inválidos, devolvemos error sin tocar la BD
-    SELECT 'ERROR_DATOS' AS estado, NULL AS idPagoGenerado, @ticketId as ticketId, @contrato as cod_cliente, NULL as saldo_actual, NULL as movimientoId;
-END IF;
-
-COMMIT;`,
-        options: {},
+        jsCode: 'return $input.all().map(item => ({ json: { ...item.json, conc_status: item.json.conciliado ? "CONCILIADO" : "PENDIENTE" } }));',
     };
 
     @node({
@@ -996,19 +878,21 @@ return [{ json: resultado }];`,
     };
 
     @node({
-        id: '07a807ec-47fe-453a-86ae-fa0718c1d030',
+        id: '3ff94b05-c47d-4dfb-8a56-6218d6e38b30',
         name: 'Execute a SQL query',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.4,
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
         position: [320, 0],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
-        alwaysOutputData: true,
     })
     ExecuteASqlQuery = {
-        operation: 'executeQuery',
-        query: `INSERT INTO usuarios_autorizados (numero_whatsapp, fecha_autorizacion)
-VALUES ('{{ $json.key.remoteJid.replace('@s.whatsapp.net', '') }}', CURRENT_TIMESTAMP())
-ON DUPLICATE KEY UPDATE fecha_autorizacion = CURRENT_TIMESTAMP();`,
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={
+  "action": "importar_banco",
+  "movimientos": {{ JSON.stringify($json) }}
+}`,
         options: {},
     };
 
@@ -1414,109 +1298,40 @@ return cleanedItems;
     @node({
         id: 'c65d6a28-e365-4cf9-99f2-7053375d2910',
         name: 'Insertar_Banorte',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.4,
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
         position: [992, 400],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
     })
     InsertarBanorte = {
-        operation: 'executeQuery',
-        query: `INSERT IGNORE INTO estado_de_cuenta (
-    bank,
-    banco_origen,
-    fecha_operacion,
-    hora_operacion,
-    descripcion_general,
-    cargo,
-    abono,
-    referencia,
-    clave_rastreo,
-    concepto,
-    fecha_ingreso
-) VALUES (
-    '{{ $json.bank }}',
-    '{{ $json.bancoEmisor }}',  -- Corregido
-    '{{ $json.fecha }}',        -- Corregido
-    '{{ $json.hora }}',         -- Corregido
-    '{{ $json.tipoOperacion }}',-- Corregido
-    {{ $json.cargo || 0 }},      -- Corregido
-    {{ $json.abono || 0 }},      -- Corregido
-    '{{ $json.referencia }}',
-    '{{ $json.claveRastreo }}', -- Corregido
-    '{{ $json.concepto }}',
-    NOW()
-);INSERT IGNORE INTO estado_de_cuenta (
-  bank,
-  banco_origen,
-  fecha_operacion,
-  hora_operacion,
-  descripcion_general,
-  cargo,
-  abono,
-  saldo,
-  referencia,
-  clave_rastreo,
-  concepto,
-  descripcion_detallada,
-  fecha_ingreso
-) VALUES (
-  '{{ $json.bank }}',
-  '{{ $json.banco_origen }}',
-  '{{ $json.fecha_operacion }}',
-  '{{ $json.hora_operacion }}',
-  '{{ $json.descripcion_general }}',
-  '{{ $json.cargo }}',
-  '{{ $json.abono }}',
-  '{{ $json.saldo }}',
-  '{{ $json.referencia }}',
-  '{{ $json.clave_rastreo }}',
-  '{{ $json.concepto }}',
-  '{{ $json.descripcion_detallada }}',
-  NOW()
-);
-`,
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={
+  "action": "importar_banco",
+  "banco": "banorte",
+  "movimientos": {{ JSON.stringify($json) }}
+}`,
         options: {},
     };
 
     @node({
         id: '474e835d-ca3d-4fc1-946c-01d36526206e',
         name: 'Inserta_Santander',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.4,
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
         position: [992, 224],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
     })
     InsertaSantander = {
-        operation: 'executeQuery',
-        query: `INSERT IGNORE INTO estado_de_cuenta (
-  bank,
-  banco_origen,
-  fecha_operacion,
-  hora_operacion,
-  descripcion_general,
-  cargo,
-  abono,
-  saldo,
-  referencia,
-  clave_rastreo,
-  concepto,
-  descripcion_detallada,
-  fecha_ingreso
-) VALUES (
-  '{{ $json.bank }}',
-  '{{ $json.banco_origen }}',
-  '{{ $json.fecha_operacion }}',
-  '{{ $json.hora_operacion }}',
-  '{{ $json.descripcion_general }}',
-  {{ $json.cargo }},
-  {{ $json.abono }},
-  {{ $json.saldo }},
-  '{{ $json.referencia }}',
-  '{{ $json.clave_rastreo }}',
-  '{{ $json.concepto }}',
-  '{{ $json.descripcion_detallada }}',
-  NOW()
-);`,
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={
+  "action": "importar_banco",
+  "banco": "santander",
+  "movimientos": {{ JSON.stringify($json) }}
+}`,
         options: {},
     };
 
@@ -1626,79 +1441,12 @@ return [{
     @node({
         id: '5188f6f7-1a53-46f8-9d39-1d274f0342b9',
         name: 'Intentar Conciliación por Ticket',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
+        type: 'n8n-nodes-base.code',
+        version: 2,
         position: [-1504, 1488],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
     })
     IntentarConciliacionPorTicket = {
-        operation: 'executeQuery',
-        query: `START TRANSACTION;
-
--- ====================================================================
--- PASO 1: OBTENER DATOS DEL TICKET QUE SE ESTÁ PROCESANDO
--- Forzamos utf8mb4_general_ci (la codificación real de tus tablas)
--- ====================================================================
-SET @ticketId = '{{ $json.id }}';
-SET @contrato = '{{ $json.contrato }}' COLLATE utf8mb4_general_ci;
-SET @claverastreo = '{{ $json.claverastreo }}' COLLATE utf8mb4_general_ci;
-
--- Limpiamos la clave de rastreo.
--- FIX: Controlamos el bug donde n8n inyecta la palabra "null" como texto.
-SET @safeClaveRastreo = CASE 
-    WHEN @claverastreo = 'null' THEN ''
-    ELSE TRIM(IFNULL(@claverastreo, ''))
-END COLLATE utf8mb4_general_ci;
-
--- ====================================================================
--- PASO 2: BUSCAR LA COINCIDENCIA EN EL ESTADO DE CUENTA
--- ====================================================================
--- Buscamos una coincidencia exacta por clave de rastreo que no esté vacía
--- y que no haya sido ya conciliada con otro ticket.
-SET @movimientoId = (
-    SELECT ec.id FROM estado_de_cuenta ec
-    WHERE 
-        ec.clave_rastreo IS NOT NULL 
-        AND TRIM(ec.clave_rastreo) = @safeClaveRastreo
-        AND @safeClaveRastreo != ''
-        AND ec.ticket_id IS NULL -- ¡Muy importante para no reasignar movimientos!
-    LIMIT 1
-);
-
--- ====================================================================
--- PASO 3: ACTUALIZAR ESTADOS SI LA CONCILIACIÓN FUE EXITOSA
--- ====================================================================
-IF @movimientoId IS NOT NULL THEN
-    -- ¡ÉXITO! Se encontró una coincidencia por SPEI.
-    
-    -- 3A: Obtenemos el código del gestor para el reporte
-    SELECT codigo_gestor INTO @codigoGestor FROM cat_clientes WHERE cod_cliente = @contrato LIMIT 1;
-
-    -- 3B: Actualizamos el ticket para marcarlo como conciliado
-    UPDATE ticket SET conciliado = 1, idbancos = @movimientoId WHERE id = @ticketId;
-    
-    -- 3C: Vinculamos el movimiento en el estado de cuenta
-    UPDATE estado_de_cuenta 
-    SET 
-        ticket_id = @ticketId, 
-        cod_cliente = @contrato, 
-        gestor = @codigoGestor, 
-        fecha_identificado = NOW() 
-    WHERE id = @movimientoId;
-    
-    -- 3D: Actualizamos el estado del cliente a 'CONCILIADO'
-    UPDATE cat_clientes SET bancos = 'CONCILIADO' WHERE cod_cliente = @contrato;
-    
-    -- Devolvemos un resultado de éxito
-    SELECT 'EXITO_SPEI' AS estado, @movimientoId AS movimientoId, @ticketId AS ticketId;
-
-ELSE
-    -- FALLO: No se encontró coincidencia bancaria.
-    SELECT 'FALLO_SPEI' AS estado, NULL AS movimientoId, @ticketId AS ticketId;
-END IF;
-
-COMMIT;`,
-        options: {},
+        jsCode: 'const res = $input.first().json; return (res.conciliados || []).map(c => ({ json: c }));',
     };
 
     @node({
@@ -1934,15 +1682,18 @@ return [{ json: { mensaje: mensaje } }];`,
     @node({
         id: '40d64fd3-b75d-400e-8e90-f5fa8689ddf8',
         name: 'Obtener Tickets Pendientes1',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
         position: [-2176, 2000],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
-        alwaysOutputData: true,
     })
     ObtenerTicketsPendientes1 = {
-        operation: 'executeQuery',
-        query: 'SELECT * FROM ticket WHERE conciliado = 0 AND remitente IS NOT NULL;',
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `{
+  "action": "conciliar_efectivo"
+}`,
         options: {},
     };
 
@@ -2157,15 +1908,18 @@ return [{ json: { mensaje: mensaje } }];`,
     @node({
         id: '41be118d-defc-479c-b308-9631170ad276',
         name: 'Obtener Tickets con Clave de Rastreo',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
         position: [-1936, 1504],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
-        alwaysOutputData: true,
     })
     ObtenerTicketsConClaveDeRastreo = {
-        operation: 'executeQuery',
-        query: "SELECT * FROM ticket WHERE conciliado = 0 AND claverastreo IS NOT NULL AND claverastreo != '';",
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `{
+  "action": "conciliar_spei"
+}`,
         options: {},
     };
 
@@ -2226,27 +1980,19 @@ return [{
     @node({
         id: 'c214d852-d342-4618-aa08-e520dbf0671b',
         name: 'Buscar Cliente por Teléfono',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
         position: [-816, 848],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
-        alwaysOutputData: true,
     })
     BuscarClientePorTelefono = {
-        operation: 'executeQuery',
-        query: `-- Obtenemos el número completo que llega de WhatsApp
-SET @remitenteJid = '{{ $("Enrutador Principal").item.json.body.data.key.remoteJid }}';
-
--- Limpiamos el número para quedarnos solo con los últimos 10 dígitos
-SET @telefonoDiezDigitos = RIGHT(SUBSTRING_INDEX(@remitenteJid, '@', 1), 10);
-
--- Buscamos en la base de datos, limpiando el número almacenado y comparando
-SELECT cod_cliente
-FROM cat_clientes
-WHERE
-    -- Forzamos la comparación usando una colación explícita para evitar 'Illegal mix of collations'
-    RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(tel1_cliente COLLATE utf8mb4_general_ci, ' ', ''), '-', ''), '(', ''), ')', ''), 10) = @telefonoDiezDigitos COLLATE utf8mb4_general_ci
-LIMIT 1;`,
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={
+  "action": "buscar_cliente",
+  "telefono": "{{ $("Enrutador Principal").item.json.body.data.key.remoteJid }}"
+}`,
         options: {},
     };
 
@@ -2558,123 +2304,23 @@ return [{ json: { mensaje: mensaje } }];`,
     @node({
         id: 'a46c3115-b5e4-455e-b0d4-b9ea3b008081',
         name: 'Asigna Gestor',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
+        type: 'n8n-nodes-base.code',
+        version: 2,
         position: [2224, 992],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
     })
     AsignaGestor = {
-        operation: 'executeQuery',
-        query: `UPDATE ticket t
-JOIN cat_clientes cc ON t.contrato = cc.cod_cliente
-SET
-    t.codigo_gestor = cc.codigo_gestor
-WHERE
-    t.codigo_gestor IS NULL OR t.codigo_gestor = '';`,
-        options: {},
+        jsCode: 'return $input.all();',
     };
 
     @node({
         id: '052770d2-f7c6-4eb8-b235-58f3c62cd2de',
         name: 'Intentar Conciliación Deposito Efectivo',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
+        type: 'n8n-nodes-base.code',
+        version: 2,
         position: [-1744, 1984],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
     })
     IntentarConciliacionDepositoEfectivo = {
-        operation: 'executeQuery',
-        query: `START TRANSACTION;
-
--- ====================================================================
--- PASO 1: OBTENER DATOS DEL TICKET Y PREPARAR VARIABLES
--- Forzamos la codificación correcta para evitar choques con la tabla
--- ====================================================================
-SET @ticketId = '{{ $json.id }}';
-SET @contrato = '{{ $json.contrato }}' COLLATE utf8mb4_general_ci;
-SET @monto = CAST('{{ $json.monto }}' AS DECIMAL(10, 2));
-SET @fechaTicket = '{{ $json.fechaTicket }}';
-SET @horaTicket = '{{ $json.horaTicket }}';
-
--- FIX: Controlamos el 'null' de n8n y forzamos la codificación
-SET @refTemp = '{{ $json.referenciaTicket }}';
-SET @referenciaTicket = CASE 
-    WHEN @refTemp = 'null' THEN ''
-    ELSE TRIM(IFNULL(@refTemp, ''))
-END COLLATE utf8mb4_general_ci;
-
--- ====================================================================
--- PASO 2: LÓGICA DE BÚSQUEDA INTELIGENTE EN CASCADA
--- ====================================================================
--- Buscamos el movimiento bancario no conciliado que coincida con nuestro ticket.
-SET @movimientoId = (
-    SELECT id FROM (
-        -- INTENTO 1 (Prioridad Alta): Buscar el Contrato (DQ) en la descripción del banco
-        SELECT id, 1 AS prioridad
-        FROM estado_de_cuenta
-        WHERE 
-            abono = @monto 
-            AND fecha_operacion = @fechaTicket
-            AND ticket_id IS NULL
-            AND (descripcion_detallada LIKE CONCAT('%', @contrato, '%') OR concepto LIKE CONCAT('%', @contrato, '%'))
-
-        UNION ALL
-        
-        -- INTENTO 2 (Prioridad Media-Alta): Buscar por Referencia del ticket en la descripción
-        SELECT id, 2 AS prioridad
-        FROM estado_de_cuenta
-        WHERE 
-            abono = @monto 
-            AND fecha_operacion = @fechaTicket
-            AND ticket_id IS NULL
-            AND @referenciaTicket != '' -- CANDADO: Solo buscar si realmente hay una referencia válida
-            AND (descripcion_detallada LIKE CONCAT('%', @referenciaTicket, '%') OR concepto LIKE CONCAT('%', @referenciaTicket, '%'))
-            AND (descripcion_general LIKE '%DEP EN EFECTIV%' OR descripcion_general LIKE '%DEP EFECT ATM%' OR descripcion_general LIKE '%AB TRANS ELECT%')
-
-        UNION ALL
-
-        -- INTENTO 3 (Prioridad Media): Buscar por monto, fecha y en una ventana de tiempo.
-        SELECT id, 3 AS prioridad
-        FROM estado_de_cuenta
-        WHERE 
-            abono = @monto
-            AND fecha_operacion = @fechaTicket
-            AND ticket_id IS NULL
-            AND (descripcion_general LIKE '%DEP EN EFECTIV%' OR descripcion_general LIKE '%DEP EFECT ATM%' OR descripcion_general LIKE '%AB TR RAP SANT%')
-            AND TIME_TO_SEC(TIMEDIFF(hora_operacion, @horaTicket)) BETWEEN -300 AND 300 -- Ventana de +/- 5 minutos
-
-        UNION ALL
-
-        -- INTENTO 4 (Prioridad Baja): Buscar solo por monto y fecha.
-        SELECT id, 4 AS prioridad
-        FROM estado_de_cuenta
-        WHERE 
-            abono = @monto
-            AND fecha_operacion = @fechaTicket
-            AND ticket_id IS NULL
-            AND (descripcion_general LIKE '%DEP EN EFECTIV%' OR descripcion_general LIKE '%DEP EFECT ATM%')
-
-    ) AS busqueda
-    ORDER BY prioridad ASC -- Asegura que se tome el resultado de la búsqueda más precisa primero.
-    LIMIT 1
-);
-
--- ====================================================================
--- PASO 3: ACTUALIZAR ESTADOS SI LA CONCILIACIÓN FUE EXITOSA
--- ====================================================================
-IF @movimientoId IS NOT NULL THEN
-    SELECT codigo_gestor INTO @codigoGestor FROM cat_clientes WHERE cod_cliente = @contrato COLLATE utf8mb4_general_ci LIMIT 1;
-    UPDATE ticket SET conciliado = 1, idbancos = @movimientoId WHERE id = @ticketId;
-    UPDATE estado_de_cuenta SET ticket_id = @ticketId, cod_cliente = @contrato, gestor = @codigoGestor, fecha_identificado = NOW() WHERE id = @movimientoId;
-    UPDATE cat_clientes SET bancos = 'CONCILIADO' WHERE cod_cliente = @contrato COLLATE utf8mb4_general_ci;
-    
-    SELECT 'EXITO_EFECTIVO' AS estado, @movimientoId AS movimientoId, @ticketId AS ticketId;
-ELSE
-    SELECT 'FALLO_EFECTIVO' AS estado, NULL AS movimientoId, @ticketId AS ticketId;
-END IF;
-
-COMMIT;`,
-        options: {},
+        jsCode: 'const res = $input.first().json; return (res.conciliados || []).map(c => ({ json: c }));',
     };
 
     @node({
@@ -2697,46 +2343,19 @@ COMMIT;`,
     @node({
         id: '5e0a467d-b709-4458-875e-ffe8243d7abf',
         name: 'Obtener Pagos Pendientes de Notificar',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
         position: [-2032, 2464],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
-        alwaysOutputData: true,
     })
     ObtenerPagosPendientesDeNotificar = {
-        operation: 'executeQuery',
-        query: `SET time_zone = '-06:00'; -- Forzar hora de México para asegurar que la regla de 8am-8pm sea correcta
-
-SELECT
-    t.id AS ticket_id,
-    p.idpag AS idPago,
-    p.cod_cliente,
-    p.fechap AS fechaPago,
-    p.montop AS montoPago,
-    p.saldo_actualcli AS nuevoSaldo,
-    cc.tel1_cliente
-FROM
-    ticket t
-JOIN
-    pagos p ON t.idpago = p.idpag
-JOIN
-    cat_clientes cc ON t.contrato = cc.cod_cliente
-WHERE
-    t.enviopago IS NULL       -- Solo los que NO se han enviado
-    AND t.conciliado = 1      -- Solo los que ya tienen el dinero confirmado
-    AND t.idbancos IS NOT NULL
-    
-    -- 🕒 REGLA DE HORARIO (08:00 AM - 07:59 PM)
-    AND HOUR(NOW()) >= 8 AND HOUR(NOW()) < 20
-    
-    -- 🔢 REGLA DE LÍMITE DIARIO (50 mensajes)
-    -- Cuenta cuántos se enviaron HOY usando la fecha que actualizaste masivamente
-    AND (SELECT COUNT(*) FROM ticket WHERE DATE(fecha_envio_notificacion) = CURDATE()) < 50
-
--- IMPORTANTE: Procesar los más viejos primero
-ORDER BY t.id ASC 
-
-LIMIT 1;`,
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `{
+  "action": "pagos_pendientes_notificar",
+  "limit": 20
+}`,
         options: {},
     };
 
@@ -2791,33 +2410,31 @@ return {
     @node({
         id: 'c269e308-7f14-4395-8dab-17f5f64cb648',
         name: 'Actualizar Ticket Enviado',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
         position: [-464, 2464],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
     })
     ActualizarTicketEnviado = {
-        operation: 'executeQuery',
-        query: `UPDATE ticket
-SET enviopago = 1
-WHERE id = {{ $('Code3').item.json.ticket_id }};`,
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={
+  "action": "marcar_pago_notificado",
+  "pagoId": "{{ $('Code3').item.json.id }}"
+}`,
         options: {},
     };
 
     @node({
         id: 'e3838e3a-4c1b-43ae-91db-8eb603f99c00',
         name: 'Actualizar Ticket Enviado1',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
+        type: 'n8n-nodes-base.code',
+        version: 2,
         position: [-1328, 2656],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
     })
     ActualizarTicketEnviado1 = {
-        operation: 'executeQuery',
-        query: `UPDATE ticket
-SET enviopago = 1
-WHERE id = {{ $('Code3').item.json.ticket_id }};`,
-        options: {},
+        jsCode: 'return $input.all();',
     };
 
     @node({
@@ -2887,16 +2504,19 @@ WHERE id = {{ $('Code3').item.json.ticket_id }};`,
     @node({
         id: '3a548bc6-11b8-48e6-b74d-8485ea3641d6',
         name: 'Numero Invalido',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.5,
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
         position: [-704, 2656],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
     })
     NumeroInvalido = {
-        operation: 'executeQuery',
-        query: `UPDATE ticket
-SET enviopago = 0  -- 0 indica error/número inválido
-WHERE id = {{ $('Code3').item.json.ticket_id }};`,
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={
+  "action": "marcar_pago_invalido",
+  "pagoId": "{{ $('Code3').item.json.id }}"
+}`,
         options: {},
     };
 

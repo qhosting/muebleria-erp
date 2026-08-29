@@ -45,6 +45,328 @@ export async function POST(req: Request) {
         if (typeof fecha === "string") fecha = fecha.replace(/^=/, "").trim();
         if (typeof hr === "string") hr = hr.replace(/^=/, "").trim();
 
+        // --- ACCIÓN: BUSCAR CLIENTE POR TELÉFONO O CÓDIGO ---
+        if (action === "buscar_cliente") {
+            const telRaw = (body.telefono || body.phone || remitente || '').replace(/\D/g, '');
+            const cod = (body.contrato || body.codigoCliente || contrato || '').trim().toUpperCase();
+            
+            let cliente = null;
+            if (cod) {
+                cliente = await prisma.cliente.findFirst({
+                    where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
+                    include: { cobradorAsignado: true }
+                });
+            }
+            if (!cliente && telRaw && telRaw.length >= 10) {
+                const tel10 = telRaw.slice(-10);
+                cliente = await prisma.cliente.findFirst({
+                    where: {
+                        OR: [
+                            { telefono: { contains: tel10 } },
+                            { telefonoTrabajo: { contains: tel10 } }
+                        ]
+                    },
+                    include: { cobradorAsignado: true }
+                });
+            }
+
+            if (!cliente) {
+                return NextResponse.json({ encontrado: false, message: "Cliente no encontrado" });
+            }
+
+            return NextResponse.json({
+                encontrado: true,
+                cliente: {
+                    id: cliente.id,
+                    codigoCliente: cliente.codigoCliente,
+                    nombreCompleto: cliente.nombreCompleto,
+                    telefono: cliente.telefono,
+                    saldoActual: parseFloat(cliente.saldoActual.toString()),
+                    cobrador: cliente.cobradorAsignado ? {
+                        id: cliente.cobradorAsignado.id,
+                        name: cliente.cobradorAsignado.name,
+                        codigoGestor: cliente.cobradorAsignado.codigoGestor
+                    } : null
+                }
+            });
+        }
+
+        // --- ACCIÓN: IMPORTAR EXTRACTO BANCARIO ---
+        if (action === "importar_banco") {
+            const banco = (body.banco || '').toLowerCase();
+            const movimientos = Array.isArray(body.movimientos) ? body.movimientos : [];
+
+            let insertados = 0;
+            let omitidos = 0;
+
+            for (const m of movimientos) {
+                const fOperacion = m.fecha ? new Date(m.fecha) : new Date();
+                const desc = m.descripcion || m.concepto || '';
+                const cargo = parseFloat(m.cargo || '0') || null;
+                const abono = parseFloat(m.abono || m.monto || '0') || null;
+                const ref = m.referencia || m.folio || null;
+                const rastreo = m.claveRastreo || null;
+                const saldo = m.saldo ? parseFloat(m.saldo) : null;
+
+                if (banco.includes('santander')) {
+                    const exists = await prisma.movimientoSantander22001022837.findFirst({
+                        where: {
+                            OR: [
+                                rastreo ? { claveRastreo: rastreo } : { id: 'none' },
+                                ref ? { numeroReferencia: ref, abono: abono || undefined } : { id: 'none' },
+                                { fechaOperacion: fOperacion, abono: abono || undefined, descripcionGeneral: desc }
+                            ]
+                        }
+                    });
+                    if (!exists) {
+                        await prisma.movimientoSantander22001022837.create({
+                            data: {
+                                fechaOperacion: fOperacion,
+                                descripcionGeneral: desc,
+                                cargo,
+                                abono,
+                                saldoFinalCalculado: saldo,
+                                numeroReferencia: ref,
+                                claveRastreo: rastreo,
+                            }
+                        });
+                        insertados++;
+                    } else {
+                        omitidos++;
+                    }
+                } else if (banco.includes('banorte')) {
+                    const exists = await prisma.movimientoBanorte0330253963.findFirst({
+                        where: {
+                            OR: [
+                                rastreo ? { claveRastreo: rastreo } : { id: 'none' },
+                                ref ? { numeroReferencia: ref, abono: abono || undefined } : { id: 'none' },
+                                { fechaOperacion: fOperacion, abono: abono || undefined, descripcionGeneral: desc }
+                            ]
+                        }
+                    });
+                    if (!exists) {
+                        await prisma.movimientoBanorte0330253963.create({
+                            data: {
+                                fechaOperacion: fOperacion,
+                                descripcionGeneral: desc,
+                                cargo,
+                                abono,
+                                saldoFinalCalculado: saldo,
+                                numeroReferencia: ref,
+                                claveRastreo: rastreo,
+                            }
+                        });
+                        insertados++;
+                    } else {
+                        omitidos++;
+                    }
+                } else {
+                    const exists = await prisma.movimientoBancario.findFirst({
+                        where: {
+                            OR: [
+                                rastreo ? { claveRastreo: rastreo } : { id: 'none' },
+                                { fechaOperacion: fOperacion, abono: abono || undefined, descripcionGeneral: desc }
+                            ]
+                        }
+                    });
+                    if (!exists) {
+                        await prisma.movimientoBancario.create({
+                            data: {
+                                bancoOrigen: banco.toUpperCase() || 'BANCO',
+                                fechaOperacion: fOperacion,
+                                descripcionGeneral: desc,
+                                cargo,
+                                abono,
+                                saldoFinalCalculado: saldo,
+                                numeroReferencia: ref,
+                                claveRastreo: rastreo,
+                            }
+                        });
+                        insertados++;
+                    } else {
+                        omitidos++;
+                    }
+                }
+            }
+
+            return NextResponse.json({ success: true, insertados, omitidos });
+        }
+
+        // --- ACCIÓN: CONCILIAR SPEI AUTOMÁTICO ---
+        if (action === "conciliar_spei") {
+            const ticketsPendientes = await prisma.ticket.findMany({
+                where: {
+                    conciliado: false,
+                    claveRastreo: { not: null }
+                },
+                include: { cliente: true }
+            });
+
+            const conciliados = [];
+
+            for (const t of ticketsPendientes) {
+                if (!t.claveRastreo) continue;
+                const qClause = {
+                    claveRastreo: t.claveRastreo,
+                    OR: [{ ticketId: null }, { ticketId: t.id }]
+                };
+
+                let mov = await prisma.movimientoSantander22001022837.findFirst({ where: qClause });
+                let tabla = 'santander';
+                if (!mov) {
+                    mov = await prisma.movimientoSantander65505732541.findFirst({ where: qClause });
+                }
+                if (!mov) {
+                    mov = await prisma.movimientoBanorte0330253963.findFirst({ where: qClause });
+                    tabla = 'banorte';
+                }
+
+                if (mov) {
+                    await prisma.ticket.update({
+                        where: { id: t.id },
+                        data: { conciliado: true }
+                    });
+                    await prisma.pago.updateMany({
+                        where: { ticketId: t.id },
+                        data: { banco: tabla.toUpperCase(), sincronizado: true }
+                    });
+                    conciliados.push({
+                        ticketId: t.id,
+                        contrato: t.cliente?.codigoCliente,
+                        nombre: t.cliente?.nombreCompleto,
+                        telefono: t.cliente?.telefono || t.remitente,
+                        monto: t.monto,
+                        claveRastreo: t.claveRastreo,
+                        banco: tabla.toUpperCase()
+                    });
+                }
+            }
+
+            return NextResponse.json({
+                success: true,
+                totalRevisados: ticketsPendientes.length,
+                conciliadosCount: conciliados.length,
+                conciliados
+            });
+        }
+
+        // --- ACCIÓN: CONCILIAR DEPÓSITOS EN EFECTIVO ---
+        if (action === "conciliar_efectivo") {
+            const ticketsEfectivo = await prisma.ticket.findMany({
+                where: {
+                    conciliado: false,
+                    folio: { not: null }
+                },
+                include: { cliente: true }
+            });
+
+            const conciliadosEfectivo = [];
+
+            for (const t of ticketsEfectivo) {
+                if (!t.folio) continue;
+                const qClause = {
+                    OR: [
+                        { numeroReferencia: { contains: t.folio } },
+                        { descripcionGeneral: { contains: t.folio } }
+                    ],
+                    abono: t.monto
+                };
+
+                let mov = await prisma.movimientoSantander22001022837.findFirst({ where: qClause });
+                let tabla = 'santander';
+                if (!mov) {
+                    mov = await prisma.movimientoSantander65505732541.findFirst({ where: qClause });
+                }
+                if (!mov) {
+                    mov = await prisma.movimientoBanorte0330253963.findFirst({ where: qClause });
+                    tabla = 'banorte';
+                }
+
+                if (mov) {
+                    await prisma.ticket.update({
+                        where: { id: t.id },
+                        data: { conciliado: true }
+                    });
+                    await prisma.pago.updateMany({
+                        where: { ticketId: t.id },
+                        data: { banco: tabla.toUpperCase(), sincronizado: true }
+                    });
+                    conciliadosEfectivo.push({
+                        ticketId: t.id,
+                        contrato: t.cliente?.codigoCliente,
+                        nombre: t.cliente?.nombreCompleto,
+                        monto: t.monto,
+                        folio: t.folio,
+                        banco: tabla.toUpperCase()
+                    });
+                }
+            }
+
+            return NextResponse.json({
+                success: true,
+                totalRevisados: ticketsEfectivo.length,
+                conciliadosCount: conciliadosEfectivo.length,
+                conciliados: conciliadosEfectivo
+            });
+        }
+
+        // --- ACCIÓN: OBTENER PAGOS PENDIENTES DE NOTIFICAR ---
+        if (action === "pagos_pendientes_notificar") {
+            const limitNum = parseInt(body.limit || '20') || 20;
+            const pagos = await prisma.pago.findMany({
+                where: {
+                    ticketImpreso: false,
+                    metodoPago: { not: 'BANCOS BOT' }
+                },
+                take: limitNum,
+                include: {
+                    cliente: true,
+                    cobrador: true
+                },
+                orderBy: { fechaPago: 'asc' }
+            });
+
+            return NextResponse.json({
+                success: true,
+                count: pagos.length,
+                pagos: pagos.map(p => ({
+                    id: p.id,
+                    contrato: p.cliente.codigoCliente,
+                    nombreCliente: p.cliente.nombreCompleto,
+                    telefono: p.cliente.telefono,
+                    monto: parseFloat(p.monto.toString()),
+                    saldoAnterior: parseFloat(p.saldoAnterior.toString()),
+                    saldoNuevo: parseFloat(p.saldoNuevo.toString()),
+                    numeroRecibo: p.numeroRecibo,
+                    fechaPago: p.fechaPago.toISOString().slice(0, 10),
+                    cobrador: p.cobrador.name
+                }))
+            });
+        }
+
+        // --- ACCIÓN: MARCAR PAGO NOTIFICADO O INVÁLIDO ---
+        if (action === "marcar_pago_notificado") {
+            const pagoId = body.pagoId || body.id;
+            if (pagoId) {
+                await prisma.pago.update({
+                    where: { id: pagoId },
+                    data: { ticketImpreso: true }
+                });
+            }
+            return NextResponse.json({ success: true, message: "Pago marcado como notificado" });
+        }
+
+        if (action === "marcar_pago_invalido") {
+            const pagoId = body.pagoId || body.id;
+            if (pagoId) {
+                await prisma.pago.update({
+                    where: { id: pagoId },
+                    data: { concepto: `${body.concepto || ''} [TEL_INVALIDO]`.trim() }
+                });
+            }
+            return NextResponse.json({ success: true, message: "Pago marcado con teléfono inválido" });
+        }
+
         // --- ACCIÓN: GUARDAR PENDIENTE ---
         if (action === "pending") {
             if (!remitente || !base64Data) {
