@@ -497,10 +497,17 @@ export async function POST(req: Request) {
             return NextResponse.json({
                 message: "Ticket ya existe",
                 ticketId: existingTicket.id,
+                ticket_id: existingTicket.id,
                 pagoId: pagoAsociado?.id || null,
+                idPagoGenerado: pagoAsociado?.id || null,
                 conciliado: existingTicket.conciliado,
                 saldoNuevo: pagoAsociado ? parseFloat(pagoAsociado.saldoNuevo.toString()) : parseFloat(cliente.saldoActual.toString()),
+                saldo_actual: pagoAsociado ? parseFloat(pagoAsociado.saldoNuevo.toString()) : parseFloat(cliente.saldoActual.toString()),
                 ya_existe: true,
+                yaExiste: true,
+                remitente: remitente || existingTicket.remitente || cliente.telefono,
+                contrato: codigoFinal,
+                cod_cliente: codigoFinal,
                 mensaje: `⚠️ Este comprobante ya existe con ID ${existingTicket.id}.\n\n📌 *Detalles del Ticket*\n- 🆔 ID: ${existingTicket.id}\n- 📄 Contrato: ${codigoFinal}\n- 📅 Fecha: ${fecha || 'N/A'}\n- ⏰ Hora: ${hr || 'N/A'}\n- 💰 Monto: $${parseFloat(monto).toFixed(2)}\n- 🔢 Referencia: ${referencia !== 'null' ? referencia : 'N/A'}\n- 📝 Folio: ${folio !== 'null' ? folio : 'N/A'}\n- 📦 Clave de rastreo: ${claverastreo !== 'null' ? claverastreo : 'N/A'}\n\n⚡ *TICKET EN PROCESO DE CONCILIACION* ⚡`
             });
         }
@@ -731,11 +738,18 @@ export async function POST(req: Request) {
         return NextResponse.json({
             message: "Ticket y Pago procesados correctamente",
             ticketId: result.ticketId,
+            ticket_id: result.ticketId,
             pagoId: result.pagoId,
+            idPagoGenerado: result.pagoId,
             conciliado: result.conciliado,
             saldoNuevo: result.saldoNuevo,
+            saldo_actual: result.saldoNuevo,
             urlRecibo,
             ya_existe: false,
+            yaExiste: false,
+            remitente: remitente || cliente.telefono,
+            contrato: codigoFinal,
+            cod_cliente: codigoFinal,
             mensaje: `✅ *¡COMPROBANTE REGISTRADO CON ÉXITO!*\n\n📌 *Detalles del Recibo*\n- 🆔 Folio Ticket: *${result.ticketId}*\n- 📄 Contrato: *${codigoFinal}*\n- 👤 Cliente: *${cliente.nombreCompleto}*\n- 💰 Abono: *$${parseFloat(monto).toFixed(2)}*\n- 💳 Saldo Anterior: *$${cliente.saldoActual.toFixed(2)}*\n- 💵 Saldo Nuevo: *$${result.saldoNuevo.toFixed(2)}*${saldoContpaqiInfo}\n- 📅 Fecha: ${fecha || new Date().toISOString().slice(0, 10)}\n- ⏰ Hora: ${hr || new Date().toLocaleTimeString('es-MX')}\n- 📦 Rastreo SPEI: ${claverastreo !== 'null' ? claverastreo : 'N/A'}\n- 🏦 Estado: *${result.conciliado ? 'CONCILIADO EN BANCO' : 'EN PROCESO DE CONCILIACIÓN'}*\n\n📄 *Ver tu Recibo Oficial Digital:* \n👉 ${urlRecibo}\n\n_Mueblería Daso agradece su preferencia._`
         });
 

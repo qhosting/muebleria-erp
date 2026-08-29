@@ -302,25 +302,26 @@ export class Tickets2Workflow {
         jsCode: `// Nodo: EXTRAE_DATOS (Versión final que maneja bloques de código)
 
 // PASO 1: OBTENER EL CONTRATO Y EL REMITENTE
-// Intenta obtener el contrato y el remitente de la ruta normal (con caption).
 let contratoInicial = null;
 let remitenteInicial = null;
 try {
-  contratoInicial = $('Enrutador Principal').item.json.contrato;
-  remitenteInicial = $('Enrutador Principal').item.json.body.data.key.remoteJid;
-} catch (e) {
-  // Ignora el error si el nodo no se ejecutó.
+  contratoInicial = $('Enrutador Principal')?.item?.json?.contrato;
+  remitenteInicial = $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid;
+} catch (e) {}
+
+if (!contratoInicial || !remitenteInicial) {
+  try {
+    if (!contratoInicial) contratoInicial = $('Unir Datos de Busqueda')?.item?.json?.contrato;
+    if (!remitenteInicial) remitenteInicial = $('Unir Datos de Busqueda')?.item?.json?.remitente;
+  } catch (e) {}
 }
 
-// Si no los encontramos ahí, los buscamos en la ruta de "búsqueda por teléfono".
-if (!contratoInicial) {
+if (!remitenteInicial) {
   try {
-    // Asegúrate de que tu nodo se llame "Unir Datos de Búsqueda"
-    contratoInicial = $('Unir Datos de Busqueda').item.json.contrato;
-    remitenteInicial = $('Unir Datos de Busqueda').item.json.remitente;
-  } catch (e) {
-    // Si este nodo tampoco se ejecutó, los valores se quedan como null.
-  }
+    remitenteInicial = $('Webhook WAHA')?.first()?.json?.body?.payload?.from || 
+                       $('Webhook')?.first()?.json?.body?.data?.key?.remoteJid ||
+                       $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.key?.remoteJid;
+  } catch (e) {}
 }
 
 // PASO 2: OBTENER Y LIMPIAR LA RESPUESTA DE LA IA
@@ -376,61 +377,62 @@ return [{ json: extractedData }];`,
         position: [2432, 784],
     })
     Mensaje = {
-        jsCode: `// Asegura que sqlResult sea un array
-const sqlResult = Array.isArray($json) ? $json : [$json];
+        jsCode: `// Asegura que sqlResult sea un array u objeto
+const sqlResult = Array.isArray($json) ? $json[0] : $json;
 
 // Obtiene los datos de EXTRAE_DATOS de forma segura
-const ticketDataNode = $('EXTRAE_DATOS').first();
-const ticketData = ticketDataNode ? ticketDataNode.json : {};
+const ticketDataNode = ($('EXTRAE_DATOS') ? $('EXTRAE_DATOS').first()?.json : null) || {};
 
 // Variables iniciales
 let mensajeBase = '❌ Error: No se pudo insertar el ticket.';
-let ticketId = null;
-let yaExiste = false;
+let ticketId = sqlResult?.ticketId || sqlResult?.ticket_id || sqlResult?.id || null;
+let yaExiste = !!(sqlResult?.yaExiste || sqlResult?.ya_existe);
+let remitente = sqlResult?.remitente || ticketDataNode?.remitente || null;
+let idPagoGenerado = sqlResult?.pagoId || sqlResult?.idPagoGenerado || null;
+let saldoActual = sqlResult?.saldoNuevo ?? sqlResult?.saldo_actual ?? null;
+let contrato = ticketDataNode?.contrato || sqlResult?.contrato || sqlResult?.cod_cliente || null;
 
-// Procesa el resultado SQL
-if (sqlResult.length > 0) {
-  const resultRow = sqlResult[0];
-  yaExiste = !!resultRow.ya_existe;
-  ticketId = resultRow.ticket_id || null;
-
-  if (ticketId) {
-    mensajeBase = yaExiste
-      ? \`⚠️ Este comprobante ya existe con ID \${ticketId}.\`
-      : '✅ ¡Comprobante EN PROCESO de VALIDACIÓN!';
-  }
+if (ticketId) {
+  mensajeBase = yaExiste
+    ? \`⚠️ Este comprobante ya existe con ID \${ticketId}.\`
+    : '✅ ¡Comprobante EN PROCESO de VALIDACIÓN!';
 }
 
-// Construye el mensaje con formato para WhatsApp
 let mensajeFinal = mensajeBase;
 
 if (ticketId) {
   mensajeFinal +=
     \`\\n\\n📌 *Detalles del Ticket*\` +
     \`\\n- 🆔 ID: \${ticketId}\` +
-    \`\\n- 📄 Contrato: \${ticketData.contrato || 'N/A'}\` +
-    \`\\n- 📅 Fecha: \${ticketData.fecha || 'N/A'}\` +
-    \`\\n- ⏰ Hora: \${ticketData.hr || 'N/A'}\` + // <-- LÍNEA AÑADIDA
-    \`\\n- 💰 Monto: $\${parseFloat(ticketData.monto).toFixed(2) || '0.00'}\` +
-    \`\\n- 🔢 Referencia: \${ticketData.referencia || 'N/A'}\` +
-    \`\\n- 📝 Folio: \${ticketData.folio || 'N/A'}\` +
-    \`\\n- 📦 Clave de rastreo: \${ticketData.claverastreo || 'N/A'}\` +
+    \`\\n- 📄 Contrato: \${contrato || 'N/A'}\` +
+    \`\\n- 📅 Fecha: \${ticketDataNode.fecha || sqlResult?.fecha || 'N/A'}\` +
+    \`\\n- ⏰ Hora: \${ticketDataNode.hr || sqlResult?.hr || 'N/A'}\` +
+    \`\\n- 💰 Monto: $\${parseFloat(ticketDataNode.monto || sqlResult?.monto || 0).toFixed(2)}\` +
+    \`\\n- 🔢 Referencia: \${ticketDataNode.referencia || sqlResult?.referencia || 'N/A'}\` +
+    \`\\n- 📝 Folio: \${ticketDataNode.folio || sqlResult?.folio || 'N/A'}\` +
+    \`\\n- 📦 Clave de rastreo: \${ticketDataNode.claverastreo || sqlResult?.claverastreo || 'N/A'}\` +
     \`\\n\\n⚡ *TICKET EN PROCESO DE CONCILIACION* ⚡\`;
 }
 
-// Devuelve el objeto listo para el siguiente nodo, incluyendo la hora.
 return [{
   json: {
     mensaje: mensajeFinal,
-    ticketId,
-    yaExiste,
-    contrato: ticketData.contrato || null,
-    fecha: ticketData.fecha || null,
-    monto: ticketData.monto || null,
-    hr: ticketData.hr || null, // <-- LÍNEA AÑADIDA
-    referencia: ticketData.referencia || null,
-    folio: ticketData.folio || null,
-    claverastreo: ticketData.claverastreo || null,
+    ticketId: ticketId,
+    pagoId: idPagoGenerado,
+    idPagoGenerado: idPagoGenerado,
+    saldo_actual: saldoActual,
+    saldoNuevo: saldoActual,
+    yaExiste: yaExiste,
+    ya_existe: yaExiste,
+    contrato: contrato,
+    cod_cliente: contrato,
+    fecha: ticketDataNode.fecha || null,
+    monto: ticketDataNode.monto || null,
+    hr: ticketDataNode.hr || null,
+    referencia: ticketDataNode.referencia || null,
+    folio: ticketDataNode.folio || null,
+    claverastreo: ticketDataNode.claverastreo || null,
+    remitente: remitente
   }
 }];`,
     };
