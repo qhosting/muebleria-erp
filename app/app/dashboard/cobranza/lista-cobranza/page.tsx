@@ -155,7 +155,7 @@ export default function ListaCobranzaPage() {
             const rows = items.map(c => ({
                 "CODIGO CLIENTE": c.codigoCliente || "-",
                 "CUENTA": c.codigoCliente || "-",
-                "CONTRATO": c.numContrato || c.codigoCliente || "-",
+                "CONTRATO": c.numContrato || "-",
                 "Periodo Inicial": c.fechaVenta ? new Date(c.fechaVenta).toLocaleDateString("es-MX") : "-",
                 "RAZON SOCIAL": c.nombreCompleto || "-",
                 "PERIODO DE PAGO": c.periodicidad ? c.periodicidad.toUpperCase() : "-",
@@ -522,7 +522,7 @@ export default function ListaCobranzaPage() {
                                                         </td>
                                                         {/* 3. CONTRATO */}
                                                         <td className="px-3.5 py-2.5 text-center font-mono font-semibold text-slate-800 dark:text-slate-200 border border-gray-100 dark:border-slate-800">
-                                                            {c.numContrato || c.codigoCliente || "-"}
+                                                            {c.numContrato || "-"}
                                                         </td>
                                                         {/* 4. Periodo Inicial */}
                                                         <td className="px-3.5 py-2.5 text-center whitespace-nowrap text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">
