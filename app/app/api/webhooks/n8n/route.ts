@@ -522,13 +522,14 @@ export async function POST(req: Request) {
         const result = await prisma.$transaction(async (tx) => {
             const shortTicketId = Math.random().toString(36).substring(2, 10).toUpperCase();
 
-            // A. Crear Ticket
+            // A. Crear Ticket con sintaxis universal Prisma
             const newTicket = await tx.ticket.create({
                 data: {
                     id: shortTicketId,
                     legacyId: legacyIdNum || null,
-                    clienteId: cliente.id,
-                    monto: parseFloat(monto),
+                    cliente: { connect: { id: cliente.id } },
+                    gestor: cobradorId ? { connect: { id: cobradorId } } : undefined,
+                    monto: parseFloat(monto || '0') || 0,
                     referencia: referencia !== 'null' ? referencia : null,
                     folio: folio !== 'null' ? folio : null,
                     fecha: fechaTicket,
@@ -581,20 +582,20 @@ export async function POST(req: Request) {
 
             // D. Calcular saldos
             const saldoAnterior = cliente.saldoActual;
-            const saldoNuevo = saldoAnterior.minus(parseFloat(monto));
+            const saldoNuevo = saldoAnterior.minus(parseFloat(monto || '0') || 0);
 
             // E. Crear Registro de Pago
             const newPago = await tx.pago.create({
                 data: {
-                    clienteId: cliente.id,
-                    cobradorId: cobradorId!,
-                    ticketId: newTicket.id,
-                    monto: parseFloat(monto),
+                    cliente: { connect: { id: cliente.id } },
+                    cobrador: { connect: { id: cobradorId! } },
+                    ticket: { connect: { id: newTicket.id } },
+                    monto: parseFloat(monto || '0') || 0,
                     interesMoratorio: 0,
                     gastosCobranza: 0,
                     concepto: movimientoBancario ? `TKT: ${newTicket.id} / MOV: ${movimientoBancario.id.slice(-8)}` : `TKT: ${newTicket.id} / PENDIENTE`,
                     tipoPago: tipoPagoStr as any,
-                    fechaPago: new Date(), // Los pagos de bot se insertan con la fecha actual del envio para coincidir con la semana de cobranza
+                    fechaPago: new Date(),
                     saldoAnterior: saldoAnterior,
                     saldoNuevo: saldoNuevo,
                     metodoPago: "BANCOS BOT",
@@ -700,14 +701,42 @@ export async function POST(req: Request) {
             };
         });
 
+        // Consultar saldo en vivo de ContPAQi API si está disponible
+        let saldoContpaqiInfo = "";
+        try {
+            const empresaCod = codigoFinal.startsWith('DP') ? 'DP' : 'DQ';
+            const contpaqiRes = await fetch(`http://vortex520.qhosting.net:5000/api/Documentos/cliente/${codigoFinal}?empresa=${empresaCod}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-API-Key': 'VERTEX123_CONTPAQI_ERP_2024',
+                    'X-Company-Id': empresaCod,
+                    'X-Contpaqi-Empresa': empresaCod
+                }
+            });
+            if (contpaqiRes.ok) {
+                const docs = await contpaqiRes.json();
+                if (Array.isArray(docs)) {
+                    const saldoPendiente = docs
+                        .filter((d: any) => d.cancelado === 0)
+                        .reduce((acc: number, d: any) => acc + (d.pendiente !== undefined ? d.pendiente : (d.total || 0)), 0);
+                    saldoContpaqiInfo = `\n- 💼 Saldo ContPAQi: *$${saldoPendiente.toFixed(2)}*`;
+                }
+            }
+        } catch (e: any) {
+            console.log("Aviso: ContPAQi API no respondió para saldo en vivo:", e.message);
+        }
+
+        const urlRecibo = `https://erp.mueblesdaso.com/public/recibo/${result.ticketId}`;
+
         return NextResponse.json({
             message: "Ticket y Pago procesados correctamente",
             ticketId: result.ticketId,
             pagoId: result.pagoId,
             conciliado: result.conciliado,
             saldoNuevo: result.saldoNuevo,
+            urlRecibo,
             ya_existe: false,
-            mensaje: `✅ ¡Comprobante EN PROCESO de VALIDACIÓN!\n\n📌 *Detalles del Ticket*\n- 🆔 ID: ${result.ticketId}\n- 📄 Contrato: ${codigoFinal}\n- 📅 Fecha: ${fecha || 'N/A'}\n- ⏰ Hora: ${hr || 'N/A'}\n- 💰 Monto: $${parseFloat(monto).toFixed(2)}\n- 🔢 Referencia: ${referencia !== 'null' ? referencia : 'N/A'}\n- 📝 Folio: ${folio !== 'null' ? folio : 'N/A'}\n- 📦 Clave de rastreo: ${claverastreo !== 'null' ? claverastreo : 'N/A'}\n\n⚡ *TICKET EN PROCESO DE CONCILIACION* ⚡`
+            mensaje: `✅ *¡COMPROBANTE REGISTRADO CON ÉXITO!*\n\n📌 *Detalles del Recibo*\n- 🆔 Folio Ticket: *${result.ticketId}*\n- 📄 Contrato: *${codigoFinal}*\n- 👤 Cliente: *${cliente.nombreCompleto}*\n- 💰 Abono: *$${parseFloat(monto).toFixed(2)}*\n- 💳 Saldo Anterior: *$${cliente.saldoActual.toFixed(2)}*\n- 💵 Saldo Nuevo: *$${result.saldoNuevo.toFixed(2)}*${saldoContpaqiInfo}\n- 📅 Fecha: ${fecha || new Date().toISOString().slice(0, 10)}\n- ⏰ Hora: ${hr || new Date().toLocaleTimeString('es-MX')}\n- 📦 Rastreo SPEI: ${claverastreo !== 'null' ? claverastreo : 'N/A'}\n- 🏦 Estado: *${result.conciliado ? 'CONCILIADO EN BANCO' : 'EN PROCESO DE CONCILIACIÓN'}*\n\n📄 *Ver tu Recibo Oficial Digital:* \n👉 ${urlRecibo}\n\n_Mueblería Daso agradece su preferencia._`
         });
 
     } catch (error: any) {
