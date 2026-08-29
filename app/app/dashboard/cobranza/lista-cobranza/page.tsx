@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Download, Filter, FileText, Users, Phone, MapPin, Search, Calendar, DollarSign, AlertCircle, TrendingUp } from "lucide-react";
+import { Download, Filter, FileText, Users, Phone, MapPin, Search, Calendar, DollarSign, AlertCircle, TrendingUp, Layers } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
@@ -18,6 +18,7 @@ interface User {
     id: string;
     name: string;
     codigoGestor?: string;
+    role?: string;
 }
 
 interface Cliente {
@@ -26,6 +27,7 @@ interface Cliente {
     nombreCompleto: string;
     direccionCompleta: string;
     telefono?: string;
+    telefonoTrabajo?: string;
     diaPago: string;
     periodicidad: string;
     montoPago: number;
@@ -57,6 +59,9 @@ export default function ListaCobranzaPage() {
         return Math.ceil((d.getDay() + 1 + days) / 7).toString();
     });
 
+    // Filtro de empresa / tipo de cuenta
+    const [filtroEmpresa, setFiltroEmpresa] = useState<"TODAS" | "DQ" | "DP">("TODAS");
+
     // Resultados
     const [clientes, setClientes] = useState<Cliente[]>([]);
     const [calendario, setCalendario] = useState<any>(null);
@@ -73,14 +78,13 @@ export default function ListaCobranzaPage() {
             const res = await fetch("/api/users");
             if (res.ok) {
                 const users = await res.json();
+                // Filtrar SOLO cobradores / gestores de cobranza
                 const gestores = users.filter((u: any) => 
                     u.role === "cobrador" || 
-                    u.role === "gestor_cobranza" || 
-                    u.codigoGestor
+                    u.role === "gestor_cobranza"
                 );
                 setCobradores(gestores);
                 
-                // Si hay cobradores, seleccionar el primero por defecto
                 if (gestores.length > 0) {
                     setSelectedCobrador(gestores[0].id);
                 }
@@ -142,33 +146,55 @@ export default function ListaCobranzaPage() {
         }
 
         const cobradorName = getSelectedCobradorName();
-        
-        const dataToExport = clientes.map(c => ({
-            "CODIGO CLIENTE": c.codigoCliente || "-",
-            "CUENTA": c.codigoCliente || "-",
-            "CONTRATO": c.numContrato || c.codigoCliente || "-",
-            "Periodo Inicial": c.fechaVenta ? new Date(c.fechaVenta).toLocaleDateString("es-MX") : "-",
-            "RAZON SOCIAL": c.nombreCompleto || "-",
-            "PERIODO DE PAGO": c.periodicidad ? (c.periodicidad.toUpperCase() + (c.diaPago ? ` (${c.diaPago})` : "")) : (c.diaPago || "-"),
-            "PAGO SUGERIDO": c.montoPago || 0,
-            "SALDO VENCIDO": c.saldoVencido || 0,
-            "PV": c.pv || 0,
-            "SALDO ACTUAL": c.saldoActual || 0,
-            "GESTOR": c.gestor || cobradorName || "-"
-        }));
-
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Lista de Cobranza");
 
-        // Formatear ancho de columnas para mejor visualización
-        worksheet['!cols'] = [
+        const buildSheetData = (items: Cliente[]) => {
+            const rows = items.map(c => ({
+                "CODIGO CLIENTE": c.codigoCliente || "-",
+                "CUENTA": c.codigoCliente || "-",
+                "CONTRATO": c.numContrato || c.codigoCliente || "-",
+                "Periodo Inicial": c.fechaVenta ? new Date(c.fechaVenta).toLocaleDateString("es-MX") : "-",
+                "RAZON SOCIAL": c.nombreCompleto || "-",
+                "TELÉFONO": c.telefono || c.telefonoTrabajo || "-",
+                "PERIODO DE PAGO": c.periodicidad ? c.periodicidad.toUpperCase() : "-",
+                "PAGO SUGERIDO": c.montoPago || 0,
+                "SALDO VENCIDO": c.saldoVencido || 0,
+                "PV": c.pv || 0,
+                "SALDO ACTUAL": c.saldoActual || 0,
+                "GESTOR": c.gestor || cobradorName || "-"
+            }));
+
+            // Agregar fila de totales al final
+            const tCobrar = items.reduce((acc, curr) => acc + (curr.montoPago || 0), 0);
+            const tVencido = items.reduce((acc, curr) => acc + (curr.saldoVencido || 0), 0);
+            const tSaldo = items.reduce((acc, curr) => acc + (curr.saldoActual || 0), 0);
+
+            rows.push({
+                "CODIGO CLIENTE": "TOTALES",
+                "CUENTA": `(${items.length} cuentas)`,
+                "CONTRATO": "",
+                "Periodo Inicial": "",
+                "RAZON SOCIAL": "",
+                "TELÉFONO": "",
+                "PERIODO DE PAGO": "",
+                "PAGO SUGERIDO": tCobrar as any,
+                "SALDO VENCIDO": tVencido as any,
+                "PV": "" as any,
+                "SALDO ACTUAL": tSaldo as any,
+                "GESTOR": ""
+            });
+
+            return rows;
+        };
+
+        const colWidths = [
             { wch: 16 }, // CODIGO CLIENTE
             { wch: 16 }, // CUENTA
             { wch: 16 }, // CONTRATO
             { wch: 16 }, // Periodo Inicial
             { wch: 35 }, // RAZON SOCIAL
-            { wch: 22 }, // PERIODO DE PAGO
+            { wch: 18 }, // TELÉFONO
+            { wch: 18 }, // PERIODO DE PAGO
             { wch: 16 }, // PAGO SUGERIDO
             { wch: 16 }, // SALDO VENCIDO
             { wch: 10 }, // PV
@@ -176,16 +202,67 @@ export default function ListaCobranzaPage() {
             { wch: 18 }  // GESTOR
         ];
 
+        // Separar clientes DQ y DP
+        const clientesDQ = clientes.filter(c => {
+            const cod = (c.codigoCliente || '').toUpperCase();
+            const cont = (c.numContrato || '').toUpperCase();
+            return cod.startsWith('DQ') || cont.startsWith('DQ');
+        });
+
+        const clientesDP = clientes.filter(c => {
+            const cod = (c.codigoCliente || '').toUpperCase();
+            const cont = (c.numContrato || '').toUpperCase();
+            return cod.startsWith('DP') || cont.startsWith('DP');
+        });
+
+        const otrosClientes = clientes.filter(c => !clientesDQ.includes(c) && !clientesDP.includes(c));
+
+        // Hoja 1: Cuentas DQ
+        const wsDQ = XLSX.utils.json_to_sheet(buildSheetData(clientesDQ));
+        wsDQ['!cols'] = colWidths;
+        XLSX.utils.book_append_sheet(workbook, wsDQ, `Cuentas DQ (${clientesDQ.length})`);
+
+        // Hoja 2: Cuentas DP
+        const wsDP = XLSX.utils.json_to_sheet(buildSheetData(clientesDP));
+        wsDP['!cols'] = colWidths;
+        XLSX.utils.book_append_sheet(workbook, wsDP, `Cuentas DP (${clientesDP.length})`);
+
+        // Si existen otras cuentas no categorizadas
+        if (otrosClientes.length > 0) {
+            const wsOtros = XLSX.utils.json_to_sheet(buildSheetData(otrosClientes));
+            wsOtros['!cols'] = colWidths;
+            XLSX.utils.book_append_sheet(workbook, wsOtros, `Otras Cuentas (${otrosClientes.length})`);
+        }
+
         XLSX.writeFile(workbook, `ListaCobranza-${cobradorName}-Semana${semana}.xlsx`);
-        toast.success("Lista de cobranza exportada en Excel (.xlsx) exitosamente");
+        toast.success(`Lista de cobranza exportada con hojas separadas (DQ: ${clientesDQ.length}, DP: ${clientesDP.length})`);
     };
 
-    const clientesFiltrados = clientes.filter(c => 
-        c.nombreCompleto.toLowerCase().includes(busqueda.toLowerCase()) ||
-        c.codigoCliente.toLowerCase().includes(busqueda.toLowerCase()) ||
-        (c.numContrato && c.numContrato.toLowerCase().includes(busqueda.toLowerCase())) ||
-        c.direccionCompleta.toLowerCase().includes(busqueda.toLowerCase())
-    );
+    // Filtrado por texto y por tipo de cuenta (DP / DQ / TODAS)
+    const clientesFiltrados = clientes.filter(c => {
+        const cod = (c.codigoCliente || '').toUpperCase();
+        const cont = (c.numContrato || '').toUpperCase();
+        
+        // Filtro por tipo de cuenta
+        if (filtroEmpresa === "DQ" && !cod.startsWith("DQ") && !cont.startsWith("DQ")) {
+            return false;
+        }
+        if (filtroEmpresa === "DP" && !cod.startsWith("DP") && !cont.startsWith("DP")) {
+            return false;
+        }
+
+        // Filtro por búsqueda
+        return (
+            c.nombreCompleto.toLowerCase().includes(busqueda.toLowerCase()) ||
+            c.codigoCliente.toLowerCase().includes(busqueda.toLowerCase()) ||
+            (c.numContrato && c.numContrato.toLowerCase().includes(busqueda.toLowerCase())) ||
+            (c.telefono && c.telefono.includes(busqueda)) ||
+            c.direccionCompleta.toLowerCase().includes(busqueda.toLowerCase())
+        );
+    });
+
+    const totalCuentasDQ = clientes.filter(c => (c.codigoCliente || '').toUpperCase().startsWith('DQ') || (c.numContrato || '').toUpperCase().startsWith('DQ')).length;
+    const totalCuentasDP = clientes.filter(c => (c.codigoCliente || '').toUpperCase().startsWith('DP') || (c.numContrato || '').toUpperCase().startsWith('DP')).length;
 
     const totalCobrar = clientesFiltrados.reduce((acc, curr) => acc + (curr.montoPago || 0), 0);
     const totalSaldoVencido = clientesFiltrados.reduce((acc, curr) => acc + (curr.saldoVencido || 0), 0);
@@ -205,7 +282,7 @@ export default function ListaCobranzaPage() {
                                 Lista de Cobranza por Gestor
                             </h1>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                Generación de ruta de cobro con orden oficial de columnas, periodos vencidos y sugeridos.
+                                Generación de ruta de cobro con orden oficial de columnas, teléfono, periodos y exportación multi-hoja (DQ / DP).
                             </p>
                         </div>
                     </div>
@@ -214,7 +291,7 @@ export default function ListaCobranzaPage() {
                             onClick={exportarExcel} 
                             className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200 dark:shadow-none h-9 text-xs font-bold gap-2"
                         >
-                            <Download className="h-4 w-4" /> Exportar a Excel
+                            <Download className="h-4 w-4" /> Exportar a Excel (Hojas DQ y DP)
                         </Button>
                     )}
                 </div>
@@ -229,14 +306,14 @@ export default function ListaCobranzaPage() {
                     <CardContent className="pt-4">
                         <form onSubmit={handleBuscar} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                             <div className="space-y-1.5">
-                                <Label htmlFor="gestor" className="text-xs font-bold text-slate-600 dark:text-slate-400">Gestor / Cobrador</Label>
+                                <Label htmlFor="gestor" className="text-xs font-bold text-slate-600 dark:text-slate-400">Cobrador / Gestor</Label>
                                 <Select value={selectedCobrador} onValueChange={setSelectedCobrador}>
                                     <SelectTrigger id="gestor" disabled={loadingCobradores} className="h-9 text-xs">
-                                        <SelectValue placeholder={loadingCobradores ? "Cargando..." : "Selecciona un gestor"} />
+                                        <SelectValue placeholder={loadingCobradores ? "Cargando cobradores..." : "Selecciona un cobrador"} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {cobradores.map((c) => (
-                                            <SelectItem key={c.id} value={c.id}>
+                                             <SelectItem key={c.id} value={c.id}>
                                                 {c.codigoGestor ? `${c.codigoGestor} - ${c.name}` : c.name}
                                             </SelectItem>
                                         ))}
@@ -342,27 +419,55 @@ export default function ListaCobranzaPage() {
                     </div>
                 )}
 
-                {/* Tabla de Resultados con las 11 Columnas Oficiales */}
+                {/* Tabla de Resultados con Filtro DP / DQ y 12 Columnas Oficiales */}
                 {searched && (
                     <Card className="border-gray-100 dark:border-slate-800 shadow-lg">
-                        <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 py-4 border-b bg-gray-50/50 dark:bg-slate-800/50">
+                        <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 py-4 border-b bg-gray-50/50 dark:bg-slate-800/50">
                             <div>
-                                <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
-                                    Desglose Oficial de Cobranza ({clientesFiltrados.length})
+                                <CardTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <span>Desglose Oficial de Cobranza ({clientesFiltrados.length})</span>
                                 </CardTitle>
                                 <CardDescription className="text-xs text-slate-500 mt-0.5">
                                     Ruta semanal asignada a <span className="font-semibold text-slate-800 dark:text-slate-200">{getSelectedCobradorName()}</span>.
                                 </CardDescription>
                             </div>
-                            <div className="relative w-full sm:w-72">
-                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                                <Input
-                                    type="search"
-                                    placeholder="Buscar cliente, contrato, código..."
-                                    className="pl-8 h-9 text-xs"
-                                    value={busqueda}
-                                    onChange={(e) => setBusqueda(e.target.value)}
-                                />
+
+                            {/* Filtros rápidos DP / DQ y Barra de Búsqueda */}
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
+                                <div className="inline-flex bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-lg text-xs">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFiltroEmpresa("TODAS")}
+                                        className={`px-3 py-1 rounded-md font-bold transition-all ${filtroEmpresa === "TODAS" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"}`}
+                                    >
+                                        Todas ({clientes.length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFiltroEmpresa("DQ")}
+                                        className={`px-3 py-1 rounded-md font-bold transition-all ${filtroEmpresa === "DQ" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-blue-600"}`}
+                                    >
+                                        DQ ({totalCuentasDQ})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFiltroEmpresa("DP")}
+                                        className={`px-3 py-1 rounded-md font-bold transition-all ${filtroEmpresa === "DP" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-indigo-600"}`}
+                                    >
+                                        DP ({totalCuentasDP})
+                                    </button>
+                                </div>
+
+                                <div className="relative w-full sm:w-64">
+                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                                    <Input
+                                        type="search"
+                                        placeholder="Buscar cliente, contrato, tel..."
+                                        className="pl-8 h-9 text-xs"
+                                        value={busqueda}
+                                        onChange={(e) => setBusqueda(e.target.value)}
+                                    />
+                                </div>
                             </div>
                         </CardHeader>
                         <CardContent className="p-0">
@@ -375,6 +480,7 @@ export default function ListaCobranzaPage() {
                                             <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">CONTRATO</th>
                                             <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">Periodo Inicial</th>
                                             <th className="px-3.5 py-3 border border-slate-700 whitespace-nowrap">RAZON SOCIAL</th>
+                                            <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">TELÉFONO</th>
                                             <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">PERIODO DE PAGO</th>
                                             <th className="px-3.5 py-3 text-right border border-slate-700 whitespace-nowrap">PAGO SUGERIDO</th>
                                             <th className="px-3.5 py-3 text-right border border-slate-700 whitespace-nowrap">SALDO VENCIDO</th>
@@ -386,14 +492,14 @@ export default function ListaCobranzaPage() {
                                     <tbody className="divide-y divide-gray-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                                         {loading ? (
                                             <tr>
-                                                <td colSpan={11} className="py-12 text-center text-gray-500 text-xs">
+                                                <td colSpan={12} className="py-12 text-center text-gray-500 text-xs">
                                                     Cargando cuentas de la ruta de cobranza...
                                                 </td>
                                             </tr>
                                         ) : clientesFiltrados.length === 0 ? (
                                             <tr>
-                                                <td colSpan={11} className="py-14 text-center text-gray-400 text-xs">
-                                                    No se encontraron clientes asignados para este gestor en la semana elegida.
+                                                <td colSpan={12} className="py-14 text-center text-gray-400 text-xs">
+                                                    No se encontraron clientes asignados para este gestor con los filtros aplicados.
                                                 </td>
                                             </tr>
                                         ) : (
@@ -420,31 +526,35 @@ export default function ListaCobranzaPage() {
                                                         <td className="px-3.5 py-2.5 font-bold text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800 whitespace-nowrap">
                                                             {c.nombreCompleto}
                                                         </td>
-                                                        {/* 6. PERIODO DE PAGO */}
+                                                        {/* 6. TELÉFONO */}
+                                                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap font-mono text-slate-700 dark:text-slate-300 border border-gray-100 dark:border-slate-800">
+                                                            {c.telefono || c.telefonoTrabajo || "-"}
+                                                        </td>
+                                                        {/* 7. PERIODO DE PAGO (SOLO EL PERIODO) */}
                                                         <td className="px-3.5 py-2.5 text-center border border-gray-100 dark:border-slate-800 whitespace-nowrap">
                                                             <Badge variant="outline" className="text-[10px] uppercase font-bold py-0">
-                                                                {c.periodicidad} {c.diaPago ? `(${c.diaPago})` : ""}
+                                                                {c.periodicidad ? c.periodicidad.toUpperCase() : "-"}
                                                             </Badge>
                                                         </td>
-                                                        {/* 7. PAGO SUGERIDO */}
+                                                        {/* 8. PAGO SUGERIDO */}
                                                         <td className="px-3.5 py-2.5 text-right border border-gray-100 dark:border-slate-800 font-bold font-mono text-emerald-600 dark:text-emerald-400">
                                                             {formatCurrency(c.montoPago)}
                                                         </td>
-                                                        {/* 8. SALDO VENCIDO */}
+                                                        {/* 9. SALDO VENCIDO */}
                                                         <td className="px-3.5 py-2.5 text-right border border-gray-100 dark:border-slate-800 font-bold font-mono text-rose-600 dark:text-rose-400">
                                                             {formatCurrency(c.saldoVencido || 0)}
                                                         </td>
-                                                        {/* 9. PV */}
+                                                        {/* 10. PV */}
                                                         <td className="px-3.5 py-2.5 text-center border border-gray-100 dark:border-slate-800 font-mono font-bold">
                                                             <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] ${(c.pv || 0) > 0 ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
                                                                 {c.pv || 0}
                                                             </span>
                                                         </td>
-                                                        {/* 10. SALDO ACTUAL */}
+                                                        {/* 11. SALDO ACTUAL */}
                                                         <td className="px-3.5 py-2.5 text-right border border-gray-100 dark:border-slate-800 font-black font-mono text-slate-900 dark:text-white">
                                                             {formatCurrency(c.saldoActual)}
                                                         </td>
-                                                        {/* 11. GESTOR */}
+                                                        {/* 12. GESTOR */}
                                                         <td className="px-3.5 py-2.5 text-center border border-gray-100 dark:border-slate-800 font-mono text-xs">
                                                             <Badge variant="secondary" className="text-[10px] font-bold">
                                                                 {c.gestor || getSelectedCobradorName()}
@@ -454,8 +564,8 @@ export default function ListaCobranzaPage() {
                                                 ))}
                                                 {/* Fila de Totales */}
                                                 <tr className="bg-slate-100 dark:bg-slate-800/80 font-black text-xs text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-700">
-                                                    <td colSpan={6} className="px-4 py-3 text-right border border-gray-200 dark:border-slate-700 uppercase tracking-wider text-[10px]">
-                                                        TOTALES GENERALES
+                                                    <td colSpan={7} className="px-4 py-3 text-right border border-gray-200 dark:border-slate-700 uppercase tracking-wider text-[10px]">
+                                                        TOTALES ({clientesFiltrados.length} cuentas)
                                                     </td>
                                                     <td className="px-3.5 py-3 text-right border border-gray-200 dark:border-slate-700 font-mono text-emerald-700 dark:text-emerald-300">
                                                         {formatCurrency(totalCobrar)}
