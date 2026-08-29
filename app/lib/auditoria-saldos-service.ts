@@ -259,3 +259,56 @@ export async function auditarSaldosCliente(
     }
   };
 }
+
+/**
+ * Corrige y sincroniza el saldo y la cascada de pagos de un cliente
+ */
+export async function actualizarSaldosCliente(
+  codigoCliente: string,
+  prismaClient?: any,
+  _connection?: any
+) {
+  const db = prismaClient || prisma;
+  const cod = codigoCliente.trim().toUpperCase();
+  const diagnostico = await auditarSaldosCliente(cod, db);
+
+  // 1. Actualizar saldo del cliente en PostgreSQL
+  await db.cliente.updateMany({
+    where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
+    data: { saldoActual: diagnostico.saldoRealCalculado }
+  });
+
+  // 2. Si hay pagos registrados en ERP, ajustar saldos de la cadena histórica
+  let pagosActualizados = 0;
+  for (const pagoItem of diagnostico.cadenaPagos) {
+    if (pagoItem.id && typeof pagoItem.id === 'string') {
+      try {
+        await db.pago.update({
+          where: { id: pagoItem.id },
+          data: {
+            saldoNuevo: pagoItem.saldoNuevoReconstruido,
+            metadatos: {
+              contpaqiDocId: pagoItem.docContpaqiId,
+              contpaqiAfectado: pagoItem.estaEnContpaqi
+            }
+          }
+        });
+        pagosActualizados++;
+      } catch (pErr) {
+        // Ignorar si el ID no existe en DB
+      }
+    }
+  }
+
+  return {
+    success: true,
+    mensaje: `Saldo actualizado exitosamente a $${diagnostico.saldoRealCalculado.toFixed(2)} para ${cod}.`,
+    codigo: cod,
+    saldoAnterior: diagnostico.saldoErpActual,
+    saldoReal: diagnostico.saldoRealCalculado,
+    saldoRealCalculado: diagnostico.saldoRealCalculado,
+    pagosActualizados,
+    diagnostico
+  };
+}
+
