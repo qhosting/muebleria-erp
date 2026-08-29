@@ -928,6 +928,7 @@ export async function POST(request: NextRequest) {
     let clientesActualizados = 0;
     let contpaqiAplicadosCount = 0;
     const yaVinculadosErpIds = new Set<string>();
+    const erroresDetalle: string[] = [];
 
     for (const p of pagosMysql) {
       const cod = (p.cod_cliente || '').trim().toUpperCase();
