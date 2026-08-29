@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Download, Filter, FileText, Users, Phone, MapPin, Search, Calendar } from "lucide-react";
+import { Download, Filter, FileText, Users, Phone, MapPin, Search, Calendar, DollarSign, AlertCircle, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
@@ -30,6 +30,10 @@ interface Cliente {
     periodicidad: string;
     montoPago: number;
     saldoActual: number;
+    saldoVencido?: number;
+    diasVencidos?: number;
+    pv?: number;
+    gestor?: string;
     numContrato?: string;
     fechaVenta?: string;
     vendedor?: string;
@@ -59,8 +63,6 @@ export default function ListaCobranzaPage() {
     const [busqueda, setBusqueda] = useState<string>("");
     const [searched, setSearched] = useState<boolean>(false);
 
-    const userRole = (session?.user as any)?.role;
-
     useEffect(() => {
         fetchCobradores();
     }, []);
@@ -71,7 +73,11 @@ export default function ListaCobranzaPage() {
             const res = await fetch("/api/users");
             if (res.ok) {
                 const users = await res.json();
-                const gestores = users.filter((u: any) => u.role === "cobrador");
+                const gestores = users.filter((u: any) => 
+                    u.role === "cobrador" || 
+                    u.role === "gestor_cobranza" || 
+                    u.codigoGestor
+                );
                 setCobradores(gestores);
                 
                 // Si hay cobradores, seleccionar el primero por defecto
@@ -138,20 +144,17 @@ export default function ListaCobranzaPage() {
         const cobradorName = getSelectedCobradorName();
         
         const dataToExport = clientes.map(c => ({
-            "Contrato": c.numContrato || "-",
-            "Código Cliente": c.codigoCliente || "-",
-            "Nombre Completo": c.nombreCompleto || "-",
-            "Dirección": c.direccionCompleta || "-",
-            "Teléfono": c.telefono || "-",
-            "Día Pago": c.diaPago || "-",
-            "Periodicidad": c.periodicidad || "-",
-            "Producto": c.descripcionProducto || "-",
-            "Fecha Venta": c.fechaVenta ? new Date(c.fechaVenta).toLocaleDateString("es-MX") : "-",
-            "Vendedor": c.vendedor || "-",
-            "Precio Contado": c.importe1 || 0,
-            "Vendido En": c.importe2 || 0,
-            "Monto Pago": c.montoPago || 0,
-            "Saldo Actual": c.saldoActual || 0
+            "CODIGO CLIENTE": c.codigoCliente || "-",
+            "CUENTA": c.codigoCliente || "-",
+            "CONTRATO": c.numContrato || c.codigoCliente || "-",
+            "Periodo Inicial": c.fechaVenta ? new Date(c.fechaVenta).toLocaleDateString("es-MX") : "-",
+            "RAZON SOCIAL": c.nombreCompleto || "-",
+            "PERIODO DE PAGO": c.periodicidad ? (c.periodicidad.toUpperCase() + (c.diaPago ? ` (${c.diaPago})` : "")) : (c.diaPago || "-"),
+            "PAGO SUGERIDO": c.montoPago || 0,
+            "SALDO VENCIDO": c.saldoVencido || 0,
+            "PV": c.pv || 0,
+            "SALDO ACTUAL": c.saldoActual || 0,
+            "GESTOR": c.gestor || cobradorName || "-"
         }));
 
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -160,20 +163,17 @@ export default function ListaCobranzaPage() {
 
         // Formatear ancho de columnas para mejor visualización
         worksheet['!cols'] = [
-            { wch: 15 }, // Contrato
-            { wch: 15 }, // Código Cliente
-            { wch: 30 }, // Nombre Completo
-            { wch: 40 }, // Dirección
-            { wch: 15 }, // Teléfono
-            { wch: 12 }, // Día Pago
-            { wch: 15 }, // Periodicidad
-            { wch: 25 }, // Producto
-            { wch: 15 }, // Fecha Venta
-            { wch: 20 }, // Vendedor
-            { wch: 15 }, // Precio Contado
-            { wch: 15 }, // Vendido En
-            { wch: 15 }, // Monto Pago
-            { wch: 15 }  // Saldo Actual
+            { wch: 16 }, // CODIGO CLIENTE
+            { wch: 16 }, // CUENTA
+            { wch: 16 }, // CONTRATO
+            { wch: 16 }, // Periodo Inicial
+            { wch: 35 }, // RAZON SOCIAL
+            { wch: 22 }, // PERIODO DE PAGO
+            { wch: 16 }, // PAGO SUGERIDO
+            { wch: 16 }, // SALDO VENCIDO
+            { wch: 10 }, // PV
+            { wch: 16 }, // SALDO ACTUAL
+            { wch: 18 }  // GESTOR
         ];
 
         XLSX.writeFile(workbook, `ListaCobranza-${cobradorName}-Semana${semana}.xlsx`);
@@ -183,60 +183,69 @@ export default function ListaCobranzaPage() {
     const clientesFiltrados = clientes.filter(c => 
         c.nombreCompleto.toLowerCase().includes(busqueda.toLowerCase()) ||
         c.codigoCliente.toLowerCase().includes(busqueda.toLowerCase()) ||
+        (c.numContrato && c.numContrato.toLowerCase().includes(busqueda.toLowerCase())) ||
         c.direccionCompleta.toLowerCase().includes(busqueda.toLowerCase())
     );
 
-    const totalCobrar = clientesFiltrados.reduce((acc, curr) => acc + curr.montoPago, 0);
-    const totalSaldo = clientesFiltrados.reduce((acc, curr) => acc + curr.saldoActual, 0);
+    const totalCobrar = clientesFiltrados.reduce((acc, curr) => acc + (curr.montoPago || 0), 0);
+    const totalSaldoVencido = clientesFiltrados.reduce((acc, curr) => acc + (curr.saldoVencido || 0), 0);
+    const totalSaldo = clientesFiltrados.reduce((acc, curr) => acc + (curr.saldoActual || 0), 0);
 
     return (
         <DashboardLayout>
-            <div className="space-y-6">
+            <div className="space-y-6 max-w-[1600px] mx-auto p-4 md:p-6">
                 {/* Encabezado */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center">
-                            <FileText className="mr-3 h-8 w-8 text-blue-600" />
-                            Generar Lista por Gestor
-                        </h1>
-                        <p className="text-muted-foreground mt-1">
-                            Genera la lista de cuentas activas a visitar por gestor según la programación semanal.
-                        </p>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm">
+                    <div className="flex items-center gap-3.5">
+                        <div className="p-3 bg-blue-50 dark:bg-blue-950/50 rounded-xl text-blue-600 dark:text-blue-400">
+                            <FileText className="h-7 w-7" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                                Lista de Cobranza por Gestor
+                            </h1>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                Generación de ruta de cobro con orden oficial de columnas, periodos vencidos y sugeridos.
+                            </p>
+                        </div>
                     </div>
                     {clientes.length > 0 && (
-                        <Button onClick={exportarExcel} className="w-full sm:w-auto">
-                            <Download className="mr-2 h-4 w-4" /> Exportar a Excel
+                        <Button 
+                            onClick={exportarExcel} 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200 dark:shadow-none h-9 text-xs font-bold gap-2"
+                        >
+                            <Download className="h-4 w-4" /> Exportar a Excel
                         </Button>
                     )}
                 </div>
 
                 {/* Formulario de Filtro */}
-                <Card>
-                    <CardHeader className="py-4">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                            <Filter className="h-4 w-4" /> Parámetros de Lista
+                <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
+                    <CardHeader className="py-3.5 border-b bg-gray-50/50 dark:bg-slate-800/50">
+                        <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                            <Filter className="h-3.5 w-3.5" /> Parámetros de Consulta
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-4">
                         <form onSubmit={handleBuscar} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                            <div className="space-y-2">
-                                <Label htmlFor="gestor">Gestor / Cobrador</Label>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="gestor" className="text-xs font-bold text-slate-600 dark:text-slate-400">Gestor / Cobrador</Label>
                                 <Select value={selectedCobrador} onValueChange={setSelectedCobrador}>
-                                    <SelectTrigger id="gestor" disabled={loadingCobradores}>
+                                    <SelectTrigger id="gestor" disabled={loadingCobradores} className="h-9 text-xs">
                                         <SelectValue placeholder={loadingCobradores ? "Cargando..." : "Selecciona un gestor"} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {cobradores.map((c) => (
                                             <SelectItem key={c.id} value={c.id}>
-                                                {c.name} {c.codigoGestor ? `(${c.codigoGestor})` : ""}
+                                                {c.codigoGestor ? `${c.codigoGestor} - ${c.name}` : c.name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="semana">Semana (1 - 52)</Label>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="semana" className="text-xs font-bold text-slate-600 dark:text-slate-400">Semana (1 - 52)</Label>
                                 <Input
                                     id="semana"
                                     type="number"
@@ -244,35 +253,36 @@ export default function ListaCobranzaPage() {
                                     max="52"
                                     value={semana}
                                     onChange={(e) => setSemana(e.target.value)}
-                                    placeholder="Ej. 28"
+                                    placeholder="Ej. 35"
+                                    className="h-9 text-xs"
                                     required
                                 />
                             </div>
 
-                            <Button type="submit" className="w-full" disabled={loading}>
-                                {loading ? "Buscando..." : "Buscar"}
+                            <Button type="submit" className="w-full h-9 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white" disabled={loading}>
+                                {loading ? "Buscando cuentas..." : "Consultar Ruta"}
                             </Button>
                         </form>
                     </CardContent>
                 </Card>
 
-                {/* Detalles del Calendario Activo si existe */}
+                {/* Detalles del Calendario Activo */}
                 {calendario && (
-                    <Card className="border-blue-100 bg-blue-50/20">
-                        <CardContent className="py-3 flex flex-wrap items-center justify-between gap-4 text-xs text-blue-800">
+                    <Card className="border-blue-100 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-950/20">
+                        <CardContent className="py-3 flex flex-wrap items-center justify-between gap-4 text-xs text-blue-900 dark:text-blue-300">
                             <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-blue-600" />
-                                <span className="font-semibold">Período de Semana {calendario.semana}:</span>
+                                <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                <span className="font-bold">Período Semana {calendario.semana}:</span>
                                 <span>
                                     {new Date(calendario.fechaInicio).toLocaleDateString("es-MX")} al{" "}
                                     {new Date(calendario.fechaFin).toLocaleDateString("es-MX")}
                                 </span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className="font-semibold">Periodicidades Activas:</span>
-                                <div className="flex gap-1">
+                                <span className="font-bold">Periodicidades Activas:</span>
+                                <div className="flex gap-1.5">
                                     {(calendario.periodicidadesActivas as string[]).map(p => (
-                                        <Badge key={p} variant="secondary" className="text-[10px] uppercase bg-blue-100/80 text-blue-900 border-none">
+                                        <Badge key={p} variant="secondary" className="text-[10px] font-bold uppercase bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-200 border-none">
                                             {p}
                                         </Badge>
                                     ))}
@@ -282,22 +292,74 @@ export default function ListaCobranzaPage() {
                     </Card>
                 )}
 
-                {/* Tabla de Resultados */}
+                {/* KPIs Resumen */}
+                {searched && clientes.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
+                            <CardContent className="p-4 flex items-center justify-between">
+                                <div>
+                                    <p className="text-[11px] font-bold uppercase text-slate-500">Cuentas en Ruta</p>
+                                    <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{clientesFiltrados.length}</p>
+                                </div>
+                                <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl text-indigo-600">
+                                    <Users className="w-5 h-5" />
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
+                            <CardContent className="p-4 flex items-center justify-between">
+                                <div>
+                                    <p className="text-[11px] font-bold uppercase text-slate-500">Total Pago Sugerido</p>
+                                    <p className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">{formatCurrency(totalCobrar)}</p>
+                                </div>
+                                <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 rounded-xl text-emerald-600">
+                                    <DollarSign className="w-5 h-5" />
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
+                            <CardContent className="p-4 flex items-center justify-between">
+                                <div>
+                                    <p className="text-[11px] font-bold uppercase text-slate-500">Total Saldo Vencido</p>
+                                    <p className="text-2xl font-black font-mono text-rose-600 dark:text-rose-400 mt-0.5">{formatCurrency(totalSaldoVencido)}</p>
+                                </div>
+                                <div className="p-2.5 bg-rose-50 dark:bg-rose-950/50 rounded-xl text-rose-600">
+                                    <AlertCircle className="w-5 h-5" />
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
+                            <CardContent className="p-4 flex items-center justify-between">
+                                <div>
+                                    <p className="text-[11px] font-bold uppercase text-slate-500">Cartera Total</p>
+                                    <p className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-0.5">{formatCurrency(totalSaldo)}</p>
+                                </div>
+                                <div className="p-2.5 bg-blue-50 dark:bg-blue-950/50 rounded-xl text-blue-600">
+                                    <TrendingUp className="w-5 h-5" />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
+                {/* Tabla de Resultados con las 11 Columnas Oficiales */}
                 {searched && (
-                    <Card>
-                        <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 py-4 border-b">
+                    <Card className="border-gray-100 dark:border-slate-800 shadow-lg">
+                        <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 py-4 border-b bg-gray-50/50 dark:bg-slate-800/50">
                             <div>
-                                <CardTitle className="text-lg">Clientes en Ruta ({clientesFiltrados.length})</CardTitle>
-                                <CardDescription>
-                                    Cuentas asignadas a {getSelectedCobradorName()} que corresponden a esta semana.
+                                <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
+                                    Desglose Oficial de Cobranza ({clientesFiltrados.length})
+                                </CardTitle>
+                                <CardDescription className="text-xs text-slate-500 mt-0.5">
+                                    Ruta semanal asignada a <span className="font-semibold text-slate-800 dark:text-slate-200">{getSelectedCobradorName()}</span>.
                                 </CardDescription>
                             </div>
                             <div className="relative w-full sm:w-72">
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
                                 <Input
                                     type="search"
-                                    placeholder="Buscar cliente, código..."
-                                    className="pl-8"
+                                    placeholder="Buscar cliente, contrato, código..."
+                                    className="pl-8 h-9 text-xs"
                                     value={busqueda}
                                     onChange={(e) => setBusqueda(e.target.value)}
                                 />
@@ -305,108 +367,110 @@ export default function ListaCobranzaPage() {
                         </CardHeader>
                         <CardContent className="p-0">
                             <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left align-middle text-gray-600 border-collapse">
-                                    <thead className="bg-[#1e293b] text-white text-[11px] font-semibold uppercase tracking-wider">
+                                <table className="w-full text-xs text-left align-middle text-gray-600 dark:text-slate-300 border-collapse">
+                                    <thead className="bg-[#0f172a] text-white text-[10px] font-bold uppercase tracking-wider">
                                         <tr>
-                                            <th className="px-4 py-3 text-center border border-slate-700">Contrato</th>
-                                            <th className="px-4 py-3 text-center border border-slate-700">Código</th>
-                                            <th className="px-4 py-3 border border-slate-700">Cliente</th>
-                                            <th className="px-4 py-3 border border-slate-700">Dirección</th>
-                                            <th className="px-4 py-3 border border-slate-700">Teléfono</th>
-                                            <th className="px-4 py-3 text-center border border-slate-700">Día Cobro</th>
-                                            <th className="px-4 py-3 text-center border border-slate-700">Periodicidad</th>
-                                            <th className="px-4 py-3 border border-slate-700">Producto</th>
-                                            <th className="px-4 py-3 text-center border border-slate-700">Fecha Venta</th>
-                                            <th className="px-4 py-3 border border-slate-700">Vendedor</th>
-                                            <th className="px-4 py-3 text-right border border-slate-700">P. Contado</th>
-                                            <th className="px-4 py-3 text-right border border-slate-700">Vendido En</th>
-                                            <th className="px-4 py-3 text-right border border-slate-700">Abono Semanal</th>
-                                            <th className="px-4 py-3 text-right border border-slate-700">Saldo Actual</th>
+                                            <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">CODIGO CLIENTE</th>
+                                            <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">CUENTA</th>
+                                            <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">CONTRATO</th>
+                                            <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">Periodo Inicial</th>
+                                            <th className="px-3.5 py-3 border border-slate-700 whitespace-nowrap">RAZON SOCIAL</th>
+                                            <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">PERIODO DE PAGO</th>
+                                            <th className="px-3.5 py-3 text-right border border-slate-700 whitespace-nowrap">PAGO SUGERIDO</th>
+                                            <th className="px-3.5 py-3 text-right border border-slate-700 whitespace-nowrap">SALDO VENCIDO</th>
+                                            <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">PV</th>
+                                            <th className="px-3.5 py-3 text-right border border-slate-700 whitespace-nowrap">SALDO ACTUAL</th>
+                                            <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">GESTOR</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-200 bg-white">
+                                    <tbody className="divide-y divide-gray-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                                         {loading ? (
                                             <tr>
-                                                <td colSpan={14} className="py-8 text-center text-gray-500 text-xs">
-                                                    Cargando clientes de la ruta...
+                                                <td colSpan={11} className="py-12 text-center text-gray-500 text-xs">
+                                                    Cargando cuentas de la ruta de cobranza...
                                                 </td>
                                             </tr>
                                         ) : clientesFiltrados.length === 0 ? (
                                             <tr>
-                                                <td colSpan={14} className="py-12 text-center text-gray-500 text-xs">
+                                                <td colSpan={11} className="py-14 text-center text-gray-400 text-xs">
                                                     No se encontraron clientes asignados para este gestor en la semana elegida.
                                                 </td>
                                             </tr>
                                         ) : (
                                             <>
                                                 {clientesFiltrados.map((c) => (
-                                                    <tr key={c.id} className="hover:bg-slate-50 transition-colors text-xs">
-                                                        <td className="px-4 py-2 text-center font-semibold font-mono text-gray-900 border border-gray-200">
-                                                            {c.numContrato || "-"}
-                                                        </td>
-                                                        <td className="px-4 py-2 text-center font-bold font-mono text-gray-900 border border-gray-200">
+                                                    <tr key={c.id} className="hover:bg-blue-50/40 dark:hover:bg-slate-800/50 transition-colors text-xs">
+                                                        {/* 1. CODIGO CLIENTE */}
+                                                        <td className="px-3.5 py-2.5 text-center font-bold font-mono text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800">
                                                             {c.codigoCliente}
                                                         </td>
-                                                        <td className="px-4 py-2 font-medium text-gray-900 border border-gray-200 whitespace-nowrap">
-                                                            {c.nombreCompleto}
+                                                        {/* 2. CUENTA */}
+                                                        <td className="px-3.5 py-2.5 text-center font-mono text-slate-700 dark:text-slate-300 border border-gray-100 dark:border-slate-800">
+                                                            {c.codigoCliente}
                                                         </td>
-                                                        <td className="px-4 py-2 border border-gray-200 max-w-xs truncate" title={c.direccionCompleta}>
-                                                            <div className="flex items-center gap-1.5">
-                                                                <MapPin className="h-3 w-3 text-gray-400 shrink-0" />
-                                                                <span className="truncate">{c.direccionCompleta}</span>
-                                                            </div>
+                                                        {/* 3. CONTRATO */}
+                                                        <td className="px-3.5 py-2.5 text-center font-mono font-semibold text-slate-800 dark:text-slate-200 border border-gray-100 dark:border-slate-800">
+                                                            {c.numContrato || c.codigoCliente || "-"}
                                                         </td>
-                                                        <td className="px-4 py-2 border border-gray-200">
-                                                            {c.telefono ? (
-                                                                <a href={`tel:${c.telefono}`} className="flex items-center gap-1.5 text-blue-600 hover:underline">
-                                                                    <Phone className="h-3 w-3" />
-                                                                    <span>{c.telefono}</span>
-                                                                </a>
-                                                            ) : (
-                                                                <span className="text-gray-400">-</span>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-2 text-center border border-gray-200 font-medium">
-                                                            {c.diaPago}
-                                                        </td>
-                                                        <td className="px-4 py-2 text-center border border-gray-200 uppercase">
-                                                            <Badge variant="outline" className="text-[10px]">
-                                                                {c.periodicidad}
-                                                            </Badge>
-                                                        </td>
-                                                        <td className="px-4 py-2 border border-gray-200 max-w-xs truncate" title={c.descripcionProducto}>
-                                                            {c.descripcionProducto || "-"}
-                                                        </td>
-                                                        <td className="px-4 py-2 text-center border border-gray-200 whitespace-nowrap">
+                                                        {/* 4. Periodo Inicial */}
+                                                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">
                                                             {c.fechaVenta ? new Date(c.fechaVenta).toLocaleDateString("es-MX") : "-"}
                                                         </td>
-                                                        <td className="px-4 py-2 border border-gray-200 text-center">
-                                                            {c.vendedor || "-"}
+                                                        {/* 5. RAZON SOCIAL */}
+                                                        <td className="px-3.5 py-2.5 font-bold text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800 whitespace-nowrap">
+                                                            {c.nombreCompleto}
                                                         </td>
-                                                        <td className="px-4 py-2 text-right border border-gray-200">
-                                                            {c.importe1 ? formatCurrency(c.importe1) : "$0.00"}
+                                                        {/* 6. PERIODO DE PAGO */}
+                                                        <td className="px-3.5 py-2.5 text-center border border-gray-100 dark:border-slate-800 whitespace-nowrap">
+                                                            <Badge variant="outline" className="text-[10px] uppercase font-bold py-0">
+                                                                {c.periodicidad} {c.diaPago ? `(${c.diaPago})` : ""}
+                                                            </Badge>
                                                         </td>
-                                                        <td className="px-4 py-2 text-right border border-gray-200">
-                                                            {c.importe2 ? formatCurrency(c.importe2) : "$0.00"}
-                                                        </td>
-                                                        <td className="px-4 py-2 text-right border border-gray-200 font-semibold text-gray-900">
+                                                        {/* 7. PAGO SUGERIDO */}
+                                                        <td className="px-3.5 py-2.5 text-right border border-gray-100 dark:border-slate-800 font-bold font-mono text-emerald-600 dark:text-emerald-400">
                                                             {formatCurrency(c.montoPago)}
                                                         </td>
-                                                        <td className="px-4 py-2 text-right border border-gray-200 text-gray-950 font-bold">
+                                                        {/* 8. SALDO VENCIDO */}
+                                                        <td className="px-3.5 py-2.5 text-right border border-gray-100 dark:border-slate-800 font-bold font-mono text-rose-600 dark:text-rose-400">
+                                                            {formatCurrency(c.saldoVencido || 0)}
+                                                        </td>
+                                                        {/* 9. PV */}
+                                                        <td className="px-3.5 py-2.5 text-center border border-gray-100 dark:border-slate-800 font-mono font-bold">
+                                                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] ${(c.pv || 0) > 0 ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
+                                                                {c.pv || 0}
+                                                            </span>
+                                                        </td>
+                                                        {/* 10. SALDO ACTUAL */}
+                                                        <td className="px-3.5 py-2.5 text-right border border-gray-100 dark:border-slate-800 font-black font-mono text-slate-900 dark:text-white">
                                                             {formatCurrency(c.saldoActual)}
+                                                        </td>
+                                                        {/* 11. GESTOR */}
+                                                        <td className="px-3.5 py-2.5 text-center border border-gray-100 dark:border-slate-800 font-mono text-xs">
+                                                            <Badge variant="secondary" className="text-[10px] font-bold">
+                                                                {c.gestor || getSelectedCobradorName()}
+                                                            </Badge>
                                                         </td>
                                                     </tr>
                                                 ))}
                                                 {/* Fila de Totales */}
-                                                <tr className="bg-slate-50 font-bold text-xs text-slate-900 border-t-2 border-slate-300">
-                                                    <td colSpan={12} className="px-4 py-3 text-right border border-gray-200">
-                                                        Total General
+                                                <tr className="bg-slate-100 dark:bg-slate-800/80 font-black text-xs text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-700">
+                                                    <td colSpan={6} className="px-4 py-3 text-right border border-gray-200 dark:border-slate-700 uppercase tracking-wider text-[10px]">
+                                                        TOTALES GENERALES
                                                     </td>
-                                                    <td className="px-4 py-3 text-right border border-gray-200">
+                                                    <td className="px-3.5 py-3 text-right border border-gray-200 dark:border-slate-700 font-mono text-emerald-700 dark:text-emerald-300">
                                                         {formatCurrency(totalCobrar)}
                                                     </td>
-                                                    <td className="px-4 py-3 text-right border border-gray-200">
+                                                    <td className="px-3.5 py-3 text-right border border-gray-200 dark:border-slate-700 font-mono text-rose-700 dark:text-rose-300">
+                                                        {formatCurrency(totalSaldoVencido)}
+                                                    </td>
+                                                    <td className="px-3.5 py-3 text-center border border-gray-200 dark:border-slate-700 font-mono">
+                                                        -
+                                                    </td>
+                                                    <td className="px-3.5 py-3 text-right border border-gray-200 dark:border-slate-700 font-mono text-slate-950 dark:text-white">
                                                         {formatCurrency(totalSaldo)}
+                                                    </td>
+                                                    <td className="px-3.5 py-3 text-center border border-gray-200 dark:border-slate-700">
+                                                        -
                                                     </td>
                                                 </tr>
                                             </>

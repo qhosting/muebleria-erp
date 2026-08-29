@@ -66,17 +66,29 @@ export async function GET(request: NextRequest) {
         });
 
         // 3. Serializar montos decimales para JSON
-        const clientesSerializados = clientes.map((c: any) => ({
-            ...c,
-            montoPago: parseFloat(c.montoPago.toString()),
-            saldoActual: parseFloat(c.saldoActual.toString()),
-            importe1: c.importe1 ? parseFloat(c.importe1.toString()) : null,
-            importe2: c.importe2 ? parseFloat(c.importe2.toString()) : null,
-            importe3: c.importe3 ? parseFloat(c.importe3.toString()) : null,
-            importe4: c.importe4 ? parseFloat(c.importe4.toString()) : null,
-            ingresosMensuales: c.ingresosMensuales ? parseFloat(c.ingresosMensuales.toString()) : null,
-            limiteCredito: c.limiteCredito ? parseFloat(c.limiteCredito.toString()) : null,
-        }));
+        const clientesSerializados = clientes.map((c: any) => {
+            const montoPagoNum = parseFloat(c.montoPago.toString());
+            const saldoVencidoNum = c.saldoVencido ? parseFloat(c.saldoVencido.toString()) : 0;
+            const pvNum = montoPagoNum > 0 && saldoVencidoNum > 0
+                ? Math.round(saldoVencidoNum / montoPagoNum)
+                : (c.diasVencidos > 0 ? Math.ceil(c.diasVencidos / 7) : 0);
+
+            return {
+                ...c,
+                montoPago: montoPagoNum,
+                saldoActual: parseFloat(c.saldoActual.toString()),
+                saldoVencido: saldoVencidoNum,
+                diasVencidos: c.diasVencidos || 0,
+                pv: pvNum,
+                gestor: c.cobradorAsignado?.codigoGestor || c.cobradorAsignado?.name || '-',
+                importe1: c.importe1 ? parseFloat(c.importe1.toString()) : null,
+                importe2: c.importe2 ? parseFloat(c.importe2.toString()) : null,
+                importe3: c.importe3 ? parseFloat(c.importe3.toString()) : null,
+                importe4: c.importe4 ? parseFloat(c.importe4.toString()) : null,
+                ingresosMensuales: c.ingresosMensuales ? parseFloat(c.ingresosMensuales.toString()) : null,
+                limiteCredito: c.limiteCredito ? parseFloat(c.limiteCredito.toString()) : null,
+            };
+        });
 
         return NextResponse.json({
             calendario,
