@@ -41,17 +41,17 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // HayTicketsPorConciliar             if
 // GenerarMensajeSinNovedades         code
 // ConciliacionExitosa1               if
-// EnviarMensajeAlAdmin               httpRequest
-// MensajeRemitente                   httpRequest
+// EnviarMensajeAlAdmin               httpRequest                [onError→regular]
+// MensajeRemitente                   httpRequest                [onError→regular]
 // GenerarResumenParaAdmin            code
-// EnviarMensajeAlAdmin1              httpRequest
+// EnviarMensajeAlAdmin1              httpRequest                [onError→regular]
 // ObtenerTicketsPendientes1          httpRequest
 // HayTicketsPorConciliar1            if
 // GenerarMensajeSinNovedades1        code
 // ConciliacionExitosa2               if
-// EnviarMensajeAlAdmin5              httpRequest
+// EnviarMensajeAlAdmin5              httpRequest                [onError→regular]
 // GenerarResumenParaAdmin1           code
-// EnviarMensajeAlAdmin6              httpRequest
+// EnviarMensajeAlAdmin6              httpRequest                [onError→regular]
 // DiarioConciliacionSpei             scheduleTrigger
 // ObtenerTicketsConClaveDeRastreo    httpRequest
 // GenerarMensajeDeFormatoInvalido    code
@@ -183,10 +183,14 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 @workflow({
     id: 'Omtx9gdMcKNFHHAi',
     name: 'TICKETS2',
-    active: false,
+    active: true,
     isArchived: false,
-    projectId: 'a7Cqq8ZCzgtHPblJ',
-    settings: { executionOrder: 'v1', availableInMCP: false, callerPolicy: 'workflowsFromSameOwner' },
+    settings: {
+        executionOrder: 'v1',
+        availableInMCP: false,
+        callerPolicy: 'workflowsFromSameOwner',
+        binaryMode: 'separate',
+    },
 })
 export class Tickets2Workflow {
     // =====================================================================
@@ -609,9 +613,9 @@ return [{
         specifyBody: 'json',
         jsonBody: `={
   "action": "pending",
-  "remitente": "{{ $("Enrutador Principal").item.json.body.data.key.remoteJid }}",
-  "base64Data": "{{ $("Descargar Media Waha").item.json.data }}",
-  "tipoArchivo": "{{ $("Descargar Media Waha").item.json.mimetype }}"
+  "remitente": "{{ $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '' }}",
+  "base64Data": "{{ $('Descargar Media WAHA')?.item?.binary?.data?.data || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.base64 || '' }}",
+  "tipoArchivo": "{{ $('Descargar Media WAHA')?.item?.binary?.data?.mimeType || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.mimetype || 'image/jpeg' }}"
 }`,
         options: {},
     };
@@ -1534,6 +1538,7 @@ return [{ json: { mensaje: mensaje } }];`,
         type: 'n8n-nodes-base.httpRequest',
         version: 4.2,
         position: [-1296, 1744],
+        onError: 'continueRegularOutput',
     })
     EnviarMensajeAlAdmin = {
         method: 'POST',
@@ -1569,6 +1574,7 @@ return [{ json: { mensaje: mensaje } }];`,
         type: 'n8n-nodes-base.httpRequest',
         version: 4.2,
         position: [-1088, 1376],
+        onError: 'continueRegularOutput',
     })
     MensajeRemitente = {
         method: 'POST',
@@ -1650,6 +1656,7 @@ return [{ json: { mensaje: mensaje } }];`,
         type: 'n8n-nodes-base.httpRequest',
         version: 4.2,
         position: [-1088, 1568],
+        onError: 'continueRegularOutput',
     })
     EnviarMensajeAlAdmin1 = {
         method: 'POST',
@@ -1782,6 +1789,7 @@ return [{ json: { mensaje: mensaje } }];`,
         type: 'n8n-nodes-base.httpRequest',
         version: 4.2,
         position: [-1536, 2144],
+        onError: 'continueRegularOutput',
     })
     EnviarMensajeAlAdmin5 = {
         method: 'POST',
@@ -1854,6 +1862,7 @@ return [{ json: { mensaje: mensaje } }];`,
         type: 'n8n-nodes-base.httpRequest',
         version: 4.2,
         position: [-912, 2000],
+        onError: 'continueRegularOutput',
     })
     EnviarMensajeAlAdmin6 = {
         method: 'POST',
@@ -2162,23 +2171,23 @@ return [{
     })
     PrepararMensajeDeNotificacion = {
         jsCode: `// Obtenemos los resultados de los nodos anteriores.
-const resultadoAplicacion = $('Intentar Conciliación Inteligente').first().json;
-const datosDelTicket = $('MENSAJE').first().json;
+const resultadoAplicacion = ($('Intentar_Conciliacion_Inteligente') ? $('Intentar_Conciliacion_Inteligente').first()?.json : null) || ($('Intentar Conciliación Inteligente') ? $('Intentar Conciliación Inteligente').first()?.json : null) || $json || {};
+const datosDelTicket = ($('MENSAJE') ? $('MENSAJE').first()?.json : null) || ($('EXTRAE_DATOS') ? $('EXTRAE_DATOS').first()?.json : null) || {};
 
 // Extraemos todos los datos que necesitamos.
-const ticketId = resultadoAplicacion.ticketId;
-const contrato = resultadoAplicacion.cod_cliente;
-const idPago = resultadoAplicacion.idPagoGenerado;
-const saldo = resultadoAplicacion.saldo_actual;
-const movimientoId = resultadoAplicacion.movimientoId;
-const esDuplicado = datosDelTicket.yaExiste; // <--- LEEMOS SI YA EXISTÍA
+const ticketId = resultadoAplicacion.ticketId || datosDelTicket.ticketId || 'N/A';
+const contrato = resultadoAplicacion.cod_cliente || datosDelTicket.contrato || 'N/A';
+const idPago = resultadoAplicacion.idPagoGenerado || 'N/A';
+const saldo = resultadoAplicacion.saldo_actual || 0;
+const movimientoId = resultadoAplicacion.movimientoId || 'N/A';
+const esDuplicado = datosDelTicket.yaExiste || false; // <--- LEEMOS SI YA EXISTÍA
 
 // Construimos la primera parte del mensaje con los detalles del ticket.
 let mensaje = \`📌 *Detalles del Ticket*\` +
               \`\\n- 🆔 ID: \${ticketId}\` +
               \`\\n- 📅 Fecha: \${datosDelTicket.fecha || 'N/A'}\` +
               \`\\n- ⏰ Hora: \${datosDelTicket.hr || 'N/A'}\` +
-              \`\\n- 💰 Monto: $\${parseFloat(datosDelTicket.monto).toFixed(2) || '0.00'}\` +
+              \`\\n- 💰 Monto: $\${parseFloat(datosDelTicket.monto || 0).toFixed(2)}\` +
               \`\\n- 🔢 Referencia: \${datosDelTicket.referencia || 'N/A'}\` +
               \`\\n- 📝 Folio: \${datosDelTicket.folio || 'N/A'}\` +
               \`\\n- 📦 Clave de rastreo: \${datosDelTicket.claverastreo || 'N/A'}\`;
@@ -2573,7 +2582,7 @@ return {
     })
     WebhookWaha = {
         httpMethod: 'POST',
-        path: 'webhook-waha-tickets',
+        path: 'webhook-waha-tickets2',
         options: {},
     };
 
