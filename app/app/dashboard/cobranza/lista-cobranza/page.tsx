@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Download, Filter, FileText, Users, Phone, MapPin, Search, Calendar, DollarSign, AlertCircle, TrendingUp, Layers } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getDayName } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
 interface User {
@@ -164,7 +164,8 @@ export default function ListaCobranzaPage() {
                 "PV": c.pv || 0,
                 "SALDO ACTUAL": c.saldoActual || 0,
                 "GESTOR": c.gestor || cobradorName || "-",
-                "TELÉFONO": c.telefono || c.telefonoTrabajo || "-"
+                "TELÉFONO": c.telefono || c.telefonoTrabajo || "-",
+                "DÍA DE COBRO": c.diaPago ? getDayName(c.diaPago).toUpperCase() : "-"
             }));
 
             // Agregar fila de totales al final
@@ -184,7 +185,8 @@ export default function ListaCobranzaPage() {
                 "PV": "" as any,
                 "SALDO ACTUAL": tSaldo as any,
                 "GESTOR": "",
-                "TELÉFONO": ""
+                "TELÉFONO": "",
+                "DÍA DE COBRO": ""
             });
 
             return rows;
@@ -202,7 +204,8 @@ export default function ListaCobranzaPage() {
             { wch: 10 }, // PV
             { wch: 16 }, // SALDO ACTUAL
             { wch: 18 }, // GESTOR
-            { wch: 18 }  // TELÉFONO
+            { wch: 18 }, // TELÉFONO
+            { wch: 16 }  // DÍA DE COBRO
         ];
 
         // Separar clientes DQ y DP
@@ -493,18 +496,19 @@ export default function ListaCobranzaPage() {
                                             <th className="px-3.5 py-3 text-right border border-slate-700 whitespace-nowrap">SALDO ACTUAL</th>
                                             <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">GESTOR</th>
                                             <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">TELÉFONO</th>
+                                            <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">DÍA DE COBRO</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                                         {loading ? (
                                             <tr>
-                                                <td colSpan={12} className="py-12 text-center text-gray-500 text-xs">
+                                                <td colSpan={13} className="py-12 text-center text-gray-500 text-xs">
                                                     Cargando cuentas de la ruta de cobranza...
                                                 </td>
                                             </tr>
                                         ) : clientesFiltrados.length === 0 ? (
                                             <tr>
-                                                <td colSpan={12} className="py-14 text-center text-gray-400 text-xs">
+                                                <td colSpan={13} className="py-14 text-center text-gray-400 text-xs">
                                                     No se encontraron clientes asignados para este gestor con los filtros aplicados.
                                                 </td>
                                             </tr>
@@ -566,6 +570,12 @@ export default function ListaCobranzaPage() {
                                                         <td className="px-3.5 py-2.5 text-center whitespace-nowrap font-mono text-slate-700 dark:text-slate-300 border border-gray-100 dark:border-slate-800">
                                                             {c.telefono || c.telefonoTrabajo || "-"}
                                                         </td>
+                                                        {/* 13. DÍA DE COBRO */}
+                                                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap font-mono border border-gray-100 dark:border-slate-800">
+                                                            <Badge variant="outline" className="text-[10px] font-extrabold uppercase bg-blue-50/50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+                                                                {c.diaPago ? getDayName(c.diaPago).toUpperCase() : "-"}
+                                                            </Badge>
+                                                        </td>
                                                     </tr>
                                                 ))}
                                                 {/* Fila de Totales */}
@@ -584,6 +594,9 @@ export default function ListaCobranzaPage() {
                                                     </td>
                                                     <td className="px-3.5 py-3 text-right border border-gray-200 dark:border-slate-700 font-mono text-slate-950 dark:text-white">
                                                         {formatCurrency(totalSaldo)}
+                                                    </td>
+                                                    <td className="px-3.5 py-3 text-center border border-gray-200 dark:border-slate-700">
+                                                        -
                                                     </td>
                                                     <td className="px-3.5 py-3 text-center border border-gray-200 dark:border-slate-700">
                                                         -
