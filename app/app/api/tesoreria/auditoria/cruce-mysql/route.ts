@@ -820,8 +820,8 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     connection = await mysql.createConnection(MYSQL_CONFIG);
 
-    // Obtener un usuario de respaldo válido para foreign keys de cobradorId en Pago
-    const defaultUser = await prisma.user.findFirst({
+    // Obtener un usuario de respaldo real y válido para foreign keys
+    const defaultUser = (await prisma.user.findFirst({
       where: {
         OR: [
           { role: 'admin' },
@@ -829,8 +829,16 @@ export async function POST(request: NextRequest) {
           { isActive: true }
         ]
       }
-    });
-    const fallbackUserId = (session?.user as any)?.id || defaultUser?.id || 'admin';
+    })) || (await prisma.user.findFirst());
+    
+    const validSessionUserId = (session?.user as any)?.id;
+    const fallbackUserId = (validSessionUserId && validSessionUserId !== 'admin') ? validSessionUserId : (defaultUser?.id || null);
+
+    const toSafeDate = (dInput: any) => {
+      if (!dInput) return new Date();
+      const d = new Date(dInput);
+      return isNaN(d.getTime()) ? new Date() : d;
+    };
 
     let mysqlQuery = `
       SELECT idpag, cod_cliente, nombre_ccliente, fechap, fechahora, montop, mora, gcob, ref_pago, codigo_gestor, saldo_actualcli
@@ -856,8 +864,7 @@ export async function POST(request: NextRequest) {
     mysqlQuery += ` ORDER BY fechap ASC`;
     const [pagosMysql]: any = await connection.query(mysqlQuery, mysqlParams);
 
-    // Si se solicitó un cliente específico que no tiene pagos en la tabla pagos,
-    // o antes de procesar los pagos, aseguramos que el cliente exista en el ERP
+    // Si se solicitó un cliente específico, aseguramos que el cliente exista en el ERP
     if (codigoCliente) {
       const codBuscado = codigoCliente.trim().toUpperCase();
       let clienteDirecto = await prisma.cliente.findFirst({
@@ -887,9 +894,9 @@ export async function POST(request: NextRequest) {
             if (cobUser) cobradorId = cobUser.id;
           }
 
-          const sVal = parseFloat(cd?.saldo_actualcli || '0') || 0;
+          const sVal = parseFloat(String(cd?.saldo_actualcli || '0').replace(/[^0-9.-]+/g, '')) || 0;
           const dir = cd?.dir_cliente || cd?.direccion || 'Sin dirección registrada';
-          const nom = cd?.nombre_ccliente || `Cliente ${codBuscado}`;
+          const nom = cd?.nombre_ccliente || (pagosMysql.length > 0 ? pagosMysql[0].nombre_ccliente : null) || `Cliente ${codBuscado}`;
 
           await prisma.cliente.create({
             data: {
@@ -901,14 +908,14 @@ export async function POST(request: NextRequest) {
               ciudad: cd?.poblacion_cliente || null,
               telefono: cd?.tel1_cliente || null,
               vendedor: cd?.vendedor || 'Sistema',
-              fechaVenta: cd?.fecha_alta ? new Date(cd.fecha_alta) : new Date(),
+              fechaVenta: toSafeDate(cd?.fecha_alta),
               descripcionProducto: cd?.articulo || 'Venta a crédito',
               diaPago: cd?.dia_cobro || 'Lunes',
-              montoPago: parseFloat(cd?.importe1 || '0') || 0,
+              montoPago: parseFloat(String(cd?.importe1 || '0').replace(/[^0-9.-]+/g, '')) || 0,
               periodicidad: 'semanal',
               saldoActual: sVal,
               statusCuenta: 'activo',
-              cobradorAsignadoId: cobradorId || fallbackUserId,
+              cobradorAsignadoId: cobradorId || fallbackUserId || null,
             }
           });
         } catch (errDir: any) {
@@ -956,7 +963,7 @@ export async function POST(request: NextRequest) {
             if (cobUser) cobradorId = cobUser.id;
           }
 
-          const sVal = parseFloat(cData?.saldo_actualcli || p.saldo_actualcli || '0') || 0;
+          const sVal = parseFloat(String(cData?.saldo_actualcli || p.saldo_actualcli || '0').replace(/[^0-9.-]+/g, '')) || 0;
           const dir = cData?.dir_cliente || cData?.direccion || 'Sin dirección registrada';
           const nom = cData?.nombre_ccliente || p.nombre_ccliente || `Cliente ${cod}`;
 
@@ -970,14 +977,14 @@ export async function POST(request: NextRequest) {
               ciudad: cData?.poblacion_cliente || null,
               telefono: cData?.tel1_cliente || null,
               vendedor: cData?.vendedor || 'Sistema',
-              fechaVenta: cData?.fecha_alta ? new Date(cData.fecha_alta) : new Date(),
+              fechaVenta: toSafeDate(cData?.fecha_alta),
               descripcionProducto: cData?.articulo || 'Venta a crédito',
               diaPago: cData?.dia_cobro || 'Lunes',
-              montoPago: parseFloat(cData?.importe1 || '0') || 0,
+              montoPago: parseFloat(String(cData?.importe1 || '0').replace(/[^0-9.-]+/g, '')) || 0,
               periodicidad: 'semanal',
               saldoActual: sVal,
               statusCuenta: 'activo',
-              cobradorAsignadoId: cobradorId || fallbackUserId,
+              cobradorAsignadoId: cobradorId || fallbackUserId || null,
             },
             include: { cobradorAsignado: true }
           });
@@ -988,13 +995,13 @@ export async function POST(request: NextRequest) {
 
       if (!cliente) continue;
 
-      const abonoNum = parseFloat(p.montop) || 0;
-      const moraNum = parseFloat(p.mora) || 0;
-      const gcobNum = parseFloat(p.gcob) || 0;
+      const abonoNum = parseFloat(String(p.montop || '0').replace(/[^0-9.-]+/g, '')) || 0;
+      const moraNum = parseFloat(String(p.mora || '0').replace(/[^0-9.-]+/g, '')) || 0;
+      const gcobNum = parseFloat(String(p.gcob || '0').replace(/[^0-9.-]+/g, '')) || 0;
 
       if (abonoNum <= 0 && moraNum <= 0 && gcobNum <= 0) continue;
 
-      const fechaP = p.fechap ? new Date(p.fechap) : new Date();
+      const fechaP = toSafeDate(p.fechap);
 
       // 2. Extraer ID del ticket o referencia si existe en ref_pago
       const refClean = (p.ref_pago || '').trim();
@@ -1058,12 +1065,18 @@ export async function POST(request: NextRequest) {
       // 4. Crear nuevo pago en ERP y actualizar saldo actual del cliente
       const saldoPrevio = parseFloat(cliente.saldoActual.toString());
       const saldoNvo = Math.max(0, saldoPrevio - abonoNum);
+      const pagoCobradorId = cliente.cobradorAsignadoId || fallbackUserId || defaultUser?.id;
+
+      if (!pagoCobradorId) {
+        console.error(`No hay cobrador válido para crear pago de ${cod}`);
+        continue;
+      }
 
       try {
         const nuevoPago = await prisma.pago.create({
           data: {
             clienteId: cliente.id,
-            cobradorId: cliente.cobradorAsignadoId || fallbackUserId,
+            cobradorId: pagoCobradorId,
             monto: abonoNum,
             interesMoratorio: moraNum,
             gastosCobranza: gcobNum,
