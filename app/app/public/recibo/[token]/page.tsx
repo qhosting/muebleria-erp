@@ -15,17 +15,40 @@ interface PublicReceiptPageProps {
 export default async function PublicReceiptPage({ params }: PublicReceiptPageProps) {
     const token = params.token;
     
-    // 1. Validar y desencriptar el token
+    // 1. Validar y desencriptar el token si viene firmado temporalmente
     const decrypted = decryptTemporaryReceiptToken(token);
-    
-    if (!decrypted) {
-        return <ExpiredTokenView />;
-    }
+    let targetPagoId = decrypted?.pagoId;
 
     try {
+        if (!targetPagoId) {
+            // Permitir visualización directa mediante ID de Ticket o ID de Pago
+            const ticket = await prisma.ticket.findUnique({
+                where: { id: token }
+            });
+            if (ticket && (ticket as any).pagoId) {
+                targetPagoId = (ticket as any).pagoId;
+            } else {
+                const pagoDirecto = await prisma.pago.findFirst({
+                    where: {
+                        OR: [
+                            { id: token },
+                            { numeroRecibo: token }
+                        ]
+                    }
+                });
+                if (pagoDirecto) {
+                    targetPagoId = pagoDirecto.id;
+                }
+            }
+        }
+        
+        if (!targetPagoId) {
+            return <ExpiredTokenView />;
+        }
+
         // 2. Obtener el pago de la base de datos
         const pago = await prisma.pago.findUnique({
-            where: { id: decrypted.pagoId },
+            where: { id: targetPagoId },
             include: {
                 cliente: {
                     select: {
