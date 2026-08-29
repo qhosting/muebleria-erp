@@ -1,7 +1,7 @@
 import { workflow, node, links } from '@n8n-as-code/transformer';
 
 // <workflow-map>
-// Workflow : TICKETS
+// Workflow : TICKETS2
 // Nodes   : 81  |  Connections: 79
 //
 // NODE INDEX
@@ -181,21 +181,14 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // =====================================================================
 
 @workflow({
-    id: 'R-2zFPZunRb4tZyFdH1uE',
-    name: 'TICKETS',
-    active: true,
+    id: 'Omtx9gdMcKNFHHAi',
+    name: 'TICKETS2',
+    active: false,
     isArchived: false,
     projectId: 'a7Cqq8ZCzgtHPblJ',
-    settings: {
-        executionOrder: 'v1',
-        availableInMCP: false,
-        timeSavedMode: 'fixed',
-        callerPolicy: 'workflowsFromSameOwner',
-        binaryMode: 'separate',
-        saveDataSuccessExecution: 'all',
-    },
+    settings: { executionOrder: 'v1', availableInMCP: false, callerPolicy: 'workflowsFromSameOwner' },
 })
-export class TicketsWorkflow {
+export class Tickets2Workflow {
     // =====================================================================
     // CONFIGURATION DES NOEUDS
     // =====================================================================
