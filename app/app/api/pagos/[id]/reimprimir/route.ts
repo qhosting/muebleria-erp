@@ -91,11 +91,9 @@ export async function POST(
         nuevo: saldoNvo,
       },
       empresa: {
-        nombre: esDQ
-          ? 'MUEBLERIA DASO (DISTRIBUIDORA QUETZAL)'
-          : 'MUEBLERIA DASO (DISTRIBUIDORA DE PUEBLA)',
-        direccion: 'Puebla, Pue.',
-        telefono: 'Tel: 222-123-4567',
+        nombre: 'Grupo Mueblero DASO',
+        direccion: 'Juarez Ote. 223, Centro, SJR. QRO',
+        telefono: 'Tel: 442 980 0772',
       },
     };
 
