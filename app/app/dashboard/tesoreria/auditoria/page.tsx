@@ -248,6 +248,25 @@ export default function AuditoriaFinancieraPage() {
     }
   };
 
+  const handleReconciliarInterno = async (codigo: string) => {
+    try {
+      const res = await fetch('/api/tesoreria/auditoria/cruce-mysql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'sincronizar_saldo', codigoCliente: codigo })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.mensaje || `Saldo de ${codigo} reconciliado exitosamente`);
+        fetchAuditoriaInterna();
+      } else {
+        toast.error(data.error || 'Error al reconciliar saldo');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error de red');
+    }
+  };
+
   useEffect(() => {
     fetchCruce();
   }, [fechaInicio, fechaFin, selectedCobrador]);
