@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: `Cliente con contrato ${codigoCliente} no encontrado` }, { status: 404 });
         }
 
-        // Buscar pagos del mismo monto creados con pocos minutos de diferencia
+        // Buscar pagos duplicados (mismo recibo, o misma fechaPago y monto, o creados al mismo tiempo)
         const pagos = cliente.pagos;
         const duplicadosAEliminar: string[] = [];
         let montoTotalAEliminar = 0;
@@ -44,14 +44,28 @@ export async function POST(request: NextRequest) {
                 const next = pagos[j];
                 if (duplicadosAEliminar.includes(next.id)) continue;
 
-                // Mismo monto
-                if (parseFloat(current.monto.toString()) === parseFloat(next.monto.toString())) {
-                    const diffMinutes = Math.abs(new Date(next.createdAt).getTime() - new Date(current.createdAt).getTime()) / (1000 * 60);
-                    // Creados con menos de 60 minutos de diferencia
-                    if (diffMinutes <= 60) {
-                        duplicadosAEliminar.push(next.id);
-                        montoTotalAEliminar += parseFloat(next.monto.toString());
+                let esDuplicado = false;
+
+                // 1. Mismo número de recibo exacto (no vacío)
+                if (current.numeroRecibo && next.numeroRecibo && current.numeroRecibo.trim() === next.numeroRecibo.trim()) {
+                    esDuplicado = true;
+                }
+
+                // 2. Mismo monto
+                if (!esDuplicado && parseFloat(current.monto.toString()) === parseFloat(next.monto.toString())) {
+                    // Creados con menos de 120 minutos de diferencia
+                    const diffCreatedAtMinutes = Math.abs(new Date(next.createdAt).getTime() - new Date(current.createdAt).getTime()) / (1000 * 60);
+                    // Misma fecha de pago (dentro de 18 horas / mismo día)
+                    const diffFechaPagoHours = Math.abs(new Date(next.fechaPago).getTime() - new Date(current.fechaPago).getTime()) / (1000 * 60 * 60);
+
+                    if (diffCreatedAtMinutes <= 120 || diffFechaPagoHours <= 18) {
+                        esDuplicado = true;
                     }
+                }
+
+                if (esDuplicado) {
+                    duplicadosAEliminar.push(next.id);
+                    montoTotalAEliminar += parseFloat(next.monto.toString());
                 }
             }
         }
@@ -65,7 +79,9 @@ export async function POST(request: NextRequest) {
         }
 
         const saldoAnterior = parseFloat(cliente.saldoActual.toString());
-        const saldoNuevo = saldoAnterior + montoTotalAEliminar;
+        const saldoNuevo = body.saldoExacto !== undefined 
+            ? parseFloat(body.saldoExacto.toString()) 
+            : (saldoAnterior + montoTotalAEliminar);
 
         // Ejecutar la limpieza en transacción
         await prisma.$transaction(async (tx) => {
