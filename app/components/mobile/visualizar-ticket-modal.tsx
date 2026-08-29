@@ -96,7 +96,7 @@ export function VisualizarTicketModal({
     Number(ticketData.pago.gastosCobranza || 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
       <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 my-8">
         {/* Modal Header */}
         <div className="p-4 border-b border-slate-850 flex justify-between items-center bg-slate-850/50">

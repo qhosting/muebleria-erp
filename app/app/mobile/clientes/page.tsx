@@ -111,32 +111,36 @@ function MobileClientes() {
     };
 
     const handleVerTicketDeHistorial = (pago: any) => {
-        if (!selectedCliente) return;
+        const clienteActivo = detailCliente || selectedCliente;
+        if (!clienteActivo) {
+            toast.error("No se pudo identificar el cliente");
+            return;
+        }
 
         try {
             const cobradorNombre = session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || "COBRADOR";
 
             const data = {
-                numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-8)}`,
+                numeroRecibo: pago.numeroRecibo || (pago.id ? `REC-${pago.id.slice(-8).toUpperCase()}` : 'REC-HIST'),
                 cliente: {
-                    nombreCompleto: selectedCliente.nombre || selectedCliente.nombreCompleto || "",
-                    codigoCliente: selectedCliente.codigoCliente || selectedCliente.numContrato || "",
-                    telefono: selectedCliente.telefono,
-                    direccion: selectedCliente.direccion || selectedCliente.direccionCompleta || "",
-                    diaPago: selectedCliente.diaPago
+                    nombreCompleto: clienteActivo.nombre || clienteActivo.nombreCompleto || "",
+                    codigoCliente: clienteActivo.codigoCliente || clienteActivo.numContrato || "",
+                    telefono: clienteActivo.telefono,
+                    direccion: clienteActivo.direccion || clienteActivo.direccionCompleta || "",
+                    diaPago: clienteActivo.diaPago
                 },
                 cobrador: {
-                    nombre: cobradorNombre,
-                    id: pago.cobradorId
+                    nombre: pago.cobrador?.name || cobradorNombre,
+                    id: pago.cobradorId || (session?.user as any)?.id || "N/A"
                 },
                 pago: {
-                    monto: Number(pago.monto),
+                    monto: Number(pago.monto || 0),
                     interesMoratorio: Number(pago.interesMoratorio || 0),
                     gastosCobranza: Number(pago.gastosCobranza || 0),
-                    tipoPago: pago.tipoPago,
-                    metodoPago: pago.metodoPago,
+                    tipoPago: pago.tipoPago || 'regular',
+                    metodoPago: pago.metodoPago || 'GESTOR',
                     concepto: pago.concepto || "Pago de cuota",
-                    fechaPago: pago.fechaPago
+                    fechaPago: pago.fechaPago || new Date().toISOString()
                 },
                 saldos: {
                     anterior: Number(pago.saldoAnterior || 0),
@@ -158,31 +162,36 @@ function MobileClientes() {
     };
 
     const handleImprimirDeHistorialDirecto = async (pago: any) => {
-        if (!selectedCliente) return;
+        const clienteActivo = detailCliente || selectedCliente;
+        if (!clienteActivo) {
+            toast.error("No se pudo identificar el cliente");
+            return;
+        }
 
         try {
             const cobradorNombre = session?.user?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : '') || "COBRADOR";
 
             const data = {
-                numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-8)}`,
+                numeroRecibo: pago.numeroRecibo || (pago.id ? `REC-${pago.id.slice(-8).toUpperCase()}` : 'REC-HIST'),
                 cliente: {
-                    nombreCompleto: selectedCliente.nombre || selectedCliente.nombreCompleto || "",
-                    telefono: selectedCliente.telefono,
-                    direccion: selectedCliente.direccion || selectedCliente.direccionCompleta || "",
-                    diaPago: selectedCliente.diaPago
+                    nombreCompleto: clienteActivo.nombre || clienteActivo.nombreCompleto || "",
+                    codigoCliente: clienteActivo.codigoCliente || clienteActivo.numContrato || "",
+                    telefono: clienteActivo.telefono,
+                    direccion: clienteActivo.direccion || clienteActivo.direccionCompleta || "",
+                    diaPago: clienteActivo.diaPago
                 },
                 cobrador: {
-                    nombre: cobradorNombre,
-                    id: pago.cobradorId
+                    nombre: pago.cobrador?.name || cobradorNombre,
+                    id: pago.cobradorId || (session?.user as any)?.id || "N/A"
                 },
                 pago: {
-                    monto: Number(pago.monto),
+                    monto: Number(pago.monto || 0),
                     interesMoratorio: Number(pago.interesMoratorio || 0),
                     gastosCobranza: Number(pago.gastosCobranza || 0),
-                    tipoPago: pago.tipoPago,
-                    metodoPago: pago.metodoPago,
+                    tipoPago: pago.tipoPago || 'regular',
+                    metodoPago: pago.metodoPago || 'GESTOR',
                     concepto: pago.concepto || "Pago de cuota",
-                    fechaPago: pago.fechaPago
+                    fechaPago: pago.fechaPago || new Date().toISOString()
                 },
                 saldos: {
                     anterior: Number(pago.saldoAnterior || 0),
@@ -194,6 +203,18 @@ function MobileClientes() {
                     telefono: 'Tel: 442 980 0772'
                 }
             };
+
+            if (!isConnected) {
+                toast.error("Impresora no conectada", {
+                    action: {
+                        label: "Conectar",
+                        onClick: () => connectToPrinter()
+                    }
+                });
+                setVisualizarTicketData(data);
+                setShowVisualizarModal(true);
+                return;
+            }
 
             toast.info("Enviando impresión...");
             await handleImprimirRecibo(data);
@@ -793,6 +814,8 @@ function MobileClientes() {
     };
 
     const handleVerPagos = async (cliente: any) => {
+        setSelectedCliente(cliente);
+        setDetailCliente(cliente);
         setVerHistorico(true);
         setCargandoHistorico(true);
         try {
@@ -1432,35 +1455,53 @@ function MobileClientes() {
                                     {historicoPagos.map((pago) => (
                                         <div 
                                             key={pago.id} 
-                                            onClick={() => handleVerTicketDeHistorial(pago)}
-                                            className="bg-slate-950/50 border border-slate-800/50 p-4 rounded-2xl flex justify-between items-center cursor-pointer hover:bg-slate-900/50 active:scale-[0.98] transition-all"
+                                            className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl flex items-center justify-between gap-3 hover:bg-slate-900/60 transition-all"
                                         >
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-black text-white">${Number(pago.monto)}</span>
+                                            <div 
+                                                className="space-y-1 flex-1 cursor-pointer select-text"
+                                                onClick={() => handleVerTicketDeHistorial(pago)}
+                                            >
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-base font-black text-emerald-400 font-mono">${Number(pago.monto || 0).toFixed(2)}</span>
                                                     <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase border ${
-                                                        pago.metodoPago === 'bancario' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                        pago.metodoPago === 'bancario' || pago.metodoPago === 'bancario_bot' 
+                                                            ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' 
+                                                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                                                     }`}>
-                                                        {pago.metodoPago}
+                                                        {pago.metodoPago || 'GESTOR'}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center gap-1.5 text-slate-500">
-                                                    <Calendar className="w-3 h-3" />
-                                                    <span className="text-[10px] font-bold">{new Date(pago.fechaPago).toLocaleDateString()}</span>
+                                                <div className="flex items-center gap-1.5 text-slate-400 text-xs">
+                                                    <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                                    <span>{new Date(pago.fechaPago).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                                                 </div>
+                                                <p className="text-[11px] text-slate-300 font-medium truncate max-w-[170px]">{pago.concepto || 'Pago Regular'}</p>
                                             </div>
-                                            <div className="flex items-center gap-3 text-right">
-                                                <div>
-                                                    <p className="text-[9px] text-slate-500 uppercase font-black">Concepto</p>
-                                                    <p className="text-[10px] text-slate-300 font-bold">{pago.concepto || 'Pago Regular'}</p>
-                                                </div>
-                                                <Printer 
-                                                    className="w-7 h-7 text-slate-400 hover:text-sky-400 transition-colors cursor-pointer p-1.5 rounded-full hover:bg-slate-800" 
+                                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleVerTicketDeHistorial(pago);
+                                                    }}
+                                                    className="bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white px-2.5 py-2 rounded-xl font-bold text-[10px] flex items-center gap-1 shadow-md active:scale-95 transition-all"
+                                                    title="Visualizar Ticket Digital"
+                                                >
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                    <span>Ver</span>
+                                                </button>
+                                                <button 
+                                                    type="button"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleImprimirDeHistorialDirecto(pago);
                                                     }}
-                                                />
+                                                    className="bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-slate-200 px-2.5 py-2 rounded-xl font-bold text-[10px] flex items-center gap-1 border border-slate-700 active:scale-95 transition-all"
+                                                    title="Reimprimir Ticket"
+                                                >
+                                                    <Printer className="w-3.5 h-3.5 text-emerald-400" />
+                                                    <span>Imprimir</span>
+                                                </button>
                                             </div>
                                         </div>
                                     ))}

@@ -697,13 +697,13 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
                                     size="sm"
                                     variant="outline"
                                     onClick={() => handleReimprimirRecibo(pago)}
-                                    disabled={printingRecibo === pago.id || !isPrinterConnected}
-                                    className="flex-1 h-7 text-xs"
+                                    disabled={printingRecibo === pago.id}
+                                    className="flex-1 h-7 text-xs bg-slate-800 text-slate-200 border-slate-700 active:scale-95"
                                   >
                                     {printingRecibo === pago.id ? (
-                                      <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                                      <RefreshCw className="w-3 h-3 mr-1 animate-spin text-emerald-400" />
                                     ) : (
-                                      <Printer className="w-3 h-3 mr-1" />
+                                      <Printer className="w-3 h-3 mr-1 text-emerald-400" />
                                     )}
                                     {printingRecibo === pago.id ? 'Imprimiendo...' : 'Reimprimir'}
                                   </Button>
