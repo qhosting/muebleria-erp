@@ -1003,24 +1003,25 @@ export async function POST(request: NextRequest) {
 
       const fechaP = toSafeDate(p.fechap);
 
-      // 2. Extraer ID del ticket o referencia si existe en ref_pago
+      // 2. Extraer ID del ticket si existe en ref_pago
       const refClean = (p.ref_pago || '').trim();
       const ticketMatch = refClean.match(/TICKET\s*(?:ID:)?\s*(\d+)/i) || refClean.match(/TKT:\s*([A-Za-z0-9]+)/i);
-      const ticketId = ticketMatch ? ticketMatch[1] : null;
+      const ticketId = ticketMatch && ticketMatch[1] && ticketMatch[1].length >= 3 ? ticketMatch[1] : null;
 
       // 3. Verificación precisa: ¿Ya existe este pago específico de MySQL en el ERP?
-      // A) Por ID exacto de MySQL en numeroRecibo o concepto
+      // A) Por ID exacto de MySQL en numeroRecibo o concepto específico
       const yaExistePorIdMysql = await prisma.pago.findFirst({
         where: {
           clienteId: cliente.id,
           OR: [
             { numeroRecibo: `MYSQL-#${p.idpag}` },
-            { numeroRecibo: String(p.idpag) },
-            { concepto: { contains: `ID: ${p.idpag}` } },
-            { concepto: { contains: `MYSQL-#${p.idpag}` } },
+            { concepto: { contains: `[Vinculado MySQL ID: ${p.idpag}]` } },
+            { concepto: { contains: `(ID: ${p.idpag})` } },
+            { concepto: { contains: `(ID: ${p.idpag} ` } },
             ...(ticketId ? [
-              { numeroRecibo: { contains: ticketId } },
-              { concepto: { contains: ticketId } }
+              { numeroRecibo: { contains: `TKT: ${ticketId}` } },
+              { concepto: { contains: `TKT: ${ticketId}` } },
+              { concepto: { contains: `TICKET ID: ${ticketId}` } }
             ] : [])
           ]
         }
@@ -1032,10 +1033,10 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // B) Si no existe por ID, verificar si hay un pago manual idéntico no asignado en la misma fecha (±24h)
+      // B) Si no existe por ID, verificar si hay un pago manual idéntico no asignado en la misma fecha (±12h)
       // que NO haya sido vinculado previamente a otro pago de MySQL en esta ejecución ni antes
-      const dMin = new Date(fechaP.getTime() - 24 * 3600 * 1000);
-      const dMax = new Date(fechaP.getTime() + 24 * 3600 * 1000);
+      const dMin = new Date(fechaP.getTime() - 12 * 3600 * 1000);
+      const dMax = new Date(fechaP.getTime() + 12 * 3600 * 1000);
 
       const coincidenciaManual = await prisma.pago.findFirst({
         where: {
@@ -1135,15 +1136,40 @@ export async function POST(request: NextRequest) {
         clientesActualizados++;
       } catch (errPago: any) {
         console.error(`Error al insertar pago MySQL #${p.idpag} para ${cod}:`, errPago.message);
+        erroresDetalle.push(`Pago #${p.idpag} (${cod}): ${errPago.message}`);
+      }
+    }
+
+    // Si se importó un cliente específico, aseguramos que su saldo coincida con su último saldo de MySQL si está disponible
+    if (codigoCliente) {
+      try {
+        const [lastSaldoRow]: any = await connection.query(
+          'SELECT saldo_actualcli FROM pagos WHERE UPPER(TRIM(cod_cliente)) = ? AND saldo_actualcli IS NOT NULL AND saldo_actualcli != "" ORDER BY fechap DESC, idpag DESC LIMIT 1',
+          [codigoCliente.trim().toUpperCase()]
+        );
+        if (Array.isArray(lastSaldoRow) && lastSaldoRow.length > 0 && lastSaldoRow[0].saldo_actualcli) {
+          const sFinal = parseFloat(String(lastSaldoRow[0].saldo_actualcli).replace(/[^0-9.-]+/g, ''));
+          if (!isNaN(sFinal)) {
+            await prisma.cliente.updateMany({
+              where: { codigoCliente: { equals: codigoCliente.trim().toUpperCase(), mode: 'insensitive' } },
+              data: { saldoActual: sFinal }
+            });
+          }
+        }
+      } catch (e: any) {
+        console.log('Aviso: No se pudo auto-sincronizar último saldo MySQL:', e.message);
       }
     }
 
     return NextResponse.json({
       success: true,
-      mensaje: `Importación completada: ${pagosInsertados} pagos importados y saldos actualizados en ERP${contpaqiAplicadosCount > 0 ? ` (${contpaqiAplicadosCount} aplicados en Contpaqi)` : ''}.`,
+      mensaje: pagosInsertados > 0 
+        ? `Importación completada: ${pagosInsertados} pagos importados y saldos actualizados en ERP${contpaqiAplicadosCount > 0 ? ` (${contpaqiAplicadosCount} aplicados en Contpaqi)` : ''}.`
+        : `Cliente sincronizado en ERP.${erroresDetalle.length > 0 ? ` Avisos: ${erroresDetalle.join('; ')}` : ''}`,
       pagosInsertados,
       clientesActualizados,
       contpaqiAplicadosCount,
+      errores: erroresDetalle,
     });
 
   } catch (error: any) {
