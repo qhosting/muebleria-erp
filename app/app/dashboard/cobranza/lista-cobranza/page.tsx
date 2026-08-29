@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -223,12 +223,45 @@ export default function ListaCobranzaPage() {
 
         const otrosClientes = clientes.filter(c => !clientesDQ.includes(c) && !clientesDP.includes(c));
 
-        // Hoja 1: Cuentas DQ
+        // Hoja 1: Resumen de Periodos y Pago Sugerido (DQ / DP)
+        const resumenRows = resumenPeriodos.map(r => ({
+            "PERIODO": r.periodo,
+            "CUENTAS DQ": r.dqCount,
+            "PAGO SUGERIDO DQ": r.dqSugerido,
+            "CUENTAS DP": r.dpCount,
+            "PAGO SUGERIDO DP": r.dpSugerido,
+            "TOTAL CUENTAS": r.totalCount,
+            "TOTAL PAGO SUGERIDO": r.totalSugerido
+        }));
+
+        resumenRows.push({
+            "PERIODO": "TOTAL GENERAL",
+            "CUENTAS DQ": totalResumenDQCount,
+            "PAGO SUGERIDO DQ": totalResumenDQSugerido,
+            "CUENTAS DP": totalResumenDPCount,
+            "PAGO SUGERIDO DP": totalResumenDPSugerido,
+            "TOTAL CUENTAS": totalResumenGeneralCount,
+            "TOTAL PAGO SUGERIDO": totalResumenGeneralSugerido
+        });
+
+        const wsResumen = XLSX.utils.json_to_sheet(resumenRows);
+        wsResumen['!cols'] = [
+            { wch: 18 }, // PERIODO
+            { wch: 15 }, // CUENTAS DQ
+            { wch: 22 }, // PAGO SUGERIDO DQ
+            { wch: 15 }, // CUENTAS DP
+            { wch: 22 }, // PAGO SUGERIDO DP
+            { wch: 16 }, // TOTAL CUENTAS
+            { wch: 24 }  // TOTAL PAGO SUGERIDO
+        ];
+        XLSX.utils.book_append_sheet(workbook, wsResumen, "Resumen Periodos");
+
+        // Hoja 2: Cuentas DQ
         const wsDQ = XLSX.utils.json_to_sheet(buildSheetData(clientesDQ));
         wsDQ['!cols'] = colWidths;
         XLSX.utils.book_append_sheet(workbook, wsDQ, `Cuentas DQ (${clientesDQ.length})`);
 
-        // Hoja 2: Cuentas DP
+        // Hoja 3: Cuentas DP
         const wsDP = XLSX.utils.json_to_sheet(buildSheetData(clientesDP));
         wsDP['!cols'] = colWidths;
         XLSX.utils.book_append_sheet(workbook, wsDP, `Cuentas DP (${clientesDP.length})`);
@@ -241,8 +274,66 @@ export default function ListaCobranzaPage() {
         }
 
         XLSX.writeFile(workbook, `ListaCobranza-${cobradorName}-Semana${semana}.xlsx`);
-        toast.success(`Lista de cobranza exportada con hojas separadas (DQ: ${clientesDQ.length}, DP: ${clientesDP.length})`);
+        toast.success(`Lista de cobranza exportada con hojas separadas (Resumen, DQ: ${clientesDQ.length}, DP: ${clientesDP.length})`);
     };
+
+    // Cálculo del Resumen de Periodos y Suma de Pago Sugerido (DQ y DP)
+    const resumenPeriodos = useMemo(() => {
+        const periodosMap: Record<string, {
+            periodo: string;
+            dqCount: number;
+            dqSugerido: number;
+            dpCount: number;
+            dpSugerido: number;
+            totalCount: number;
+            totalSugerido: number;
+        }> = {};
+
+        clientes.forEach(c => {
+            const pRaw = (c.periodicidad || 'OTRO').toUpperCase().trim();
+            const p = pRaw.replace(/\s*\(\d+\)/g, '');
+            if (!periodosMap[p]) {
+                periodosMap[p] = {
+                    periodo: p,
+                    dqCount: 0,
+                    dqSugerido: 0,
+                    dpCount: 0,
+                    dpSugerido: 0,
+                    totalCount: 0,
+                    totalSugerido: 0,
+                };
+            }
+
+            const cod = (c.codigoCliente || '').toUpperCase();
+            const cont = (c.numContrato || '').toUpperCase();
+            const isDQ = cod.startsWith('DQ') || cont.startsWith('DQ');
+            const isDP = cod.startsWith('DP') || cont.startsWith('DP');
+            const monto = Number(c.montoPago) || 0;
+
+            if (isDQ) {
+                periodosMap[p].dqCount += 1;
+                periodosMap[p].dqSugerido += monto;
+            } else if (isDP) {
+                periodosMap[p].dpCount += 1;
+                periodosMap[p].dpSugerido += monto;
+            } else {
+                periodosMap[p].dqCount += 1;
+                periodosMap[p].dqSugerido += monto;
+            }
+
+            periodosMap[p].totalCount += 1;
+            periodosMap[p].totalSugerido += monto;
+        });
+
+        return Object.values(periodosMap).sort((a, b) => b.totalSugerido - a.totalSugerido);
+    }, [clientes]);
+
+    const totalResumenDQCount = resumenPeriodos.reduce((acc, curr) => acc + curr.dqCount, 0);
+    const totalResumenDQSugerido = resumenPeriodos.reduce((acc, curr) => acc + curr.dqSugerido, 0);
+    const totalResumenDPCount = resumenPeriodos.reduce((acc, curr) => acc + curr.dpCount, 0);
+    const totalResumenDPSugerido = resumenPeriodos.reduce((acc, curr) => acc + curr.dpSugerido, 0);
+    const totalResumenGeneralCount = resumenPeriodos.reduce((acc, curr) => acc + curr.totalCount, 0);
+    const totalResumenGeneralSugerido = resumenPeriodos.reduce((acc, curr) => acc + curr.totalSugerido, 0);
 
     // Filtrado por texto y por tipo de cuenta (DP / DQ / TODAS)
     const clientesFiltrados = clientes.filter(c => {
@@ -426,6 +517,93 @@ export default function ListaCobranzaPage() {
                             </CardContent>
                         </Card>
                     </div>
+                )}
+
+                {/* Resumen de Periodos y Suma de Pago Sugerido (DQ / DP) */}
+                {searched && clientes.length > 0 && resumenPeriodos.length > 0 && (
+                    <Card className="border-gray-100 dark:border-slate-800 shadow-md overflow-hidden">
+                        <CardHeader className="py-3 px-4 border-b bg-slate-50/80 dark:bg-slate-800/60 flex flex-row items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                    Resumen de Cobranza por Periodos y Pago Sugerido (DQ / DP)
+                                </CardTitle>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] font-bold text-slate-500">
+                                {resumenPeriodos.length} Periodicidades
+                            </Badge>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-xs text-left align-middle border-collapse">
+                                    <thead className="bg-slate-900 text-white text-[10px] font-bold uppercase tracking-wider">
+                                        <tr>
+                                            <th className="px-4 py-2.5 border border-slate-700">PERIODO</th>
+                                            <th className="px-4 py-2.5 text-center border border-slate-700 bg-blue-950/40 text-blue-300">CUENTAS DQ</th>
+                                            <th className="px-4 py-2.5 text-right border border-slate-700 bg-blue-950/40 text-blue-300">SUGERIDO DQ</th>
+                                            <th className="px-4 py-2.5 text-center border border-slate-700 bg-indigo-950/40 text-indigo-300">CUENTAS DP</th>
+                                            <th className="px-4 py-2.5 text-right border border-slate-700 bg-indigo-950/40 text-indigo-300">SUGERIDO DP</th>
+                                            <th className="px-4 py-2.5 text-center border border-slate-700 bg-slate-800 text-white">TOTAL CUENTAS</th>
+                                            <th className="px-4 py-2.5 text-right border border-slate-700 bg-emerald-950/60 text-emerald-300">TOTAL PAGO SUGERIDO</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100 dark:divide-slate-800 bg-white dark:bg-slate-900 text-xs">
+                                        {resumenPeriodos.map((r) => (
+                                            <tr key={r.periodo} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                                                <td className="px-4 py-2 font-black text-slate-800 dark:text-slate-200 uppercase border border-gray-100 dark:border-slate-800">
+                                                    <Badge variant="outline" className="text-[10px] font-bold">
+                                                        {r.periodo}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-4 py-2 text-center font-bold text-blue-700 dark:text-blue-400 border border-gray-100 dark:border-slate-800">
+                                                    {r.dqCount}
+                                                </td>
+                                                <td className="px-4 py-2 text-right font-mono font-bold text-blue-600 dark:text-blue-300 border border-gray-100 dark:border-slate-800">
+                                                    {formatCurrency(r.dqSugerido)}
+                                                </td>
+                                                <td className="px-4 py-2 text-center font-bold text-indigo-700 dark:text-indigo-400 border border-gray-100 dark:border-slate-800">
+                                                    {r.dpCount}
+                                                </td>
+                                                <td className="px-4 py-2 text-right font-mono font-bold text-indigo-600 dark:text-indigo-300 border border-gray-100 dark:border-slate-800">
+                                                    {formatCurrency(r.dpSugerido)}
+                                                </td>
+                                                <td className="px-4 py-2 text-center font-black text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-800/30 border border-gray-100 dark:border-slate-800">
+                                                    {r.totalCount}
+                                                </td>
+                                                <td className="px-4 py-2 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/20 border border-gray-100 dark:border-slate-800">
+                                                    {formatCurrency(r.totalSugerido)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {/* Fila de Totales de Resumen */}
+                                        <tr className="bg-slate-100 dark:bg-slate-800/90 font-black text-xs text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-700">
+                                            <td className="px-4 py-2.5 uppercase tracking-wider text-[10px] border border-gray-200 dark:border-slate-700">
+                                                TOTAL GENERAL
+                                            </td>
+                                            <td className="px-4 py-2.5 text-center text-blue-800 dark:text-blue-300 border border-gray-200 dark:border-slate-700">
+                                                {totalResumenDQCount}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-right font-mono text-blue-700 dark:text-blue-300 border border-gray-200 dark:border-slate-700">
+                                                {formatCurrency(totalResumenDQSugerido)}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-center text-indigo-800 dark:text-indigo-300 border border-gray-200 dark:border-slate-700">
+                                                {totalResumenDPCount}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-right font-mono text-indigo-700 dark:text-indigo-300 border border-gray-200 dark:border-slate-700">
+                                                {formatCurrency(totalResumenDPSugerido)}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-center border border-gray-200 dark:border-slate-700">
+                                                {totalResumenGeneralCount}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-right font-mono text-emerald-700 dark:text-emerald-300 border border-gray-200 dark:border-slate-700">
+                                                {formatCurrency(totalResumenGeneralSugerido)}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
                 )}
 
                 {/* Tabla de Resultados con Filtro DP / DQ y 12 Columnas Oficiales */}
