@@ -133,12 +133,28 @@ export async function GET(request: NextRequest) {
                 console.warn(`No se pudo actualizar saldo real para ${codigo}:`, (e as Error).message);
             }
 
-            // 3. Obtener fecha de venta (Documentos del cliente)
+            // 3. Obtener documentos del cliente (para calcular Saldo Real Fiel y Fecha de Venta)
             let fechaVentaCalculada = parseLocalDate(c.cFechaAlta || c.cfechaalta || c.CFECHAALTA || c.fechaAlta || c.FechaAlta || '');
             try {
                 const documentos = await service.getClientDocumentos(codigo);
                 if (Array.isArray(documentos) && documentos.length > 0) {
-                    // Filtrar por conceptos de factura conocidos (ej: "100", "4", "5", etc.)
+                    // A. Calcular saldo fiel desde pagarés (Concepto 16)
+                    const pagares = documentos.filter((doc: any) => {
+                        const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
+                        return conceptoDoc === '16' && !doc.cancelado;
+                    });
+
+                    if (pagares.length > 0) {
+                        const totalPendientePagares = pagares.reduce((acc: number, doc: any) => acc + (parseFloat(doc.pendiente || doc.CPENDIENTE || 0) || 0), 0);
+                        const abonosSinAsociar = documentos.filter((doc: any) => {
+                            const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
+                            return ['101', '102'].includes(conceptoDoc) && !doc.cancelado && (parseFloat(doc.pendiente || doc.CPENDIENTE || 0) > 0);
+                        }).reduce((acc: number, doc: any) => acc + (parseFloat(doc.pendiente || doc.CPENDIENTE || 0) || 0), 0);
+
+                        saldoReal = Math.max(0, parseFloat((totalPendientePagares - abonosSinAsociar).toFixed(2)));
+                    }
+
+                    // B. Filtrar por conceptos de factura conocidos (ej: "100", "4", "5", etc.)
                     const facturas = documentos.filter((doc: any) => {
                         const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
                         return ['100', '4', '5'].includes(conceptoDoc);
@@ -178,7 +194,7 @@ export async function GET(request: NextRequest) {
                     }
                 }
             } catch (e) {
-                console.warn(`No se pudo actualizar fecha de venta para ${codigo}:`, (e as Error).message);
+                console.warn(`No se pudo actualizar documentos para ${codigo}:`, (e as Error).message);
             }
 
             const updatedCliente = await prisma.cliente.upsert({
@@ -290,12 +306,28 @@ export async function GET(request: NextRequest) {
                     console.warn(`No se pudo actualizar saldo real para ${codigo}:`, (e as Error).message);
                 }
 
-                // 🚀 OBTENER FECHA DE VENTA (Documentos del cliente)
+                // 🚀 OBTENER DOCUMENTOS (Saldo Fiel de Pagarés y Fecha de Venta)
                 let fechaVentaCalculada = parseLocalDate(c.cFechaAlta || c.cfechaalta || c.CFECHAALTA || c.fechaAlta || c.FechaAlta || '');
                 try {
                     const documentos = await service.getClientDocumentos(codigo);
                     if (Array.isArray(documentos) && documentos.length > 0) {
-                        // Filtrar por conceptos de factura conocidos (ej: "100", "4", "5", etc.)
+                        // A. Calcular saldo fiel desde pagarés (Concepto 16)
+                        const pagares = documentos.filter((doc: any) => {
+                            const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
+                            return conceptoDoc === '16' && !doc.cancelado;
+                        });
+
+                        if (pagares.length > 0) {
+                            const totalPendientePagares = pagares.reduce((acc: number, doc: any) => acc + (parseFloat(doc.pendiente || doc.CPENDIENTE || 0) || 0), 0);
+                            const abonosSinAsociar = documentos.filter((doc: any) => {
+                                const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
+                                return ['101', '102'].includes(conceptoDoc) && !doc.cancelado && (parseFloat(doc.pendiente || doc.CPENDIENTE || 0) > 0);
+                            }).reduce((acc: number, doc: any) => acc + (parseFloat(doc.pendiente || doc.CPENDIENTE || 0) || 0), 0);
+
+                            saldoReal = Math.max(0, parseFloat((totalPendientePagares - abonosSinAsociar).toFixed(2)));
+                        }
+
+                        // B. Filtrar por conceptos de factura conocidos (ej: "100", "4", "5", etc.)
                         const facturas = documentos.filter((doc: any) => {
                             const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
                             return ['100', '4', '5'].includes(conceptoDoc);
@@ -335,7 +367,7 @@ export async function GET(request: NextRequest) {
                         }
                     }
                 } catch (e) {
-                    console.warn(`No se pudo actualizar fecha de venta para ${codigo}:`, (e as Error).message);
+                    console.warn(`No se pudo actualizar documentos para ${codigo}:`, (e as Error).message);
                 }
 
                 // 🔗 Resolver cobradorAsignadoId desde codigoGestor de Contpaqi
