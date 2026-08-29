@@ -2170,53 +2170,53 @@ return [{
         position: [2848, 784],
     })
     PrepararMensajeDeNotificacion = {
-        jsCode: `// Obtenemos los resultados de los nodos anteriores.
-const resultadoAplicacion = ($('Intentar_Conciliacion_Inteligente') ? $('Intentar_Conciliacion_Inteligente').first()?.json : null) || ($('Intentar Conciliación Inteligente') ? $('Intentar Conciliación Inteligente').first()?.json : null) || $json || {};
-const datosDelTicket = ($('MENSAJE') ? $('MENSAJE').first()?.json : null) || ($('EXTRAE_DATOS') ? $('EXTRAE_DATOS').first()?.json : null) || {};
+        jsCode: `// Obtenemos los datos pasados directamente desde el nodo anterior (Intentar_Conciliacion_Inteligente / MENSAJE)
+const item = $input.first()?.json || $json || {};
 
-// Extraemos todos los datos que necesitamos.
-const ticketId = resultadoAplicacion.ticketId || datosDelTicket.ticketId || 'N/A';
-const contrato = resultadoAplicacion.cod_cliente || datosDelTicket.contrato || 'N/A';
-const idPago = resultadoAplicacion.idPagoGenerado || 'N/A';
-const saldo = resultadoAplicacion.saldo_actual || 0;
-const movimientoId = resultadoAplicacion.movimientoId || 'N/A';
-const esDuplicado = datosDelTicket.yaExiste || false; // <--- LEEMOS SI YA EXISTÍA
+// Extraemos todos los datos necesarios con valores por defecto
+const ticketId = item.ticketId || item.id || 'N/A';
+const contrato = item.cod_cliente || item.contrato || 'N/A';
+const idPago = item.idPagoGenerado || item.idPago || 'N/A';
+const saldo = item.saldo_actual ?? item.saldo ?? 0;
+const movimientoId = item.movimientoId || 'N/A';
+const esDuplicado = item.yaExiste === true;
+const remitente = item.remitente || null;
 
-// Construimos la primera parte del mensaje con los detalles del ticket.
+// Construimos la primera parte del mensaje con los detalles del ticket
 let mensaje = \`📌 *Detalles del Ticket*\` +
               \`\\n- 🆔 ID: \${ticketId}\` +
-              \`\\n- 📅 Fecha: \${datosDelTicket.fecha || 'N/A'}\` +
-              \`\\n- ⏰ Hora: \${datosDelTicket.hr || 'N/A'}\` +
-              \`\\n- 💰 Monto: $\${parseFloat(datosDelTicket.monto || 0).toFixed(2)}\` +
-              \`\\n- 🔢 Referencia: \${datosDelTicket.referencia || 'N/A'}\` +
-              \`\\n- 📝 Folio: \${datosDelTicket.folio || 'N/A'}\` +
-              \`\\n- 📦 Clave de rastreo: \${datosDelTicket.claverastreo || 'N/A'}\`;
+              \`\\n- 📅 Fecha: \${item.fecha || 'N/A'}\` +
+              \`\\n- ⏰ Hora: \${item.hr || 'N/A'}\` +
+              \`\\n- 💰 Monto: $\${parseFloat(item.monto || 0).toFixed(2)}\` +
+              \`\\n- 🔢 Referencia: \${item.referencia || 'N/A'}\` +
+              \`\\n- 📝 Folio: \${item.folio || 'N/A'}\` +
+              \`\\n- 📦 Clave de rastreo: \${item.claverastreo || 'N/A'}\`;
 
-mensaje += \`\\n--------------------------------\\n\`; // Separador
+mensaje += \`\\n--------------------------------\\n\`;
 
-// --- LOGICA DE MENSAJES (CORREGIDA) ---
-
+// Lógica de respuesta según estado
 if (esDuplicado === true) {
-  // CASO 1: YA EXISTÍA
   mensaje += \`⚠️ *ESTE COMPROBANTE YA FUE REGISTRADO PREVIAMENTE*\\n\` +
              \`El sistema ya tiene este ticket procesándose con el ID \${ticketId}. \` +
              \`No es necesario subirlo nuevamente.\`;
-
-} else if (resultadoAplicacion.estado === 'EXITO' || resultadoAplicacion.estado === 'EXITO_Y_APLICADO') {
-  // CASO 2: CONCILIADO EXITOSAMENTE
+} else if (item.estado === 'EXITO' || item.estado === 'EXITO_Y_APLICADO' || item.conc_status === 'CONCILIADO') {
   mensaje += \`✅ ¡Tu pago ha sido conciliado y aplicado exitosamente!\` +
              \`\\n\\n- 📄 Contrato: \${contrato}\` +
              \`\\n- 💰 Nuevo Saldo: $\${parseFloat(saldo).toFixed(2)}\` +
              \`\\n- 💳 ID de Pago Aplicado: \${idPago}\` +
              \`\\n- 🏦 ID Bancario: \${movimientoId}\`;
-
 } else {
-  // CASO 3: GUARDADO PERO NO CONCILIADO (El dinero aún no entra)
   mensaje += \`🚨 *Tu comprobante está en proceso de validación.*\\n\` +
              \`Ya lo guardamos en el sistema. En cuanto el banco refleje el movimiento, recibirás tu NUEVO SALDO.\`;
 }
 
-return [{ json: { mensaje: mensaje } }];`,
+return [{
+  json: {
+    ...item,
+    mensaje: mensaje,
+    remitente: remitente
+  }
+}];`,
     };
 
     @node({
@@ -2561,7 +2561,7 @@ return {
                 },
                 {
                     name: 'chatId',
-                    value: "={{ $('EXTRAE_DATOS').item.json.remitente.replace('@s.whatsapp.net', '@c.us') }}",
+                    value: "={{ ($json.remitente || $('EXTRAE_DATOS')?.item?.json?.remitente || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '').replace('@s.whatsapp.net', '@c.us') }}",
                 },
                 {
                     name: 'text',
