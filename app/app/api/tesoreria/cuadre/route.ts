@@ -135,7 +135,8 @@ export async function GET(request: NextRequest) {
 
         // Para el resumen DQ/DP Solo Bancos usaremos los tickets que tienen movimientos
         ticketsAll.forEach((ticket: any) => {
-            const pref = ticket.cliente.codigoCliente?.substring(0, 2).toUpperCase();
+            const codigo = ticket.cliente?.codigoCliente || '';
+            const pref = codigo.substring(0, 2).toUpperCase();
             if (resumenPrefijos[pref]) {
                 const combinedMovs = [
                     ...(ticket.movimientosBanorte0330253963 || []).map((m: any) => ({ ...m, cuentaDestino: '0330253963', bancoDestino: 'BANORTE' })),
@@ -145,7 +146,7 @@ export async function GET(request: NextRequest) {
 
                 if (combinedMovs.length > 0) {
                     combinedMovs.forEach((mov: any) => {
-                        const isActual = mov.fechaOperacion >= startDate;
+                        const isActual = new Date(mov.fechaOperacion) >= startDate;
                         const cat = isActual ? 'actual' : 'anterior';
                         const banco = mov.bancoOrigen?.toUpperCase() || 'DESCONOCIDO';
                         const abonoValue = mov.abono || 0;
@@ -162,7 +163,7 @@ export async function GET(request: NextRequest) {
                 } else {
                     // Tickets sin conciliar
                     resumenPrefijos[pref].ticketsSinConciliar.ctas++;
-                    resumenPrefijos[pref].ticketsSinConciliar.monto += (ticket.monto || 0);
+                    resumenPrefijos[pref].ticketsSinConciliar.monto += Number(ticket.monto || 0);
                 }
             }
         });
@@ -184,13 +185,13 @@ export async function GET(request: NextRequest) {
             };
 
             const pagosBancariosDetalle = pagosAll.filter(pg =>
-                pg.cliente.codigoCliente?.startsWith(pref) &&
-                isBankMethod(pg.metodoPago)
+                pg.cliente?.codigoCliente?.startsWith(pref) &&
+                isBankMethod(pg.metodoPago || '')
             ).reduce((acc, curr) => acc + Number(curr.monto), 0);
 
             const pagosBancariosDetalleCtas = pagosAll.filter(pg =>
-                pg.cliente.codigoCliente?.startsWith(pref) &&
-                isBankMethod(pg.metodoPago)
+                pg.cliente?.codigoCliente?.startsWith(pref) &&
+                isBankMethod(pg.metodoPago || '')
             ).length;
 
             return {
