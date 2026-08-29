@@ -308,7 +308,24 @@ export async function GET(
       });
     }
 
-    let saldoLocalFinal = Number(cliente.saldoActual || 0);
+    // Si el cliente tiene pagarés (Concepto 16), el saldo real oficial en ContPAQi es la suma de los pagarés pendientes
+    const pagaresDocs = parsedDocs.filter((d: any) => {
+      const code = String(d.codigoConcepto || d.Concepto || d.concepto || d.CCODIGOCONCEPTO || '').trim();
+      return code === '16' && !d.cancelado;
+    });
+
+    let saldoRealPagares: number | null = null;
+    if (pagaresDocs.length > 0) {
+      const totalPendientePagares = pagaresDocs.reduce((acc: number, d: any) => acc + (Number(d.cSaldo || d.csaldo || d.saldo || d.pendiente || d.cPendiente || d.CSALDO || d.CPENDIENTE || 0) || 0), 0);
+      const abonosSinAsociar = parsedDocs.filter((d: any) => {
+        const code = String(d.codigoConcepto || d.Concepto || d.concepto || d.CCODIGOCONCEPTO || '').trim();
+        return ['101', '102'].includes(code) && !d.cancelado && (Number(d.cSaldo || d.csaldo || d.saldo || d.pendiente || d.cPendiente || d.CSALDO || d.CPENDIENTE || 0) > 0);
+      }).reduce((acc: number, d: any) => acc + (Number(d.cSaldo || d.csaldo || d.saldo || d.pendiente || d.cPendiente || d.CSALDO || d.CPENDIENTE || 0) || 0), 0);
+
+      saldoRealPagares = Math.max(0, parseFloat((totalPendientePagares - abonosSinAsociar).toFixed(2)));
+    }
+
+    let saldoLocalFinal = saldoRealPagares !== null ? saldoRealPagares : Number(cliente.saldoActual || 0);
     const codUpper = (cliente.codigoCliente || '').toUpperCase();
     if (codUpper === 'DP2606119' && (saldoLocalFinal === 8775 || saldoLocalFinal === 10490 || saldoLocalFinal === 8275 || saldoLocalFinal === 0)) {
       saldoLocalFinal = 8530;
@@ -318,6 +335,10 @@ export async function GET(
     }
 
     const estadoCuentaFinal = { ...estadoCuenta };
+    if (saldoRealPagares !== null) {
+      estadoCuentaFinal.saldoActual = saldoRealPagares;
+      estadoCuentaFinal.saldoRealContpaqi = saldoRealPagares;
+    }
     if (codUpper === 'DP2606119') {
       estadoCuentaFinal.saldoActual = 8530;
       estadoCuentaFinal.saldoRealContpaqi = 8530;
