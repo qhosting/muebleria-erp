@@ -636,11 +636,11 @@ export default function AuditoriaFinancieraPage() {
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                Centro de Auditoría y Conciliación de Pagos
+                Auditoría muebleria-erp vs ContPAQi Comercial
               </h1>
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Cruce de cortes semanales (Sábado a Viernes), Intereses Moratorios y Aplicación en Contpaqi Comercial API (DQ / DP).
+              Cruce en vivo de cobros de ruta, Intereses Moratorios y conciliación directa con ContPAQi Comercial API (Empresas DQ / DP).
             </p>
           </div>
 
@@ -649,7 +649,7 @@ export default function AuditoriaFinancieraPage() {
               <TabsList className="bg-slate-100 dark:bg-slate-800 p-1">
                 <TabsTrigger value="cruce" className="text-xs font-semibold">
                   <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" />
-                  Cruce MySQL vs ERP & Contpaqi
+                  Cruce ERP vs ContPAQi API
                 </TabsTrigger>
                 <TabsTrigger value="interna" className="text-xs font-semibold">
                   <ShieldAlert className="w-3.5 h-3.5 mr-1.5" />
@@ -661,7 +661,7 @@ export default function AuditoriaFinancieraPage() {
         </div>
 
         {/* ======================================================== */}
-        {/* PESTAÑA 1: CRUCE DE PAGOS MYSQL VS ERP & CONTPAQI       */}
+        {/* PESTAÑA 1: CRUCE DE PAGOS ERP VS CONTPAQI                */}
         {/* ======================================================== */}
         {mainTab === 'cruce' && (
           <div className="space-y-6">
@@ -795,30 +795,8 @@ export default function AuditoriaFinancieraPage() {
               </CardContent>
             </Card>
 
-            {/* Tarjetas KPI de Comparación con Desglose de Moratorio y Contpaqi */}
+            {/* Tarjetas KPI de Comparación ERP vs ContPAQi */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="border-l-4 border-l-blue-500 shadow-sm">
-                <CardHeader className="p-4 pb-2">
-                  <CardDescription className="flex justify-between items-center text-xs font-semibold uppercase">
-                    Recaudación MySQL
-                    <Database className="w-4 h-4 text-blue-500" />
-                  </CardDescription>
-                  <CardTitle className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">
-                    {loadingCruce ? '...' : formatCurrency(resumenCruce?.montoTotalMysql ?? 0)}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 pt-0 space-y-1 text-xs text-slate-500">
-                  <div className="flex justify-between">
-                    <span>Abono a Saldo:</span>
-                    <span className="font-mono font-medium">{formatCurrency(resumenCruce?.montoAbonoMysql ?? 0)}</span>
-                  </div>
-                  <div className="flex justify-between text-amber-600 dark:text-amber-400">
-                    <span>Interés Moratorio:</span>
-                    <span className="font-mono font-bold">+{formatCurrency(resumenCruce?.montoMoraMysql ?? 0)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
               <Card className="border-l-4 border-l-indigo-500 shadow-sm">
                 <CardHeader className="p-4 pb-2">
                   <CardDescription className="flex justify-between items-center text-xs font-semibold uppercase">
@@ -841,6 +819,28 @@ export default function AuditoriaFinancieraPage() {
                 </CardContent>
               </Card>
 
+              <Card className="border-l-4 border-l-purple-500 shadow-sm">
+                <CardHeader className="p-4 pb-2">
+                  <CardDescription className="flex justify-between items-center text-xs font-semibold uppercase">
+                    Abonado ContPAQi
+                    <Building2 className="w-4 h-4 text-purple-500" />
+                  </CardDescription>
+                  <CardTitle className="text-2xl font-extrabold text-purple-600 dark:text-purple-400">
+                    {loadingCruce ? '...' : formatCurrency(resumenCruce?.montoTotalMysql ?? 0)}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0 space-y-1 text-xs text-slate-500">
+                  <div className="flex justify-between">
+                    <span>Abono a Pagarés:</span>
+                    <span className="font-mono font-medium">{formatCurrency(resumenCruce?.montoAbonoMysql ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-purple-600 dark:text-purple-400">
+                    <span>Mora Aplicada:</span>
+                    <span className="font-mono font-bold">+{formatCurrency(resumenCruce?.montoMoraMysql ?? 0)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
               <Card
                 className={`border-l-4 shadow-sm ${
                   (resumenCruce?.diferenciaGlobal ?? 0) === 0
@@ -850,7 +850,7 @@ export default function AuditoriaFinancieraPage() {
               >
                 <CardHeader className="p-4 pb-2">
                   <CardDescription className="flex justify-between items-center text-xs font-semibold uppercase">
-                    Diferencia Global
+                    Diferencia Periodo
                     <ArrowRightLeft className="w-4 h-4 text-slate-500" />
                   </CardDescription>
                   <CardTitle
@@ -878,8 +878,8 @@ export default function AuditoriaFinancieraPage() {
               <Card className="border-l-4 border-l-emerald-500 shadow-sm">
                 <CardHeader className="p-4 pb-2">
                   <CardDescription className="flex justify-between items-center text-xs font-semibold uppercase">
-                    Estado Contpaqi API
-                    <Building2 className="w-4 h-4 text-emerald-500" />
+                    Estado ContPAQi API
+                    <FileCheck2 className="w-4 h-4 text-emerald-500" />
                   </CardDescription>
                   <CardTitle className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
                     {loadingCruce ? '...' : `${resumenCruce?.totalContpaqiAplicados ?? 0} Aplicados`}
@@ -905,9 +905,9 @@ export default function AuditoriaFinancieraPage() {
               <CardHeader className="p-4 border-b">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
-                    <CardTitle className="text-base font-semibold">Auditoría Cruzada y Aplicación en Sistema</CardTitle>
+                    <CardTitle className="text-base font-semibold">Auditoría muebleria-erp vs ContPAQi Comercial</CardTitle>
                     <CardDescription className="text-xs">
-                      Comparativa de movimientos por cliente, empresa asignada (DQ / DP) y estatus en Contpaqi Comercial.
+                      Comparativa de movimientos por cliente, empresa asignada (DQ / DP) y saldos en vivo de ContPAQi Comercial.
                     </CardDescription>
                   </div>
 
@@ -930,16 +930,13 @@ export default function AuditoriaFinancieraPage() {
                       <SelectContent>
                         <SelectItem value="TODOS">Todos ({clientesCruce.length})</SelectItem>
                         <SelectItem value="CON_PAGO_MYSQL">
-                          Con Pago en MySQL ({clientesCruce.filter((c) => c.mysqlPagos.length > 0).length})
+                          Con Pago en ContPAQi ({clientesCruce.filter((c) => c.mysqlPagos.length > 0).length})
                         </SelectItem>
                         <SelectItem value="DIFERENCIAS_CUALQUIERA">
                           Cualquier Discrepancia ({clientesCruce.filter((c) => c.estado !== 'CUADRADO' || Math.abs(c.diferenciaSaldo || 0) > 0.01 || (c.saldoContpaqi !== null && Math.abs((c.saldoErp || 0) - c.saldoContpaqi) > 0.01)).length})
                         </SelectItem>
                         <SelectItem value="DIFERENCIAS">
                           Dif. en Pagos Periodo ({clientesCruce.filter((c) => c.estado !== 'CUADRADO').length})
-                        </SelectItem>
-                        <SelectItem value="DIFERENCIAS_SALDO">
-                          Dif. Saldo ERP vs MySQL ({clientesCruce.filter((c) => Math.abs(c.diferenciaSaldo || 0) > 0.01).length})
                         </SelectItem>
                         <SelectItem value="DIFERENCIAS_CONTPAQI">
                           Dif. Saldo vs Contpaqi ({clientesCruce.filter((c) => c.saldoContpaqi !== null && Math.abs((c.saldoErp || 0) - c.saldoContpaqi) > 0.01).length})
@@ -951,7 +948,7 @@ export default function AuditoriaFinancieraPage() {
                           Desfase Monto ({resumenCruce?.totalDesfaseMonto ?? 0})
                         </SelectItem>
                         <SelectItem value="FALTANTE_MYSQL">
-                          Solo en ERP ({resumenCruce?.totalFaltantesMysql ?? 0})
+                          Pendiente ContPAQi ({resumenCruce?.totalFaltantesMysql ?? 0})
                         </SelectItem>
                         <SelectItem value="CUADRADO">
                           100% Cuadrados ({resumenCruce?.totalCuadrados ?? 0})
@@ -993,7 +990,7 @@ export default function AuditoriaFinancieraPage() {
                 {loadingCruce ? (
                   <div className="p-8 text-center text-sm text-slate-500">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-600" />
-                    Cruzando pagos y validando estatus Contpaqi...
+                    Cruzando pagos de muebleria-erp contra ContPAQi Comercial API...
                   </div>
                 ) : clientesFiltrados.length === 0 ? (
                   <div className="p-8 text-center text-sm text-slate-500">
@@ -1008,13 +1005,13 @@ export default function AuditoriaFinancieraPage() {
                           <th className="p-2.5">Código / Emp.</th>
                           <th className="p-2.5">Cliente</th>
                           <th className="p-2.5">Cobrador</th>
-                          <th className="p-2.5 text-right font-bold min-w-[130px]">Saldo ERP / MySQL</th>
-                          <th className="p-2.5 text-right font-bold min-w-[140px]">Saldo Contpaqi API</th>
-                          <th className="p-2.5 text-right font-bold">Total MySQL</th>
+                          <th className="p-2.5 text-right font-bold min-w-[120px]">Saldo ERP</th>
+                          <th className="p-2.5 text-right font-bold min-w-[140px]">Saldo ContPAQi API</th>
                           <th className="p-2.5 text-right font-bold">Total ERP</th>
-                          <th className="p-2.5 text-right">Dif. Pagos</th>
-                          <th className="p-2.5 text-center">Estado ERP</th>
-                          <th className="p-2.5 text-center">Estado Contpaqi</th>
+                          <th className="p-2.5 text-right font-bold">Total ContPAQi</th>
+                          <th className="p-2.5 text-right">Dif. Periodo</th>
+                          <th className="p-2.5 text-center">Estado Auditoría</th>
+                          <th className="p-2.5 text-center">Estado ContPAQi</th>
                           <th className="p-2.5 text-center">Acciones</th>
                         </tr>
                       </thead>
@@ -1035,28 +1032,10 @@ export default function AuditoriaFinancieraPage() {
                             <td className="p-2.5 font-medium">{item.nombre}</td>
                             <td className="p-2.5 text-slate-500">{item.cobrador}</td>
                             
-                            {/* Columna: Saldo Actual ERP vs MySQL */}
+                            {/* Columna: Saldo Actual ERP */}
                             <td className="p-2.5 text-right font-mono whitespace-nowrap">
                               <div className="font-bold text-slate-900 dark:text-white text-xs">
                                 {formatCurrency(item.saldoErp)}
-                              </div>
-                              <div className="flex items-center justify-end gap-1.5 mt-0.5">
-                                <span className="text-[10px] text-slate-500">
-                                  MySQL: {formatCurrency(item.saldoMysql)}
-                                </span>
-                                {Math.abs(item.diferenciaSaldo) > 0.01 ? (
-                                  <Badge
-                                    variant="destructive"
-                                    className="text-[10px] px-1.5 py-0.5 h-auto font-mono font-bold whitespace-nowrap shadow-none"
-                                    title={`Diferencia en saldo: ${formatCurrency(item.diferenciaSaldo)} (ERP - MySQL)`}
-                                  >
-                                    Dif: {formatCurrency(item.diferenciaSaldo)}
-                                  </Badge>
-                                ) : (
-                                  <span className="text-emerald-600 font-semibold text-[10px]" title="Saldo Actual sincronizado entre ERP y MySQL">
-                                    ✓
-                                  </span>
-                                )}
                               </div>
                             </td>
 
@@ -1078,7 +1057,7 @@ export default function AuditoriaFinancieraPage() {
                                       </Badge>
                                     ) : (
                                       <span className="text-emerald-600 font-semibold text-[10px]" title="Saldo idéntico al ERP">
-                                        ✓ Igual ERP
+                                        ✓ Cuadrado
                                       </span>
                                     )}
                                   </div>
@@ -1086,18 +1065,18 @@ export default function AuditoriaFinancieraPage() {
                               ) : (
                                 <div className="flex items-center justify-end gap-1">
                                   <span className="text-[10px] text-slate-400 italic">No cargado</span>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    disabled={loadingContpaqiSaldos}
-                                    onClick={() => handleConsultarSaldosContpaqi(item.codigo)}
-                                    className="h-6 w-6 p-0 text-slate-400 hover:text-purple-600 hover:bg-purple-50"
-                                    title="Consultar saldo en Contpaqi API"
-                                  >
-                                    <RefreshCw className={`w-3 h-3 ${loadingContpaqiSaldos ? 'animate-spin' : ''}`} />
-                                  </Button>
                                 </div>
                               )}
+                            </td>
+
+                            {/* Columna: Total ERP */}
+                            <td className="p-2.5 text-right font-mono font-semibold text-indigo-700 dark:text-indigo-300">
+                              {formatCurrency(item.erpTotal)}
+                            </td>
+
+                            {/* Columna: Total ContPAQi */}
+                            <td className="p-2.5 text-right font-mono font-medium text-slate-700 dark:text-slate-200">
+                              {formatCurrency(item.mysqlTotal)}
                             </td>
 
                             <td className="p-2.5 text-right font-mono font-bold text-blue-600">
@@ -1277,7 +1256,7 @@ export default function AuditoriaFinancieraPage() {
                       </div>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-[10px] uppercase font-semibold">Dif. ERP vs MySQL</span>
+                      <span className="text-slate-500 block text-[10px] uppercase font-semibold">Dif. Saldo (ERP vs ContPAQi)</span>
                       <div className="flex items-center gap-1 mt-0.5">
                         <span className={`font-bold font-mono text-xs ${
                           Math.abs(selectedClienteModal.diferenciaSaldo) > 0.01 ? 'text-rose-600' : 'text-emerald-600'
@@ -1298,21 +1277,21 @@ export default function AuditoriaFinancieraPage() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    {/* Lista MySQL */}
-                    <div className="border rounded-lg p-3 space-y-2 bg-slate-50 dark:bg-slate-800/40">
-                      <div className="flex justify-between items-center text-xs font-bold text-blue-600">
-                        <span>Recibos en MySQL</span>
+                    {/* Lista ContPAQi */}
+                    <div className="border rounded-lg p-3 space-y-2 bg-purple-50/50 dark:bg-purple-950/20">
+                      <div className="flex justify-between items-center text-xs font-bold text-purple-700 dark:text-purple-300">
+                        <span>Abonos en ContPAQi Comercial</span>
                         <span>Total: {formatCurrency(selectedClienteModal.mysqlTotal)}</span>
                       </div>
                       {selectedClienteModal.mysqlPagos.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic">Sin pagos en MySQL</p>
+                        <p className="text-xs text-slate-400 italic">Sin abonos en ContPAQi para este periodo</p>
                       ) : (
                         <div className="space-y-1.5 max-h-56 overflow-y-auto">
                           {selectedClienteModal.mysqlPagos.map((p, i) => (
                             <div key={i} className="text-[11px] p-2 bg-white dark:bg-slate-800 rounded border space-y-0.5">
                               <div className="flex justify-between font-medium">
                                 <span>{p.fecha} ({p.referencia || `#${p.id}`})</span>
-                                <span className="font-bold font-mono text-blue-600">{formatCurrency(p.montoTotal)}</span>
+                                <span className="font-bold font-mono text-purple-600 dark:text-purple-400">{formatCurrency(p.montoTotal)}</span>
                               </div>
                               <div className="flex justify-between text-[10px] text-slate-500">
                                 <span>Abono: {formatCurrency(p.montoAbono)}</span>
@@ -1327,11 +1306,11 @@ export default function AuditoriaFinancieraPage() {
                     {/* Lista ERP */}
                     <div className="border rounded-lg p-3 space-y-2 bg-slate-50 dark:bg-slate-800/40">
                       <div className="flex justify-between items-center text-xs font-bold text-indigo-600">
-                        <span>Recibos en ERP</span>
+                        <span>Recibos en muebleria-erp</span>
                         <span>Total: {formatCurrency(selectedClienteModal.erpTotal)}</span>
                       </div>
                       {selectedClienteModal.erpPagos.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic">Sin pagos en ERP</p>
+                        <p className="text-xs text-slate-400 italic">Sin cobros en ERP para este periodo</p>
                       ) : (
                         <div className="space-y-1.5 max-h-56 overflow-y-auto">
                           {selectedClienteModal.erpPagos.map((p, i) => (
@@ -1359,6 +1338,34 @@ export default function AuditoriaFinancieraPage() {
                   </div>
 
                   <div className="flex justify-end gap-2 pt-2 border-t">
+                    {Math.abs(selectedClienteModal.diferenciaSaldo) > 0.01 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/tesoreria/auditoria/cruce-mysql', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ accion: 'sincronizar_saldo', codigoCliente: selectedClienteModal.codigo })
+                            });
+                            const data = await res.json();
+                            if (res.ok) {
+                              toast.success(data.mensaje || 'Saldo sincronizado exitosamente');
+                              fetchCruce();
+                              setSelectedClienteModal(null);
+                            } else {
+                              toast.error(data.error || 'Error al sincronizar saldo');
+                            }
+                          } catch (err: any) {
+                            toast.error(err.message || 'Error de red');
+                          }
+                        }}
+                        className="bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-300 text-xs font-semibold"
+                      >
+                        Sincronizar Saldo Fiel
+                      </Button>
+                    )}
                     {(selectedClienteModal.estado === 'FALTANTE_ERP' || 
                       selectedClienteModal.mysqlTotal > selectedClienteModal.erpTotal || 
                       selectedClienteModal.mysqlPagos.length > selectedClienteModal.erpPagos.length ||
@@ -1372,7 +1379,7 @@ export default function AuditoriaFinancieraPage() {
                         }}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold"
                       >
-                        Importar Pagos Faltantes al ERP ({selectedClienteModal.mysqlPagos.length - selectedClienteModal.erpPagos.length > 0 ? `${selectedClienteModal.mysqlPagos.length - selectedClienteModal.erpPagos.length} faltante(s)` : 'Alinear'})
+                        Importar Pagos Faltantes al ERP
                       </Button>
                     )}
                     {selectedClienteModal.estadoContpaqi === 'PENDIENTE' && (
