@@ -630,7 +630,7 @@ return [{
         position: [256, 896],
     })
     GenerarMensajeDePeticion = {
-        jsCode: `const mensaje = "✅ Imagen recibida. Para continuar, por favor envía ahora tu número de cliente Ejemplo es algo como DQ1234567;"
+        jsCode: `const mensaje = "✅ *¡Comprobante Recibido!*\\n\\nPara registrar tu pago correctamente en el sistema, por favor responde a este mensaje enviando tu *número de cliente o contrato* (ejemplo: *DP2601001* o *DQ2501001*).";
 
 return [{
   json: {
@@ -653,8 +653,8 @@ return [{
         specifyBody: 'json',
         jsonBody: `={
   "action": "resolve",
-  "remitente": "{{ $("Enrutador Principal").item.json.body.data.key.remoteJid }}",
-  "contrato": "{{ $("Validar Respuesta de Texto").item.json.contrato }}"
+  "remitente": "{{ $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.item?.json?.body?.payload?.from }}",
+  "contrato": "{{ $json.contrato || $json.contrato_respuesta || $('Validar Respuesta de Texto')?.item?.json?.contrato }}"
 }`,
         options: {},
     };
@@ -677,7 +677,7 @@ return [{
             conditions: [
                 {
                     id: 'ed558fad-5def-481b-b800-a1f0ee171431',
-                    leftValue: '={{ $json.base64_data }}',
+                    leftValue: '={{ $json.base64Data || $json.base64_data }}',
                     rightValue: '',
                     operator: {
                         type: 'string',
@@ -1942,13 +1942,12 @@ return [{ json: { mensaje: mensaje } }];`,
         position: [-1344, 1200],
     })
     GenerarMensajeDeFormatoInvalido = {
-        jsCode: `const mensaje = '❌ El código de cliente que enviaste no tiene el formato correcto. Por favor, asegúrate de que sea "DQ" seguido de 7 números (ejemplo: DQ1234567) y vuelve a enviar tu comprobante. **De lo contrario no prodra ser procesado y aplicado a tu SALDO. NOTA: Clave de Rastreo debe ser Visible, Preferente en Concepto agrega tu cuenta que comienza con DQ, no capturas de patalla del comprobante o fotos de otro telefono**';
+        jsCode: `const mensaje = '❌ *Código no reconocido.*\\n\\nPor favor asegúrate de enviar tu número de contrato que comienza con *DP* o *DQ* (ejemplo: *DP2601001* o *DQ2501001*) junto con tu comprobante para aplicarlo a tu saldo.';
 
-// Pasamos el mensaje y el remitente al siguiente nodo
 return [{
   json: {
     mensaje: mensaje,
-    remitente: $('Enrutador Principal').first().json.body.data.key.remoteJid
+    remitente: $('Enrutador Principal')?.first()?.json?.body?.data?.key?.chatId || $('Enrutador Principal')?.first()?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.first()?.json?.body?.payload?.from
   }
 }];`,
     };
@@ -1962,13 +1961,17 @@ return [{
     })
     EnviarMensajeDeErrorDeFormato = {
         method: 'POST',
-        url: "=https://evo.whatscloud.site/message/sendText/{{ $('Webhook').item.json.body.instance }}",
+        url: 'https://noweb.qhosting.net/api/sendText',
         sendHeaders: true,
         headerParameters: {
             parameters: [
                 {
-                    name: 'apikey',
-                    value: "={{ $('Webhook').item.json.body.apikey }}",
+                    name: 'Content-Type',
+                    value: 'application/json',
+                },
+                {
+                    name: 'X-Api-Key',
+                    value: 'key_ZsmTBc6xDs7VqR99GfgmM0vBNhlBcSSB',
                 },
             ],
         },
@@ -1976,11 +1979,15 @@ return [{
         bodyParameters: {
             parameters: [
                 {
-                    name: 'number',
-                    value: "={{ $('Webhook').item.json.body.data.key.remoteJid }}",
+                    name: 'session',
+                    value: 'GMD3320',
                 },
                 {
-                    name: '=text',
+                    name: 'chatId',
+                    value: "={{ ($json.remitente || $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '').replace('@s.whatsapp.net', '@c.us') }}",
+                },
+                {
+                    name: 'text',
                     value: '={{ $json.mensaje }}',
                 },
             ],
@@ -2002,7 +2009,7 @@ return [{
         specifyBody: 'json',
         jsonBody: `={
   "action": "buscar_cliente",
-  "telefono": "{{ $("Enrutador Principal").item.json.body.data.key.remoteJid }}"
+  "telefono": "{{ $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.item?.json?.body?.payload?.from }}"
 }`,
         options: {},
     };
@@ -2026,7 +2033,7 @@ return [{
             conditions: [
                 {
                     id: '0e6e43f6-4378-4c1d-8aed-84a72b34239a',
-                    leftValue: '={{ $json.cod_cliente }}',
+                    leftValue: '={{ $json.cod_cliente || $json.cliente?.codigoCliente }}',
                     rightValue: '',
                     operator: {
                         type: 'string',
@@ -2055,6 +2062,7 @@ return [{
                 },
             ],
         },
+        options: {},
     };
 
     @node({
@@ -2065,12 +2073,14 @@ return [{
         position: [-992, 1056],
     })
     ValidarRespuestaDeTexto = {
-        jsCode: `const textoContrato = ($json.body.data.message.conversation || $json.body.data.message.extendedTextMessage.text || '').trim().toUpperCase();
+        jsCode: `const rawText = ($json.body?.data?.message?.conversation || $json.body?.data?.message?.extendedTextMessage?.text || '').trim();
+const textoContrato = rawText.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-// Validamos el texto de la respuesta con la misma regla
-const formatoValido = /^DQ\\d{7}$/.test(textoContrato);
+// Validamos el texto de la respuesta para contratos DP o DQ
+const formatoValido = /^(DP|DQ)\\d{5,8}$/i.test(textoContrato);
 
 $json.formatoRespuestaValido = formatoValido;
+$json.contrato = textoContrato;
 $json.contrato_respuesta = textoContrato;
 
 return $json;`,
@@ -2116,10 +2126,9 @@ return $json;`,
         position: [-544, 1200],
     })
     GenerarMensajeDeFormatoIncorrecto = {
-        jsCode: `const mensaje = '❌ El código que ingresaste no es válido. Por favor, asegúrate de que sea "DQ" seguido de 7 números (ejemplo: DQ1234567) e inténtalo de nuevo.';
+        jsCode: `const mensaje = '❌ *Código no válido.*\\n\\nPor favor verifica tu número de contrato. Debe comenzar con *DP* o *DQ* seguido de sus números (ejemplo: *DP2601001* o *DQ2501001*).';
 
-// Obtenemos el remitente del inicio del flujo para saber a quién responder.
-const remitente = $('Webhook').first().json.body.data.key.remoteJid;
+const remitente = $('Enrutador Principal')?.first()?.json?.body?.data?.key?.chatId || $('Enrutador Principal')?.first()?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.first()?.json?.body?.payload?.from;
 
 return [{
   json: {
@@ -2138,13 +2147,17 @@ return [{
     })
     MensajeTicket2 = {
         method: 'POST',
-        url: "=https://evo.whatscloud.site/message/sendText/{{ $('Webhook').item.json.body.instance }}",
+        url: 'https://noweb.qhosting.net/api/sendText',
         sendHeaders: true,
         headerParameters: {
             parameters: [
                 {
-                    name: 'apikey',
-                    value: "={{ $('Webhook').item.json.body.apikey }}",
+                    name: 'Content-Type',
+                    value: 'application/json',
+                },
+                {
+                    name: 'X-Api-Key',
+                    value: 'key_ZsmTBc6xDs7VqR99GfgmM0vBNhlBcSSB',
                 },
             ],
         },
@@ -2152,11 +2165,15 @@ return [{
         bodyParameters: {
             parameters: [
                 {
-                    name: 'number',
-                    value: "={{ $('Webhook').item.json.body.data.key.remoteJid }}",
+                    name: 'session',
+                    value: 'GMD3320',
                 },
                 {
-                    name: '=text',
+                    name: 'chatId',
+                    value: "={{ ($json.remitente || $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '').replace('@s.whatsapp.net', '@c.us') }}",
+                },
+                {
+                    name: 'text',
                     value: '={{ $json.mensaje }}',
                 },
             ],
@@ -2951,7 +2968,7 @@ Actualizado:{{ DateTime.local().setZone('America/Mexico_City').toFormat('yyyy-MM
                 },
                 {
                     name: 'chatId',
-                    value: "={{ $('Webhook WAHA').item.json.body.me.id }}",
+                    value: "={{ ($json.remitente || $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '').replace('@s.whatsapp.net', '@c.us') }}",
                 },
                 {
                     name: 'text',

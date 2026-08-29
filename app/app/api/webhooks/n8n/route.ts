@@ -68,6 +68,45 @@ export async function POST(req: Request) {
                     },
                     include: { cobradorAsignado: true }
                 });
+
+                // Si no está en BD local, buscar en ContPAQi API en vivo por teléfono
+                if (!cliente) {
+                    try {
+                        for (const emp of ['DQ', 'DP']) {
+                            const cRes = await fetch(`http://vortex520.qhosting.net:5000/api/Documentos/cliente/${tel10}?empresa=${emp}`, {
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-API-Key': 'VERTEX123_CONTPAQI_ERP_2024',
+                                    'X-Company-Id': emp,
+                                    'X-Contpaqi-Empresa': emp
+                                }
+                            });
+                            if (cRes.ok) {
+                                const docs = await cRes.json();
+                                if (Array.isArray(docs) && docs.length > 0) {
+                                    const firstDoc = docs[0];
+                                    const codCli = firstDoc.codigoCliente || (firstDoc.serie && firstDoc.folio ? `${firstDoc.serie}${firstDoc.folio}` : null) || firstDoc.referencia;
+                                    if (codCli) {
+                                        return NextResponse.json({
+                                            encontrado: true,
+                                            cod_cliente: codCli,
+                                            cliente: {
+                                                id: codCli,
+                                                codigoCliente: codCli,
+                                                nombreCompleto: firstDoc.razonSocial || 'Cliente ContPAQi',
+                                                telefono: tel10,
+                                                saldoActual: 0,
+                                                cobrador: null
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    } catch (err: any) {
+                        console.log('Error buscando cliente en ContPAQi por tel:', err.message);
+                    }
+                }
             }
 
             if (!cliente) {
@@ -76,6 +115,7 @@ export async function POST(req: Request) {
 
             return NextResponse.json({
                 encontrado: true,
+                cod_cliente: cliente.codigoCliente,
                 cliente: {
                     id: cliente.id,
                     codigoCliente: cliente.codigoCliente,
