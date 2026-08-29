@@ -158,13 +158,13 @@ export default function ListaCobranzaPage() {
                 "CONTRATO": c.numContrato || c.codigoCliente || "-",
                 "Periodo Inicial": c.fechaVenta ? new Date(c.fechaVenta).toLocaleDateString("es-MX") : "-",
                 "RAZON SOCIAL": c.nombreCompleto || "-",
-                "TELÉFONO": c.telefono || c.telefonoTrabajo || "-",
                 "PERIODO DE PAGO": c.periodicidad ? c.periodicidad.toUpperCase() : "-",
                 "PAGO SUGERIDO": c.montoPago || 0,
                 "SALDO VENCIDO": c.saldoVencido || 0,
                 "PV": c.pv || 0,
                 "SALDO ACTUAL": c.saldoActual || 0,
-                "GESTOR": c.gestor || cobradorName || "-"
+                "GESTOR": c.gestor || cobradorName || "-",
+                "TELÉFONO": c.telefono || c.telefonoTrabajo || "-"
             }));
 
             // Agregar fila de totales al final
@@ -178,13 +178,13 @@ export default function ListaCobranzaPage() {
                 "CONTRATO": "",
                 "Periodo Inicial": "",
                 "RAZON SOCIAL": "",
-                "TELÉFONO": "",
                 "PERIODO DE PAGO": "",
                 "PAGO SUGERIDO": tCobrar as any,
                 "SALDO VENCIDO": tVencido as any,
                 "PV": "" as any,
                 "SALDO ACTUAL": tSaldo as any,
-                "GESTOR": ""
+                "GESTOR": "",
+                "TELÉFONO": ""
             });
 
             return rows;
@@ -196,13 +196,13 @@ export default function ListaCobranzaPage() {
             { wch: 16 }, // CONTRATO
             { wch: 16 }, // Periodo Inicial
             { wch: 35 }, // RAZON SOCIAL
-            { wch: 18 }, // TELÉFONO
             { wch: 18 }, // PERIODO DE PAGO
             { wch: 16 }, // PAGO SUGERIDO
             { wch: 16 }, // SALDO VENCIDO
             { wch: 10 }, // PV
             { wch: 16 }, // SALDO ACTUAL
-            { wch: 18 }  // GESTOR
+            { wch: 18 }, // GESTOR
+            { wch: 18 }  // TELÉFONO
         ];
 
         // Separar clientes DQ y DP
@@ -285,7 +285,7 @@ export default function ListaCobranzaPage() {
                                 Lista de Cobranza por Gestor
                             </h1>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                Generación de ruta de cobro con orden oficial de columnas, teléfono, periodos y exportación multi-hoja (DQ / DP).
+                                Generación de ruta de cobro con orden oficial de columnas, periodos y exportación multi-hoja (DQ / DP).
                             </p>
                         </div>
                     </div>
@@ -486,13 +486,13 @@ export default function ListaCobranzaPage() {
                                             <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">CONTRATO</th>
                                             <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">Periodo Inicial</th>
                                             <th className="px-3.5 py-3 border border-slate-700 whitespace-nowrap">RAZON SOCIAL</th>
-                                            <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">TELÉFONO</th>
                                             <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">PERIODO DE PAGO</th>
                                             <th className="px-3.5 py-3 text-right border border-slate-700 whitespace-nowrap">PAGO SUGERIDO</th>
                                             <th className="px-3.5 py-3 text-right border border-slate-700 whitespace-nowrap">SALDO VENCIDO</th>
                                             <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">PV</th>
                                             <th className="px-3.5 py-3 text-right border border-slate-700 whitespace-nowrap">SALDO ACTUAL</th>
                                             <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">GESTOR</th>
+                                            <th className="px-3.5 py-3 text-center border border-slate-700 whitespace-nowrap">TELÉFONO</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
@@ -532,45 +532,45 @@ export default function ListaCobranzaPage() {
                                                         <td className="px-3.5 py-2.5 font-bold text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800 whitespace-nowrap">
                                                             {c.nombreCompleto}
                                                         </td>
-                                                        {/* 6. TELÉFONO */}
-                                                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap font-mono text-slate-700 dark:text-slate-300 border border-gray-100 dark:border-slate-800">
-                                                            {c.telefono || c.telefonoTrabajo || "-"}
-                                                        </td>
-                                                        {/* 7. PERIODO DE PAGO (SOLO EL PERIODO) */}
+                                                        {/* 6. PERIODO DE PAGO (SOLO EL PERIODO) */}
                                                         <td className="px-3.5 py-2.5 text-center border border-gray-100 dark:border-slate-800 whitespace-nowrap">
                                                             <Badge variant="outline" className="text-[10px] uppercase font-bold py-0">
                                                                 {c.periodicidad ? c.periodicidad.toUpperCase() : "-"}
                                                             </Badge>
                                                         </td>
-                                                        {/* 8. PAGO SUGERIDO */}
+                                                        {/* 7. PAGO SUGERIDO */}
                                                         <td className="px-3.5 py-2.5 text-right border border-gray-100 dark:border-slate-800 font-bold font-mono text-emerald-600 dark:text-emerald-400">
                                                             {formatCurrency(c.montoPago)}
                                                         </td>
-                                                        {/* 9. SALDO VENCIDO */}
+                                                        {/* 8. SALDO VENCIDO */}
                                                         <td className="px-3.5 py-2.5 text-right border border-gray-100 dark:border-slate-800 font-bold font-mono text-rose-600 dark:text-rose-400">
                                                             {formatCurrency(c.saldoVencido || 0)}
                                                         </td>
-                                                        {/* 10. PV */}
+                                                        {/* 9. PV */}
                                                         <td className="px-3.5 py-2.5 text-center border border-gray-100 dark:border-slate-800 font-mono font-bold">
                                                             <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] ${(c.pv || 0) > 0 ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
                                                                 {c.pv || 0}
                                                             </span>
                                                         </td>
-                                                        {/* 11. SALDO ACTUAL */}
+                                                        {/* 10. SALDO ACTUAL */}
                                                         <td className="px-3.5 py-2.5 text-right border border-gray-100 dark:border-slate-800 font-black font-mono text-slate-900 dark:text-white">
                                                             {formatCurrency(c.saldoActual)}
                                                         </td>
-                                                        {/* 12. GESTOR */}
+                                                        {/* 11. GESTOR */}
                                                         <td className="px-3.5 py-2.5 text-center border border-gray-100 dark:border-slate-800 font-mono text-xs">
                                                             <Badge variant="secondary" className="text-[10px] font-bold">
                                                                 {c.gestor || getSelectedCobradorName()}
                                                             </Badge>
                                                         </td>
+                                                        {/* 12. TELÉFONO */}
+                                                        <td className="px-3.5 py-2.5 text-center whitespace-nowrap font-mono text-slate-700 dark:text-slate-300 border border-gray-100 dark:border-slate-800">
+                                                            {c.telefono || c.telefonoTrabajo || "-"}
+                                                        </td>
                                                     </tr>
                                                 ))}
                                                 {/* Fila de Totales */}
                                                 <tr className="bg-slate-100 dark:bg-slate-800/80 font-black text-xs text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-700">
-                                                    <td colSpan={7} className="px-4 py-3 text-right border border-gray-200 dark:border-slate-700 uppercase tracking-wider text-[10px]">
+                                                    <td colSpan={6} className="px-4 py-3 text-right border border-gray-200 dark:border-slate-700 uppercase tracking-wider text-[10px]">
                                                         TOTALES ({clientesFiltrados.length} cuentas)
                                                     </td>
                                                     <td className="px-3.5 py-3 text-right border border-gray-200 dark:border-slate-700 font-mono text-emerald-700 dark:text-emerald-300">
@@ -584,6 +584,9 @@ export default function ListaCobranzaPage() {
                                                     </td>
                                                     <td className="px-3.5 py-3 text-right border border-gray-200 dark:border-slate-700 font-mono text-slate-950 dark:text-white">
                                                         {formatCurrency(totalSaldo)}
+                                                    </td>
+                                                    <td className="px-3.5 py-3 text-center border border-gray-200 dark:border-slate-700">
+                                                        -
                                                     </td>
                                                     <td className="px-3.5 py-3 text-center border border-gray-200 dark:border-slate-700">
                                                         -
