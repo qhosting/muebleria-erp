@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
                 lte: endDate,
             },
         };
+
         if (cobradorId && cobradorId !== 'all') {
             wherePagos.cobradorId = cobradorId;
         }
@@ -54,33 +55,46 @@ export async function GET(request: NextRequest) {
                     select: { id: true, name: true, codigoGestor: true }
                 },
                 cliente: {
-                    select: { codigoCliente: true }
+                    select: { id: true, codigoCliente: true, nombreCompleto: true }
+                },
+                ticket: {
+                    include: {
+                        movimientosBanorte0330253963: true,
+                        movimientosSantander22001022837: true,
+                        movimientosSantander65505732541: true,
+                    }
                 }
-            }
+            },
+            orderBy: { fechaPago: 'asc' }
         });
 
-        // 2. Obtener Tickets creados en el rango (para Tickets sin conciliar)
+        // 2. Obtener Tickets creados en el rango
         const whereTickets: any = {
             creadoEn: {
                 gte: startDate,
                 lte: endDate,
             }
         };
+
         if (cobradorId && cobradorId !== 'all') {
-            whereTickets.gestorId = cobradorId;
+            whereTickets.OR = [
+                { gestorId: cobradorId },
+                { cliente: { cobradorAsignadoId: cobradorId } }
+            ];
         }
 
-        const ticketsAll: any[] = await (prisma as any).ticket.findMany({
+        const ticketsAll = await prisma.ticket.findMany({
             where: whereTickets,
             include: {
-                cliente: { select: { codigoCliente: true } },
+                cliente: { select: { id: true, codigoCliente: true, nombreCompleto: true } },
+                gestor: { select: { id: true, name: true, codigoGestor: true } },
                 movimientosBanorte0330253963: true,
                 movimientosSantander22001022837: true,
                 movimientosSantander65505732541: true,
             }
         });
 
-        // 3. Obtener Movimientos Bancarios en el rango (para Abonos sin asignar) de las 3 tablas
+        // 3. Obtener Movimientos Bancarios en el rango
         const [m1, m2, m3] = await Promise.all([
             prisma.movimientoSantander22001022837.findMany({
                 where: {
@@ -111,15 +125,37 @@ export async function GET(request: NextRequest) {
         // --- PROCESAMIENTO ---
 
         const resumenPrefijos: Record<string, any> = {
-            'DQ': { actual: { ctas: 0, monto: 0, bancos: {} }, anterior: { ctas: 0, monto: 0, bancos: {} }, ticketsSinConciliar: { ctas: 0, monto: 0 } },
-            'DP': { actual: { ctas: 0, monto: 0, bancos: {} }, anterior: { ctas: 0, monto: 0, bancos: {} }, ticketsSinConciliar: { ctas: 0, monto: 0 } }
+            'DQ': { 
+                actual: { ctas: 0, monto: 0, bancos: {} }, 
+                anterior: { ctas: 0, monto: 0, bancos: {} }, 
+                ticketsSinConciliar: { ctas: 0, monto: 0 },
+                conciliados: { ctas: 0, monto: 0 }
+            },
+            'DP': { 
+                actual: { ctas: 0, monto: 0, bancos: {} }, 
+                anterior: { ctas: 0, monto: 0, bancos: {} }, 
+                ticketsSinConciliar: { ctas: 0, monto: 0 },
+                conciliados: { ctas: 0, monto: 0 }
+            }
         };
 
         // Pagos agrupados por gestor
         const gestoresMap: Record<string, any> = {};
 
+        const isBankMethod = (method: string, banco?: string | null, ticketId?: string | null) => {
+            const m = (method || '').toLowerCase();
+            return m.includes('banc') || 
+                   m.includes('transf') || 
+                   m.includes('depo') || 
+                   Boolean(banco) || 
+                   Boolean(ticketId);
+        };
+
+        // 4. Procesar todos los pagos para gestores y para resumen bancario
         pagosAll.forEach(pago => {
             const cid = pago.cobradorId;
+            const cobradorNombre = pago.cobrador?.codigoGestor || pago.cobrador?.name || 'Desconocido';
+
             if (!gestoresMap[cid]) {
                 gestoresMap[cid] = {
                     id: cid,
@@ -129,77 +165,94 @@ export async function GET(request: NextRequest) {
                     totalCobrado: 0
                 };
             }
+
+            const abono = Number(pago.monto || 0);
+            const mora = Number(pago.interesMoratorio || 0);
+            const gcob = Number(pago.gastosCobranza || 0);
+            const totalPago = abono + mora + gcob;
+
             gestoresMap[cid].cantidadPagos++;
-            gestoresMap[cid].totalCobrado += Number(pago.monto) + Number(pago.interesMoratorio || 0) + Number(pago.gastosCobranza || 0);
+            gestoresMap[cid].totalCobrado += totalPago;
+
+            // Clasificar en resumen bancario DQ o DP si es bancario o si se registró en la ruta
+            const codigo = pago.cliente?.codigoCliente || '';
+            const pref = codigo.substring(0, 2).toUpperCase();
+
+            if (resumenPrefijos[pref]) {
+                const esBancario = isBankMethod(pago.metodoPago, pago.banco, pago.ticketId);
+                
+                if (esBancario) {
+                    const isActual = new Date(pago.fechaPago) >= startDate;
+                    const cat = isActual ? 'actual' : 'anterior';
+                    
+                    let bancoNombre = (pago.banco || '').trim().toUpperCase();
+                    if (!bancoNombre) {
+                        if (pago.ticket?.cuentaDestino?.includes('0330253963')) {
+                            bancoNombre = 'BANORTE';
+                        } else if (pago.ticket?.cuentaDestino?.includes('22001022837') || pago.ticket?.cuentaDestino?.includes('65505732541')) {
+                            bancoNombre = 'SANTANDER';
+                        } else {
+                            bancoNombre = 'SANTANDER';
+                        }
+                    }
+
+                    resumenPrefijos[pref][cat].ctas++;
+                    resumenPrefijos[pref][cat].monto += totalPago;
+
+                    if (!resumenPrefijos[pref][cat].bancos[bancoNombre]) {
+                        resumenPrefijos[pref][cat].bancos[bancoNombre] = { ctas: 0, monto: 0 };
+                    }
+                    resumenPrefijos[pref][cat].bancos[bancoNombre].ctas++;
+                    resumenPrefijos[pref][cat].bancos[bancoNombre].monto += totalPago;
+
+                    if (pago.ticket?.conciliado) {
+                        resumenPrefijos[pref].conciliados.ctas++;
+                        resumenPrefijos[pref].conciliados.monto += totalPago;
+                    }
+                }
+            }
         });
 
-        // Para el resumen DQ/DP Solo Bancos usaremos los tickets que tienen movimientos
+        // 5. Analizar tickets sin conciliar
         ticketsAll.forEach((ticket: any) => {
             const codigo = ticket.cliente?.codigoCliente || '';
             const pref = codigo.substring(0, 2).toUpperCase();
             if (resumenPrefijos[pref]) {
                 const combinedMovs = [
-                    ...(ticket.movimientosBanorte0330253963 || []).map((m: any) => ({ ...m, cuentaDestino: '0330253963', bancoDestino: 'BANORTE' })),
-                    ...(ticket.movimientosSantander22001022837 || []).map((m: any) => ({ ...m, cuentaDestino: '22001022837', bancoDestino: 'SANTANDER' })),
-                    ...(ticket.movimientosSantander65505732541 || []).map((m: any) => ({ ...m, cuentaDestino: '65505732541', bancoDestino: 'SANTANDER' })),
+                    ...(ticket.movimientosBanorte0330253963 || []),
+                    ...(ticket.movimientosSantander22001022837 || []),
+                    ...(ticket.movimientosSantander65505732541 || []),
                 ];
 
-                if (combinedMovs.length > 0) {
-                    combinedMovs.forEach((mov: any) => {
-                        const isActual = new Date(mov.fechaOperacion) >= startDate;
-                        const cat = isActual ? 'actual' : 'anterior';
-                        const banco = mov.bancoOrigen?.toUpperCase() || 'DESCONOCIDO';
-                        const abonoValue = mov.abono || 0;
-
-                        resumenPrefijos[pref][cat].ctas++;
-                        resumenPrefijos[pref][cat].monto += abonoValue;
-
-                        if (!resumenPrefijos[pref][cat].bancos[banco]) {
-                            resumenPrefijos[pref][cat].bancos[banco] = { ctas: 0, monto: 0 };
-                        }
-                        resumenPrefijos[pref][cat].bancos[banco].ctas++;
-                        resumenPrefijos[pref][cat].bancos[banco].monto += abonoValue;
-                    });
-                } else {
-                    // Tickets sin conciliar
+                if (combinedMovs.length === 0 && !ticket.conciliado) {
                     resumenPrefijos[pref].ticketsSinConciliar.ctas++;
                     resumenPrefijos[pref].ticketsSinConciliar.monto += Number(ticket.monto || 0);
                 }
             }
         });
 
+        // 6. Abonos bancarios sin asignar a tickets
         const abonosSinAsignar = {
             ctas: movimientosBancos.filter((m: any) => !m.ticketId).length,
             monto: movimientosBancos.filter((m: any) => !m.ticketId).reduce((acc: number, curr: any) => acc + (curr.abono || 0), 0)
         };
 
-        // Formatear resumen para UI
+        // 7. Formatear resumen para UI
         const calcResumen = (pref: string) => {
             const p = resumenPrefijos[pref];
             const totalC = p.actual.monto + p.anterior.monto;
             const totalCtas = p.actual.ctas + p.anterior.ctas;
 
-            const isBankMethod = (method: string) => {
-                const m = (method || '').toLowerCase();
-                return m.includes('banc') || m.includes('transf') || m.includes('depo');
-            };
-
-            const pagosBancariosDetalle = pagosAll.filter(pg =>
-                pg.cliente?.codigoCliente?.startsWith(pref) &&
-                isBankMethod(pg.metodoPago || '')
-            ).reduce((acc, curr) => acc + Number(curr.monto), 0);
-
-            const pagosBancariosDetalleCtas = pagosAll.filter(pg =>
-                pg.cliente?.codigoCliente?.startsWith(pref) &&
-                isBankMethod(pg.metodoPago || '')
-            ).length;
+            // Discrepancia: tickets sin conciliar o diferencia con banco
+            const ticketsSinConciliarMonto = p.ticketsSinConciliar.monto;
+            const ticketsSinConciliarCtas = p.ticketsSinConciliar.ctas;
 
             return {
                 ...p,
                 total: { ctas: totalCtas, monto: totalC },
                 discrepancia: {
-                    ctas: pagosBancariosDetalleCtas - totalCtas,
-                    monto: pagosBancariosDetalle - totalC
+                    ctas: ticketsSinConciliarCtas,
+                    monto: ticketsSinConciliarMonto
                 }
             };
         };
@@ -212,9 +265,9 @@ export async function GET(request: NextRequest) {
             totalGeneral: Object.values(gestoresMap).reduce((acc: any, curr: any) => acc + curr.totalCobrado, 0)
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error al obtener cuadre:', error);
-        return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+        return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 });
     }
 }
 
@@ -247,8 +300,8 @@ export async function POST(request: NextRequest) {
             reactivados: result.count
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error al finalizar cuadre:', error);
-        return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+        return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 });
     }
 }
