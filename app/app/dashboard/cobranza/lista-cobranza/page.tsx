@@ -86,7 +86,7 @@ export default function ListaCobranzaPage() {
                 setCobradores(gestores);
                 
                 if (gestores.length > 0) {
-                    setSelectedCobrador(gestores[0].id);
+                    setSelectedCobrador("TODOS");
                 }
             }
         } catch (error) {
@@ -100,7 +100,7 @@ export default function ListaCobranzaPage() {
     const handleBuscar = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedCobrador) {
-            toast.error("Por favor selecciona un gestor");
+            toast.error("Por favor selecciona un gestor o todos");
             return;
         }
         if (!semana) {
@@ -135,6 +135,9 @@ export default function ListaCobranzaPage() {
     };
 
     const getSelectedCobradorName = () => {
+        if (selectedCobrador === "TODOS") {
+            return "GENERAL - TODOS LOS COBRADORES";
+        }
         const cobrador = cobradores.find(c => c.id === selectedCobrador);
         return cobrador ? (cobrador.codigoGestor || cobrador.name) : "Gestor";
     };
@@ -312,6 +315,9 @@ export default function ListaCobranzaPage() {
                                         <SelectValue placeholder={loadingCobradores ? "Cargando cobradores..." : "Selecciona un cobrador"} />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="TODOS" className="font-bold text-blue-600 dark:text-blue-400">
+                                            🌟 TODOS LOS COBRADORES (GENERAL)
+                                        </SelectItem>
                                         {cobradores.map((c) => (
                                              <SelectItem key={c.id} value={c.id}>
                                                 {c.codigoGestor ? `${c.codigoGestor} - ${c.name}` : c.name}

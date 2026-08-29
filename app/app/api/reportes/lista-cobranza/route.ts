@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
         const semanaStr = searchParams.get('semana');
         const anioStr = searchParams.get('anio');
 
-        if (!cobradorId || !semanaStr) {
-            return NextResponse.json({ error: 'Faltan parámetros requeridos: cobradorId y semana' }, { status: 400 });
+        if (!semanaStr) {
+            return NextResponse.json({ error: 'Falta parámetro requerido: semana' }, { status: 400 });
         }
 
         const semana = parseInt(semanaStr);
@@ -43,14 +43,19 @@ export async function GET(request: NextRequest) {
         const periodicidadesPermitidas = (calendario?.periodicidadesActivas as string[]) || ['diario', 'semanal', 'catorcenal', 'quincenal', 'mensual'];
 
         // 2. Obtener clientes asignados que cumplan con la periodicidad activa y estén activos
+        const whereClause: any = {
+            statusCuenta: 'activo',
+            periodicidad: {
+                in: periodicidadesPermitidas as any
+            }
+        };
+
+        if (cobradorId && cobradorId !== 'TODOS' && cobradorId !== 'all') {
+            whereClause.cobradorAsignadoId = cobradorId;
+        }
+
         const clientes = await prisma.cliente.findMany({
-            where: {
-                cobradorAsignadoId: cobradorId,
-                statusCuenta: 'activo',
-                periodicidad: {
-                    in: periodicidadesPermitidas as any
-                }
-            },
+            where: whereClause,
             include: {
                 cobradorAsignado: {
                     select: {
@@ -60,9 +65,11 @@ export async function GET(request: NextRequest) {
                     }
                 }
             },
-            orderBy: {
-                diaPago: 'asc'
-            }
+            orderBy: [
+                { cobradorAsignado: { codigoGestor: 'asc' } },
+                { diaPago: 'asc' },
+                { codigoCliente: 'asc' }
+            ]
         });
 
         // 3. Serializar montos decimales para JSON
