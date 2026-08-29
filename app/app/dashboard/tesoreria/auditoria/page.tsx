@@ -1162,15 +1162,19 @@ export default function AuditoriaFinancieraPage() {
                             </td>
                             <td className="p-2.5 text-center">
                               <div className="flex items-center justify-center gap-1">
-                                {item.estado === 'FALTANTE_ERP' ? (
+                                {(item.estado === 'FALTANTE_ERP' || 
+                                  item.mysqlTotal > item.erpTotal || 
+                                  item.mysqlPagos.length > item.erpPagos.length || 
+                                  (item.estado === 'DESFASE_MONTO' && item.diferencia > 0.01)) ? (
                                   <Button
                                     size="sm"
                                     variant="outline"
                                     disabled={aligning}
                                     onClick={() => handleAlinearPagos(item.codigo)}
                                     className="h-7 text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200"
+                                    title="Importar pagos faltantes de MySQL al ERP"
                                   >
-                                    Importar
+                                    Importar {item.mysqlPagos.length > item.erpPagos.length ? `(${item.mysqlPagos.length - item.erpPagos.length})` : ''}
                                   </Button>
                                 ) : (
                                   <>
@@ -1355,7 +1359,10 @@ export default function AuditoriaFinancieraPage() {
                   </div>
 
                   <div className="flex justify-end gap-2 pt-2 border-t">
-                    {selectedClienteModal.estado === 'FALTANTE_ERP' && (
+                    {(selectedClienteModal.estado === 'FALTANTE_ERP' || 
+                      selectedClienteModal.mysqlTotal > selectedClienteModal.erpTotal || 
+                      selectedClienteModal.mysqlPagos.length > selectedClienteModal.erpPagos.length ||
+                      (selectedClienteModal.estado === 'DESFASE_MONTO' && selectedClienteModal.diferencia > 0.01)) && (
                       <Button
                         size="sm"
                         disabled={aligning}
@@ -1363,9 +1370,9 @@ export default function AuditoriaFinancieraPage() {
                           handleAlinearPagos(selectedClienteModal.codigo);
                           setSelectedClienteModal(null);
                         }}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold"
                       >
-                        Importar Pagos al ERP
+                        Importar Pagos Faltantes al ERP ({selectedClienteModal.mysqlPagos.length - selectedClienteModal.erpPagos.length > 0 ? `${selectedClienteModal.mysqlPagos.length - selectedClienteModal.erpPagos.length} faltante(s)` : 'Alinear'})
                       </Button>
                     )}
                     {selectedClienteModal.estadoContpaqi === 'PENDIENTE' && (

@@ -920,6 +920,7 @@ export async function POST(request: NextRequest) {
     let pagosInsertados = 0;
     let clientesActualizados = 0;
     let contpaqiAplicadosCount = 0;
+    const yaVinculadosErpIds = new Set<string>();
 
     for (const p of pagosMysql) {
       const cod = (p.cod_cliente || '').trim().toUpperCase();
@@ -1020,10 +1021,12 @@ export async function POST(request: NextRequest) {
 
       if (yaExistePorIdMysql) {
         // Ya está registrado en ERP
+        yaVinculadosErpIds.add(yaExistePorIdMysql.id);
         continue;
       }
 
       // B) Si no existe por ID, verificar si hay un pago manual idéntico no asignado en la misma fecha (±24h)
+      // que NO haya sido vinculado previamente a otro pago de MySQL en esta ejecución ni antes
       const dMin = new Date(fechaP.getTime() - 24 * 3600 * 1000);
       const dMax = new Date(fechaP.getTime() + 24 * 3600 * 1000);
 
@@ -1032,14 +1035,17 @@ export async function POST(request: NextRequest) {
           clienteId: cliente.id,
           fechaPago: { gte: dMin, lte: dMax },
           monto: abonoNum,
-          NOT: {
-            numeroRecibo: { startsWith: 'MYSQL-#' }
-          }
+          id: { notIn: Array.from(yaVinculadosErpIds) },
+          NOT: [
+            { numeroRecibo: { startsWith: 'MYSQL-#' } },
+            { concepto: { contains: 'Vinculado MySQL ID' } }
+          ]
         }
       });
 
       if (coincidenciaManual) {
         // Vincular el ID de MySQL al concepto existente para evitar duplicar
+        yaVinculadosErpIds.add(coincidenciaManual.id);
         await prisma.pago.update({
           where: { id: coincidenciaManual.id },
           data: {
