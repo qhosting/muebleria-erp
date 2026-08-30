@@ -131,6 +131,43 @@ export async function POST(req: Request) {
             });
         }
 
+        // --- ACCIÓN: ACTUALIZAR FECHA / HORA DE TICKET ---
+        if (action === "actualizar_fecha_ticket") {
+            const ticketId = body.ticketId || body.id;
+            const nuevaFechaStr = body.fecha; // Ej. "2026-08-29"
+            const nuevaHoraStr = body.hr || body.hora; // Ej. "15:22:48"
+
+            if (!ticketId || !nuevaFechaStr) {
+                return NextResponse.json({ error: "ticketId y fecha son requeridos" }, { status: 400 });
+            }
+
+            const parsedDate = new Date(`${nuevaFechaStr}T${nuevaHoraStr || '12:00:00'}Z`);
+
+            const ticket = await prisma.ticket.update({
+                where: { id: ticketId },
+                data: {
+                    fecha: parsedDate,
+                    hr: nuevaHoraStr || undefined,
+                    updatedAt: new Date()
+                }
+            });
+
+            // Actualizar pagos asociados
+            await prisma.pago.updateMany({
+                where: { ticketId: ticketId },
+                data: {
+                    fechaPago: parsedDate,
+                    updatedAt: new Date()
+                }
+            });
+
+            return NextResponse.json({
+                success: true,
+                message: `Ticket ${ticketId} y sus pagos actualizados a fecha ${nuevaFechaStr} ${nuevaHoraStr || ''}`,
+                ticket
+            });
+        }
+
         // --- ACCIÓN: IMPORTAR EXTRACTO BANCARIO ---
         if (action === "importar_banco") {
             const banco = (body.banco || '').toLowerCase();
@@ -507,28 +544,48 @@ export async function POST(req: Request) {
         const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
         const parsedSearchDate = (fecha && fecha !== 'null' && fecha !== 'undefined') ? new Date(fecha) : undefined;
         const safeSearchDate = (parsedSearchDate && !isNaN(parsedSearchDate.getTime())) ? parsedSearchDate : undefined;
+        
+        // Referencias estructuradas (con dígitos de al menos 4 caracteres) para evitar colisiones con palabras genéricas como "colchón", "pago", etc.
+        const isNumericRef = Boolean(referencia && referencia !== 'null' && /\d{4,}/.test(referencia));
+        const isNumericFolio = Boolean(folio && folio !== 'null' && /\d{4,}/.test(folio));
+        const forzarCreacion = Boolean(body.forzar || body.force);
 
-        const existingTicket = await prisma.ticket.findFirst({
+        const existingTicket = forzarCreacion ? null : await prisma.ticket.findFirst({
             where: {
                 clienteId: cliente.id,
                 OR: [
                     (legacyIdNum) ? { legacyId: legacyIdNum } : { id: 'none' },
                     (claverastreo && claverastreo !== 'null' && claverastreo.length >= 10) ? { claveRastreo: claverastreo } : { id: 'none' },
-                    (referencia && referencia !== 'null') ? { referencia: referencia } : { id: 'none' },
-                    (folio && folio !== 'null') ? { folio: folio } : { id: 'none' },
+                    (isNumericRef) ? { referencia: referencia } : { id: 'none' },
+                    (isNumericFolio) ? { folio: folio } : { id: 'none' },
                     {
                         monto: parseFloat(monto || '0'),
                         creadoEn: { gte: fifteenMinutesAgo }
-                    },
-                    ...(safeSearchDate ? [{
-                        monto: parseFloat(monto || '0'),
-                        fecha: safeSearchDate
-                    }] : [])
+                    }
                 ]
             }
         });
 
         if (existingTicket) {
+            // Si la fecha o hora enviada es válida, actualizar fecha del ticket existente y de su pago
+            if (safeSearchDate || (hr && hr !== 'null')) {
+                const updateData: any = {};
+                if (safeSearchDate) updateData.fecha = safeSearchDate;
+                if (hr && hr !== 'null') updateData.hr = hr;
+
+                await prisma.ticket.update({
+                    where: { id: existingTicket.id },
+                    data: updateData
+                });
+
+                if (safeSearchDate) {
+                    await prisma.pago.updateMany({
+                        where: { ticketId: existingTicket.id },
+                        data: { fechaPago: safeSearchDate }
+                    });
+                }
+            }
+
             // Buscar el pago y saldo nuevo para enriquecer la respuesta
             const pagoAsociado = await prisma.pago.findFirst({
                 where: { ticketId: existingTicket.id }
