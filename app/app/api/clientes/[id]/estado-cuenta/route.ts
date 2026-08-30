@@ -69,11 +69,55 @@ export async function GET(
     }
 
     // 3. Obtener movimientos/documentos en detalle en vivo
-    let documentos = [];
+    let documentos: any[] = [];
     try {
-      documentos = await service.getClientDocumentos(cliente.codigoCliente);
+      const remoteDocs = await service.getClientDocumentos(cliente.codigoCliente);
+      documentos = Array.isArray(remoteDocs) ? [...remoteDocs] : [];
     } catch (docError) {
       console.warn(`No se pudieron obtener documentos detallados para cliente ${cliente.codigoCliente}:`, docError);
+    }
+
+    // --- FUSIONAR PAGOS Y TICKETS REGISTRADOS EN EL ERP LOCAL ---
+    try {
+      const pagosLocales = await prisma.pago.findMany({
+        where: { clienteId: cliente.id },
+        include: { ticket: true, cobrador: true }
+      });
+
+      for (const p of pagosLocales) {
+        const montoNum = parseFloat(p.monto.toString());
+        const folioStr = p.numeroRecibo || p.ticket?.folio || p.ticket?.id || '';
+        const refTicket = p.ticket?.referencia || '';
+
+        // Verificar si ya existe en los documentos descargados de ContPAQi
+        const alreadyInContpaqi = documentos.some((d: any) => {
+          const dRef = String(d.cReferencia || d.referencia || d.cTextoExtra1 || d.textoExtra1 || '').toUpperCase();
+          const dFolio = String(d.cFolio || d.folio || '').trim();
+          
+          if (folioStr && (dFolio === folioStr || dRef.includes(folioStr.toUpperCase()))) return true;
+          if (p.ticket?.id && dRef.includes(p.ticket.id.toUpperCase())) return true;
+          return false;
+        });
+
+        if (!alreadyInContpaqi && montoNum > 0) {
+          documentos.push({
+            id: `pago-${p.id}`,
+            folio: p.numeroRecibo || p.ticket?.id || 'TICKET',
+            serie: 'ERP',
+            fecha: p.fechaPago ? p.fechaPago.toISOString() : p.creadoEn.toISOString(),
+            codigoConcepto: '101',
+            nombreConcepto: `PAGO REGULAR (ERP / TICKET WHATSAPP)`,
+            total: montoNum,
+            saldo: 0,
+            referencia: refTicket || p.concepto || `Ticket ${p.ticketId || ''}`,
+            nombreAgente: p.cobrador?.name || 'BOT / WHATSAPP',
+            textoExtra1: p.ticket?.claveRastreo || refTicket || '',
+            enProceso: true
+          });
+        }
+      }
+    } catch (erpErr) {
+      console.warn('No se pudieron fusionar pagos locales del ERP:', erpErr);
     }
 
     // --- LÓGICA DE AMORTIZACIÓN Y CONCILIACIÓN ---
