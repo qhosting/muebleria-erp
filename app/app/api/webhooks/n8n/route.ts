@@ -141,14 +141,12 @@ export async function POST(req: Request) {
                 return NextResponse.json({ error: "ticketId y fecha son requeridos" }, { status: 400 });
             }
 
-            const parsedDate = new Date(`${nuevaFechaStr}T${nuevaHoraStr || '12:00:00'}Z`);
+            const parsedDate = parseValidDate(nuevaFechaStr, nuevaHoraStr);
 
             const ticket = await prisma.ticket.update({
                 where: { id: ticketId },
                 data: {
-                    fecha: parsedDate,
-                    hr: nuevaHoraStr || undefined,
-                    updatedAt: new Date()
+                    fecha: parsedDate
                 }
             });
 
@@ -229,7 +227,6 @@ export async function POST(req: Request) {
                         referencia: referencia || 'BANORTE',
                         folio: folio || null,
                         fecha: fechaParsed,
-                        hr: hr || undefined,
                         remitente: remitente || cliente.telefono,
                         concepto: `TICKET BANORTE (${referencia || 'colchon'})`,
                         conciliado: false
@@ -674,19 +671,20 @@ export async function POST(req: Request) {
         if (existingTicket) {
             // Si la fecha o hora enviada es válida, actualizar fecha del ticket existente y de su pago
             if (safeSearchDate || (hr && hr !== 'null')) {
-                const updateData: any = {};
-                if (safeSearchDate) updateData.fecha = safeSearchDate;
-                if (hr && hr !== 'null') updateData.hr = hr;
+                const combinedDate = parseValidDate(fecha, hr);
+                if (combinedDate) {
+                    await prisma.ticket.update({
+                        where: { id: existingTicket.id },
+                        data: {
+                            fecha: combinedDate
+                        }
+                    });
 
-                await prisma.ticket.update({
-                    where: { id: existingTicket.id },
-                    data: updateData
-                });
-
-                if (safeSearchDate) {
                     await prisma.pago.updateMany({
                         where: { ticketId: existingTicket.id },
-                        data: { fechaPago: safeSearchDate }
+                        data: {
+                            fechaPago: combinedDate
+                        }
                     });
                 }
             }
