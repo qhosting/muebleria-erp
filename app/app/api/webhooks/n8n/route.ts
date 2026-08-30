@@ -647,8 +647,10 @@ export async function POST(req: Request) {
         const parsedSearchDate = (fecha && fecha !== 'null' && fecha !== 'undefined') ? new Date(fecha) : undefined;
         const safeSearchDate = (parsedSearchDate && !isNaN(parsedSearchDate.getTime())) ? parsedSearchDate : undefined;
         
-        // Referencias estructuradas (con dígitos de al menos 4 caracteres) para evitar colisiones con palabras genéricas como "colchón", "pago", etc.
-        const isNumericRef = Boolean(referencia && referencia !== 'null' && /\d{4,}/.test(referencia));
+        // Referencias estructuradas (con dígitos de al menos 4 caracteres) excluyendo números de cuenta bancaria destino de la empresa
+        const companyAccounts = ['0228372', '22001022837', '65505732541', '0330253963'];
+        const isCompanyAccountRef = companyAccounts.some(acc => referencia && String(referencia).includes(acc));
+        const isNumericRef = Boolean(referencia && referencia !== 'null' && /\d{4,}/.test(referencia) && !isCompanyAccountRef);
         const isNumericFolio = Boolean(folio && folio !== 'null' && /\d{4,}/.test(folio));
         const forzarCreacion = Boolean(body.forzar || body.force);
 
