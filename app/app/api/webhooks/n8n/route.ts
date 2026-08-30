@@ -168,6 +168,111 @@ export async function POST(req: Request) {
             });
         }
 
+        // --- ACCIÓN: LISTAR PAGOS Y TICKETS DE CLIENTE ---
+        if (action === "listar_pagos_cliente") {
+            const cod = (body.contrato || body.codigoCliente || contrato || '').trim().toUpperCase();
+            const cliente = await prisma.cliente.findFirst({
+                where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
+                include: {
+                    pagos: {
+                        orderBy: { fechaPago: 'desc' }
+                    },
+                    tickets: {
+                        orderBy: { fecha: 'desc' }
+                    }
+                }
+            });
+
+            return NextResponse.json({
+                cliente: cliente ? {
+                    id: cliente.id,
+                    codigoCliente: cliente.codigoCliente,
+                    nombre: cliente.nombreCompleto,
+                    saldoActual: parseFloat(cliente.saldoActual.toString())
+                } : null,
+                pagos: cliente?.pagos || [],
+                tickets: cliente?.tickets || []
+            });
+        }
+
+        // --- ACCIÓN: INSERTAR PAGO DIRECTO ---
+        if (action === "insertar_pago_directo") {
+            const cod = (body.contrato || body.codigoCliente || contrato || '').trim().toUpperCase();
+            const cliente = await prisma.cliente.findFirst({
+                where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
+                include: { cobradorAsignado: true }
+            });
+
+            if (!cliente) {
+                return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+            }
+
+            const montoNum = parseFloat(monto || '0');
+            const fechaParsed = parseValidDate(fecha, hr);
+            const shortTicketId = Math.random().toString(36).substring(2, 10).toUpperCase();
+            const saldoAnterior = parseFloat(cliente.saldoActual.toString());
+            const saldoNuevo = Math.max(0, saldoAnterior - montoNum);
+
+            let cobradorId = cliente.cobradorAsignadoId;
+            if (!cobradorId) {
+                const firstAdmin = await prisma.user.findFirst({ where: { role: "admin" } });
+                cobradorId = firstAdmin?.id || "system-admin-id";
+            }
+
+            const result = await prisma.$transaction(async (tx) => {
+                const newTicket = await tx.ticket.create({
+                    data: {
+                        id: shortTicketId,
+                        cliente: { connect: { id: cliente.id } },
+                        gestor: cobradorId ? { connect: { id: cobradorId } } : undefined,
+                        monto: montoNum,
+                        referencia: referencia || 'BANORTE',
+                        folio: folio || null,
+                        fecha: fechaParsed,
+                        hr: hr || undefined,
+                        remitente: remitente || cliente.telefono,
+                        concepto: `TICKET BANORTE (${referencia || 'colchon'})`,
+                        conciliado: false
+                    }
+                });
+
+                const newPago = await tx.pago.create({
+                    data: {
+                        clienteId: cliente.id,
+                        cobradorId: cobradorId,
+                        ticketId: newTicket.id,
+                        monto: montoNum,
+                        concepto: `Pago Ticket WhatsApp (${referencia || 'BANORTE'})`,
+                        tipoPago: 'regular',
+                        fechaPago: fechaParsed,
+                        metodoPago: 'TRANSFERENCIA BANORTE',
+                        saldoAnterior: saldoAnterior,
+                        saldoNuevo: saldoNuevo,
+                        sincronizado: false,
+                        ticketImpreso: false
+                    }
+                });
+
+                await tx.cliente.update({
+                    where: { id: cliente.id },
+                    data: {
+                        saldoActual: saldoNuevo,
+                        updatedAt: new Date()
+                    }
+                });
+
+                return { newTicket, newPago, saldoNuevo };
+            });
+
+            return NextResponse.json({
+                success: true,
+                message: "Pago y ticket insertados con éxito",
+                ticketId: result.newTicket.id,
+                pagoId: result.newPago.id,
+                saldoNuevo: result.saldoNuevo
+            });
+        }
+
         // --- ACCIÓN: IMPORTAR EXTRACTO BANCARIO ---
         if (action === "importar_banco") {
             const banco = (body.banco || '').toLowerCase();
