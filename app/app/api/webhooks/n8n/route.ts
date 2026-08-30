@@ -154,8 +154,7 @@ export async function POST(req: Request) {
             await prisma.pago.updateMany({
                 where: { ticketId: ticketId },
                 data: {
-                    fechaPago: parsedDate,
-                    updatedAt: new Date()
+                    fechaPago: parsedDate
                 }
             });
 
@@ -292,7 +291,7 @@ export async function POST(req: Request) {
                         where: {
                             OR: [
                                 rastreo ? { claveRastreo: rastreo } : { id: 'none' },
-                                ref ? { numeroReferencia: ref, abono: abono || undefined } : { id: 'none' },
+                                ref ? { referencia: ref, abono: abono || undefined } : { id: 'none' },
                                 { fechaOperacion: fOperacion, abono: abono || undefined, descripcionGeneral: desc }
                             ]
                         }
@@ -300,12 +299,13 @@ export async function POST(req: Request) {
                     if (!exists) {
                         await prisma.movimientoSantander22001022837.create({
                             data: {
+                                bancoOrigen: 'SANTANDER',
                                 fechaOperacion: fOperacion,
                                 descripcionGeneral: desc,
                                 cargo,
                                 abono,
-                                saldoFinalCalculado: saldo,
-                                numeroReferencia: ref,
+                                saldo,
+                                referencia: ref,
                                 claveRastreo: rastreo,
                             }
                         });
@@ -318,7 +318,7 @@ export async function POST(req: Request) {
                         where: {
                             OR: [
                                 rastreo ? { claveRastreo: rastreo } : { id: 'none' },
-                                ref ? { numeroReferencia: ref, abono: abono || undefined } : { id: 'none' },
+                                ref ? { referencia: ref, abono: abono || undefined } : { id: 'none' },
                                 { fechaOperacion: fOperacion, abono: abono || undefined, descripcionGeneral: desc }
                             ]
                         }
@@ -326,12 +326,13 @@ export async function POST(req: Request) {
                     if (!exists) {
                         await prisma.movimientoBanorte0330253963.create({
                             data: {
+                                bancoOrigen: 'BANORTE',
                                 fechaOperacion: fOperacion,
                                 descripcionGeneral: desc,
                                 cargo,
                                 abono,
-                                saldoFinalCalculado: saldo,
-                                numeroReferencia: ref,
+                                saldo,
+                                referencia: ref,
                                 claveRastreo: rastreo,
                             }
                         });
@@ -356,8 +357,8 @@ export async function POST(req: Request) {
                                 descripcionGeneral: desc,
                                 cargo,
                                 abono,
-                                saldoFinalCalculado: saldo,
-                                numeroReferencia: ref,
+                                saldo,
+                                referencia: ref,
                                 claveRastreo: rastreo,
                             }
                         });
