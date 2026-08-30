@@ -69,8 +69,7 @@ export async function GET(request: NextRequest) {
         id: true,
         name: true,
         email: true,
-        codigoGestor: true,
-        rutaAsignada: true,
+        codigoGestor: true
       },
       orderBy: { name: 'asc' }
     });
@@ -192,8 +191,8 @@ export async function GET(request: NextRequest) {
 
       const item = erpPorCliente.get(cod)!;
       const abono = parseFloat(p.monto.toString()) || 0;
-      const mora = parseFloat(p.moratorios?.toString() || '0') || 0;
-      const gcob = parseFloat((p as any).gastosCobranza?.toString() || '0') || 0;
+      const mora = parseFloat(p.interesMoratorio?.toString() || '0') || 0;
+      const gcob = parseFloat(p.gastosCobranza?.toString() || '0') || 0;
       const total = abono + mora + gcob;
 
       item.montoAbono += abono;
@@ -201,10 +200,7 @@ export async function GET(request: NextRequest) {
       item.montoGcob += gcob;
       item.montoTotal += total;
 
-      const sincronizadoContpaqi = (p.metadatos as any)?.contpaqiAfectado === true || 
-                                   (p.metadatos as any)?.contpaqiDocId !== undefined ||
-                                   (p.concepto || '').includes('ContPAQi') ||
-                                   (p.referencia || '').includes('CONTPAQI');
+      const sincronizadoContpaqi = Boolean(p.sincronizado) || (p.concepto || '').includes('ContPAQi');
 
       item.pagos.push({
         id: p.id,
@@ -213,7 +209,7 @@ export async function GET(request: NextRequest) {
         mora,
         gcob,
         montoTotal: total,
-        referencia: p.referencia || p.ticket?.folioRecibo || p.numeroRecibo || (p.concepto ? `${p.concepto}` : `Recibo #${p.id.slice(0, 8)}`),
+        referencia: p.numeroRecibo || p.ticket?.folio || (p.concepto ? `${p.concepto}` : `Recibo #${p.id.slice(0, 8)}`),
         cobrador: p.cobrador?.codigoGestor || p.cobrador?.name || item.cobrador,
         sincronizadoContpaqi
       });
@@ -313,7 +309,7 @@ export async function GET(request: NextRequest) {
         contpaqiPorCliente.set(cod, {
           pagos: pagosCpList,
           montoAbono: montoAbonoCp,
-          mora: montoMoraCp,
+          montoMora: montoMoraCp,
           montoTotal: montoAbonoCp + montoMoraCp,
           saldoContpaqi,
           pagaresPendientesCount: pagares.filter((p: any) => parseFloat(p.pendiente || 0) > 0).length
@@ -349,7 +345,7 @@ export async function GET(request: NextRequest) {
       const cpData = contpaqiPorCliente.get(cod) || {
         pagos: [],
         montoAbono: 0,
-        mora: 0,
+        montoMora: 0,
         montoTotal: 0,
         saldoContpaqi: 0,
         pagaresPendientesCount: 0
@@ -363,7 +359,7 @@ export async function GET(request: NextRequest) {
       const contpaqiTotal = parseFloat(cpData.montoTotal.toFixed(2));
       const diferenciaCobro = parseFloat((erpTotal - contpaqiTotal).toFixed(2));
       const diferenciaAbono = parseFloat((erpData.montoAbono - cpData.montoAbono).toFixed(2));
-      const diferenciaMora = parseFloat((erpData.montoMora - (cpData.mora || 0)).toFixed(2));
+      const diferenciaMora = parseFloat((erpData.montoMora - cpData.montoMora).toFixed(2));
 
       totalPagosErpCount += erpData.pagos.length;
       totalPagosContpaqiCount += cpData.pagos.length;
@@ -373,7 +369,7 @@ export async function GET(request: NextRequest) {
       montoTotalErpGlobal += erpData.montoTotal;
 
       montoAbonoContpaqiGlobal += cpData.montoAbono;
-      montoMoraContpaqiGlobal += (cpData.mora || 0);
+      montoMoraContpaqiGlobal += cpData.montoMora;
       montoTotalContpaqiGlobal += cpData.montoTotal;
 
       // Determinar Estado
@@ -428,7 +424,7 @@ export async function GET(request: NextRequest) {
         // Abonos en ContPAQi (mapeado en mysqlPagos para compatibilidad total con la UI existente)
         mysqlPagos: cpData.pagos,
         mysqlAbono: cpData.montoAbono,
-        mysqlMora: cpData.mora || 0,
+        mysqlMora: cpData.montoMora,
         mysqlGcob: 0,
         mysqlTotal: cpData.montoTotal,
 
@@ -577,7 +573,7 @@ export async function POST(request: NextRequest) {
             codigoCliente: cod,
             fecha: p.fechaPago.toISOString().slice(0, 10),
             total: abonoMonto,
-            referencia: p.ticket?.folioRecibo || p.numeroRecibo || `PAGO ERP #${p.id.slice(0, 8)}`,
+            referencia: p.ticket?.folio || p.numeroRecibo || `PAGO ERP #${p.id.slice(0, 8)}`,
             observaciones: `Registrado desde VertexERP por ${p.cobrador?.name || 'Cobrador'}`,
             empresa: emp
           });
@@ -592,12 +588,8 @@ export async function POST(request: NextRequest) {
             await prisma.pago.update({
               where: { id: p.id },
               data: {
-                metadatos: {
-                  ...((p.metadatos as any) || {}),
-                  contpaqiAfectado: true,
-                  contpaqiDocId: docId,
-                  sincronizadoEn: new Date().toISOString()
-                }
+                sincronizado: true,
+                concepto: p.concepto ? `${p.concepto} (ContPAQi Doc #${docId})` : `Afectado en ContPAQi Doc #${docId}`
               }
             });
 
@@ -729,17 +721,15 @@ export async function POST(request: NextRequest) {
             clienteId: cliente.id,
             cobradorId,
             monto: montoAbono,
-            moratorios: 0,
+            interesMoratorio: 0,
+            gastosCobranza: 0,
+            saldoAnterior: parseFloat(cliente.saldoActual.toString()),
+            saldoNuevo: Math.max(0, parseFloat(cliente.saldoActual.toString()) - montoAbono),
             fechaPago: isNaN(fechaDoc.getTime()) ? new Date() : fechaDoc,
             numeroRecibo: folioStr,
             concepto: `Abono ContPAQi Folio ${folioStr}`,
-            referencia: `CONTPAQI-DOC-${a.id || a.cIdDocumento || a.CIDDOCUMENTO}`,
-            estado: 'aplicado',
-            metadatos: {
-              contpaqiAfectado: true,
-              contpaqiDocId: a.id || a.cIdDocumento || a.CIDDOCUMENTO,
-              importadoDesde: 'ContPAQi Comercial'
-            }
+            metodoPago: 'contpaqi',
+            sincronizado: true
           }
         });
         insertados++;
