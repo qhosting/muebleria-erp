@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         name: true,
-        username: true,
+        email: true,
         codigoGestor: true,
         rutaAsignada: true,
       },
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     const cobradoresList = Array.from(
       new Set(
-        cobradoresDB.map(c => c.codigoGestor || c.name || c.username).filter(Boolean)
+        cobradoresDB.map(c => c.codigoGestor || c.name || c.email).filter(Boolean)
       )
     ).sort();
 
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
       const cobradorMatch = cobradoresDB.find(
         c => (c.codigoGestor && c.codigoGestor.toLowerCase() === cobradorFiltro.toLowerCase()) ||
              (c.name && c.name.toLowerCase() === cobradorFiltro.toLowerCase()) ||
-             (c.username && c.username.toLowerCase() === cobradorFiltro.toLowerCase()) ||
+             (c.email && c.email.toLowerCase() === cobradorFiltro.toLowerCase()) ||
              (c.id === cobradorFiltro)
       );
 
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
           { cobradorId: cobradorMatch.id },
           { cobrador: { codigoGestor: { equals: cobradorFiltro, mode: 'insensitive' } } },
           { cobrador: { name: { contains: cobradorFiltro, mode: 'insensitive' } } },
-          { cobrador: { username: { contains: cobradorFiltro, mode: 'insensitive' } } }
+          { cobrador: { email: { contains: cobradorFiltro, mode: 'insensitive' } } }
         ];
       }
     }
@@ -133,14 +133,14 @@ export async function GET(request: NextRequest) {
             id: true,
             name: true,
             codigoGestor: true,
-            username: true
+            email: true
           }
         },
         ticket: {
           select: {
             id: true,
-            folioRecibo: true,
-            fechaPago: true,
+            folio: true,
+            fecha: true,
             creadoEn: true
           }
         }

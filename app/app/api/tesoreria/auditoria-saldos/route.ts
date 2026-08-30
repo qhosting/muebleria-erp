@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
           { codigoGestor: { not: null } }
         ]
       },
-      select: { codigoGestor: true, name: true, username: true }
+      select: { codigoGestor: true, name: true, email: true }
     });
 
     const cobradoresList = Array.from(
