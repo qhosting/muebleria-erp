@@ -104,7 +104,7 @@ export async function GET(
             id: `pago-${p.id}`,
             folio: p.numeroRecibo || p.ticket?.id || 'TICKET',
             serie: 'ERP',
-            fecha: p.fechaPago ? p.fechaPago.toISOString() : p.creadoEn.toISOString(),
+            fecha: p.fechaPago ? p.fechaPago.toISOString() : (p.createdAt || new Date()).toISOString(),
             codigoConcepto: '101',
             nombreConcepto: `PAGO REGULAR (ERP / TICKET WHATSAPP)`,
             total: montoNum,
