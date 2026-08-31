@@ -61,9 +61,11 @@ export class ContpaqiService {
 
         let response;
         try {
-            // Timeout de 10 segundos para evitar que peticiones colgadas bloqueen el servidor
+            // Timeout dinámico: 30s para consultas (GET) y 60s para escrituras/creación de documentos (POST/PUT/DELETE)
+            const timeoutMs = method === 'GET' ? 30_000 : 60_000;
+            const timeoutSegundos = Math.round(timeoutMs / 1000);
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10_000);
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
             response = await fetch(finalUrl, {
                 method,
@@ -75,11 +77,13 @@ export class ContpaqiService {
             clearTimeout(timeoutId);
         } catch (e: any) {
             const isTimeout = e.name === 'AbortError';
-            const reason = isTimeout ? 'timeout después de 10s' : e.message;
+            const timeoutMs = method === 'GET' ? 30_000 : 60_000;
+            const timeoutSegundos = Math.round(timeoutMs / 1000);
+            const reason = isTimeout ? `timeout después de ${timeoutSegundos}s` : e.message;
             console.error(`❌ Fetch failed to ${finalUrl}: ${reason}`);
             throw new Error(
                 isTimeout
-                    ? `Tiempo de espera agotado al conectar con Contpaqi en ${finalUrl}. El servidor tardó más de 10 segundos en responder.`
+                    ? `Tiempo de espera agotado al conectar con Contpaqi en ${finalUrl}. El servidor tardó más de ${timeoutSegundos} segundos en responder.`
                     : `No se pudo conectar con el servidor Contpaqi en ${finalUrl}. Verifique que la URL sea correcta y el servidor esté encendido. (${e.message})`
             );
         }

@@ -27,7 +27,11 @@ export async function POST(
             codigoCliente: true,
             nombreCompleto: true,
             telefono: true,
-            direccion: true,
+            direccionCompleta: true,
+            calle: true,
+            numeroExterior: true,
+            colonia: true,
+            ciudad: true,
             diaPago: true,
             saldoActual: true,
           },
@@ -64,13 +68,20 @@ export async function POST(
     const codCli = (pago.cliente?.codigoCliente || '').toUpperCase();
     const esDQ = codCli.startsWith('DQ');
 
+    const direccionStr = pago.cliente?.direccionCompleta || [
+      pago.cliente?.calle,
+      pago.cliente?.numeroExterior,
+      pago.cliente?.colonia,
+      pago.cliente?.ciudad
+    ].filter(Boolean).join(', ');
+
     const ticketData = {
       numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-6)}`,
       cliente: {
         nombreCompleto: pago.cliente?.nombreCompleto || 'Cliente General',
         codigoCliente: pago.cliente?.codigoCliente || '',
         telefono: pago.cliente?.telefono || '',
-        direccion: pago.cliente?.direccion || '',
+        direccion: direccionStr || '',
         diaPago: pago.cliente?.diaPago || '',
       },
       cobrador: {
