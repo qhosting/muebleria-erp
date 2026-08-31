@@ -1071,43 +1071,45 @@ const resultados = allItems.map(inputItem => {
 
   // Creamos un objeto base para el resultado.
   const resultado = {
-    json: {
-      fecha: fecha,
-      hora: null,
-      tipoOperacion: item['DESCRIPCIÓN'],
-      abono: abono,
-      cargo: cargo,
-      concepto: null,
-      claveRastreo: null,
-      bancoEmisor: null,
-      bank: 'banorte'
-    }
+    fecha: fecha,
+    hora: null,
+    tipoOperacion: item['DESCRIPCIÓN'],
+    abono: abono,
+    cargo: cargo,
+    concepto: null,
+    claveRastreo: null,
+    bancoEmisor: null,
+    bank: 'banorte'
   };
 
   // --- Lógica Diferenciada por Tipo de Movimiento ---
 
   // CASO 1: Es una transferencia SPEI recibida
   if (descripcionDetallada.includes('SPEI RECIBIDO')) {
-    resultado.json.claveRastreo = extractDetail(/CVE RAST: ([\\w.\\/-]+)/, descripcionDetallada);
-    resultado.json.concepto = extractDetail(/CONCEPTO: (.*?)(?:, REFERENCIA:|, DEL CLIENTE:|, DE LA CLABE)/, descripcionDetallada);
-    resultado.json.bancoEmisor = extractDetail(/BCO:\\d+\\s(.*?):/, descripcionDetallada)?.replace(/\\s+/g, ' ');
-    resultado.json.hora = extractDetail(/HR LIQ: (\\d{2}:\\d{2}:\\d{2})/, descripcionDetallada);
+    resultado.claveRastreo = extractDetail(/CVE RAST: ([\\w.\\/-]+)/, descripcionDetallada);
+    resultado.concepto = extractDetail(/CONCEPTO: (.*?)(?:, REFERENCIA:|, DEL CLIENTE:|, DE LA CLABE)/, descripcionDetallada);
+    resultado.bancoEmisor = extractDetail(/BCO:\\d+\\s(.*?):/, descripcionDetallada)?.replace(/\\s+/g, ' ');
+    resultado.hora = extractDetail(/HR LIQ: (\\d{2}:\\d{2}:\\d{2})/, descripcionDetallada);
   
   // CASO 2: Es un TRASPASO interno
   } else if (item['DESCRIPCIÓN'] === 'TRASPASO') {
-    resultado.json.tipoOperacion = 'TRASPASO INTERNO';
-    // Para traspasos, el concepto está en la descripción detallada.
-    resultado.json.concepto = extractDetail(/DE LA CUENTA: \\d+, (.*)/, descripcionDetallada);
-    // La clave de rastreo es la referencia del CSV.
-    resultado.json.claveRastreo = item['REFERENCIA'];
-    resultado.json.bancoEmisor = 'BANORTE'; // Es una operación interna.
+    resultado.tipoOperacion = 'TRASPASO INTERNO';
+    resultado.concepto = extractDetail(/DE LA CUENTA: \\d+, (.*)/, descripcionDetallada);
+    resultado.claveRastreo = item['REFERENCIA'];
+    resultado.bancoEmisor = 'BANORTE';
   }
   
   return resultado;
 });
 
-// Devolvemos el array completo con todos los registros procesados.
-return resultados;`,
+// Devolvemos UN SOLO item para procesar en lote y enviar un único mensaje de confirmación
+return [{
+  json: {
+    banco: 'banorte',
+    totalMovimientos: resultados.length,
+    movimientos: resultados
+  }
+}];`,
     };
 
     @node({
@@ -1146,7 +1148,7 @@ for (const item of items) {
   const json = item.json;
 
   const referencia = cleanString(json['Referencia']) || 'N/A';
-  const claveRastreo = cleanString(json['Clave de Rastreo']) || 'N/A'; // <-- Aquí se fuerza que nunca sea null
+  const claveRastreo = cleanString(json['Clave de Rastreo']) || 'N/A';
   const fechaOperacion = formatDate(json['Fecha']) || 'N/A';
 
   const uniqueKey = \`\${referencia}-\${claveRastreo}-\${fechaOperacion}\`;
@@ -1168,24 +1170,29 @@ for (const item of items) {
     + \`Origen: \${nombreOrdenante || 'N/A'} (\${bancoParticipante || 'N/A'})\`;
 
   cleanedItems.push({
-    json: {
-      bank: "santander",
-      banco_origen: bancoParticipante || 'N/A',
-      fecha_operacion: fechaOperacion,
-      hora_operacion: cleanString(json['Hora']) || '00:00',
-      descripcion_general: descripcionGeneral,
-      cargo: cargo,
-      abono: abono,
-      saldo: cleanNumber(json['Saldo']),
-      referencia: referencia,
-      clave_rastreo: claveRastreo,
-      concepto: concepto,
-      descripcion_detallada: descripcionDetallada
-    }
+    bank: "santander",
+    banco_origen: bancoParticipante || 'N/A',
+    fecha_operacion: fechaOperacion,
+    hora_operacion: cleanString(json['Hora']) || '00:00',
+    descripcion_general: descripcionGeneral,
+    cargo: cargo,
+    abono: abono,
+    saldo: cleanNumber(json['Saldo']),
+    referencia: referencia,
+    clave_rastreo: claveRastreo,
+    concepto: concepto,
+    descripcion_detallada: descripcionDetallada
   });
 }
 
-return cleanedItems;
+// Devolvemos UN SOLO item para procesar en lote y enviar un único mensaje de confirmación
+return [{
+  json: {
+    banco: 'santander',
+    totalMovimientos: cleanedItems.length,
+    movimientos: cleanedItems
+  }
+}];
 `,
     };
 
@@ -1325,7 +1332,7 @@ return cleanedItems;
         jsonBody: `={
   "action": "importar_banco",
   "banco": "banorte",
-  "movimientos": {{ JSON.stringify($json) }}
+  "movimientos": {{ JSON.stringify($json.movimientos) }}
 }`,
         options: {},
     };
@@ -1345,7 +1352,7 @@ return cleanedItems;
         jsonBody: `={
   "action": "importar_banco",
   "banco": "santander",
-  "movimientos": {{ JSON.stringify($json) }}
+  "movimientos": {{ JSON.stringify($json.movimientos) }}
 }`,
         options: {},
     };
