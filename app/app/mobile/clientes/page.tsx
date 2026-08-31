@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { VisualizarTicketModal } from "@/components/mobile/visualizar-ticket-modal";
 import { useSearchParams } from "next/navigation";
 import { usePlatform } from "@/hooks/usePlatform";
-import { formatWhatsAppNumber, copyToClipboard } from "@/lib/utils";
+import { formatWhatsAppNumber, copyToClipboard, formatDate } from "@/lib/utils";
 import { sharePdfNative } from "@/lib/native/share";
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { VerificacionModal } from "@/components/mobile/verificacion-modal";
@@ -1473,7 +1473,7 @@ function MobileClientes() {
                                                 </div>
                                                 <div className="flex items-center gap-1.5 text-slate-400 text-xs">
                                                     <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                                                    <span>{new Date(pago.fechaPago).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                                                    <span>{formatDate(pago.fechaPago)}</span>
                                                 </div>
                                                 <p className="text-[11px] text-slate-300 font-medium truncate max-w-[170px]">{pago.concepto || 'Pago Regular'}</p>
                                             </div>

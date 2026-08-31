@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Download, Filter, Receipt, Users, Banknote, Building2 } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
 interface User {
@@ -171,11 +171,8 @@ export default function PagosGestorPage() {
 
         // Hoja 3: Pagos Detallados
         const detalleData = detallado.map(p => {
-            const fechaPagoSolo = new Date(p.fechaPago).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            const fechaYHora = new Date(p.fechaPago).toLocaleString('es-MX', {
-                day: '2-digit', month: '2-digit', year: 'numeric',
-                hour: '2-digit', minute: '2-digit', second: '2-digit'
-            }).replace(',', '');
+            const fechaPagoSolo = formatDate(p.fechaPago);
+            const fechaYHora = formatDateTime(p.fechaPago);
 
             const referencia = p.numeroRecibo || p.ticket?.referencia || p.ticket?.folio || "PENDIENTE";
             const moratorioVal = getMoratorioVal(p);

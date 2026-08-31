@@ -3,6 +3,7 @@
 import React from 'react';
 import { X, Printer, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { formatDateTime } from '@/lib/utils';
 
 export interface TicketData {
   numeroRecibo?: string;
@@ -78,16 +79,7 @@ export function VisualizarTicketModal({
   };
 
   const formatDate = (dateString: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-    return date.toLocaleDateString('es-MX', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatDateTime(dateString);
   };
 
   const totalRecibido =

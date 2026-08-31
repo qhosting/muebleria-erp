@@ -3,6 +3,7 @@
 
 import { Capacitor } from '@capacitor/core';
 import { BleClient, BluetoothLe } from '@capacitor-community/bluetooth-le';
+import { formatDate, formatDateTime } from './utils';
 
 // Definiciones de tipos para Web Bluetooth API
 declare global {
@@ -528,14 +529,7 @@ class BluetoothPrinterService {
   }
 
   private formatDate(dateString: string): string {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-MX', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return formatDateTime(dateString);
   }
 
   private getDayName(dayNumber: string): string {
@@ -585,10 +579,10 @@ class BluetoothPrinterService {
       ticket += (range ? 'CORTE DE COBRANZA' : 'REPORTE DIARIO DE COBRANZA') + this.LF;
       
       if (range) {
-        ticket += 'DE: ' + this.formatDate(range.from) + this.LF;
-        ticket += 'A:  ' + this.formatDate(range.to) + this.LF;
+        ticket += 'DE: ' + formatDate(range.from) + this.LF;
+        ticket += 'A:  ' + formatDate(range.to) + this.LF;
       } else {
-        ticket += new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString() + this.LF;
+        ticket += formatDateTime(new Date()) + this.LF;
       }
       
       ticket += this.COMMANDS.BOLD_OFF;
@@ -756,7 +750,7 @@ class BluetoothPrinterService {
       ticket += this.COMMANDS.CENTER;
       ticket += this.COMMANDS.BOLD_ON;
       ticket += 'ARQUEO DE CAJA' + this.LF;
-      ticket += new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString() + this.LF;
+      ticket += formatDateTime(new Date()) + this.LF;
       ticket += this.COMMANDS.BOLD_OFF;
       ticket += this.createDivider() + this.LF;
 

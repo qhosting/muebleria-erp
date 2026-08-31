@@ -571,7 +571,7 @@ export default function PagosPage() {
                         <td className="p-3">
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm">{formatDate(new Date(pago.fechaPago))}</span>
+                            <span className="text-sm">{formatDate(pago.fechaPago)}</span>
                           </div>
                         </td>
                         <td className="p-3">

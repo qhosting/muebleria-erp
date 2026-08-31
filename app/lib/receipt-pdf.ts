@@ -1,4 +1,4 @@
-import { formatCurrency } from './utils';
+import { formatCurrency, formatDateTime } from './utils';
 
 export async function generateReceiptPdf(ticketData: any) {
   const { jsPDF } = await import('jspdf');
@@ -90,9 +90,7 @@ export async function generateReceiptPdf(ticketData: any) {
   doc.setFont('helvetica', 'bold');
   doc.text('FECHA:', 6, 55);
   doc.setFont('helvetica', 'normal');
-  const fechaStr = ticketData.pago?.fechaPago 
-    ? new Date(ticketData.pago.fechaPago).toLocaleString()
-    : new Date().toLocaleString();
+  const fechaStr = formatDateTime(ticketData.pago?.fechaPago || new Date());
   doc.text(fechaStr, 25, 55);
 
   // 3. Detalle de los Conceptos Recibidos (Tabla)

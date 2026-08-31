@@ -22,11 +22,22 @@ export function formatCurrency(amount: number | string | null | undefined, decim
   }).format(value as number);
 }
 
+const TIMEZONE_CDMX = 'America/Mexico_City';
+
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return 'N/A';
 
-  let dateObj: Date;
+  // Si es un string simple con formato YYYY-MM-DD o ISO con medianoche UTC
+  if (typeof date === 'string') {
+    const trimmed = date.trim();
+    const dateOnlyMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](00:00(?::00(?:\.000)?)?(?:Z|[+-]00:00)?))?$/);
+    if (dateOnlyMatch) {
+      const [, year, month, day] = dateOnlyMatch;
+      return `${day}/${month}/${year}`;
+    }
+  }
 
+  let dateObj: Date;
   if (typeof date === 'string') {
     dateObj = new Date(date);
   } else {
@@ -38,7 +49,16 @@ export function formatDate(date: Date | string | null | undefined): string {
     return 'Fecha inválida';
   }
 
+  // Si el objeto Date tiene medianoche exacta UTC (00:00:00.000Z), representa una fecha pura sin hora registrada
+  if (dateObj.getUTCHours() === 0 && dateObj.getUTCMinutes() === 0 && dateObj.getUTCSeconds() === 0 && dateObj.getUTCMilliseconds() === 0) {
+    const day = String(dateObj.getUTCDate()).padStart(2, '0');
+    const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+    const year = dateObj.getUTCFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
   return new Intl.DateTimeFormat('es-MX', {
+    timeZone: TIMEZONE_CDMX,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -62,16 +82,18 @@ export function formatDateTime(date: Date | string | null | undefined): string {
   }
 
   return new Intl.DateTimeFormat('es-MX', {
+    timeZone: TIMEZONE_CDMX,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: true,
   }).format(dateObj);
 }
 
 /**
- * Parsea una fecha de ticket de forma segura.
+ * Parsea una fecha de ticket de forma segura en zona horaria CDMX (UTC-6).
  * Si la fecha proporcionada es nula, vacía, "null", "N/A" o inválida,
  * toma la fecha y hora del momento en que se procesa/envía (new Date()).
  */
@@ -80,22 +102,59 @@ export function parseValidDate(dateInput?: Date | string | null, hrInput?: strin
     return new Date();
   }
 
-  const d = typeof dateInput === 'string' ? new Date(dateInput) : new Date(dateInput.getTime());
-
-  if (isNaN(d.getTime())) {
-    return new Date();
+  if (dateInput instanceof Date) {
+    if (isNaN(dateInput.getTime())) return new Date();
+    return dateInput;
   }
 
+  const str = String(dateInput).trim();
+  
+  let y = 0, m = 0, d = 0;
+  const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const mxMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+
+  let hr = 12, min = 0, sec = 0;
+  let hasExplicitTime = false;
+
   if (hrInput && typeof hrInput === 'string' && hrInput !== 'null' && hrInput !== 'undefined') {
-    const parts = hrInput.split(':');
+    const parts = hrInput.trim().split(':');
     if (parts.length >= 2) {
-      d.setHours(parseInt(parts[0]) || 0);
-      d.setMinutes(parseInt(parts[1]) || 0);
-      d.setSeconds(parseInt(parts[2]) || 0);
+      hr = parseInt(parts[0], 10) || 0;
+      min = parseInt(parts[1], 10) || 0;
+      sec = parseInt(parts[2], 10) || 0;
+      hasExplicitTime = true;
     }
   }
 
-  return d;
+  if (isoMatch) {
+    y = parseInt(isoMatch[1], 10);
+    m = parseInt(isoMatch[2], 10);
+    d = parseInt(isoMatch[3], 10);
+    const timeMatch = str.match(/[T\s](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+    if (timeMatch && !hasExplicitTime) {
+      hr = parseInt(timeMatch[1], 10) || 0;
+      min = parseInt(timeMatch[2], 10) || 0;
+      sec = parseInt(timeMatch[3], 10) || 0;
+    }
+  } else if (mxMatch) {
+    d = parseInt(mxMatch[1], 10);
+    m = parseInt(mxMatch[2], 10);
+    y = parseInt(mxMatch[3], 10);
+  } else {
+    const fallback = new Date(str);
+    return isNaN(fallback.getTime()) ? new Date() : fallback;
+  }
+
+  const yStr = String(y).padStart(4, '0');
+  const mStr = String(m).padStart(2, '0');
+  const dStr = String(d).padStart(2, '0');
+  const hrStr = String(hr).padStart(2, '0');
+  const minStr = String(min).padStart(2, '0');
+  const secStr = String(sec).padStart(2, '0');
+
+  const cdmxIso = `${yStr}-${mStr}-${dStr}T${hrStr}:${minStr}:${secStr}-06:00`;
+  const result = new Date(cdmxIso);
+  return isNaN(result.getTime()) ? new Date() : result;
 }
 
 export function getDayName(dayNumber: string): string {
