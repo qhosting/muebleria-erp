@@ -575,7 +575,7 @@ export default function AuditoriaSaldosPage() {
                             {c.cobrador}
                           </td>
                           <td className="p-3.5 text-right font-medium text-gray-800">
-                            {formatCurrency(c.saldoMysqlActual || c.saldoErpActual)}
+                            {formatCurrency(c.saldoErpActual)}
                           </td>
                           <td className="p-3.5 text-right font-medium text-gray-800">
                             {formatCurrency(c.saldoContpaqiApi)}
@@ -594,7 +594,7 @@ export default function AuditoriaSaldosPage() {
                             {isDesfase ? (
                               <Badge variant="destructive" className="gap-1 text-[11px] font-semibold py-0.5">
                                 <AlertCircle className="h-3 w-3" />
-                                Desfase ({formatCurrency(c.diferenciaMysql)})
+                                Desfase ({formatCurrency(c.diferenciaErp)})
                               </Badge>
                             ) : isPendiente ? (
                               <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 gap-1 text-[11px] font-semibold py-0.5 border border-amber-200">
@@ -782,7 +782,7 @@ export default function AuditoriaSaldosPage() {
                   <div className="border-x border-gray-200">
                     <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Saldo Actual Registrado</p>
                     <p className="text-lg font-bold text-gray-900 mt-0.5">
-                      {formatCurrency(modalCliente.saldoMysqlActual || modalCliente.saldoErpActual)}
+                      {formatCurrency(modalCliente.saldoErpActual)}
                     </p>
                     <p className="text-[10px] text-gray-500">En base de cobranza</p>
                   </div>

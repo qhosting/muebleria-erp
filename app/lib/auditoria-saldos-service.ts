@@ -130,13 +130,21 @@ export async function auditarSaldosCliente(
       })
     : [];
 
+  const abonosCobranza = abonosContpaqi.filter(a => {
+    const ref = (a.referencia || '').trim().toUpperCase();
+    return !ref.includes('FACTURA') && !ref.includes('ENGANCHE');
+  });
+
+  const totalAbonosContpaqi = abonosContpaqi.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
+  const totalAbonosCobranzaContpaqi = abonosCobranza.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
+
   const abonosSinAsociar = abonosContpaqi.filter(a => parseFloat(a.pendiente || a.CPENDIENTE || 0) > 0)
     .reduce((acc: number, a: any) => acc + (parseFloat(a.pendiente || a.CPENDIENTE || 0) || 0), 0);
 
-  const totalAbonosContpaqi = abonosContpaqi.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
-
   const saldoContpaqiApi = pagares.length > 0
-    ? Math.max(0, parseFloat((totalPendientePagares - abonosSinAsociar).toFixed(2)))
+    ? (totalAbonosCobranzaContpaqi > 0 && totalPagaresMonto > 0
+        ? Math.max(0, parseFloat((totalPagaresMonto - totalAbonosCobranzaContpaqi).toFixed(2)))
+        : Math.max(0, parseFloat((totalPendientePagares - abonosSinAsociar).toFixed(2))))
     : (docs.find((d: any) => ['100', '4', '5'].includes(String(d.codigoConcepto || '').trim()) && !d.cancelado)?.pendiente || 0);
 
   // Indexar documentos de ContPAQi por folio y referencia
@@ -303,10 +311,10 @@ export async function auditarSaldosCliente(
     cobrador,
     saldoContpaqiApi,
     saldoErpActual,
-    saldoMysqlActual: saldoContpaqiApi,
+    saldoMysqlActual: saldoErpActual,
     saldoRealCalculado,
     diferenciaErp,
-    diferenciaMysql: 0,
+    diferenciaMysql: diferenciaErp,
     estadoCuadre,
     totalPagosAuditados: listaPagosUnificados.length,
     pagosPendientesContpaqi: pagosPendientesCount,
