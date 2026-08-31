@@ -234,7 +234,7 @@ export class Tickets2Workflow {
 
 **INSTRUCCIONES POR CAMPO:**
 
--   \`contrato\`: Este valor se proporciona externamente, no lo busques en la imagen.
+-   \`contrato\`: Si observas el código de contrato (DP o DQ seguido de 5 a 8 dígitos, ej: "DP2605137", "DQ2506016") anotado o impreso en el comprobante, extráelo. De lo contrario, devuelve \`null\`.
 -   \`monto\`: El importe principal de la transacción, ignorando siempre comisiones, IVA o el "PAGO TOTAL".
 -   \`referencia\`: Busca el número de "REFERENCIA". Si está oculto con asteriscos (ej: \`**********1858\`), extrae solo la parte numérica. Si el campo no existe, el valor es \`null\`.
 -   \`folio\`: **INSTRUCCIÓN ACTUALIZADA:**
@@ -306,25 +306,26 @@ export class Tickets2Workflow {
 // PASO 1: OBTENER EL CONTRATO Y EL REMITENTE
 let contratoInicial = null;
 let remitenteInicial = null;
+
 try {
-  contratoInicial = $('Enrutador Principal')?.item?.json?.contrato;
-  remitenteInicial = $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid;
+  contratoInicial = $('Enrutador Principal')?.item?.json?.contrato ||
+                    $('Estandarizar Variables de Imagen')?.item?.json?.contrato ||
+                    $('Estandarizar Variables de Imagen')?.item?.json?.contacto ||
+                    $('Buscar_Ticket_Pendiente')?.item?.json?.contrato ||
+                    $('Validar Respuesta de Texto')?.item?.json?.contrato ||
+                    $('Unir Datos de Busqueda')?.item?.json?.contrato ||
+                    $json.contrato ||
+                    $json.contacto;
 } catch (e) {}
 
-if (!contratoInicial || !remitenteInicial) {
-  try {
-    if (!contratoInicial) contratoInicial = $('Unir Datos de Busqueda')?.item?.json?.contrato;
-    if (!remitenteInicial) remitenteInicial = $('Unir Datos de Busqueda')?.item?.json?.remitente;
-  } catch (e) {}
-}
-
-if (!remitenteInicial) {
-  try {
-    remitenteInicial = $('Webhook WAHA')?.first()?.json?.body?.payload?.from || 
-                       $('Webhook')?.first()?.json?.body?.data?.key?.remoteJid ||
-                       $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.key?.remoteJid;
-  } catch (e) {}
-}
+try {
+  remitenteInicial = $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid ||
+                     $('Estandarizar Variables de Imagen')?.item?.json?.remitente ||
+                     $('Unir Datos de Busqueda')?.item?.json?.remitente ||
+                     $('Webhook WAHA')?.first()?.json?.body?.payload?.from ||
+                     $('Webhook')?.first()?.json?.body?.data?.key?.remoteJid ||
+                     $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.key?.remoteJid;
+} catch (e) {}
 
 // PASO 2: OBTENER Y LIMPIAR LA RESPUESTA DE LA IA
 const iaResponseString = $('Analyze image').first().json.content;
@@ -343,10 +344,18 @@ try {
   return [{ json: { validData: false, error: "Formato de IA inválido." } }];
 }
 
+// Si la IA extrajo un contrato y no teníamos uno previo, usarlo
+if (!contratoInicial && parsedJson.contrato) {
+  const matchAIContrato = String(parsedJson.contrato).toUpperCase().match(/(DP|DQ)(\\d{5,8})/i);
+  if (matchAIContrato) {
+    contratoInicial = (matchAIContrato[1] + matchAIContrato[2]).toUpperCase();
+  }
+}
+
 // PASO 4: CONSTRUIR EL OBJETO DE DATOS FINAL
 const extractedData = {
   contrato: contratoInicial,
-  remitente: remitenteInicial, // <-- MODIFICACIÓN AÑADIDA
+  remitente: remitenteInicial,
   monto: parsedJson.monto || null,
   referencia: parsedJson.referencia || null,
   folio: parsedJson.folio || null,
@@ -357,12 +366,9 @@ const extractedData = {
 };
 
 // PASO 5: VALIDACIÓN DE LOS DATOS
-if (extractedData.monto && extractedData.fecha) {
-  const montoNumerico = parseFloat(extractedData.monto);
-  const fechaValida = /^\\d{4}-\\d{2}-\\d{2}$/.test(extractedData.fecha);
-  const horaValida = !extractedData.hr || /^\\d{2}:\\d{2}:\\d{2}$/.test(extractedData.hr);
-
-  if (!isNaN(montoNumerico) && fechaValida && horaValida) {
+if (extractedData.monto) {
+  const montoNumerico = parseFloat(String(extractedData.monto).replace(/[\\$,]/g, ''));
+  if (!isNaN(montoNumerico)) {
     extractedData.monto = montoNumerico.toFixed(2);
     extractedData.validData = true;
   }
@@ -459,8 +465,9 @@ if (tipoMensaje === 'imageMessage') {
   const cleanCaption = rawCaption.toUpperCase().replace(/[^A-Z0-9]/g, '');
   
   // Buscar contrato DP o DQ con 5 a 8 dígitos en cualquier parte del caption
-  const matchContrato = rawCaption.match(/(?:^||s|#)(DP|DQ)s*(d{5,8})(?:|s|$)/i) || 
-                        cleanCaption.match(/^(DP|DQ)(d{5,8})$/i);
+  const matchContrato = cleanCaption.match(/(DP|DQ)(\\d{5,8})/i) ||
+                        rawCaption.match(/(?:^|[\\s#])(DP|DQ)\\s*(\\d{5,8})(?:[\\s,]|$)/i) ||
+                        rawCaption.match(/(DP|DQ)\\s*(\\d{5,8})/i);
 
   if (matchContrato) {
     // A1. Formato VÁLIDO extraído del caption
@@ -491,7 +498,7 @@ return [{
   json: {
     ...$json, // Pasamos todos los datos originales
     accion: accion,
-    contrato: contrato // <-- ¡CORRECCIÓN CLAVE! Devolvemos el contrato.
+    contrato: contrato
   }
 }];`,
     };
@@ -518,7 +525,7 @@ return [{
                         conditions: [
                             {
                                 leftValue: '={{ $json.accion }}',
-                                rightValue: '=CONTINUAR_CON_CAPTION',
+                                rightValue: 'CONTINUAR_CON_CAPTION',
                                 operator: {
                                     type: 'string',
                                     operation: 'equals',
@@ -2263,8 +2270,14 @@ return [{
             assignments: [
                 {
                     id: 'c03ccc3a-c1f6-49b5-b587-fef118d98824',
+                    name: 'contrato',
+                    value: '={{ $json.contrato || $json.cod_cliente || $json.contrato_respuesta || $json.contacto }}',
+                    type: 'string',
+                },
+                {
+                    id: 'c03ccc3a-c1f6-49b5-b587-fef118d98825',
                     name: 'contacto',
-                    value: '={{ $json.contrato || $json.cod_cliente || $json.contrato_respuesta }}',
+                    value: '={{ $json.contrato || $json.cod_cliente || $json.contrato_respuesta || $json.contacto }}',
                     type: 'string',
                 },
                 {
@@ -2303,7 +2316,7 @@ return [{
             assignments: [
                 {
                     id: '403811d6-bdb6-48c1-8575-457227817f2e',
-                    name: '=contrato',
+                    name: 'contrato',
                     value: "={{ $('Buscar Cliente por Teléfono').item.json.cod_cliente }}",
                     type: 'string',
                 },
