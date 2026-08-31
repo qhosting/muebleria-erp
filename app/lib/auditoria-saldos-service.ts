@@ -237,6 +237,8 @@ export async function auditarSaldosCliente(
   let pagosPendientesCount = 0;
   let pagosAplicadosCount = 0;
 
+  const maxContpaqiTime = contpaqiFechaMontoList.length > 0 ? Math.max(...contpaqiFechaMontoList.map((d) => d.time)) : 0;
+
   for (const p of listaPagosUnificados) {
     const refUpper = (p.referencia || '').trim().toUpperCase();
 
@@ -272,6 +274,21 @@ export async function auditarSaldosCliente(
 
       if (candidatos.length > 0) {
         docEncontrado = candidatos[0].item.raw;
+      }
+    }
+
+    // 4. Fallback histórico: si el pago se realizó dentro del periodo histórico de ContPAQi (antes o en la fecha del último abono registrado) y ContPAQi tiene abonos disponibles del mismo monto
+    if (!docEncontrado && p.effectiveTime && p.monto > 0 && maxContpaqiTime > 0 && p.effectiveTime <= maxContpaqiTime + (1000 * 60 * 60 * 24 * 2)) {
+      const candidatosHistoricos = contpaqiFechaMontoList
+        .filter((d) => !d.usado && Math.abs(d.total - p.monto) < 0.01)
+        .map((d) => ({
+          item: d,
+          diffDays: Math.abs(d.time - p.effectiveTime) / (1000 * 60 * 60 * 24)
+        }))
+        .sort((a, b) => a.diffDays - b.diffDays);
+
+      if (candidatosHistoricos.length > 0) {
+        docEncontrado = candidatosHistoricos[0].item.raw;
       }
     }
 
