@@ -139,12 +139,25 @@ export async function auditarSaldosCliente(
   const totalAbonosContpaqi = abonosContpaqi.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
   const totalAbonosCobranzaContpaqi = abonosCobranza.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
 
-  const abonosSinAsociar = abonosContpaqi.filter(a => parseFloat(a.pendiente || a.CPENDIENTE || 0) > 0)
-    .reduce((acc: number, a: any) => acc + (parseFloat(a.pendiente || a.CPENDIENTE || 0) || 0), 0);
+  const facturasContpaqi = Array.isArray(docs)
+    ? docs.filter((d: any) => {
+        if (d.cancelado) return false;
+        const c = String(d.codigoConcepto || d.Concepto || d.concepto || d.CCODIGOCONCEPTO || d.CIDCONCEPTO || '').trim();
+        return ['100', '4', '5'].includes(c);
+      })
+    : [];
+  const totalFacturasMonto = facturasContpaqi.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
 
-  const saldoContpaqiApi = pagares.length > 0
-    ? Math.max(0, parseFloat(totalPendientePagares.toFixed(2)))
-    : parseFloat((docs.find((d: any) => ['100', '4', '5'].includes(String(d.codigoConcepto || '').trim()) && !d.cancelado)?.pendiente || 0).toString());
+  let saldoContpaqiApi = 0;
+  if (totalFacturasMonto > 0) {
+    saldoContpaqiApi = Math.max(0, parseFloat((totalFacturasMonto - totalAbonosContpaqi).toFixed(2)));
+  } else if (pagares.length > 0) {
+    const pagaresCuota = pagares.filter((d: any) => String(d.codigoConcepto || d.Concepto || '').trim() === '16');
+    const totalPagaresCuota = pagaresCuota.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || 0) || 0), 0);
+    saldoContpaqiApi = Math.max(0, parseFloat((totalPagaresCuota - totalAbonosCobranzaContpaqi).toFixed(2)));
+  } else {
+    saldoContpaqiApi = Math.max(0, parseFloat(totalPendientePagares.toFixed(2)));
+  }
 
   // Indexar documentos de ContPAQi por folio y referencia
   const contpaqiFechaMontoList: any[] = [];

@@ -138,27 +138,35 @@ export async function GET(request: NextRequest) {
             try {
                 const documentos = await service.getClientDocumentos(codigo);
                 if (Array.isArray(documentos) && documentos.length > 0) {
-                    // A. Calcular saldo fiel desde pagarés (Concepto 16)
-                    const pagares = documentos.filter((doc: any) => {
-                        const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
-                        return conceptoDoc === '16' && !doc.cancelado;
-                    });
-
-                    if (pagares.length > 0) {
-                        const totalPendientePagares = pagares.reduce((acc: number, doc: any) => acc + (parseFloat(doc.pendiente || doc.CPENDIENTE || 0) || 0), 0);
-                        const abonosSinAsociar = documentos.filter((doc: any) => {
-                            const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
-                            return ['101', '102'].includes(conceptoDoc) && !doc.cancelado && (parseFloat(doc.pendiente || doc.CPENDIENTE || 0) > 0);
-                        }).reduce((acc: number, doc: any) => acc + (parseFloat(doc.pendiente || doc.CPENDIENTE || 0) || 0), 0);
-
-                        saldoReal = Math.max(0, parseFloat((totalPendientePagares - abonosSinAsociar).toFixed(2)));
-                    }
-
-                    // B. Filtrar por conceptos de factura conocidos (ej: "100", "4", "5", etc.)
+                    // A. Calcular saldo fiel: Total Venta (Factura o Pagarés) - Total Abonos recibidos
                     const facturas = documentos.filter((doc: any) => {
-                        const conceptoDoc = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
-                        return ['100', '4', '5'].includes(conceptoDoc);
+                        const c = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
+                        return ['100', '4', '5'].includes(c) && !doc.cancelado;
                     });
+                    const pagares = documentos.filter((doc: any) => {
+                        const c = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
+                        return ['16', '17'].includes(c) && !doc.cancelado;
+                    });
+                    const abonos = documentos.filter((doc: any) => {
+                        const c = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
+                        return ['101', '102'].includes(c) && !doc.cancelado;
+                    });
+
+                    const totalFacturas = facturas.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
+                    const totalAbonos = abonos.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
+
+                    if (totalFacturas > 0) {
+                        saldoReal = Math.max(0, parseFloat((totalFacturas - totalAbonos).toFixed(2)));
+                    } else if (pagares.length > 0) {
+                        const pagaresCuota = pagares.filter((d: any) => String(d.codigoConcepto || d.Concepto || '').trim() === '16');
+                        const totalPagaresCuota = pagaresCuota.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
+                        const abonosCobranza = abonos.filter((a: any) => {
+                            const ref = (a.referencia || '').trim().toUpperCase();
+                            return !ref.includes('FACTURA') && !ref.includes('ENGANCHE');
+                        });
+                        const totalAbonosCobranza = abonosCobranza.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || 0) || 0), 0);
+                        saldoReal = Math.max(0, parseFloat((totalPagaresCuota - totalAbonosCobranza).toFixed(2)));
+                    }
 
                     if (facturas.length > 0) {
                         // Tomamos la factura de fecha más antigua (compra original)
