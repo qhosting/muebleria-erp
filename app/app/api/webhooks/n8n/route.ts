@@ -654,6 +654,7 @@ export async function POST(req: Request) {
         // Solo considerar referencia única si tiene al menos 7 dígitos y no es cuenta/tarjeta destino común
         const isNumericRef = Boolean(referencia && referencia !== 'null' && /^\d{7,}$/.test(String(referencia).trim()) && !isCompanyAccountRef);
         const isNumericFolio = Boolean(folio && folio !== 'null' && /^\d{6,}$/.test(String(folio).trim()));
+        const forzarCreacion = Boolean(body.forzar || body.force);
         const existingTicket = forzarCreacion ? null : await prisma.ticket.findFirst({
             where: {
                 clienteId: cliente.id,
