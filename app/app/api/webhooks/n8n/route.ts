@@ -272,7 +272,8 @@ export async function POST(req: Request) {
         // --- ACCIÓN: IMPORTAR EXTRACTO BANCARIO ---
         if (action === "importar_banco") {
             const banco = (body.banco || '').toLowerCase();
-            const movimientos = Array.isArray(body.movimientos) ? body.movimientos : [];
+            const rawMovs = body.movimientos || body.movimiento;
+            const movimientos = Array.isArray(rawMovs) ? rawMovs : (rawMovs && typeof rawMovs === 'object' ? [rawMovs] : []);
 
             let insertados = 0;
             let omitidos = 0;
@@ -324,11 +325,14 @@ export async function POST(req: Request) {
                         }
                     });
                     if (!exists) {
+                        const hOp = m.hora ? new Date(`1970-01-01T${m.hora}.000Z`) : undefined;
                         await prisma.movimientoBanorte0330253963.create({
                             data: {
-                                bancoOrigen: 'BANORTE',
+                                bancoOrigen: m.bancoEmisor || 'BANORTE',
                                 fechaOperacion: fOperacion,
+                                horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
                                 descripcionGeneral: desc,
+                                concepto: m.concepto || desc,
                                 cargo,
                                 abono,
                                 saldo,
