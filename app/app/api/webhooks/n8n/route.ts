@@ -648,11 +648,12 @@ export async function POST(req: Request) {
         const parsedSearchDate = (fecha && fecha !== 'null' && fecha !== 'undefined') ? new Date(fecha) : undefined;
         const safeSearchDate = (parsedSearchDate && !isNaN(parsedSearchDate.getTime())) ? parsedSearchDate : undefined;
         
-        // Referencias estructuradas (con dígitos de al menos 4 caracteres) excluyendo números de cuenta bancaria destino de la empresa
-        const companyAccounts = ['0228372', '22001022837', '65505732541', '0330253963'];
+        // Referencias estructuradas (excluyendo números de tarjeta / cuenta destino de la empresa como 1858, 2837, etc.)
+        const companyAccounts = ['0228372', '22001022837', '65505732541', '0330253963', '1858', '2837', '5396', '0228'];
         const isCompanyAccountRef = companyAccounts.some(acc => referencia && String(referencia).includes(acc));
-        const isNumericRef = Boolean(referencia && referencia !== 'null' && /\d{4,}/.test(referencia) && !isCompanyAccountRef);
-        const isNumericFolio = Boolean(folio && folio !== 'null' && /\d{4,}/.test(folio));
+        // Solo considerar referencia única si tiene al menos 7 dígitos y no es cuenta/tarjeta destino común
+        const isNumericRef = Boolean(referencia && referencia !== 'null' && /^\d{7,}$/.test(String(referencia).trim()) && !isCompanyAccountRef);
+        const isNumericFolio = Boolean(folio && folio !== 'null' && /^\d{6,}$/.test(String(folio).trim()));
         const forzarCreacion = Boolean(body.forzar || body.force);
 
         const existingTicket = forzarCreacion ? null : await prisma.ticket.findFirst({
@@ -661,8 +662,8 @@ export async function POST(req: Request) {
                 OR: [
                     (legacyIdNum) ? { legacyId: legacyIdNum } : { id: 'none' },
                     (claverastreo && claverastreo !== 'null' && claverastreo.length >= 10) ? { claveRastreo: claverastreo } : { id: 'none' },
-                    (isNumericRef) ? { referencia: referencia } : { id: 'none' },
-                    (isNumericFolio) ? { folio: folio } : { id: 'none' },
+                    (isNumericRef && safeSearchDate) ? { referencia: referencia, fecha: safeSearchDate } : (isNumericRef ? { referencia: referencia } : { id: 'none' }),
+                    (isNumericFolio && safeSearchDate) ? { folio: folio, fecha: safeSearchDate } : { id: 'none' },
                     {
                         monto: parseFloat(monto || '0'),
                         creadoEn: { gte: fifteenMinutesAgo }
