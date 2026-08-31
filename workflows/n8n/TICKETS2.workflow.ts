@@ -9,7 +9,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // Property name                    Node type (short)         Flags
 // Imagen                             convertToFile
 // AnalyzeImage                       openAi                     [creds]
-// InsertarTicket                     httpRequest
+// InsertarTicket                     httpRequest                [onError→regular] [retry]
 // ExtraeDatos                        code
 // Mensaje                            code
 // EnrutadorPrincipal                 code
@@ -269,6 +269,8 @@ export class Tickets2Workflow {
         type: 'n8n-nodes-base.httpRequest',
         version: 4.2,
         position: [2224, 784],
+        onError: 'continueRegularOutput',
+        retryOnFail: true,
     })
     InsertarTicket = {
         method: 'POST',
@@ -453,20 +455,20 @@ let contrato = null; // Variable para guardar el contrato
 // --- ESCENARIO 1: El mensaje es una IMAGEN ---
 if (tipoMensaje === 'imageMessage') {
   // Limpiamos y pasamos a mayúsculas el caption
-  const caption = (body.data.message.imageMessage.caption || '').trim().toUpperCase();
+  const rawCaption = (body.data.message.imageMessage.caption || '').trim();
+  const cleanCaption = rawCaption.toUpperCase().replace(/[^A-Z0-9]/g, '');
   
-  if (caption !== '') {
-    // A. SI HAY CAPTION: Validamos el formato
-    const formatoValido = /^(DQ|DP)\\d{7}$/.test(caption);
+  // Buscar contrato DP o DQ con 5 a 8 dígitos en cualquier parte del caption
+  const matchContrato = rawCaption.match(/(?:^||s|#)(DP|DQ)s*(d{5,8})(?:|s|$)/i) || 
+                        cleanCaption.match(/^(DP|DQ)(d{5,8})$/i);
 
-    if (formatoValido) {
-      // A1. Formato VÁLIDO: Guardamos el contrato y continuamos.
-      accion = 'CONTINUAR_CON_CAPTION';
-      contrato = caption; // <-- ¡CORRECCIÓN CLAVE! Guardamos el contrato aquí.
-    } else {
-      // A2. Formato INVÁLIDO: Activamos la ruta para notificar el error.
-      accion = 'FORMATO_CAPTION_INVALIDO';
-    }
+  if (matchContrato) {
+    // A1. Formato VÁLIDO extraído del caption
+    accion = 'CONTINUAR_CON_CAPTION';
+    contrato = (matchContrato[1] + matchContrato[2]).toUpperCase();
+  } else if (rawCaption !== '') {
+    // Si hay texto pero no es un contrato explícito, intentar buscar por teléfono antes de fallar
+    accion = 'BUSCAR_POR_TELEFONO';
   } else {
     // B. SI NO HAY CAPTION: Activamos la búsqueda por teléfono.
     accion = 'BUSCAR_POR_TELEFONO';
@@ -2062,7 +2064,6 @@ return [{
                 },
             ],
         },
-        options: {},
     };
 
     @node({

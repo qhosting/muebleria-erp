@@ -185,7 +185,6 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
     name: 'TICKETS',
     active: true,
     isArchived: false,
-    projectId: 'a7Cqq8ZCzgtHPblJ',
     settings: {
         executionOrder: 'v1',
         availableInMCP: false,
