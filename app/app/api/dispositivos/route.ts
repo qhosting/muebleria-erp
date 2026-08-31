@@ -5,12 +5,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
 // Middleware simple para asegurar que solo admin acceda
+// Middleware para asegurar acceso administrativo
 async function checkAdmin() {
   const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user as any).role !== 'admin') {
-    return false;
-  }
-  return true;
+  const role = (session?.user as any)?.role;
+  const allowed = ['admin', 'direccion', 'jefe_ventas', 'gerente', 'auditor'];
+  return allowed.includes(role);
 }
 
 /**
@@ -139,14 +139,16 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { id, isAuthorized, nombre } = body;
+    const { id, isAuthorized, nombre, userId } = body;
+
+    const dataToUpdate: any = {};
+    if (typeof isAuthorized === 'boolean') dataToUpdate.isAuthorized = isAuthorized;
+    if (nombre !== undefined) dataToUpdate.nombre = nombre;
+    if (userId !== undefined) dataToUpdate.userId = userId;
 
     const device = await prisma.dispositivoAutorizado.update({
       where: { id },
-      data: {
-        isAuthorized,
-        nombre
-      }
+      data: dataToUpdate
     });
 
     return NextResponse.json(device);
