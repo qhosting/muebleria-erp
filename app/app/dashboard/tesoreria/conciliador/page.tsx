@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
     Loader2,
@@ -19,10 +20,30 @@ import {
     ZoomOut,
     RotateCcw,
     Maximize2,
-    DollarSign
+    Calendar,
+    Filter
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+
+// Función para calcular el rango de la semana de cobranza (Sábado a Viernes)
+function getSabadoAViernesRange(offsetWeeks = 0) {
+    const now = new Date();
+    now.setDate(now.getDate() + offsetWeeks * 7);
+    const dayOfWeek = now.getDay(); // 0: Dom, 1: Lun, ..., 6: Sáb
+    const daysSinceSaturday = (dayOfWeek + 1) % 7;
+
+    const startSabado = new Date(now);
+    startSabado.setDate(now.getDate() - daysSinceSaturday);
+
+    const endViernes = new Date(startSabado);
+    endViernes.setDate(startSabado.getDate() + 6);
+
+    return {
+        desde: startSabado.toISOString().split("T")[0],
+        hasta: endViernes.toISOString().split("T")[0]
+    };
+}
 
 export default function ConciliadorPage() {
     const [tickets, setTickets] = useState<any[]>([]);
@@ -30,14 +51,11 @@ export default function ConciliadorPage() {
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
 
-    // Filtros de fecha (por defecto últimos 30 días o fechas recientes)
-    const todayStr = new Date().toISOString().split("T")[0];
-    const pastDate = new Date();
-    pastDate.setDate(pastDate.getDate() - 15);
-    const pastStr = pastDate.toISOString().split("T")[0];
-
-    const [desde, setDesde] = useState(pastStr);
-    const [hasta, setHasta] = useState(todayStr);
+    // Rango inicial de fecha: Semana actual (Sábado a Viernes)
+    const initialWeek = getSabadoAViernesRange();
+    const [desde, setDesde] = useState(initialWeek.desde);
+    const [hasta, setHasta] = useState(initialWeek.hasta);
+    const [estadoFiltro, setEstadoFiltro] = useState<string>("PENDIENTE"); // PENDIENTE, CONCILIADO, TODOS
 
     // Estado por cada ticket para el movimiento seleccionado y el filtro de monto
     const [selectedMovByTicket, setSelectedMovByTicket] = useState<Record<string, string>>({});
@@ -51,16 +69,19 @@ export default function ConciliadorPage() {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [estadoFiltro]);
 
-    const fetchData = async (customDesde?: string, customHasta?: string) => {
+    const fetchData = async (customDesde?: string, customHasta?: string, customEstado?: string) => {
         setLoading(true);
         try {
-            const d = customDesde || desde;
-            const h = customHasta || hasta;
+            const d = customDesde !== undefined ? customDesde : desde;
+            const h = customHasta !== undefined ? customHasta : hasta;
+            const est = customEstado !== undefined ? customEstado : estadoFiltro;
+
             const params = new URLSearchParams();
             if (d) params.append("desde", d);
             if (h) params.append("hasta", h);
+            if (est) params.append("estado", est);
 
             const res = await fetch(`/api/tesoreria/conciliador?${params.toString()}`);
             if (res.ok) {
@@ -103,7 +124,21 @@ export default function ConciliadorPage() {
 
     const handleFiltrar = (e: React.FormEvent) => {
         e.preventDefault();
-        fetchData(desde, hasta);
+        fetchData(desde, hasta, estadoFiltro);
+    };
+
+    const setSemanaActual = () => {
+        const week = getSabadoAViernesRange(0);
+        setDesde(week.desde);
+        setHasta(week.hasta);
+        fetchData(week.desde, week.hasta, estadoFiltro);
+    };
+
+    const setSemanaAnterior = () => {
+        const week = getSabadoAViernesRange(-1);
+        setDesde(week.desde);
+        setHasta(week.hasta);
+        fetchData(week.desde, week.hasta, estadoFiltro);
     };
 
     const handleConciliarPago = async (ticket: any) => {
@@ -135,8 +170,13 @@ export default function ConciliadorPage() {
             const data = await res.json();
             if (res.ok) {
                 toast.success(`¡Ticket ${ticket.id} conciliado exitosamente!`);
-                // Remover el ticket conciliado de la vista
-                setTickets(prev => prev.filter(t => t.id !== ticket.id));
+                if (estadoFiltro === "PENDIENTE") {
+                    // Si estamos viendo solo no conciliados, remover el ticket de la vista
+                    setTickets(prev => prev.filter(t => t.id !== ticket.id));
+                } else {
+                    // Si estamos viendo Todos o Conciliados, marcarlo como conciliado
+                    setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, conciliado: true } : t));
+                }
                 // Remover el movimiento usado de la lista disponible
                 setMovimientos(prev => prev.filter(m => !(m.tabla === tabla && String(m.id) === String(movimientoId))));
             } else {
@@ -239,7 +279,7 @@ export default function ConciliadorPage() {
                 `"${(t.pagos && t.pagos.length > 0) ? t.pagos.map((p: any) => p.id).join("; ") : "-"}"`,
                 `"${t.gestor?.codigoGestor || t.cliente?.cobradorAsignado?.codigoGestor || "-"}"`,
                 t.monto,
-                t.conciliado ? "CONCILIADO" : "PENDIENTE"
+                t.conciliado ? "CONCILIADO" : "NO CONCILIADO"
             ])
         ].map(e => e.join(",")).join("\n");
 
@@ -247,7 +287,7 @@ export default function ConciliadorPage() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `Conciliacion-Tickets-${desde}-al-${hasta}.csv`;
+        a.download = `Conciliacion-${estadoFiltro}-${desde}-al-${hasta}.csv`;
         a.click();
     };
 
@@ -270,11 +310,11 @@ export default function ConciliadorPage() {
     return (
         <DashboardLayout>
             <div className="max-w-6xl mx-auto space-y-6 pb-16">
-                {/* Header y Filtro Superior */}
-                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center justify-center gap-3">
+                {/* Header y Filtros Superiores */}
+                <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center justify-center gap-4">
                     <form onSubmit={handleFiltrar} className="flex flex-wrap items-center justify-center gap-3 text-sm">
                         <div className="flex items-center gap-2">
-                            <span className="font-semibold text-gray-700">Desde:</span>
+                            <span className="font-semibold text-gray-700 text-xs">Desde:</span>
                             <Input
                                 type="date"
                                 value={desde}
@@ -283,7 +323,7 @@ export default function ConciliadorPage() {
                             />
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className="font-semibold text-gray-700">Hasta:</span>
+                            <span className="font-semibold text-gray-700 text-xs">Hasta:</span>
                             <Input
                                 type="date"
                                 value={hasta}
@@ -291,6 +331,21 @@ export default function ConciliadorPage() {
                                 className="w-36 h-9 text-xs font-mono bg-gray-50 border-gray-300 rounded"
                             />
                         </div>
+
+                        {/* Filtro de Estado de Conciliación */}
+                        <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-700 text-xs">Estado:</span>
+                            <select
+                                value={estadoFiltro}
+                                onChange={(e) => setEstadoFiltro(e.target.value)}
+                                className="h-9 bg-gray-50 border border-gray-300 rounded px-2.5 text-xs text-gray-800 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            >
+                                <option value="PENDIENTE">No Conciliados (Pendientes)</option>
+                                <option value="CONCILIADO">Conciliados</option>
+                                <option value="TODOS">Todos (Pendientes y Conciliados)</option>
+                            </select>
+                        </div>
+
                         <Button
                             type="submit"
                             size="sm"
@@ -302,31 +357,58 @@ export default function ConciliadorPage() {
                         </Button>
                     </form>
 
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={exportarExcel}
-                        disabled={loading || tickets.length === 0}
-                        className="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-semibold px-4 h-8 rounded shadow-none flex items-center gap-1.5"
-                    >
-                        <Download className="w-3.5 h-3.5" />
-                        Exportar a Excel
-                    </Button>
+                    {/* Accesos Rápidos de Rango Semanal y Exportar */}
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={setSemanaActual}
+                            className="h-7 text-[11px] px-3 font-semibold border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 rounded"
+                            title="Semana de Cobranza Actual (Sábado a Viernes)"
+                        >
+                            <Calendar className="w-3 h-3 mr-1" />
+                            Semana Actual (Sáb - Vie)
+                        </Button>
+
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={setSemanaAnterior}
+                            className="h-7 text-[11px] px-3 font-semibold border-gray-200 text-gray-700 hover:bg-gray-100 rounded"
+                        >
+                            Semana Anterior (Sáb - Vie)
+                        </Button>
+
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={exportarExcel}
+                            disabled={loading || tickets.length === 0}
+                            className="bg-gray-200 hover:bg-gray-300 text-gray-800 text-[11px] font-semibold px-3 h-7 rounded shadow-none flex items-center gap-1.5"
+                        >
+                            <Download className="w-3 h-3" />
+                            Exportar a Excel
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Lista de Tarjetas de Tickets */}
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-gray-200">
                         <Loader2 className="h-10 w-10 animate-spin text-blue-600 mb-3" />
-                        <p className="text-gray-600 font-medium">Cargando tickets pendientes y movimientos bancarios...</p>
+                        <p className="text-gray-600 font-medium">Cargando tickets ({estadoFiltro.toLowerCase()}) y movimientos bancarios...</p>
                     </div>
                 ) : tickets.length === 0 ? (
                     <div className="text-center py-16 bg-white rounded-xl border border-gray-200 p-8 shadow-sm">
                         <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto mb-3" />
-                        <h3 className="text-lg font-bold text-gray-800">¡Todo al día!</h3>
+                        <h3 className="text-lg font-bold text-gray-800">
+                            {estadoFiltro === "PENDIENTE" ? "¡Todo al día! Sin tickets pendientes" : "No se encontraron tickets"}
+                        </h3>
                         <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
-                            No hay tickets pendientes de conciliación en el rango del <strong>{desde}</strong> al <strong>{hasta}</strong>.
+                            No hay tickets registrados con estado <strong>{estadoFiltro}</strong> en el rango del <strong>{desde}</strong> al <strong>{hasta}</strong>.
                         </p>
                     </div>
                 ) : (
@@ -338,6 +420,7 @@ export default function ConciliadorPage() {
                             const tienePago = ticket.pagos && ticket.pagos.length > 0;
                             const pagoPrincipal = tienePago ? ticket.pagos[0] : null;
                             const folioDisplay = ticket.folio || ticket.referencia || (ticket.legacyId ? `#${ticket.legacyId}` : ticket.id);
+                            const estaConciliado = ticket.conciliado;
 
                             // Filtrar los movimientos disponibles para este ticket según el filtro de monto
                             const filteredMovimientos = movimientos.filter((m) => {
@@ -360,14 +443,29 @@ export default function ConciliadorPage() {
                             return (
                                 <div
                                     key={ticket.id}
-                                    className="bg-white rounded-xl border border-gray-200 border-l-4 border-l-blue-600 p-6 shadow-sm relative transition-all"
+                                    className={`bg-white rounded-xl border border-gray-200 border-l-4 ${
+                                        estaConciliado ? "border-l-emerald-600 bg-emerald-50/10" : "border-l-blue-600"
+                                    } p-6 shadow-sm relative transition-all`}
                                 >
                                     {/* Cabecera del Contrato */}
                                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                                         <div>
-                                            <h2 className="text-2xl font-black text-gray-900 tracking-tight">
-                                                Contrato: {ticket.cliente?.codigoCliente || "SIN_CONTRATO"}
-                                            </h2>
+                                            <div className="flex items-center gap-2">
+                                                <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+                                                    Contrato: {ticket.cliente?.codigoCliente || "SIN_CONTRATO"}
+                                                </h2>
+                                                {estaConciliado ? (
+                                                    <Badge variant="success" className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs font-bold">
+                                                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                                        Conciliado
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="warning" className="bg-amber-100 text-amber-800 border-amber-200 text-xs font-bold">
+                                                        <AlertCircle className="w-3.5 h-3.5 mr-1" />
+                                                        No Conciliado
+                                                    </Badge>
+                                                )}
+                                            </div>
                                             <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mt-0.5">
                                                 {ticket.cliente?.nombreCompleto || "Cliente Desconocido"}
                                             </p>
@@ -384,15 +482,17 @@ export default function ConciliadorPage() {
                                                 <Eye className="w-3.5 h-3.5" />
                                                 Ver Comprobante
                                             </Button>
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                disabled={actionLoading[ticket.id]}
-                                                onClick={() => handleDescartar(ticket.id)}
-                                                className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 h-8 rounded text-xs transition-colors shadow-none"
-                                            >
-                                                {actionLoading[ticket.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Descartar"}
-                                            </Button>
+                                            {!estaConciliado && (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    disabled={actionLoading[ticket.id]}
+                                                    onClick={() => handleDescartar(ticket.id)}
+                                                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 h-8 rounded text-xs transition-colors shadow-none"
+                                                >
+                                                    {actionLoading[ticket.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Descartar"}
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
 
@@ -487,7 +587,8 @@ export default function ConciliadorPage() {
                                                     const val = e.target.value;
                                                     setSelectedMovByTicket(prev => ({ ...prev, [ticket.id]: val }));
                                                 }}
-                                                className="w-full h-9 bg-white border border-gray-300 rounded-md px-3 text-xs text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono truncate"
+                                                disabled={estaConciliado}
+                                                className="w-full h-9 bg-white border border-gray-300 rounded-md px-3 text-xs text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono truncate disabled:bg-gray-100"
                                             >
                                                 <option value="">-- Seleccionar Movimiento Bancario --</option>
                                                 {filteredMovimientos.map((mov) => {
@@ -521,19 +622,26 @@ export default function ConciliadorPage() {
                                         )}
 
                                         {/* Botón Grande de Conciliar */}
-                                        <Button
-                                            type="button"
-                                            onClick={() => handleConciliarPago(ticket)}
-                                            disabled={actionLoading[ticket.id] || !selectedMovObj}
-                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center justify-center gap-2 mt-2"
-                                        >
-                                            {actionLoading[ticket.id] ? (
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                            ) : (
-                                                <CheckCircle2 className="w-4 h-4" />
-                                            )}
-                                            Conciliar Pago
-                                        </Button>
+                                        {estaConciliado ? (
+                                            <div className="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold py-2.5 rounded-lg text-sm text-center flex items-center justify-center gap-2 mt-2">
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                                Ticket Conciliado en Banco
+                                            </div>
+                                        ) : (
+                                            <Button
+                                                type="button"
+                                                onClick={() => handleConciliarPago(ticket)}
+                                                disabled={actionLoading[ticket.id] || !selectedMovObj}
+                                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center justify-center gap-2 mt-2"
+                                            >
+                                                {actionLoading[ticket.id] ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <CheckCircle2 className="w-4 h-4" />
+                                                )}
+                                                Conciliar Pago
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             );

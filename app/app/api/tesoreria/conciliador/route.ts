@@ -17,10 +17,19 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const desde = searchParams.get('desde');
         const hasta = searchParams.get('hasta');
+        const estado = (searchParams.get('estado') || 'PENDIENTE').toUpperCase();
 
-        // Filtro de fechas para tickets
-        const ticketWhere: any = { conciliado: false };
-        const movWhere: any = { ticketId: null, abono: { gt: 0 } };
+        // Filtro de estado de conciliación
+        const ticketWhere: any = {};
+        const movWhere: any = { abono: { gt: 0 } };
+
+        if (estado === 'PENDIENTE') {
+            ticketWhere.conciliado = false;
+            movWhere.ticketId = null;
+        } else if (estado === 'CONCILIADO') {
+            ticketWhere.conciliado = true;
+            movWhere.ticketId = { not: null };
+        } // Si es TODOS no agregamos restricción en conciliado / ticketId
 
         if (desde && hasta) {
             const dStart = new Date(`${desde}T00:00:00.000Z`);
