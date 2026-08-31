@@ -182,7 +182,8 @@ export async function POST(request: NextRequest) {
     }
 
     const userRole = (session.user as any).role;
-    if (userRole !== 'admin' && userRole !== 'auditor' && userRole !== 'tesorero') {
+    const allowedRoles = ['admin', 'auditor', 'tesorero', 'tesoreria', 'direccion', 'jefe_ventas', 'gerente', 'supervisor'];
+    if (!allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'Acceso restringido a administradores' }, { status: 403 });
     }
 
