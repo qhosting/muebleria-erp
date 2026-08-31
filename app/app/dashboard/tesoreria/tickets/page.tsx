@@ -6,7 +6,32 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Ticket as TicketIcon, Search, CheckCircle2, AlertCircle, Eye, Download, Clock, DollarSign, Loader2 } from "lucide-react";
+import {
+    Ticket as TicketIcon,
+    Search,
+    CheckCircle2,
+    AlertCircle,
+    Eye,
+    Download,
+    Clock,
+    DollarSign,
+    Loader2,
+    ZoomIn,
+    ZoomOut,
+    ImageIcon,
+    FileText,
+    User,
+    Calendar,
+    Phone,
+    CreditCard
+} from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle
+} from "@/components/ui/dialog";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -23,6 +48,12 @@ export default function TicketsPage() {
         perPage: 50,
     });
 
+    // Modal de visualización de ticket
+    const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
+    const [ticketImage, setTicketImage] = useState<string | null>(null);
+    const [imageLoading, setImageLoading] = useState(false);
+    const [isZoomed, setIsZoomed] = useState(false);
+
     useEffect(() => {
         fetchTickets();
     }, [currentPage, searchTerm]);
@@ -32,7 +63,7 @@ export default function TicketsPage() {
         try {
             const params = new URLSearchParams({
                 page: currentPage.toString(),
-                limit: "100", // Aumentamos el límite para vista amplia
+                limit: "100",
                 search: searchTerm,
             });
 
@@ -47,6 +78,35 @@ export default function TicketsPage() {
             toast.error("Error al obtener la lista de tickets");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleViewTicket = async (ticket: any) => {
+        setSelectedTicket(ticket);
+        setIsZoomed(false);
+        setTicketImage(null);
+        setImageLoading(true);
+
+        try {
+            // Intentar primero con urlComprobante directo
+            if (ticket.urlComprobante) {
+                setTicketImage(ticket.urlComprobante);
+                setImageLoading(false);
+                return;
+            }
+
+            // Consultar endpoint de comprobante / buzon
+            const res = await fetch(`/api/tesoreria/tickets/${ticket.id}/comprobante`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.found) {
+                    setTicketImage(data.base64 || data.url);
+                }
+            }
+        } catch (err) {
+            console.error("Error cargando comprobante:", err);
+        } finally {
+            setImageLoading(false);
         }
     };
 
@@ -70,6 +130,9 @@ export default function TicketsPage() {
             if (res.ok) {
                 toast.success("¡Pago aplicado y registrado exitosamente al cliente!");
                 fetchTickets();
+                if (selectedTicket && selectedTicket.id === ticketId) {
+                    setSelectedTicket((prev: any) => prev ? { ...prev, conciliado: true, pagos: [{ id: data.pagoId || 'NUEVO' }] } : null);
+                }
             } else {
                 toast.error(data.error || "Error al aplicar el pago");
             }
@@ -184,7 +247,7 @@ export default function TicketsPage() {
                                                     <td className="px-4 py-3 font-mono text-sm text-gray-900">
                                                         <div>{ticket.folio || ticket.referencia || ticket.claveRastreo || `#${ticket.legacyId}`}</div>
                                                         {ticket.claveRastreo && ticket.claveRastreo !== ticket.folio && ticket.claveRastreo !== ticket.referencia && (
-                                                            <div className="text-[11px] text-blue-600 font-mono">
+                                                             <div className="text-[11px] text-blue-600 font-mono">
                                                                 Rastreo: {ticket.claveRastreo}
                                                             </div>
                                                         )}
@@ -243,7 +306,13 @@ export default function TicketsPage() {
                                                     </td>
                                                     <td className="px-4 py-3 text-center">
                                                         <div className="flex items-center justify-center gap-2">
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-blue-600">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => handleViewTicket(ticket)}
+                                                                className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"
+                                                                title="Ver detalles y comprobante"
+                                                            >
                                                                 <Eye className="h-4 w-4" />
                                                             </Button>
                                                             {!tienePago && ticket.clienteId && (
@@ -301,6 +370,193 @@ export default function TicketsPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Modal de Detalle y Comprobante */}
+            <Dialog open={!!selectedTicket} onOpenChange={(open) => !open && setSelectedTicket(null)}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-6">
+                    <DialogHeader>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <DialogTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                                    <TicketIcon className="h-5 w-5 text-indigo-600" />
+                                    Detalle del Ticket #{selectedTicket?.id}
+                                </DialogTitle>
+                                <DialogDescription className="text-xs text-gray-500 mt-0.5">
+                                    Información registrada, comprobante digital y trazabilidad de cobranza
+                                </DialogDescription>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {selectedTicket?.conciliado ? (
+                                    <Badge variant="success" className="bg-green-100 text-green-800 border-green-200">
+                                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                        Conciliado
+                                    </Badge>
+                                ) : (
+                                    <Badge variant="warning" className="bg-amber-100 text-amber-800 border-amber-200">
+                                        <AlertCircle className="w-3.5 h-3.5 mr-1" />
+                                        Pendiente
+                                    </Badge>
+                                )}
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    {selectedTicket && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                            {/* Columna Izquierda: Vista del Comprobante */}
+                            <div className="flex flex-col items-center justify-center bg-slate-900/5 rounded-xl border border-slate-200 p-4 min-h-[380px]">
+                                {imageLoading ? (
+                                    <div className="flex flex-col items-center justify-center text-gray-400 gap-2">
+                                        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+                                        <p className="text-xs font-medium">Buscando comprobante...</p>
+                                    </div>
+                                ) : ticketImage ? (
+                                    <div className="relative w-full flex flex-col items-center">
+                                        <div
+                                            className="relative overflow-hidden max-h-[460px] w-full flex items-center justify-center cursor-pointer rounded-lg bg-black/10 border"
+                                            onClick={() => setIsZoomed(!isZoomed)}
+                                            title="Click para ampliar / reducir"
+                                        >
+                                            <img
+                                                src={ticketImage}
+                                                alt="Comprobante"
+                                                className={`transition-all duration-300 rounded shadow-md object-contain ${
+                                                    isZoomed ? "scale-150 max-h-[600px] cursor-zoom-out" : "max-h-[420px] cursor-zoom-in"
+                                                }`}
+                                            />
+                                        </div>
+                                        <div className="flex items-center justify-between w-full mt-2 px-1 text-xs text-gray-500">
+                                            <span className="flex items-center gap-1 text-[11px]">
+                                                {isZoomed ? <ZoomOut className="w-3.5 h-3.5" /> : <ZoomIn className="w-3.5 h-3.5" />}
+                                                {isZoomed ? "Click para reducir" : "Click para ampliar"}
+                                            </span>
+                                            <a
+                                                href={ticketImage}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-indigo-600 hover:text-indigo-800 font-semibold underline text-[11px]"
+                                            >
+                                                Abrir en pestaña nueva ↗
+                                            </a>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center text-gray-400 p-8 text-center">
+                                        <ImageIcon className="h-12 w-12 text-gray-300 mb-2" />
+                                        <p className="text-sm font-semibold text-gray-600">Imagen no adjunta</p>
+                                        <p className="text-xs text-gray-400 mt-1 max-w-[240px]">
+                                            El comprobante se registró por texto o transferencia directa.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Columna Derecha: Tarjetas de Información */}
+                            <div className="space-y-4">
+                                {/* Resumen Principal */}
+                                <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-xl">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Monto Registrado</p>
+                                            <p className="text-2xl font-black text-indigo-900 mt-0.5">
+                                                {formatCurrency(selectedTicket.monto || 0)}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[11px] text-gray-500">Fecha de Operación</p>
+                                            <p className="text-sm font-bold text-gray-800">
+                                                {formatDate(selectedTicket.fecha || selectedTicket.creadoEn)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Datos del Cliente */}
+                                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-2 text-xs">
+                                    <p className="font-bold text-gray-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                                        <User className="h-3.5 w-3.5 text-gray-500" />
+                                        Cliente Asociado
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-2 pt-1">
+                                        <div>
+                                            <span className="text-gray-500 block text-[10px]">Nombre Completo</span>
+                                            <span className="font-semibold text-gray-900">{selectedTicket.cliente?.nombreCompleto || 'Desconocido'}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-500 block text-[10px]">Código Cliente</span>
+                                            <span className="font-mono font-bold text-indigo-700">{selectedTicket.cliente?.codigoCliente || 'N/A'}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-500 block text-[10px]">Gestor / Cobrador</span>
+                                            <span className="font-medium text-gray-800">
+                                                {selectedTicket.gestor?.codigoGestor || selectedTicket.cliente?.cobradorAsignado?.codigoGestor || 'Sin Asignar'}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-500 block text-[10px]">Remitente</span>
+                                            <span className="font-mono text-gray-700 truncate block">{selectedTicket.remitente || 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Datos Bancarios y Rastreo */}
+                                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-2 text-xs">
+                                    <p className="font-bold text-gray-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                                        <CreditCard className="h-3.5 w-3.5 text-gray-500" />
+                                        Trazabilidad Bancaria
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-2 pt-1">
+                                        <div>
+                                            <span className="text-gray-500 block text-[10px]">Folio / Autorización</span>
+                                            <span className="font-mono font-bold text-gray-900">{selectedTicket.folio || 'N/A'}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-500 block text-[10px]">Referencia</span>
+                                            <span className="font-mono font-bold text-gray-900">{selectedTicket.referencia || 'N/A'}</span>
+                                        </div>
+                                        {selectedTicket.claveRastreo && (
+                                            <div className="col-span-2">
+                                                <span className="text-gray-500 block text-[10px]">Clave de Rastreo SPEI</span>
+                                                <span className="font-mono text-blue-700 font-semibold break-all">{selectedTicket.claveRastreo}</span>
+                                            </div>
+                                        )}
+                                        {selectedTicket.cuentaOrigen && (
+                                            <div>
+                                                <span className="text-gray-500 block text-[10px]">Cuenta Origen</span>
+                                                <span className="font-mono text-gray-800">{selectedTicket.cuentaOrigen}</span>
+                                            </div>
+                                        )}
+                                        {selectedTicket.cuentaDestino && (
+                                            <div>
+                                                <span className="text-gray-500 block text-[10px]">Cuenta Destino</span>
+                                                <span className="font-mono text-gray-800">{selectedTicket.cuentaDestino}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Acciones de Aplicación */}
+                                {(!selectedTicket.pagos || selectedTicket.pagos.length === 0) && selectedTicket.clienteId && (
+                                    <div className="pt-2">
+                                        <Button
+                                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl flex items-center justify-center gap-2"
+                                            disabled={applyingId === selectedTicket.id}
+                                            onClick={() => handleAplicarPago(selectedTicket.id)}
+                                        >
+                                            {applyingId === selectedTicket.id ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <DollarSign className="w-4 h-4" />
+                                            )}
+                                            Aplicar Pago Manualmente a la Cuenta
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </DashboardLayout>
     );
 }
