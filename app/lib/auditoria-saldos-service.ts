@@ -46,6 +46,21 @@ export interface DiagnosticoClienteSaldos {
 }
 
 /**
+ * Convierte una fecha a string YYYY-MM-DD en zona horaria America/Mexico_City
+ */
+export function toCdmxDateString(date: Date | string | null | undefined): string {
+  if (!date) return '';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(d);
+}
+
+/**
  * Determina la empresa ContPAQi en base al código de cliente
  */
 export function obtenerEmpresaPorCodigo(codigo: string): 'DP' | 'DQ' {
@@ -133,10 +148,14 @@ export async function auditarSaldosCliente(
     if (ref && ref !== 'SEMANA' && ref !== 'PAGO' && ref !== 'ABONO') {
       contpaqiRefSet.set(ref, d);
     }
+    const dFechaStr = d.fecha ? toCdmxDateString(d.fecha) : '';
+    const dTime = d.fecha ? new Date(d.fecha).getTime() : 0;
+
     contpaqiFechaMontoList.push({
       id: d.id || d.cIdDocumento || d.CIDDOCUMENTO,
       folio: `${d.serie || ''}-${d.folio || ''}`,
-      fecha: d.fecha ? new Date(d.fecha).toISOString().slice(0, 10) : '',
+      fecha: dFechaStr,
+      time: dTime,
       total: parseFloat(d.total?.toString() || '0') || 0,
       ref,
       raw: d,
@@ -159,7 +178,7 @@ export async function auditarSaldosCliente(
       effectiveDate = new Date(p.createdAt);
     }
 
-    const fechaStr = effectiveDate.toISOString().slice(0, 10);
+    const fechaStr = toCdmxDateString(effectiveDate);
     const ref = p.ticket?.referencia || p.ticket?.folio || p.numeroRecibo || '';
 
     listaPagosUnificados.push({
@@ -200,15 +219,32 @@ export async function auditarSaldosCliente(
     const refUpper = (p.referencia || '').trim().toUpperCase();
 
     let docEncontrado = refUpper && contpaqiRefSet.has(refUpper) ? contpaqiRefSet.get(refUpper) : null;
+    
+    // Búsqueda por fecha exacta y monto
     if (!docEncontrado && p.fecha && p.monto > 0) {
       docEncontrado = contpaqiFechaMontoList.find(
         (d) => d.fecha === p.fecha && Math.abs(d.total - p.monto) < 0.01 && !d.usado
       )?.raw;
-      if (docEncontrado) {
-        const itemInList = contpaqiFechaMontoList.find((d) => d.raw === docEncontrado);
-        if (itemInList) itemInList.usado = true;
+    }
+
+    // Búsqueda con tolerancia de ±2 días si el monto coincide
+    if (!docEncontrado && p.effectiveTime && p.monto > 0) {
+      const matchTolerante = contpaqiFechaMontoList.find((d) => {
+        if (d.usado) return false;
+        if (Math.abs(d.total - p.monto) >= 0.01) return false;
+        const diffDays = Math.abs(d.time - p.effectiveTime) / (1000 * 60 * 60 * 24);
+        return diffDays <= 2.5;
+      });
+      if (matchTolerante) {
+        docEncontrado = matchTolerante.raw;
       }
     }
+
+    if (docEncontrado) {
+      const itemInList = contpaqiFechaMontoList.find((d) => d.raw === docEncontrado);
+      if (itemInList) itemInList.usado = true;
+    }
+
     const estaEnContpaqi = !!docEncontrado;
 
     if (estaEnContpaqi) {
