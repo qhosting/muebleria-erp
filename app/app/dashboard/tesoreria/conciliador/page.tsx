@@ -5,7 +5,20 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Loader2, Download, CheckCircle2, XCircle, Search, RefreshCcw, Eye, ExternalLink } from "lucide-react";
+import {
+    Loader2,
+    Download,
+    CheckCircle2,
+    XCircle,
+    Search,
+    RefreshCcw,
+    Eye,
+    ExternalLink,
+    ZoomIn,
+    ZoomOut,
+    RotateCcw,
+    Maximize2
+} from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -28,10 +41,11 @@ export default function ConciliadorPage() {
     const [selectedMovByTicket, setSelectedMovByTicket] = useState<Record<string, string>>({});
     const [amountFilterByTicket, setAmountFilterByTicket] = useState<Record<string, string>>({});
 
-    // Modal de imagen de comprobante
+    // Modal de imagen de comprobante con Zoom
     const [viewingTicket, setViewingTicket] = useState<any | null>(null);
     const [ticketImage, setTicketImage] = useState<string | null>(null);
     const [imageLoading, setImageLoading] = useState(false);
+    const [zoomScale, setZoomScale] = useState<number>(1);
 
     useEffect(() => {
         fetchData();
@@ -167,6 +181,7 @@ export default function ConciliadorPage() {
         setViewingTicket(ticket);
         setTicketImage(null);
         setImageLoading(true);
+        setZoomScale(1);
 
         try {
             if (ticket.urlComprobante) {
@@ -186,6 +201,22 @@ export default function ConciliadorPage() {
         } finally {
             setImageLoading(false);
         }
+    };
+
+    const handleZoomIn = () => {
+        setZoomScale(prev => Math.min(prev + 0.35, 3.5));
+    };
+
+    const handleZoomOut = () => {
+        setZoomScale(prev => Math.max(prev - 0.35, 0.5));
+    };
+
+    const handleResetZoom = () => {
+        setZoomScale(1);
+    };
+
+    const toggleZoomClick = () => {
+        setZoomScale(prev => (prev > 1.1 ? 1 : 1.8));
     };
 
     const exportarExcel = () => {
@@ -467,29 +498,99 @@ export default function ConciliadorPage() {
                 )}
             </div>
 
-            {/* Modal de Vista de Comprobante */}
+            {/* Modal de Vista de Comprobante con Zoom */}
             <Dialog open={!!viewingTicket} onOpenChange={(open) => !open && setViewingTicket(null)}>
-                <DialogContent className="max-w-2xl p-6">
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-bold text-gray-900">
-                            Comprobante Ticket #{viewingTicket?.id} ({viewingTicket?.cliente?.codigoCliente})
-                        </DialogTitle>
-                        <DialogDescription className="text-xs text-gray-500">
-                            {viewingTicket?.cliente?.nombreCompleto} - Monto: {formatCurrency(viewingTicket?.monto || 0)}
-                        </DialogDescription>
+                <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-5">
+                    <DialogHeader className="pb-2 border-b">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                                <DialogTitle className="text-lg font-bold text-gray-900">
+                                    Comprobante Ticket #{viewingTicket?.id} ({viewingTicket?.cliente?.codigoCliente})
+                                </DialogTitle>
+                                <DialogDescription className="text-xs text-gray-500">
+                                    {viewingTicket?.cliente?.nombreCompleto} — Monto: {formatCurrency(viewingTicket?.monto || 0)}
+                                </DialogDescription>
+                            </div>
+
+                            {/* Barra de Herramientas de Zoom */}
+                            {ticketImage && !imageLoading && (
+                                <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-lg border">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleZoomOut}
+                                        disabled={zoomScale <= 0.5}
+                                        className="h-7 w-7 p-0 text-gray-700 hover:bg-white"
+                                        title="Reducir Zoom (-)"
+                                    >
+                                        <ZoomOut className="w-4 h-4" />
+                                    </Button>
+                                    <span className="text-[11px] font-mono font-bold text-gray-700 w-12 text-center">
+                                        {Math.round(zoomScale * 100)}%
+                                    </span>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleZoomIn}
+                                        disabled={zoomScale >= 3.5}
+                                        className="h-7 w-7 p-0 text-gray-700 hover:bg-white"
+                                        title="Aumentar Zoom (+)"
+                                    >
+                                        <ZoomIn className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleResetZoom}
+                                        className="h-7 px-2 text-[10px] text-gray-700 hover:bg-white font-semibold"
+                                        title="Restablecer a tamaño normal"
+                                    >
+                                        <RotateCcw className="w-3 h-3 mr-1" />
+                                        100%
+                                    </Button>
+                                    <a
+                                        href={ticketImage}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="h-7 px-2 text-[10px] text-blue-600 hover:bg-white font-semibold inline-flex items-center rounded transition-colors"
+                                        title="Abrir imagen completa en pestaña nueva"
+                                    >
+                                        <ExternalLink className="w-3 h-3 mr-1" />
+                                        Pestaña
+                                    </a>
+                                </div>
+                            )}
+                        </div>
                     </DialogHeader>
 
-                    <div className="flex flex-col items-center justify-center min-h-[300px] max-h-[500px] overflow-hidden bg-slate-50 rounded-lg border p-2 mt-2">
+                    {/* Contenedor del Comprobante con Zoom y Scroll */}
+                    <div className="flex-1 min-h-[350px] max-h-[70vh] overflow-auto bg-slate-900/5 rounded-xl border p-4 flex items-center justify-center relative mt-3 select-none">
                         {imageLoading ? (
-                            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                            <div className="flex flex-col items-center justify-center text-gray-400 gap-2 py-12">
+                                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                                <p className="text-xs font-medium">Buscando comprobante...</p>
+                            </div>
                         ) : ticketImage ? (
-                            <img
-                                src={ticketImage}
-                                alt="Comprobante"
-                                className="max-h-[460px] object-contain rounded"
-                            />
+                            <div
+                                className="transition-transform duration-200 ease-out origin-center cursor-pointer flex items-center justify-center"
+                                style={{ transform: `scale(${zoomScale})` }}
+                                onClick={toggleZoomClick}
+                                title={zoomScale > 1.1 ? "Click para reducir zoom" : "Click para ampliar zoom"}
+                            >
+                                <img
+                                    src={ticketImage}
+                                    alt="Comprobante"
+                                    className="max-h-[60vh] max-w-full object-contain rounded-lg shadow-md pointer-events-none"
+                                />
+                            </div>
                         ) : (
-                            <p className="text-xs text-gray-400">No se encontró imagen adjunta para este ticket</p>
+                            <div className="text-center py-12 text-gray-400">
+                                <p className="text-sm font-semibold text-gray-600">No se encontró imagen adjunta</p>
+                                <p className="text-xs text-gray-400 mt-1">Este ticket fue registrado directamente sin captura visual.</p>
+                            </div>
                         )}
                     </div>
                 </DialogContent>
