@@ -9,6 +9,7 @@ import {
     Loader2,
     Download,
     CheckCircle2,
+    AlertCircle,
     XCircle,
     Search,
     RefreshCcw,
@@ -17,7 +18,8 @@ import {
     ZoomIn,
     ZoomOut,
     RotateCcw,
-    Maximize2
+    Maximize2,
+    DollarSign
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -226,13 +228,15 @@ export default function ConciliadorPage() {
         }
 
         const csvContent = [
-            ["Fecha", "Contrato", "Cliente", "ID Ticket", "Folio/Ref", "Gestor", "Monto", "Estado"],
+            ["Fecha", "Contrato", "Cliente", "ID Folio Ticket", "ID Sistema", "Pago Vinculado", "ID Pago", "Gestor", "Monto", "Estado"],
             ...tickets.map(t => [
                 (t.fecha || t.creadoEn || "").slice(0, 19),
                 `"${t.cliente?.codigoCliente || "N/A"}"`,
                 `"${t.cliente?.nombreCompleto || "N/A"}"`,
+                `"${t.folio || t.referencia || t.legacyId || t.id}"`,
                 `"${t.id}"`,
-                `"${t.folio || t.referencia || t.legacyId || "-"}"`,
+                (t.pagos && t.pagos.length > 0) ? "APLICADO" : "SIN APLICAR",
+                `"${(t.pagos && t.pagos.length > 0) ? t.pagos.map((p: any) => p.id).join("; ") : "-"}"`,
                 `"${t.gestor?.codigoGestor || t.cliente?.cobradorAsignado?.codigoGestor || "-"}"`,
                 t.monto,
                 t.conciliado ? "CONCILIADO" : "PENDIENTE"
@@ -331,6 +335,9 @@ export default function ConciliadorPage() {
                             const montoTicketNum = parseFloat(ticket.monto?.toString() || "0");
                             const currentAmountFilter = amountFilterByTicket[ticket.id] ?? montoTicketNum.toFixed(2);
                             const selectedMovValue = selectedMovByTicket[ticket.id];
+                            const tienePago = ticket.pagos && ticket.pagos.length > 0;
+                            const pagoPrincipal = tienePago ? ticket.pagos[0] : null;
+                            const folioDisplay = ticket.folio || ticket.referencia || (ticket.legacyId ? `#${ticket.legacyId}` : ticket.id);
 
                             // Filtrar los movimientos disponibles para este ticket según el filtro de monto
                             const filteredMovimientos = movimientos.filter((m) => {
@@ -389,10 +396,10 @@ export default function ConciliadorPage() {
                                         </div>
                                     </div>
 
-                                    {/* 4 Cajas de Resumen en Fila */}
+                                    {/* 4 Cajas de Resumen en Fila (ID mostrando el Folio del Ticket) */}
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
-                                            <span className="font-bold">ID:</span> {ticket.folio || ticket.legacyId || ticket.id}
+                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800" title={`ID Ticket: ${ticket.id}`}>
+                                            <span className="font-bold">ID:</span> {folioDisplay}
                                         </div>
                                         <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
                                             <span className="font-bold">Monto:</span> {formatCurrency(montoTicketNum)}
@@ -404,6 +411,43 @@ export default function ConciliadorPage() {
                                             <span className="font-bold">Gestor:</span> {gestorDisplay}
                                         </div>
                                     </div>
+
+                                    {/* Caja de Pago Vinculado a este Ticket */}
+                                    {tienePago && pagoPrincipal ? (
+                                        <div className="mt-3 bg-emerald-50/90 border border-emerald-200 rounded-lg p-2.5 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-200 text-emerald-900">
+                                                    <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-700" />
+                                                    Pago Vinculado
+                                                </span>
+                                                <span className="font-mono font-bold text-gray-900">
+                                                    ID: #{pagoPrincipal.id}
+                                                </span>
+                                                {pagoPrincipal.metodoPago && (
+                                                    <span className="text-[11px] text-emerald-800 font-medium">
+                                                        ({pagoPrincipal.metodoPago})
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-[11px] font-mono text-emerald-900 flex items-center gap-2">
+                                                <span>Monto: <strong>{formatCurrency(pagoPrincipal.monto)}</strong></span>
+                                                <span>•</span>
+                                                <span>{formatDateTimeLocal(pagoPrincipal.fechaPago)}</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-3 bg-amber-50/80 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-900 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-200 text-amber-900">
+                                                    <AlertCircle className="w-3 h-3 mr-1 text-amber-700" />
+                                                    Sin Pago en Sistema
+                                                </span>
+                                                <span className="text-amber-800 text-[11px]">
+                                                    El abono se aplicará y registrará automáticamente a la cuenta al conciliar
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Separador punteado */}
                                     <div className="border-t border-dotted border-gray-300 my-4" />
@@ -505,7 +549,7 @@ export default function ConciliadorPage() {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div>
                                 <DialogTitle className="text-lg font-bold text-gray-900">
-                                    Comprobante Ticket #{viewingTicket?.id} ({viewingTicket?.cliente?.codigoCliente})
+                                    Comprobante Ticket #{viewingTicket?.folio || viewingTicket?.id} ({viewingTicket?.cliente?.codigoCliente})
                                 </DialogTitle>
                                 <DialogDescription className="text-xs text-gray-500">
                                     {viewingTicket?.cliente?.nombreCompleto} — Monto: {formatCurrency(viewingTicket?.monto || 0)}
