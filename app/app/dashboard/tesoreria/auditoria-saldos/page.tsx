@@ -19,18 +19,16 @@ import {
   ShieldAlert,
   RefreshCw,
   Search,
-  Filter,
   CheckCircle2,
   AlertCircle,
   Clock,
   Sparkles,
   Layers,
-  ArrowRight,
   Eye,
   Check,
   Building2,
   Receipt,
-  Download,
+  UploadCloud,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -78,6 +76,7 @@ interface ClienteAuditado {
   saldoRealCalculado: number;
   diferenciaErp: number;
   diferenciaMysql: number;
+  diferenciaContpaqi?: number;
   estadoCuadre: 'CUADRADO' | 'DESFASE_SALDO' | 'PAGOS_PENDIENTES_CONTPAQI';
   totalPagosAuditados: number;
   pagosPendientesContpaqi: number;
@@ -95,6 +94,9 @@ export default function AuditoriaSaldosPage() {
   const [loading, setLoading] = useState(true);
   const [updatingIndividual, setUpdatingIndividual] = useState<string | null>(null);
   const [updatingMassive, setUpdatingMassive] = useState(false);
+  const [insertingContpaqiIndividual, setInsertingContpaqiIndividual] = useState<string | null>(null);
+  const [insertingContpaqiMassive, setInsertingContpaqiMassive] = useState(false);
+  const [insertingPagoSingleId, setInsertingPagoSingleId] = useState<string | null>(null);
 
   // Filtros
   const [empresaFiltro, setEmpresaFiltro] = useState<string>('all');
@@ -200,19 +202,21 @@ export default function AuditoriaSaldosPage() {
     }
   };
 
-  // Actualizar saldo individual
+  // Actualizar saldo individual en ERP
   const handleActualizarIndividual = async (codigo: string) => {
     setUpdatingIndividual(codigo);
     try {
       const res = await fetch(`/api/tesoreria/auditoria-saldos/${codigo}`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'actualizar_saldo' }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         toast.success(data.mensaje || `Saldo de ${codigo} actualizado a ${formatCurrency(data.saldoReal)}`);
         fetchAuditData();
         if (modalCliente && modalCliente.codigo === codigo) {
-          setModalOpen(false);
+          setModalCliente(data.diagnostico || modalCliente);
         }
       } else {
         toast.error(data.error || 'Error al actualizar saldo');
@@ -225,7 +229,87 @@ export default function AuditoriaSaldosPage() {
     }
   };
 
-  // Actualizar masivo
+  // Insertar pagos de un cliente a ContPAQi API
+  const handleInsertarPagoContpaqi = async (codigo: string, pagoId?: string) => {
+    if (pagoId) {
+      setInsertingPagoSingleId(pagoId);
+    } else {
+      setInsertingContpaqiIndividual(codigo);
+    }
+
+    try {
+      const res = await fetch(`/api/tesoreria/auditoria-saldos/${codigo}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accion: 'insertar_pagos_contpaqi',
+          pagoId,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.mensaje || `Pago(s) insertado(s) exitosamente en ContPAQi para ${codigo}`);
+        fetchAuditData();
+        if (data.diagnostico) {
+          setModalCliente(data.diagnostico);
+        } else if (modalCliente && modalCliente.codigo === codigo) {
+          handleVerDetalle({ ...modalCliente });
+        }
+      } else {
+        toast.error(data.error || 'Error al insertar pago en ContPAQi');
+      }
+    } catch (error) {
+      console.error('Error al insertar pago en ContPAQi:', error);
+      toast.error('Error de red al conectar con ContPAQi');
+    } finally {
+      setInsertingContpaqiIndividual(null);
+      setInsertingPagoSingleId(null);
+    }
+  };
+
+  // Insertar pagos masivos a ContPAQi API
+  const handleInsertarPagosMasivoContpaqi = async (codigos?: string[]) => {
+    const targetCodigos = codigos || Array.from(selectedCodigos);
+    if (targetCodigos.length === 0) {
+      toast.error('Seleccione al menos un cliente para insertar pagos a ContPAQi');
+      return;
+    }
+
+    if (
+      !confirm(
+        `¿Desea enviar e insertar todos los pagos pendientes de ${targetCodigos.length} cliente(s) a ContPAQi Comercial API?\nLos documentos se crearán y afectarán automáticamente.`
+      )
+    ) {
+      return;
+    }
+
+    setInsertingContpaqiMassive(true);
+    try {
+      const res = await fetch('/api/tesoreria/auditoria-saldos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accion: 'insertar_pagos_contpaqi',
+          codigosClientes: targetCodigos,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.mensaje || 'Pagos insertados exitosamente en ContPAQi');
+        setSelectedCodigos(new Set());
+        fetchAuditData();
+      } else {
+        toast.error(data.error || 'Error en inserción masiva a ContPAQi');
+      }
+    } catch (error) {
+      console.error('Error masivo ContPAQi:', error);
+      toast.error('Error de red al insertar pagos en ContPAQi');
+    } finally {
+      setInsertingContpaqiMassive(false);
+    }
+  };
+
+  // Actualizar masivo en ERP
   const handleActualizarMasivo = async (codigos?: string[]) => {
     const targetCodigos = codigos || Array.from(selectedCodigos);
     if (targetCodigos.length === 0) {
@@ -246,7 +330,10 @@ export default function AuditoriaSaldosPage() {
       const res = await fetch('/api/tesoreria/auditoria-saldos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codigosClientes: targetCodigos }),
+        body: JSON.stringify({
+          accion: 'actualizar_saldos',
+          codigosClientes: targetCodigos,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -281,6 +368,8 @@ export default function AuditoriaSaldosPage() {
     }
   };
 
+  const clientesConPendientes = clientes.filter((c) => c.pagosPendientesContpaqi > 0);
+
   return (
     <DashboardLayout>
       <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
@@ -296,13 +385,13 @@ export default function AuditoriaSaldosPage() {
                   Auditoría Reconstructiva de Saldos
                 </h1>
                 <p className="text-sm text-gray-500">
-                  Cruce bidireccional ERP vs ContPAQi API con recálculo histórico de tickets
+                  Comparativa y cruce en vivo Mueblería-ERP vs ContPAQi API con inserción directa de pagos
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <Button
               variant="outline"
               size="sm"
@@ -314,18 +403,55 @@ export default function AuditoriaSaldosPage() {
               Refrescar
             </Button>
 
+            {/* Inserción masiva de seleccionados */}
             {selectedCodigos.size > 0 && (
-              <Button
-                size="sm"
-                onClick={() => handleActualizarMasivo()}
-                disabled={updatingMassive}
-                className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20"
-              >
-                <Sparkles className="h-4 w-4" />
-                Actualizar Seleccionados ({selectedCodigos.size})
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => handleInsertarPagosMasivoContpaqi()}
+                  disabled={insertingContpaqiMassive}
+                  className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20"
+                >
+                  <UploadCloud className="h-4 w-4" />
+                  Insertar Pagos Seleccionados ({selectedCodigos.size})
+                </Button>
+
+                <Button
+                  size="sm"
+                  onClick={() => handleActualizarMasivo()}
+                  disabled={updatingMassive}
+                  className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Actualizar Saldos ({selectedCodigos.size})
+                </Button>
+              </>
             )}
 
+            {/* Inserción de todos los pendientes */}
+            <Button
+              size="sm"
+              onClick={() => {
+                const conPendientes = clientesConPendientes.map((c) => c.codigo);
+                if (conPendientes.length === 0) {
+                  toast.info('No hay clientes con pagos pendientes por insertar en ContPAQi en la vista actual');
+                  return;
+                }
+                handleInsertarPagosMasivoContpaqi(conPendientes);
+              }}
+              disabled={insertingContpaqiMassive}
+              className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20"
+              title="Inserta en ContPAQi API todos los pagos que están registrados en ERP pero faltan en ContPAQi"
+            >
+              {insertingContpaqiMassive ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <UploadCloud className="h-4 w-4" />
+              )}
+              Insertar Pagos ContPAQi ({clientesConPendientes.length} clientes)
+            </Button>
+
+            {/* Corregir saldos con desfase */}
             <Button
               size="sm"
               onClick={() => {
@@ -337,7 +463,7 @@ export default function AuditoriaSaldosPage() {
                 handleActualizarMasivo(desfasados);
               }}
               disabled={updatingMassive}
-              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
+              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
             >
               <CheckCircle2 className="h-4 w-4" />
               Corregir Todos con Desfase
@@ -365,7 +491,7 @@ export default function AuditoriaSaldosPage() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Saldos Cuadrados</p>
                 <h3 className="text-2xl font-bold text-emerald-800 mt-1">{resumen?.totalCuadrados ?? 0}</h3>
-                <p className="text-xs text-emerald-600 mt-1">ERP y ContPAQi sincronizados</p>
+                <p className="text-xs text-emerald-600 mt-1">Mueblería-ERP y ContPAQi sincronizados</p>
               </div>
               <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl">
                 <ShieldCheck className="h-6 w-6" />
@@ -378,7 +504,7 @@ export default function AuditoriaSaldosPage() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">Pagos Pendientes ContPAQi</p>
                 <h3 className="text-2xl font-bold text-amber-800 mt-1">{resumen?.totalConPendientes ?? 0}</h3>
-                <p className="text-xs text-amber-600 mt-1">Con abonos recientes sin subir</p>
+                <p className="text-xs text-amber-600 mt-1">Abonos en ERP pendientes de insertar</p>
               </div>
               <div className="p-3 bg-amber-100 text-amber-700 rounded-xl">
                 <Clock className="h-6 w-6" />
@@ -487,10 +613,10 @@ export default function AuditoriaSaldosPage() {
           <CardHeader className="p-4 bg-gray-50 border-b border-gray-200 flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-base font-semibold text-gray-900">
-                Detalle de Auditoría y Estado de Saldos
+                Detalle Comparativo de Saldos y Auditoría
               </CardTitle>
               <CardDescription className="text-xs text-gray-500">
-                Mostrando {clientes.length} clientes auditados
+                Comparativa directa Mueblería-ERP vs ContPAQi API con acciones de inserción y alineación
               </CardDescription>
             </div>
             {selectedCodigos.size > 0 && (
@@ -526,8 +652,9 @@ export default function AuditoriaSaldosPage() {
                       </th>
                       <th className="p-3.5">Cliente</th>
                       <th className="p-3.5">Gestor</th>
-                      <th className="p-3.5 text-right">Saldo ERP</th>
-                      <th className="p-3.5 text-right">Saldo ContPAQi</th>
+                      <th className="p-3.5 text-right">Saldo Mueblería-ERP</th>
+                      <th className="p-3.5 text-right">Saldo ContPAQi API</th>
+                      <th className="p-3.5 text-center">Comparación / Dif</th>
                       <th className="p-3.5 text-right">Saldo Real Sugerido</th>
                       <th className="p-3.5 text-center">Estado</th>
                       <th className="p-3.5 text-center">Acciones</th>
@@ -538,6 +665,9 @@ export default function AuditoriaSaldosPage() {
                       const isSelected = selectedCodigos.has(c.codigo);
                       const isDesfase = c.estadoCuadre === 'DESFASE_SALDO';
                       const isPendiente = c.estadoCuadre === 'PAGOS_PENDIENTES_CONTPAQI';
+                      const diffContpaqi = c.diferenciaContpaqi !== undefined
+                        ? c.diferenciaContpaqi
+                        : parseFloat((c.saldoErpActual - c.saldoContpaqiApi).toFixed(2));
 
                       return (
                         <tr
@@ -567,21 +697,40 @@ export default function AuditoriaSaldosPage() {
                                 {c.empresa}
                               </span>
                             </div>
-                            <div className="text-xs text-gray-500 truncate max-w-[240px]">
+                            <div className="text-xs text-gray-500 truncate max-w-[220px]">
                               {c.nombre}
                             </div>
                           </td>
                           <td className="p-3.5 text-xs text-gray-600 font-medium">
                             {c.cobrador}
                           </td>
-                          <td className="p-3.5 text-right font-medium text-gray-800">
+                          {/* Saldo muebleria-erp */}
+                          <td className="p-3.5 text-right font-semibold text-gray-900 font-mono">
                             {formatCurrency(c.saldoErpActual)}
                           </td>
-                          <td className="p-3.5 text-right font-medium text-gray-800">
+                          {/* Saldo ContPAQi API */}
+                          <td className="p-3.5 text-right font-semibold text-blue-900 font-mono">
                             {formatCurrency(c.saldoContpaqiApi)}
                           </td>
+                          {/* Comparación / Diferencia directa */}
+                          <td className="p-3.5 text-center">
+                            {Math.abs(diffContpaqi) < 0.01 ? (
+                              <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200 text-[11px] font-mono">
+                                $0.00 (Igual)
+                              </Badge>
+                            ) : diffContpaqi > 0 ? (
+                              <Badge className="bg-rose-50 text-rose-700 hover:bg-rose-50 border-rose-200 text-[11px] font-mono font-semibold">
+                                +{formatCurrency(diffContpaqi)}
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200 text-[11px] font-mono font-semibold">
+                                {formatCurrency(diffContpaqi)}
+                              </Badge>
+                            )}
+                          </td>
+                          {/* Saldo Real Sugerido */}
                           <td className="p-3.5 text-right">
-                            <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                            <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 font-mono">
                               {formatCurrency(c.saldoRealCalculado)}
                             </span>
                             {c.pagosPendientesContpaqi > 0 && (
@@ -590,6 +739,7 @@ export default function AuditoriaSaldosPage() {
                               </div>
                             )}
                           </td>
+                          {/* Estado */}
                           <td className="p-3.5 text-center">
                             {isDesfase ? (
                               <Badge variant="destructive" className="gap-1 text-[11px] font-semibold py-0.5">
@@ -608,25 +758,53 @@ export default function AuditoriaSaldosPage() {
                               </Badge>
                             )}
                           </td>
+                          {/* Acciones */}
                           <td className="p-3.5 text-center">
                             <div className="flex items-center justify-center gap-1.5">
+                              {/* Botón Ver Desglose */}
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleVerDetalle(c)}
-                                className="h-8 px-2.5 text-xs gap-1 border-gray-300 hover:bg-gray-100"
+                                className="h-8 px-2 text-xs gap-1 border-gray-300 hover:bg-gray-100"
                                 title="Ver desglose paso a paso de tickets"
                               >
                                 <Eye className="h-3.5 w-3.5 text-gray-500" />
-                                Desglose
+                                Detalle
                               </Button>
 
+                              {/* Botón Insertar Pago(s) a ContPAQi */}
+                              <Button
+                                size="sm"
+                                variant={c.pagosPendientesContpaqi > 0 ? "default" : "outline"}
+                                onClick={() => handleInsertarPagoContpaqi(c.codigo)}
+                                disabled={insertingContpaqiIndividual === c.codigo}
+                                className={`h-8 px-2.5 text-xs gap-1 ${
+                                  c.pagosPendientesContpaqi > 0
+                                    ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm'
+                                    : 'border-blue-300 text-blue-700 hover:bg-blue-50'
+                                }`}
+                                title={
+                                  c.pagosPendientesContpaqi > 0
+                                    ? `Insertar ${c.pagosPendientesContpaqi} pago(s) no reflejados en ContPAQi API`
+                                    : 'Insertar pagos del cliente en ContPAQi API'
+                                }
+                              >
+                                {insertingContpaqiIndividual === c.codigo ? (
+                                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <UploadCloud className="h-3.5 w-3.5" />
+                                )}
+                                {c.pagosPendientesContpaqi > 0 ? `Insertar (${c.pagosPendientesContpaqi})` : 'Insertar'}
+                              </Button>
+
+                              {/* Botón Corregir Saldo en ERP */}
                               <Button
                                 size="sm"
                                 onClick={() => handleActualizarIndividual(c.codigo)}
                                 disabled={updatingIndividual === c.codigo}
                                 className="h-8 px-2.5 text-xs gap-1 bg-indigo-600 hover:bg-indigo-700 text-white"
-                                title="Alinear saldo y cadena histórica de tickets"
+                                title="Alinear saldo y cadena histórica de tickets en ERP"
                               >
                                 {updatingIndividual === c.codigo ? (
                                   <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -739,7 +917,7 @@ export default function AuditoriaSaldosPage() {
             {modalCliente && (
               <div className="space-y-5">
                 <DialogHeader>
-                  <div className="flex items-center justify-between pr-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pr-6">
                     <div>
                       <DialogTitle className="text-xl font-bold flex items-center gap-2">
                         <span>{modalCliente.nombre}</span>
@@ -748,66 +926,105 @@ export default function AuditoriaSaldosPage() {
                         </Badge>
                       </DialogTitle>
                       <DialogDescription className="text-xs text-gray-500 mt-1">
-                        Desglose cronológico y reconstrucción histórica paso a paso de pagos
+                        Desglose cronológico, comparativa de saldos e inserción de pagos a ContPAQi
                       </DialogDescription>
                     </div>
 
-                    <Button
-                      size="sm"
-                      onClick={() => handleActualizarIndividual(modalCliente.codigo)}
-                      disabled={updatingIndividual === modalCliente.codigo}
-                      className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
-                    >
-                      {updatingIndividual === modalCliente.codigo ? (
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-3.5 w-3.5" />
+                    <div className="flex items-center gap-2">
+                      {/* Botón Insertar Pagos del cliente a ContPAQi */}
+                      {modalCliente.pagosPendientesContpaqi > 0 && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleInsertarPagoContpaqi(modalCliente.codigo)}
+                          disabled={insertingContpaqiIndividual === modalCliente.codigo}
+                          className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs shadow-sm"
+                        >
+                          {insertingContpaqiIndividual === modalCliente.codigo ? (
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <UploadCloud className="h-3.5 w-3.5" />
+                          )}
+                          Insertar Pagos en ContPAQi ({modalCliente.pagosPendientesContpaqi})
+                        </Button>
                       )}
-                      Aplicar Corrección a este Cliente
-                    </Button>
+
+                      {/* Botón Corregir Saldo en ERP */}
+                      <Button
+                        size="sm"
+                        onClick={() => handleActualizarIndividual(modalCliente.codigo)}
+                        disabled={updatingIndividual === modalCliente.codigo}
+                        className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
+                      >
+                        {updatingIndividual === modalCliente.codigo ? (
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5" />
+                        )}
+                        Alinear Saldo ERP
+                      </Button>
+                    </div>
                   </div>
                 </DialogHeader>
 
-                {/* Tarjetas resumen del cliente */}
-                <div className="grid grid-cols-3 gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
+                {/* Tarjetas resumen del cliente: ERP vs ContPAQi vs Dif vs Real */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
                   <div>
-                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Saldo ContPAQi Base</p>
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Saldo Mueblería-ERP</p>
                     <p className="text-lg font-bold text-gray-900 mt-0.5">
+                      {formatCurrency(modalCliente.saldoErpActual)}
+                    </p>
+                    <p className="text-[10px] text-gray-500">En base de cobranza</p>
+                  </div>
+                  <div className="sm:border-l border-gray-200">
+                    <p className="text-[11px] font-semibold text-blue-700 uppercase tracking-wider">Saldo ContPAQi API</p>
+                    <p className="text-lg font-bold text-blue-900 mt-0.5">
                       {formatCurrency(modalCliente.saldoContpaqiApi)}
                     </p>
                     <p className="text-[10px] text-gray-500">
                       {modalCliente.detallesContpaqi?.numAbonos || 0} abonos registrados
                     </p>
                   </div>
-                  <div className="border-x border-gray-200">
-                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Saldo Actual Registrado</p>
-                    <p className="text-lg font-bold text-gray-900 mt-0.5">
-                      {formatCurrency(modalCliente.saldoErpActual)}
+                  <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-2 sm:pt-0">
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Diferencia Directa</p>
+                    <p className={`text-lg font-bold mt-0.5 ${
+                      Math.abs(modalCliente.saldoErpActual - modalCliente.saldoContpaqiApi) < 0.01
+                        ? 'text-emerald-700'
+                        : 'text-rose-700'
+                    }`}>
+                      {formatCurrency(modalCliente.saldoErpActual - modalCliente.saldoContpaqiApi)}
                     </p>
-                    <p className="text-[10px] text-gray-500">En base de cobranza</p>
+                    <p className="text-[10px] text-gray-500">ERP - ContPAQi</p>
                   </div>
-                  <div>
+                  <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-2 sm:pt-0">
                     <p className="text-[11px] font-semibold text-indigo-600 uppercase tracking-wider">Saldo Real Calculado</p>
                     <p className="text-lg font-bold text-indigo-700 mt-0.5">
                       {formatCurrency(modalCliente.saldoRealCalculado)}
                     </p>
                     <p className="text-[10px] text-indigo-600 font-medium">
-                      Tomando últimos pagos
+                      Deduciendo pagos pendientes
                     </p>
                   </div>
                 </div>
 
                 {/* Explicación del Algoritmo para este cliente */}
                 <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-lg text-xs text-blue-900 leading-relaxed">
-                  <strong>💡 Regla de reconstrucción en cascada:</strong> Se toma el saldo base de ContPAQi API (
-                  <strong>{formatCurrency(modalCliente.saldoContpaqiApi)}</strong>). Para los pagos recientes no aplicados en ContPAQi, se resta su abono para obtener el nuevo saldo fiel. Para los pagos anteriores ya aplicados en ContPAQi, se reconstruye el saldo sumando hacia atrás de manera cronológica.
+                  <strong>💡 Regla de reconciliación:</strong> El saldo base de ContPAQi API es{' '}
+                  <strong>{formatCurrency(modalCliente.saldoContpaqiApi)}</strong>. Si hay pagos cobrados en ERP que aún no se han insertado en ContPAQi, se descuentan para calcular el saldo real sugerido (<strong>{formatCurrency(modalCliente.saldoRealCalculado)}</strong>). Al pulsar <em>Insertar Pagos en ContPAQi</em>, los documentos se envían y aplican automáticamente en ContPAQi Comercial.
                 </div>
 
                 {/* Tabla de pagos reconstruida */}
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700 mb-2">
-                    Cadena de Pagos Histórica ({modalCliente.cadenaPagos?.length || 0} pagos)
-                  </h4>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                      Cadena de Pagos Histórica ({modalCliente.cadenaPagos?.length || 0} pagos)
+                    </h4>
+                    {modalCliente.pagosPendientesContpaqi > 0 && (
+                      <Badge className="bg-amber-100 text-amber-800 text-[10px] border border-amber-200">
+                        {modalCliente.pagosPendientesContpaqi} pago(s) pendientes de insertar a ContPAQi
+                      </Badge>
+                    )}
+                  </div>
+
                   <div className="border border-gray-200 rounded-lg overflow-hidden max-h-[340px] overflow-y-auto">
                     <table className="w-full text-xs text-left">
                       <thead className="bg-gray-100 text-gray-700 font-semibold sticky top-0 border-b border-gray-200">
@@ -819,6 +1036,7 @@ export default function AuditoriaSaldosPage() {
                           <th className="p-2.5 text-right">Saldo Anterior</th>
                           <th className="p-2.5 text-right">Saldo Nuevo</th>
                           <th className="p-2.5 text-center">Ajuste</th>
+                          <th className="p-2.5 text-center">Acción ContPAQi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 bg-white">
@@ -836,7 +1054,7 @@ export default function AuditoriaSaldosPage() {
                             <td className="p-2.5 text-center">
                               {p.estaEnContpaqi ? (
                                 <Badge className="bg-emerald-100 text-emerald-800 text-[10px] py-0 px-1.5 border border-emerald-200">
-                                  ✅ Aplicado
+                                  ✅ Aplicado {p.docContpaqiFolio ? `(${p.docContpaqiFolio})` : ''}
                                 </Badge>
                               ) : (
                                 <Badge className="bg-amber-100 text-amber-800 text-[10px] py-0 px-1.5 border border-amber-200">
@@ -857,6 +1075,25 @@ export default function AuditoriaSaldosPage() {
                                 </span>
                               ) : (
                                 <span className="text-[10px] font-medium text-emerald-600">Correcto</span>
+                              )}
+                            </td>
+                            <td className="p-2.5 text-center">
+                              {!p.estaEnContpaqi && p.id && typeof p.id === 'string' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleInsertarPagoContpaqi(modalCliente.codigo, String(p.id))}
+                                  disabled={insertingPagoSingleId === String(p.id)}
+                                  className="h-6 px-2 text-[11px] gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300"
+                                  title="Insertar este pago individual en ContPAQi"
+                                >
+                                  {insertingPagoSingleId === String(p.id) ? (
+                                    <RefreshCw className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <UploadCloud className="h-3 w-3 text-amber-700" />
+                                  )}
+                                  Subir Pago
+                                </Button>
                               )}
                             </td>
                           </tr>

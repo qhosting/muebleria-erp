@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { auditarSaldosCliente, actualizarSaldosCliente } from '@/lib/auditoria-saldos-service';
+import { auditarSaldosCliente, actualizarSaldosCliente, insertarPagosPendientesMasivoContpaqi } from '@/lib/auditoria-saldos-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -120,6 +120,7 @@ export async function GET(request: NextRequest) {
             saldoRealCalculado: parseFloat(fallback.saldoActual?.toString() || '0') || 0,
             diferenciaErp: 0,
             diferenciaMysql: 0,
+            diferenciaContpaqi: 0,
             estadoCuadre: 'CUADRADO',
             totalPagosAuditados: 0,
             pagosPendientesContpaqi: 0,
@@ -172,7 +173,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST: Ejecuta actualización masiva de saldos para los clientes seleccionados
+ * POST: Ejecuta acciones masivas (actualización de saldos o inserción de pagos a ContPAQi)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -188,12 +189,19 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { codigosClientes } = body;
+    const { codigosClientes, accion = 'actualizar_saldos' } = body;
 
     if (!Array.isArray(codigosClientes) || codigosClientes.length === 0) {
       return NextResponse.json({ error: 'Debe especificar al menos un código de cliente' }, { status: 400 });
     }
 
+    // ACCIÓN: Insertar pagos pendientes en ContPAQi Comercial API
+    if (accion === 'insertar_pagos_contpaqi') {
+      const res = await insertarPagosPendientesMasivoContpaqi(codigosClientes, prisma);
+      return NextResponse.json(res);
+    }
+
+    // ACCIÓN DEFAULT: Actualizar y alinear saldos en ERP
     const resultados: any[] = [];
     let totalActualizados = 0;
     let totalPagosCorregidos = 0;
@@ -226,7 +234,7 @@ export async function POST(request: NextRequest) {
       detalles: resultados
     });
   } catch (error: any) {
-    console.error('Error al ejecutar actualización masiva de saldos:', error);
-    return NextResponse.json({ error: error.message || 'Error en actualización masiva' }, { status: 500 });
+    console.error('Error al ejecutar acción masiva en auditoría de saldos:', error);
+    return NextResponse.json({ error: error.message || 'Error en acción masiva' }, { status: 500 });
   }
 }

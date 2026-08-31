@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { auditarSaldosCliente, actualizarSaldosCliente } from '@/lib/auditoria-saldos-service';
+import {
+  auditarSaldosCliente,
+  actualizarSaldosCliente,
+  insertarPagoContpaqi,
+  insertarPagosPendientesClienteContpaqi
+} from '@/lib/auditoria-saldos-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +38,7 @@ export async function GET(
 }
 
 /**
- * POST: Ejecuta la corrección del saldo y la cascada histórica de pagos para este cliente individual
+ * POST: Ejecuta la corrección de saldos o la inserción de pagos a ContPAQi para este cliente individual
  */
 export async function POST(
   request: NextRequest,
@@ -56,10 +61,34 @@ export async function POST(
       return NextResponse.json({ error: 'Código de cliente requerido' }, { status: 400 });
     }
 
+    let body: any = {};
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
+    }
+
+    const accion = body?.accion || 'actualizar_saldo';
+    const pagoId = body?.pagoId;
+
+    // ACCIÓN: Insertar un pago específico o todos los pagos pendientes en ContPAQi
+    if (accion === 'insertar_pago_contpaqi' || accion === 'insertar_pagos_contpaqi') {
+      if (pagoId) {
+        const resultado = await insertarPagoContpaqi(pagoId, prisma);
+        const diagnostico = await auditarSaldosCliente(codigo, prisma);
+        return NextResponse.json({ ...resultado, diagnostico });
+      } else {
+        const resultado = await insertarPagosPendientesClienteContpaqi(codigo, prisma);
+        return NextResponse.json(resultado);
+      }
+    }
+
+    // ACCIÓN DEFAULT: Actualizar y alinear saldo en ERP
     const resultado = await actualizarSaldosCliente(codigo, prisma);
     return NextResponse.json({ ...resultado });
   } catch (error: any) {
-    console.error(`Error al actualizar saldo para cliente ${params?.codigo}:`, error);
-    return NextResponse.json({ error: error.message || 'Error al actualizar saldo' }, { status: 500 });
+    console.error(`Error en acción POST para cliente ${params?.codigo}:`, error);
+    return NextResponse.json({ error: error.message || 'Error al procesar solicitud' }, { status: 500 });
   }
 }
+

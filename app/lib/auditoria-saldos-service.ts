@@ -32,6 +32,7 @@ export interface DiagnosticoClienteSaldos {
   saldoRealCalculado: number;
   diferenciaErp: number;
   diferenciaMysql: number;
+  diferenciaContpaqi: number;
   estadoCuadre: 'CUADRADO' | 'DESFASE_SALDO' | 'PAGOS_PENDIENTES_CONTPAQI';
   totalPagosAuditados: number;
   pagosPendientesContpaqi: number;
@@ -333,6 +334,7 @@ export async function auditarSaldosCliente(
   }
 
   const diferenciaErp = parseFloat((saldoErpActual - saldoRealCalculado).toFixed(2));
+  const diferenciaContpaqi = parseFloat((saldoErpActual - saldoContpaqiApi).toFixed(2));
 
   let estadoCuadre: 'CUADRADO' | 'DESFASE_SALDO' | 'PAGOS_PENDIENTES_CONTPAQI' = 'CUADRADO';
   if (Math.abs(diferenciaErp) > 0.05) {
@@ -355,6 +357,7 @@ export async function auditarSaldosCliente(
     saldoRealCalculado,
     diferenciaErp,
     diferenciaMysql: diferenciaErp,
+    diferenciaContpaqi,
     estadoCuadre,
     totalPagosAuditados: listaPagosUnificados.length,
     pagosPendientesContpaqi: pagosPendientesCount,
@@ -370,7 +373,7 @@ export async function auditarSaldosCliente(
 }
 
 /**
- * Corrige y sincroniza el saldo y la cascada de pagos de un cliente
+ * Corrige y sincroniza el saldo y la cascada de pagos de un cliente en ERP
  */
 export async function actualizarSaldosCliente(
   codigoCliente: string,
@@ -432,3 +435,188 @@ export async function actualizarSaldosCliente(
     diagnostico: diagnosticoLimpio
   };
 }
+
+/**
+ * Inserta un pago específico de ERP directamente en ContPAQi Comercial API y lo afecta
+ */
+export async function insertarPagoContpaqi(
+  pagoId: string,
+  prismaClient?: any
+) {
+  const db = prismaClient || prisma;
+  const pago = await db.pago.findUnique({
+    where: { id: pagoId },
+    include: {
+      cliente: true,
+      ticket: true,
+      cobrador: true
+    }
+  });
+
+  if (!pago) {
+    throw new Error(`Pago con ID ${pagoId} no encontrado en la base de datos.`);
+  }
+
+  const cod = pago.cliente?.codigoCliente?.trim().toUpperCase();
+  if (!cod) {
+    throw new Error(`El pago ${pagoId} no tiene un cliente válido asociado.`);
+  }
+
+  const empresa = obtenerEmpresaPorCodigo(cod);
+  const apiUrl = process.env.CONTPAQI_API_URL || 'http://vortex520.qhosting.net:5000';
+  const apiKey = process.env.CONTPAQI_API_KEY || 'VERTEX123_CONTPAQI_ERP_2024';
+  const service = new ContpaqiService({ apiUrl, apiKey, empresa });
+
+  const conceptoAbono = empresa === 'DQ' ? '102' : '101';
+  const abonoMonto = parseFloat(pago.monto?.toString() || '0') || 0;
+  if (abonoMonto <= 0) {
+    throw new Error(`El monto del pago ${pagoId} debe ser mayor a 0.`);
+  }
+
+  const effectiveDate = pago.fechaPago ? new Date(pago.fechaPago) : (pago.ticket?.fecha ? new Date(pago.ticket.fecha) : new Date(pago.createdAt));
+  const fechaStr = toCdmxDateString(effectiveDate) || new Date().toISOString().slice(0, 10);
+  const referencia = pago.ticket?.folio || pago.ticket?.referencia || pago.numeroRecibo || `PAGO ERP #${pago.id.slice(0, 8)}`;
+  const cobradorNombre = pago.cobrador?.name || 'Cobrador';
+
+  // 1. Crear documento en ContPAQi API
+  const nuevoDoc = await service.createDocumento({
+    codigoConcepto: conceptoAbono,
+    codigoCliente: cod,
+    fecha: fechaStr,
+    total: abonoMonto,
+    referencia: referencia,
+    observaciones: `Registrado desde Mueblería ERP por ${cobradorNombre}`,
+    empresa
+  });
+
+  const docId = nuevoDoc?.id || nuevoDoc?.cIdDocumento || nuevoDoc?.CIDDOCUMENTO;
+  const docFolio = nuevoDoc?.folio || (nuevoDoc?.serie ? `${nuevoDoc.serie}-${nuevoDoc.folio}` : null);
+
+  // 2. Afectar documento en ContPAQi si devuelve ID
+  if (docId) {
+    try {
+      await service.afectarDocumento(Number(docId));
+    } catch (afErr: any) {
+      console.warn(`Afectar documento ${docId} en ContPAQi retornó advertencia:`, afErr.message);
+    }
+  }
+
+  // 3. Marcar pago en ERP como sincronizado
+  await db.pago.update({
+    where: { id: pago.id },
+    data: {
+      sincronizado: true,
+      concepto: docId
+        ? (pago.concepto ? `${pago.concepto} (ContPAQi Doc #${docId})` : `ContPAQi Doc #${docId}`)
+        : pago.concepto
+    }
+  });
+
+  return {
+    success: true,
+    pagoId: pago.id,
+    codigoCliente: cod,
+    docId,
+    docFolio,
+    monto: abonoMonto,
+    mensaje: `Pago de $${abonoMonto.toFixed(2)} insertado exitosamente en ContPAQi (${empresa} - Doc #${docId || 'OK'}).`
+  };
+}
+
+/**
+ * Inserta todos los pagos pendientes de un cliente en ContPAQi Comercial API
+ */
+export async function insertarPagosPendientesClienteContpaqi(
+  codigoCliente: string,
+  prismaClient?: any
+) {
+  const db = prismaClient || prisma;
+  const cod = codigoCliente.trim().toUpperCase();
+
+  // Ejecutamos auditoría para identificar qué pagos están pendientes en ContPAQi
+  const diagnostico = await auditarSaldosCliente(cod, db);
+  const pagosPendientes = diagnostico.cadenaPagos.filter(p => !p.estaEnContpaqi && !p.concepto?.includes('[DUPLICADO]'));
+
+  if (pagosPendientes.length === 0) {
+    return {
+      success: true,
+      codigoCliente: cod,
+      pagosInsertados: 0,
+      mensaje: `El cliente ${cod} no tiene pagos pendientes por insertar en ContPAQi.`,
+      diagnostico
+    };
+  }
+
+  let exitosos = 0;
+  const errores: string[] = [];
+  const resultadosDetalle: any[] = [];
+
+  for (const pagoItem of pagosPendientes) {
+    if (!pagoItem.id || typeof pagoItem.id !== 'string') continue;
+    try {
+      const res = await insertarPagoContpaqi(pagoItem.id, db);
+      exitosos++;
+      resultadosDetalle.push(res);
+    } catch (err: any) {
+      console.error(`Error al insertar pago ${pagoItem.id} de cliente ${cod} a ContPAQi:`, err);
+      errores.push(`Pago ${pagoItem.referencia || pagoItem.id}: ${err.message}`);
+    }
+  }
+
+  // Re-auditar el cliente para devolver el diagnóstico fresco
+  const nuevoDiagnostico = await auditarSaldosCliente(cod, db);
+
+  return {
+    success: exitosos > 0 || errores.length === 0,
+    codigoCliente: cod,
+    pagosInsertados: exitosos,
+    totalPendientes: pagosPendientes.length,
+    errores,
+    detalles: resultadosDetalle,
+    mensaje: exitosos > 0
+      ? `Se insertaron ${exitosos} de ${pagosPendientes.length} pagos en ContPAQi para ${cod}.`
+      : `No se pudieron insertar pagos en ContPAQi para ${cod}: ${errores.join(', ')}`,
+    diagnostico: nuevoDiagnostico
+  };
+}
+
+/**
+ * Inserta masivamente los pagos pendientes en ContPAQi para una lista de clientes
+ */
+export async function insertarPagosPendientesMasivoContpaqi(
+  codigosClientes: string[],
+  prismaClient?: any
+) {
+  const db = prismaClient || prisma;
+  let totalPagosInsertados = 0;
+  let totalClientesProcesados = 0;
+  const erroresTotales: string[] = [];
+  const resumenClientes: any[] = [];
+
+  for (const cod of codigosClientes) {
+    try {
+      const res = await insertarPagosPendientesClienteContpaqi(cod, db);
+      totalPagosInsertados += res.pagosInsertados;
+      if (res.pagosInsertados > 0) {
+        totalClientesProcesados++;
+      }
+      if (res.errores && res.errores.length > 0) {
+        erroresTotales.push(`${cod}: ${res.errores.join('; ')}`);
+      }
+      resumenClientes.push(res);
+    } catch (err: any) {
+      erroresTotales.push(`${cod}: ${err.message}`);
+    }
+  }
+
+  return {
+    success: true,
+    totalPagosInsertados,
+    totalClientesProcesados,
+    totalClientesSolicitados: codigosClientes.length,
+    errores: erroresTotales,
+    mensaje: `Proceso finalizado: ${totalPagosInsertados} pagos insertados en ContPAQi para ${totalClientesProcesados} cliente(s).`,
+    detalles: resumenClientes
+  };
+}
+

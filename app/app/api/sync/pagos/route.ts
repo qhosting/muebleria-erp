@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
         }
 
         const montoNumerico = parseFloat(pagoData.monto);
-        const saldoAnterior = parseFloat(pagoData.saldoAnterior) || parseFloat(cliente.saldoActual.toString());
+        const saldoAnterior = parseFloat(cliente.saldoActual.toString()) || 0;
         let saldoNuevo = saldoAnterior;
 
         // Solo los pagos regulares afectan el saldo principal
