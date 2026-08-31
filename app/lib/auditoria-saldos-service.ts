@@ -70,7 +70,6 @@ export async function auditarSaldosCliente(
     where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
     include: {
       pagos: {
-        orderBy: { fechaPago: 'desc' },
         include: {
           ticket: true,
           cobrador: true
@@ -145,34 +144,56 @@ export async function auditarSaldosCliente(
     });
   }
 
-  // 4. Lista cronológica de pagos de ERP
+  // 4. Lista de pagos de ERP con fecha efectiva
   const listaPagosUnificados: any[] = [];
   for (const p of pagosErp) {
     const abonoMonto = parseFloat(p.monto?.toString() || '0') || 0;
-    const moraMonto = parseFloat(p.moratorios?.toString() || '0') || 0;
+    const moraMonto = parseFloat(p.moratorios?.toString() || (p as any).interesMoratorio?.toString() || '0') || 0;
     const gcobMonto = parseFloat((p as any).gastosCobranza?.toString() || '0') || 0;
+
+    // Determinar fecha efectiva confiable
+    let effectiveDate = p.fechaPago ? new Date(p.fechaPago) : new Date(p.createdAt);
+    if (p.ticket?.fecha && Math.abs(new Date(p.ticket.fecha).getTime() - new Date(p.createdAt).getTime()) < 30 * 86400000) {
+      effectiveDate = new Date(p.ticket.fecha);
+    } else if (p.fechaPago && p.createdAt && Math.abs(new Date(p.fechaPago).getTime() - new Date(p.createdAt).getTime()) > 60 * 86400000) {
+      effectiveDate = new Date(p.createdAt);
+    }
+
+    const fechaStr = effectiveDate.toISOString().slice(0, 10);
+    const ref = p.ticket?.referencia || p.ticket?.folio || p.numeroRecibo || '';
 
     listaPagosUnificados.push({
       id: p.id,
       idpagMysql: null,
-      fecha: p.fechaPago ? new Date(p.fechaPago).toISOString().slice(0, 10) : '',
+      fecha: fechaStr,
+      effectiveTime: effectiveDate.getTime(),
       monto: abonoMonto,
       mora: moraMonto,
       gcob: gcobMonto,
       concepto: p.concepto || `Pago #${p.id.slice(0, 8)}`,
-      referencia: p.ticket?.folioRecibo || p.numeroRecibo || p.referencia || '',
+      referencia: ref,
       cobrador: p.cobrador?.name || cobrador,
-      saldoActualRegistrado: parseFloat((p as any).saldoNuevo?.toString() || '0') || saldoErpActual
+      saldoAnteriorActual: parseFloat((p as any).saldoAnterior?.toString() || '0') || 0,
+      saldoNuevoActual: parseFloat((p as any).saldoNuevo?.toString() || '0') || 0
     });
   }
 
-  listaPagosUnificados.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+  // Ordenar cronológicamente ascendente (del más antiguo al más reciente)
+  listaPagosUnificados.sort((a, b) => a.effectiveTime - b.effectiveTime);
 
-  // 5. Reconstrucción y conciliación
-  const cadenaPagosAuditada: PagoAuditadoItem[] = [];
-  let saldoPivote = saldoContpaqiApi;
+  // 5. Reconstrucción y conciliación progresiva
   let pagosPendientesCount = 0;
   let pagosAplicadosCount = 0;
+
+  // Determinar saldo inicial de la cuenta
+  let saldoInicial = totalPagaresMonto > 0 ? totalPagaresMonto : 0;
+  if (saldoInicial === 0) {
+    const totalAbonosErp = listaPagosUnificados.reduce((acc, p) => acc + p.monto, 0);
+    saldoInicial = saldoContpaqiApi + totalAbonosErp;
+  }
+
+  let runningBalance = saldoInicial;
+  const cadenaAscendente: PagoAuditadoItem[] = [];
 
   for (let i = 0; i < listaPagosUnificados.length; i++) {
     const p = listaPagosUnificados[i];
@@ -190,21 +211,22 @@ export async function auditarSaldosCliente(
     }
     const estaEnContpaqi = !!docEncontrado;
 
-    let saldoAnteriorReconstruido = 0;
-    let saldoNuevoReconstruido = 0;
-
-    if (!estaEnContpaqi) {
-      saldoAnteriorReconstruido = parseFloat(saldoPivote.toFixed(2));
-      saldoNuevoReconstruido = parseFloat((saldoPivote - p.monto).toFixed(2));
-      saldoPivote = saldoNuevoReconstruido;
-      pagosPendientesCount++;
-    } else {
-      saldoAnteriorReconstruido = parseFloat((saldoPivote + p.monto).toFixed(2));
-      saldoNuevoReconstruido = parseFloat(saldoPivote.toFixed(2));
+    if (estaEnContpaqi) {
       pagosAplicadosCount++;
+    } else {
+      pagosPendientesCount++;
     }
 
-    cadenaPagosAuditada.push({
+    const saldoAnteriorReconstruido = parseFloat(runningBalance.toFixed(2));
+    runningBalance = Math.max(0, parseFloat((runningBalance - p.monto).toFixed(2)));
+    const saldoNuevoReconstruido = parseFloat(runningBalance.toFixed(2));
+
+    const requiereAjuste =
+      !estaEnContpaqi ||
+      Math.abs(p.saldoNuevoActual - saldoNuevoReconstruido) > 0.05 ||
+      Math.abs(p.saldoAnteriorActual - saldoAnteriorReconstruido) > 0.05;
+
+    cadenaAscendente.push({
       id: p.id,
       idpagMysql: null,
       fecha: p.fecha,
@@ -217,15 +239,15 @@ export async function auditarSaldosCliente(
       estaEnContpaqi,
       docContpaqiId: docEncontrado?.id || docEncontrado?.cIdDocumento || null,
       docContpaqiFolio: docEncontrado ? `${docEncontrado.serie || ''}-${docEncontrado.folio || ''}` : null,
-      saldoAnteriorActual: p.saldoActualRegistrado + p.monto,
-      saldoNuevoActual: p.saldoActualRegistrado,
+      saldoAnteriorActual: p.saldoAnteriorActual,
+      saldoNuevoActual: p.saldoNuevoActual,
       saldoAnteriorReconstruido,
       saldoNuevoReconstruido,
-      requiereAjuste: !estaEnContpaqi || Math.abs(p.saldoActualRegistrado - saldoNuevoReconstruido) > 0.05
+      requiereAjuste
     });
   }
 
-  const saldoRealCalculado = saldoContpaqiApi;
+  const saldoRealCalculado = parseFloat(runningBalance.toFixed(2));
   const diferenciaErp = parseFloat((saldoErpActual - saldoRealCalculado).toFixed(2));
 
   let estadoCuadre: 'CUADRADO' | 'DESFASE_SALDO' | 'PAGOS_PENDIENTES_CONTPAQI' = 'CUADRADO';
@@ -234,6 +256,9 @@ export async function auditarSaldosCliente(
   } else if (Math.abs(diferenciaErp) > 0.05) {
     estadoCuadre = 'DESFASE_SALDO';
   }
+
+  // Ordenar la cadena descendente (más reciente arriba) para presentación visual
+  const cadenaPagosAuditada = [...cadenaAscendente].reverse();
 
   return {
     codigo: cod,
@@ -286,16 +311,13 @@ export async function actualizarSaldosCliente(
         await db.pago.update({
           where: { id: pagoItem.id },
           data: {
-            saldoNuevo: pagoItem.saldoNuevoReconstruido,
-            metadatos: {
-              contpaqiDocId: pagoItem.docContpaqiId,
-              contpaqiAfectado: pagoItem.estaEnContpaqi
-            }
+            saldoAnterior: pagoItem.saldoAnteriorReconstruido,
+            saldoNuevo: pagoItem.saldoNuevoReconstruido
           }
         });
         pagosActualizados++;
-      } catch (pErr) {
-        // Ignorar si el ID no existe en DB
+      } catch (pErr: any) {
+        console.error(`Error actualizando pago ${pagoItem.id}:`, pErr?.message || pErr);
       }
     }
   }
@@ -311,4 +333,3 @@ export async function actualizarSaldosCliente(
     diagnostico
   };
 }
-
