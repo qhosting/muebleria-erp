@@ -172,25 +172,21 @@ export async function auditarSaldosCliente(
   }
 
   // 4. Lista de pagos de ERP con fecha efectiva
-  const listaPagosUnificados: any[] = [];
+  const listaPagosRaw: any[] = [];
   for (const p of pagosErp) {
     const abonoMonto = parseFloat(p.monto?.toString() || '0') || 0;
     const moraMonto = parseFloat(p.moratorios?.toString() || (p as any).interesMoratorio?.toString() || '0') || 0;
     const gcobMonto = parseFloat((p as any).gastosCobranza?.toString() || '0') || 0;
 
-    // Determinar fecha efectiva confiable
-    let effectiveDate = p.fechaPago ? new Date(p.fechaPago) : new Date(p.createdAt);
-    if (p.ticket?.fecha && Math.abs(new Date(p.ticket.fecha).getTime() - new Date(p.createdAt).getTime()) < 30 * 86400000) {
-      effectiveDate = new Date(p.ticket.fecha);
-    } else if (p.fechaPago && p.createdAt && Math.abs(new Date(p.fechaPago).getTime() - new Date(p.createdAt).getTime()) > 60 * 86400000) {
-      effectiveDate = new Date(p.createdAt);
-    }
+    // Determinar fecha efectiva confiable (preservar fechaPago original de la transacción)
+    let effectiveDate = p.fechaPago ? new Date(p.fechaPago) : (p.ticket?.fecha ? new Date(p.ticket.fecha) : new Date(p.createdAt));
 
     const fechaStr = toCdmxDateString(effectiveDate);
     const ref = p.ticket?.referencia || p.ticket?.folio || p.numeroRecibo || '';
 
-    listaPagosUnificados.push({
+    listaPagosRaw.push({
       id: p.id,
+      ticketId: p.ticketId,
       idpagMysql: null,
       fecha: fechaStr,
       effectiveTime: effectiveDate.getTime(),
@@ -201,12 +197,42 @@ export async function auditarSaldosCliente(
       referencia: ref,
       cobrador: p.cobrador?.name || cobrador,
       saldoAnteriorActual: parseFloat((p as any).saldoAnterior?.toString() || '0') || 0,
-      saldoNuevoActual: parseFloat((p as any).saldoNuevo?.toString() || '0') || 0
+      saldoNuevoActual: parseFloat((p as any).saldoNuevo?.toString() || '0') || 0,
+      esDuplicado: false
     });
   }
 
   // Ordenar cronológicamente ascendente (del más antiguo al más reciente)
-  listaPagosUnificados.sort((a, b) => a.effectiveTime - b.effectiveTime);
+  listaPagosRaw.sort((a, b) => a.effectiveTime - b.effectiveTime);
+
+  // 4.1 Deduplicación inteligente de pagos (colisiones entre alineación MySQL y tickets BOT en la misma fecha ±2 días)
+  const pagosValidosTemp: any[] = [];
+  const idsDuplicados = new Set<string>();
+
+  for (const p of listaPagosRaw) {
+    const matchPrevio = pagosValidosTemp.find(pv => {
+      const diffDays = Math.abs(pv.effectiveTime - p.effectiveTime) / (1000 * 60 * 60 * 24);
+      return Math.abs(pv.monto - p.monto) < 1 && diffDays <= 2.5;
+    });
+
+    if (matchPrevio) {
+      // Si el actual tiene ticketId y el previo es alineación automática sin ticket, preferimos el ticket
+      if (p.ticketId && !matchPrevio.ticketId) {
+        const idx = pagosValidosTemp.indexOf(matchPrevio);
+        pagosValidosTemp[idx] = p;
+        idsDuplicados.add(matchPrevio.id);
+      } else {
+        idsDuplicados.add(p.id);
+      }
+    } else {
+      pagosValidosTemp.push(p);
+    }
+  }
+
+  const listaPagosUnificados = listaPagosRaw.map(p => ({
+    ...p,
+    esDuplicado: idsDuplicados.has(p.id)
+  }));
 
   // 5. Reconstrucción y conciliación progresiva
   let pagosPendientesCount = 0;
@@ -215,7 +241,7 @@ export async function auditarSaldosCliente(
   // Determinar saldo inicial de la cuenta
   let saldoInicial = totalPagaresMonto > 0 ? totalPagaresMonto : 0;
   if (saldoInicial === 0) {
-    const totalAbonosErp = listaPagosUnificados.reduce((acc, p) => acc + p.monto, 0);
+    const totalAbonosErp = listaPagosUnificados.filter(p => !p.esDuplicado).reduce((acc, p) => acc + p.monto, 0);
     saldoInicial = saldoContpaqiApi + totalAbonosErp;
   }
 
@@ -255,17 +281,22 @@ export async function auditarSaldosCliente(
 
     const estaEnContpaqi = !!docEncontrado;
 
-    if (estaEnContpaqi) {
-      pagosAplicadosCount++;
-    } else {
-      pagosPendientesCount++;
+    if (!p.esDuplicado) {
+      if (estaEnContpaqi) {
+        pagosAplicadosCount++;
+      } else {
+        pagosPendientesCount++;
+      }
     }
 
     const saldoAnteriorReconstruido = parseFloat(runningBalance.toFixed(2));
-    runningBalance = Math.max(0, parseFloat((runningBalance - p.monto).toFixed(2)));
+    if (!p.esDuplicado) {
+      runningBalance = Math.max(0, parseFloat((runningBalance - p.monto).toFixed(2)));
+    }
     const saldoNuevoReconstruido = parseFloat(runningBalance.toFixed(2));
 
     const requiereAjuste =
+      p.esDuplicado ||
       !estaEnContpaqi ||
       Math.abs(p.saldoNuevoActual - saldoNuevoReconstruido) > 0.05 ||
       Math.abs(p.saldoAnteriorActual - saldoAnteriorReconstruido) > 0.05;
@@ -277,7 +308,7 @@ export async function auditarSaldosCliente(
       monto: p.monto,
       mora: p.mora,
       gcob: p.gcob,
-      concepto: p.concepto,
+      concepto: p.esDuplicado ? `⚠️ [DUPLICADO] ${p.concepto}` : p.concepto,
       referencia: p.referencia,
       cobrador: p.cobrador,
       estaEnContpaqi,
@@ -295,10 +326,10 @@ export async function auditarSaldosCliente(
   const diferenciaErp = parseFloat((saldoErpActual - saldoRealCalculado).toFixed(2));
 
   let estadoCuadre: 'CUADRADO' | 'DESFASE_SALDO' | 'PAGOS_PENDIENTES_CONTPAQI' = 'CUADRADO';
-  if (pagosPendientesCount > 0) {
-    estadoCuadre = 'PAGOS_PENDIENTES_CONTPAQI';
-  } else if (Math.abs(diferenciaErp) > 0.05) {
+  if (Math.abs(diferenciaErp) > 0.05) {
     estadoCuadre = 'DESFASE_SALDO';
+  } else if (pagosPendientesCount > 0) {
+    estadoCuadre = 'PAGOS_PENDIENTES_CONTPAQI';
   }
 
   // Ordenar la cadena descendente (más reciente arriba) para presentación visual
@@ -341,15 +372,30 @@ export async function actualizarSaldosCliente(
   const cod = codigoCliente.trim().toUpperCase();
   const diagnostico = await auditarSaldosCliente(cod, db);
 
-  // 1. Actualizar saldo del cliente en PostgreSQL
+  // 1. Depurar pagos duplicados detectados (Alineación automática que colisiona con tickets)
+  const pagosDuplicados = diagnostico.cadenaPagos.filter(p => p.concepto?.includes('[DUPLICADO]'));
+  for (const dup of pagosDuplicados) {
+    if (dup.id && typeof dup.id === 'string') {
+      try {
+        await db.pago.delete({ where: { id: dup.id } });
+      } catch (dErr: any) {
+        console.warn(`No se pudo eliminar pago duplicado ${dup.id}:`, dErr?.message);
+      }
+    }
+  }
+
+  // 2. Re-auditar después de eliminar duplicados para obtener la cascada limpia
+  const diagnosticoLimpio = await auditarSaldosCliente(cod, db);
+
+  // 3. Actualizar saldo del cliente en PostgreSQL
   await db.cliente.updateMany({
     where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
-    data: { saldoActual: diagnostico.saldoRealCalculado }
+    data: { saldoActual: diagnosticoLimpio.saldoRealCalculado }
   });
 
-  // 2. Si hay pagos registrados en ERP, ajustar saldos de la cadena histórica
+  // 4. Ajustar saldos de la cadena histórica en cascada
   let pagosActualizados = 0;
-  for (const pagoItem of diagnostico.cadenaPagos) {
+  for (const pagoItem of diagnosticoLimpio.cadenaPagos) {
     if (pagoItem.id && typeof pagoItem.id === 'string') {
       try {
         await db.pago.update({
@@ -368,12 +414,12 @@ export async function actualizarSaldosCliente(
 
   return {
     success: true,
-    mensaje: `Saldo actualizado exitosamente a $${diagnostico.saldoRealCalculado.toFixed(2)} para ${cod}.`,
+    mensaje: `Saldo actualizado exitosamente a $${diagnosticoLimpio.saldoRealCalculado.toFixed(2)} para ${cod}.`,
     codigo: cod,
     saldoAnterior: diagnostico.saldoErpActual,
-    saldoReal: diagnostico.saldoRealCalculado,
-    saldoRealCalculado: diagnostico.saldoRealCalculado,
+    saldoReal: diagnosticoLimpio.saldoRealCalculado,
+    saldoRealCalculado: diagnosticoLimpio.saldoRealCalculado,
     pagosActualizados,
-    diagnostico
+    diagnostico: diagnosticoLimpio
   };
 }
