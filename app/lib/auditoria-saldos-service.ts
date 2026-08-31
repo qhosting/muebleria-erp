@@ -142,10 +142,8 @@ export async function auditarSaldosCliente(
     .reduce((acc: number, a: any) => acc + (parseFloat(a.pendiente || a.CPENDIENTE || 0) || 0), 0);
 
   const saldoContpaqiApi = pagares.length > 0
-    ? (totalAbonosCobranzaContpaqi > 0 && totalPagaresMonto > 0
-        ? Math.max(0, parseFloat((totalPagaresMonto - totalAbonosCobranzaContpaqi).toFixed(2)))
-        : Math.max(0, parseFloat((totalPendientePagares - abonosSinAsociar).toFixed(2))))
-    : (docs.find((d: any) => ['100', '4', '5'].includes(String(d.codigoConcepto || '').trim()) && !d.cancelado)?.pendiente || 0);
+    ? Math.max(0, parseFloat(totalPendientePagares.toFixed(2)))
+    : parseFloat((docs.find((d: any) => ['100', '4', '5'].includes(String(d.codigoConcepto || '').trim()) && !d.cancelado)?.pendiente || 0).toString());
 
   // Indexar documentos de ContPAQi por folio y referencia
   const contpaqiFechaMontoList: any[] = [];
@@ -234,22 +232,11 @@ export async function auditarSaldosCliente(
     esDuplicado: idsDuplicados.has(p.id)
   }));
 
-  // 5. Reconstrucción y conciliación progresiva
+  // 5. Reconciliar contra ContPAQi para identificar qué pagos ya están capturados
   let pagosPendientesCount = 0;
   let pagosAplicadosCount = 0;
 
-  // Determinar saldo inicial de la cuenta
-  let saldoInicial = totalPagaresMonto > 0 ? totalPagaresMonto : 0;
-  if (saldoInicial === 0) {
-    const totalAbonosErp = listaPagosUnificados.filter(p => !p.esDuplicado).reduce((acc, p) => acc + p.monto, 0);
-    saldoInicial = saldoContpaqiApi + totalAbonosErp;
-  }
-
-  let runningBalance = saldoInicial;
-  const cadenaAscendente: PagoAuditadoItem[] = [];
-
-  for (let i = 0; i < listaPagosUnificados.length; i++) {
-    const p = listaPagosUnificados[i];
+  for (const p of listaPagosUnificados) {
     const refUpper = (p.referencia || '').trim().toUpperCase();
 
     let docEncontrado = refUpper && contpaqiRefSet.has(refUpper) ? contpaqiRefSet.get(refUpper) : null;
@@ -279,15 +266,38 @@ export async function auditarSaldosCliente(
       if (itemInList) itemInList.usado = true;
     }
 
-    const estaEnContpaqi = !!docEncontrado;
+    p.estaEnContpaqi = !!docEncontrado;
+    p.docContpaqiId = docEncontrado?.id || docEncontrado?.cIdDocumento || null;
+    p.docContpaqiFolio = docEncontrado ? `${docEncontrado.serie || ''}-${docEncontrado.folio || ''}` : null;
 
     if (!p.esDuplicado) {
-      if (estaEnContpaqi) {
+      if (p.estaEnContpaqi) {
         pagosAplicadosCount++;
       } else {
         pagosPendientesCount++;
       }
     }
+  }
+
+  // 6. Calcular el Saldo Real Sugerido
+  // Si en ContPAQi el saldo es saldoContpaqiApi ($913),
+  // los pagos no reflejados en ContPAQi reducen ese saldo:
+  const pagosNoReflejados = listaPagosUnificados.filter(p => !p.esDuplicado && !p.estaEnContpaqi);
+  const montoPagosNoReflejados = pagosNoReflejados.reduce((acc, p) => acc + p.monto, 0);
+  const saldoRealCalculado = Math.max(0, parseFloat((saldoContpaqiApi - montoPagosNoReflejados).toFixed(2)));
+
+  // 7. Reconstruir la cascada de saldos
+  // Calculamos el saldo inicial para que la cascada termine exactamente en saldoRealCalculado:
+  const pagosValidosTotalMonto = listaPagosUnificados.filter(p => !p.esDuplicado).reduce((acc, p) => acc + p.monto, 0);
+  let runningBalance = parseFloat((saldoRealCalculado + pagosValidosTotalMonto).toFixed(2));
+  if (totalPagaresMonto > 0 && Math.abs(totalPagaresMonto - runningBalance) < 1) {
+    runningBalance = totalPagaresMonto;
+  }
+
+  const cadenaAscendente: PagoAuditadoItem[] = [];
+
+  for (let i = 0; i < listaPagosUnificados.length; i++) {
+    const p = listaPagosUnificados[i];
 
     const saldoAnteriorReconstruido = parseFloat(runningBalance.toFixed(2));
     if (!p.esDuplicado) {
@@ -297,7 +307,7 @@ export async function auditarSaldosCliente(
 
     const requiereAjuste =
       p.esDuplicado ||
-      !estaEnContpaqi ||
+      !p.estaEnContpaqi ||
       Math.abs(p.saldoNuevoActual - saldoNuevoReconstruido) > 0.05 ||
       Math.abs(p.saldoAnteriorActual - saldoAnteriorReconstruido) > 0.05;
 
@@ -311,9 +321,9 @@ export async function auditarSaldosCliente(
       concepto: p.esDuplicado ? `⚠️ [DUPLICADO] ${p.concepto}` : p.concepto,
       referencia: p.referencia,
       cobrador: p.cobrador,
-      estaEnContpaqi,
-      docContpaqiId: docEncontrado?.id || docEncontrado?.cIdDocumento || null,
-      docContpaqiFolio: docEncontrado ? `${docEncontrado.serie || ''}-${docEncontrado.folio || ''}` : null,
+      estaEnContpaqi: p.estaEnContpaqi,
+      docContpaqiId: p.docContpaqiId,
+      docContpaqiFolio: p.docContpaqiFolio,
       saldoAnteriorActual: p.saldoAnteriorActual,
       saldoNuevoActual: p.saldoNuevoActual,
       saldoAnteriorReconstruido,
@@ -322,7 +332,6 @@ export async function auditarSaldosCliente(
     });
   }
 
-  const saldoRealCalculado = parseFloat(runningBalance.toFixed(2));
   const diferenciaErp = parseFloat((saldoErpActual - saldoRealCalculado).toFixed(2));
 
   let estadoCuadre: 'CUADRADO' | 'DESFASE_SALDO' | 'PAGOS_PENDIENTES_CONTPAQI' = 'CUADRADO';
