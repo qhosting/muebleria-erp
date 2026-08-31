@@ -14,41 +14,80 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
         }
 
+        const { searchParams } = new URL(request.url);
+        const desde = searchParams.get('desde');
+        const hasta = searchParams.get('hasta');
+
+        // Filtro de fechas para tickets
+        const ticketWhere: any = { conciliado: false };
+        const movWhere: any = { ticketId: null, abono: { gt: 0 } };
+
+        if (desde && hasta) {
+            const dStart = new Date(`${desde}T00:00:00.000Z`);
+            const dEnd = new Date(`${hasta}T23:59:59.999Z`);
+
+            ticketWhere.OR = [
+                { fecha: { gte: dStart, lte: dEnd } },
+                { creadoEn: { gte: dStart, lte: dEnd } }
+            ];
+
+            movWhere.fechaOperacion = { gte: dStart, lte: dEnd };
+        }
+
         // 1. Obtener Tickets no conciliados
         const ticketsPendientes = await prisma.ticket.findMany({
-            where: { conciliado: false },
+            where: ticketWhere,
             include: {
                 cliente: { 
                     select: { 
                         id: true,
                         nombreCompleto: true, 
                         codigoCliente: true,
+                        saldoActual: true,
+                        cobradorAsignado: {
+                            select: {
+                                name: true,
+                                codigoGestor: true
+                            }
+                        },
                         // @ts-ignore
                         cuentasBancarias: true 
                     } 
                 } as any,
-                gestor: { select: { name: true } },
+                gestor: { 
+                    select: { 
+                        name: true,
+                        codigoGestor: true 
+                    } 
+                },
+                pagos: {
+                    select: {
+                        id: true,
+                        monto: true,
+                        fechaPago: true
+                    }
+                }
             },
             orderBy: { creadoEn: 'desc' },
-            take: 100
+            take: 200
         });
 
-        // 2. Obtener Movimientos Bancarios no conciliados de las 3 tablas (solo abonos/depositos, ya que cargos no se concilian)
+        // 2. Obtener Movimientos Bancarios no conciliados de las 3 tablas
         const [m1, m2, m3] = await Promise.all([
             prisma.movimientoSantander22001022837.findMany({
-                where: { ticketId: null, abono: { gt: 0 } },
+                where: movWhere,
                 orderBy: { fechaOperacion: 'desc' },
-                take: 100
+                take: 200
             }),
             prisma.movimientoSantander65505732541.findMany({
-                where: { ticketId: null, abono: { gt: 0 } },
+                where: movWhere,
                 orderBy: { fechaOperacion: 'desc' },
-                take: 100
+                take: 200
             }),
             prisma.movimientoBanorte0330253963.findMany({
-                where: { ticketId: null, abono: { gt: 0 } },
+                where: movWhere,
                 orderBy: { fechaOperacion: 'desc' },
-                take: 100
+                take: 200
             })
         ]);
 
@@ -98,104 +137,108 @@ export async function GET(request: NextRequest) {
             const rastreoTicket = ticket.claveRastreo ? ticket.claveRastreo.trim().toUpperCase() : null;
 
             for (const mov of movimientosDisponibles) {
-                // Solo sugerimos si el monto coincide exactamente
-                if (Number(mov.abono) !== monto) continue;
+                const abono = Number(mov.abono);
+                const desc = normalizarTexto(`${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''}`);
+                const dataPool = `${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''}`.toUpperCase();
 
-                const concepto = (mov.concepto || "").toUpperCase();
-                const descripcion = (mov.descripcionDetallada || "").toUpperCase();
-                const general = (mov.descripcionGeneral || "").toUpperCase();
-                const dataPool = `${concepto} ${descripcion} ${general}`;
-                const dataPoolNormalized = normalizarTexto(dataPool);
-
-                let currentPriority = 8; // Coincidencia de monto (base)
-                let currentRazon = "Monto exacto (Prioridad 8)";
-
-                // A. Prioridad 0: Coincidencia por Clave de Rastreo (idéntica y única)
-                const rastreoMov = mov.claveRastreo ? mov.claveRastreo.trim().toUpperCase() : null;
-                if (rastreoTicket && rastreoMov && rastreoTicket === rastreoMov) {
-                    currentPriority = 0;
-                    currentRazon = "Clave de Rastreo idéntica (Prioridad 0)";
+                const isMontoExact = Math.abs(monto - abono) < 0.01;
+                
+                // Prioridad 1: Clave de Rastreo SPEI exacta
+                if (rastreoTicket && rastreoTicket.length > 5 && dataPool.includes(rastreoTicket)) {
+                    bestMatch = mov;
+                    bestPriority = 1;
+                    razon = `Coincidencia exacta por Clave de Rastreo (${rastreoTicket})`;
+                    break;
                 }
-                // B. Prioridad 1: Búsqueda por Cuenta Bancaria Histórica (Inteligencia)
-                else {
-                    const matchCuentaDirecta = cuentasConocidas.find((c: any) => 
-                        c.clienteId === ticket.clienteId && (
-                            (mov.clabeEmisor && c.clabe === mov.clabeEmisor) || 
-                            (mov.cuentaEmisor && c.cuenta === mov.cuentaEmisor)
-                        )
-                    );
-                    
-                    const matchCuentaPool = cuentasConocidas.find((c: any) => 
-                        c.clienteId === ticket.clienteId && (
-                            (c.clabe && dataPool.includes(c.clabe)) || 
-                            (c.cuenta && dataPool.includes(c.cuenta))
-                        )
-                    );
 
-                    if (matchCuentaDirecta || matchCuentaPool) {
-                        currentPriority = 1;
-                        currentRazon = "Cuenta Bancaria Conocida del Cliente (Prioridad 1)";
-                    } 
-                    // C. Prioridad 2: Búsqueda por Código de Contrato (Regex y Alfanumérico Normalizado)
-                    else {
-                        const contractMatch = dataPool.match(/[A-Z]{2}\d{4,}/);
-                        const normalizedDataPool = dataPool.replace(/[^A-Z0-9]/g, "");
-                        const contractInPool = normalizedContrato && normalizedDataPool.includes(normalizedContrato);
-                        
-                        if ((contractMatch && contractMatch[0] === contrato) || contractInPool) {
-                            currentPriority = 2;
-                            currentRazon = "Código de Contrato en Concepto (Prioridad 2)";
-                        } 
-                        // D. Prioridad 3: Búsqueda por Referencia o Folio (sin ceros a la izquierda)
-                        else {
-                            const refMov = (mov.referencia || "").replace(/^0+/, "").trim().toUpperCase();
-                            const matchReferencia = (refMov && refTicket && refMov === refTicket) ||
-                                                    (refMov && folioTicket && refMov === folioTicket);
-                            
-                            if (matchReferencia) {
-                                currentPriority = 3;
-                                currentRazon = "Referencia o Folio coincide (Prioridad 3)";
-                            }
-                            // E. Prioridad 4: Búsqueda por Nombre (Mínimo 15 caracteres, sin acentos)
-                            else if (nombreSubstr && dataPoolNormalized.includes(nombreSubstr)) {
-                                currentPriority = 4;
-                                currentRazon = "Nombre del Cliente detectado (Prioridad 4)";
-                            }
-                            // F. Prioridad 5: Búsqueda por CLABE en Ticket vs Concepto
-                            else if (cuentaTicket && dataPool.includes(cuentaTicket)) {
-                                currentPriority = 5;
-                                currentRazon = "CLABE del Ticket coincide con Banco (Prioridad 5)";
-                            }
+                // Prioridad 2: Cuenta bancaria / CLABE registrada previamente para este cliente
+                if (isMontoExact && (cuentaTicket || (ticket.cliente as any)?.cuentasBancarias?.length > 0)) {
+                    const cuentasCliente = [
+                        cuentaTicket,
+                        ...((ticket.cliente as any)?.cuentasBancarias?.map((c: any) => c.clabe || c.cuenta) || [])
+                    ].filter(Boolean);
+
+                    const coincideCuenta = cuentasCliente.some(c => c && dataPool.includes(c.trim()));
+                    if (coincideCuenta && bestPriority > 2) {
+                        bestMatch = mov;
+                        bestPriority = 2;
+                        razon = `Mismo monto ($${monto.toFixed(2)}) y cuenta bancaria/CLABE recurrente del cliente`;
+                        continue;
+                    }
+                }
+
+                // Prioridad 3: Contrato explícito en el concepto y monto exacto
+                if (isMontoExact && normalizedContrato && normalizedContrato.length >= 5 && dataPool.replace(/[^A-Z0-9]/g, "").includes(normalizedContrato)) {
+                    if (bestPriority > 3) {
+                        bestMatch = mov;
+                        bestPriority = 3;
+                        razon = `Mismo monto ($${monto.toFixed(2)}) y Contrato ${contrato} en el concepto bancario`;
+                        continue;
+                    }
+                }
+
+                // Prioridad 4: Folio o Referencia numérica en el movimiento y monto exacto
+                if (isMontoExact) {
+                    if (folioTicket && folioTicket.length >= 4 && dataPool.includes(folioTicket)) {
+                        if (bestPriority > 4) {
+                            bestMatch = mov;
+                            bestPriority = 4;
+                            razon = `Mismo monto ($${monto.toFixed(2)}) y Folio/Autorización ${folioTicket}`;
+                            continue;
+                        }
+                    }
+                    if (refTicket && refTicket.length >= 4 && dataPool.includes(refTicket)) {
+                        if (bestPriority > 4) {
+                            bestMatch = mov;
+                            bestPriority = 4;
+                            razon = `Mismo monto ($${monto.toFixed(2)}) y Referencia ${refTicket}`;
+                            continue;
                         }
                     }
                 }
 
-                if (currentPriority < bestPriority) {
-                    bestPriority = currentPriority;
-                    bestMatch = mov;
-                    razon = currentRazon;
+                // Prioridad 5: Nombre del cliente en el concepto bancario y monto exacto
+                if (isMontoExact && nombreSubstr.length >= 6 && desc.includes(nombreSubstr)) {
+                    if (bestPriority > 5) {
+                        bestMatch = mov;
+                        bestPriority = 5;
+                        razon = `Mismo monto ($${monto.toFixed(2)}) y nombre "${nombreSubstr}" en el movimiento`;
+                        continue;
+                    }
+                }
+
+                // Prioridad 6: Solo coincidencia de monto exacto y misma fecha
+                if (isMontoExact && bestPriority > 6) {
+                    const ticketDate = ticket.fecha || ticket.creadoEn;
+                    if (ticketDate && mov.fechaOperacion) {
+                        const tDate = new Date(ticketDate);
+                        const mDate = new Date(mov.fechaOperacion);
+                        const diffHours = Math.abs(tDate.getTime() - mDate.getTime()) / (1000 * 60 * 60);
+                        if (diffHours <= 36) {
+                            bestMatch = mov;
+                            bestPriority = 6;
+                            razon = `Mismo monto ($${monto.toFixed(2)}) y fecha cercana (${tDate.toISOString().split('T')[0]})`;
+                            continue;
+                        }
+                    }
                 }
             }
 
-            if (bestMatch && bestPriority <= 8) {
+            if (bestMatch) {
                 sugerencias.push({
                     ticket,
                     movimiento: bestMatch,
-                    prioridad: bestPriority,
-                    razon: razon
+                    razon,
+                    prioridad: bestPriority
                 });
-
-                // Remover para no duplicar sugerencias en este batch
-                const idx = movimientosDisponibles.findIndex(m => m.id === bestMatch.id && m.tabla === bestMatch.tabla);
-                if (idx > -1) movimientosDisponibles.splice(idx, 1);
             }
         }
 
         return NextResponse.json({
             tickets: ticketsPendientes,
-            movimientos: movimientosDisponibles,
+            movimientos: movimientosPendientes,
             sugerencias,
-            totalCuentasConocidas: cuentasConocidas.length
+            cuentasConocidas: cuentasConocidas.length
         });
 
     } catch (error) {
@@ -204,14 +247,26 @@ export async function GET(request: NextRequest) {
     }
 }
 
-// Para ejecutar un Emparejamiento Manual y APRENDIZAJE
+// Para ejecutar un Emparejamiento Manual, Aprendizaje o Descartar Ticket
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
         const body = await request.json();
-        const { ticketId, movimientoId, tabla } = body;
+        const { ticketId, movimientoId, tabla, action } = body;
+
+        if (action === 'descartar' || body.descartar) {
+            if (!ticketId) return NextResponse.json({ error: 'ID de ticket requerido' }, { status: 400 });
+            await prisma.ticket.update({
+                where: { id: ticketId },
+                data: {
+                    conciliado: true,
+                    concepto: 'TICKET DESCARTADO EN CONCILIADOR'
+                }
+            });
+            return NextResponse.json({ success: true, message: 'Ticket descartado exitosamente' });
+        }
 
         const ticket: any = await prisma.ticket.findUnique({ 
             where: { id: ticketId },
@@ -248,9 +303,9 @@ export async function POST(request: NextRequest) {
         if (!ticket || !movimiento) return NextResponse.json({ error: 'Datos no encontrados' }, { status: 404 });
 
         // Intentar extraer CLABE/Cuenta del movimiento para el "Catálogo Inteligente"
-        const dataPool = `${movimiento.concepto} ${movimiento.descripcionDetallada} ${movimiento.descripcionGeneral}`.toUpperCase();
-        const clabeMatch = dataPool.match(/\d{18}/); // CLABE standard
-        const cuentaMatch = dataPool.match(/\d{10,11}/); // Cuenta standard
+        const dataPool = `${movimiento.concepto || ''} ${movimiento.descripcionDetallada || ''} ${movimiento.descripcionGeneral || ''}`.toUpperCase();
+        const clabeMatch = dataPool.match(/\d{18}/);
+        const cuentaMatch = dataPool.match(/\d{10,11}/);
 
         const updateMovimientoData: any = {
             ticketId: ticketId, 
@@ -276,7 +331,6 @@ export async function POST(request: NextRequest) {
             const userId = (session.user as any)?.id;
             const cobradorId = userId || ticket.cliente.cobradorAsignadoId || 'system';
 
-            // Determinar fecha válida de pago (del ticket, del movimiento o del momento de la conciliación)
             const fechaPagoFinal = parseValidDate(ticket.fecha || movimiento.fechaOperacion);
 
             operations.push(prisma.pago.create({
