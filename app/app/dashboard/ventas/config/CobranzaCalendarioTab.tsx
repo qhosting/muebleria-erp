@@ -163,11 +163,11 @@ export function CobranzaCalendarioTab() {
                     </Select>
                 </div>
                 <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500">Semana (1-52)</label>
+                    <label className="text-xs font-bold text-gray-500">Semana (1-54)</label>
                     <Select value={semanaEdit} onValueChange={handleSemanaChange}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                            {Array.from({length: 52}, (_, i) => i + 1).map(s => (
+                            {Array.from({length: 54}, (_, i) => i + 1).map(s => (
                                 <SelectItem key={s} value={s.toString()}>Semana {s}</SelectItem>
                             ))}
                         </SelectContent>

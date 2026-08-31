@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const results = [];
     for (const s of semanas) {
       const semanaNum = parseInt(s.semana);
-      if (isNaN(semanaNum) || semanaNum < 1 || semanaNum > 53) continue;
+      if (isNaN(semanaNum) || semanaNum < 1 || semanaNum > 54) continue;
 
       const { inicio, fin } = calculateDates(semanaNum, parseInt(anio));
       
