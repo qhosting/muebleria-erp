@@ -654,16 +654,14 @@ export async function POST(req: Request) {
         // Solo considerar referencia única si tiene al menos 7 dígitos y no es cuenta/tarjeta destino común
         const isNumericRef = Boolean(referencia && referencia !== 'null' && /^\d{7,}$/.test(String(referencia).trim()) && !isCompanyAccountRef);
         const isNumericFolio = Boolean(folio && folio !== 'null' && /^\d{6,}$/.test(String(folio).trim()));
-        const forzarCreacion = Boolean(body.forzar || body.force);
-
         const existingTicket = forzarCreacion ? null : await prisma.ticket.findFirst({
             where: {
                 clienteId: cliente.id,
                 OR: [
                     (legacyIdNum) ? { legacyId: legacyIdNum } : { id: 'none' },
                     (claverastreo && claverastreo !== 'null' && claverastreo.length >= 10) ? { claveRastreo: claverastreo } : { id: 'none' },
-                    (isNumericRef && safeSearchDate) ? { referencia: referencia, fecha: safeSearchDate } : (isNumericRef ? { referencia: referencia } : { id: 'none' }),
-                    (isNumericFolio && safeSearchDate) ? { folio: folio, fecha: safeSearchDate } : { id: 'none' },
+                    (isNumericRef && safeSearchDate) ? { referencia: String(referencia).trim(), fecha: safeSearchDate } : { id: 'none' },
+                    (isNumericFolio && safeSearchDate) ? { folio: String(folio).trim(), fecha: safeSearchDate } : (isNumericFolio ? { folio: String(folio).trim() } : { id: 'none' }),
                     {
                         monto: parseFloat(monto || '0'),
                         creadoEn: { gte: fifteenMinutesAgo }
