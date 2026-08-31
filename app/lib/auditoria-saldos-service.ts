@@ -242,23 +242,36 @@ export async function auditarSaldosCliente(
 
     let docEncontrado = refUpper && contpaqiRefSet.has(refUpper) ? contpaqiRefSet.get(refUpper) : null;
     
-    // Búsqueda por fecha exacta y monto
+    // 1. Búsqueda por referencia o ticket dentro del texto de referencia ContPAQi
+    if (!docEncontrado && refUpper && refUpper.length >= 4) {
+      const matchPorRef = contpaqiFechaMontoList.find(
+        (d) => !d.usado && d.ref && d.ref.includes(refUpper)
+      );
+      if (matchPorRef) {
+        docEncontrado = matchPorRef.raw;
+      }
+    }
+
+    // 2. Búsqueda por fecha exacta y monto
     if (!docEncontrado && p.fecha && p.monto > 0) {
       docEncontrado = contpaqiFechaMontoList.find(
         (d) => d.fecha === p.fecha && Math.abs(d.total - p.monto) < 0.01 && !d.usado
       )?.raw;
     }
 
-    // Búsqueda con tolerancia de ±2 días si el monto coincide
+    // 3. Búsqueda por fecha más cercana con tolerancia de hasta 5.5 días (pagos de viernes/fin de semana capturados en lunes/martes)
     if (!docEncontrado && p.effectiveTime && p.monto > 0) {
-      const matchTolerante = contpaqiFechaMontoList.find((d) => {
-        if (d.usado) return false;
-        if (Math.abs(d.total - p.monto) >= 0.01) return false;
-        const diffDays = Math.abs(d.time - p.effectiveTime) / (1000 * 60 * 60 * 24);
-        return diffDays <= 2.5;
-      });
-      if (matchTolerante) {
-        docEncontrado = matchTolerante.raw;
+      const candidatos = contpaqiFechaMontoList
+        .filter((d) => !d.usado && Math.abs(d.total - p.monto) < 0.01)
+        .map((d) => ({
+          item: d,
+          diffDays: Math.abs(d.time - p.effectiveTime) / (1000 * 60 * 60 * 24)
+        }))
+        .filter((c) => c.diffDays <= 5.5)
+        .sort((a, b) => a.diffDays - b.diffDays);
+
+      if (candidatos.length > 0) {
+        docEncontrado = candidatos[0].item.raw;
       }
     }
 
