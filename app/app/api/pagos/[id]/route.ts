@@ -87,43 +87,80 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || (session.user as any).role !== 'admin') {
+    const userRole = (session?.user as any)?.role?.toString().toLowerCase();
+    if (!session || !['admin', 'superadmin', 'direccion', 'gestor_cobranza', 'cobrador'].includes(userRole)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     const pagoId = params.id;
 
-    // Obtener el pago antes de eliminarlo para saber el monto y el cliente
+    // Obtener el pago antes de eliminarlo para saber el monto, el cliente y el ticket
     const pago = await prisma.pago.findUnique({
       where: { id: pagoId },
-      include: { cliente: true }
+      include: { cliente: true, ticket: true }
     });
 
     if (!pago) {
       return NextResponse.json({ error: 'Pago no encontrado' }, { status: 404 });
     }
 
-    // Ejecutar en una transacción
+    // Ejecutar en una transacción para mantener la consistencia total
     await prisma.$transaction(async (tx) => {
-      // 1. Si era un pago regular, devolver el saldo al cliente
-      if (pago.tipoPago === 'regular') {
+      // 1. Restaurar el saldo al cliente sumando el monto del abono eliminado
+      const montoAbono = parseFloat(pago.monto?.toString() || '0');
+      if (montoAbono > 0 && pago.clienteId) {
         await tx.cliente.update({
           where: { id: pago.clienteId },
           data: {
             saldoActual: {
-              increment: pago.monto
+              increment: montoAbono
             }
           }
         });
       }
 
-      // 2. Eliminar el pago
+      // 2. Desvincular movimientos bancarios si el pago tenía un ticket asociado
+      if (pago.ticketId) {
+        await tx.movimientoBancario.updateMany({
+          where: { ticketId: pago.ticketId },
+          data: { ticketId: null }
+        });
+        await tx.movimientoBanorte0330253963.updateMany({
+          where: { ticketId: pago.ticketId },
+          data: { ticketId: null }
+        });
+        await tx.movimientoSantander22001022837.updateMany({
+          where: { ticketId: pago.ticketId },
+          data: { ticketId: null }
+        });
+        await tx.movimientoSantander65505732541.updateMany({
+          where: { ticketId: pago.ticketId },
+          data: { ticketId: null }
+        });
+      }
+
+      // 3. Eliminar el pago
       await tx.pago.delete({
         where: { id: pagoId }
       });
+
+      // 4. Eliminar el ticket asociado para permitir que el comprobante pueda ser reenviado y procesado nuevamente
+      if (pago.ticketId) {
+        const otrosPagosConMismoTicket = await tx.pago.count({
+          where: { ticketId: pago.ticketId }
+        });
+        if (otrosPagosConMismoTicket === 0) {
+          await tx.ticket.deleteMany({
+            where: { id: pago.ticketId }
+          });
+        }
+      }
     });
 
-    return NextResponse.json({ success: true, message: 'Pago cancelado y saldo restaurado' });
+    return NextResponse.json({
+      success: true,
+      message: 'Pago y Ticket eliminados exitosamente. El saldo del cliente ha sido restaurado.'
+    });
   } catch (error) {
     console.error('Error al eliminar pago:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
