@@ -451,15 +451,8 @@ export default function PagosGestorPage() {
                                         // Formatear referencia similar al export
                                         const referencia = pago.numeroRecibo || pago.ticket?.referencia || pago.ticket?.folio || pago.ticket?.id || pago.ticket?.claveRastreo || "PENDIENTE";
 
-                                        // Fecha y Hora formateada
-                                        const fechaCompleta = new Date(pago.fechaPago).toLocaleString('es-MX', {
-                                            day: '2-digit',
-                                            month: '2-digit',
-                                            year: 'numeric',
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                            second: '2-digit'
-                                        });
+                                        // Fecha y Hora formateada en Horario de México (CDMX)
+                                        const fechaCompleta = formatDateTime(pago.fechaPago);
 
                                         return (
                                             <tr key={pago.id} className="hover:bg-gray-50 transition-colors text-[11px]">
