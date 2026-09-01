@@ -148,13 +148,22 @@ export async function auditarSaldosCliente(
     : [];
   const totalFacturasMonto = facturasContpaqi.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
 
+  const notasCreditoContpaqi = Array.isArray(docs)
+    ? docs.filter((d: any) => {
+        if (d.cancelado) return false;
+        const c = String(d.codigoConcepto || d.Concepto || d.concepto || d.CCODIGOCONCEPTO || d.CIDCONCEPTO || '').trim();
+        return ['6', '7', '102', '103'].includes(c);
+      })
+    : [];
+  const totalNotasCreditoMonto = notasCreditoContpaqi.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
+
   let saldoContpaqiApi = 0;
   if (totalFacturasMonto > 0) {
-    saldoContpaqiApi = Math.max(0, parseFloat((totalFacturasMonto - totalAbonosContpaqi).toFixed(2)));
+    saldoContpaqiApi = Math.max(0, parseFloat((totalFacturasMonto - totalAbonosContpaqi - totalNotasCreditoMonto).toFixed(2)));
   } else if (pagares.length > 0) {
     const pagaresCuota = pagares.filter((d: any) => String(d.codigoConcepto || d.Concepto || '').trim() === '16');
     const totalPagaresCuota = pagaresCuota.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || 0) || 0), 0);
-    saldoContpaqiApi = Math.max(0, parseFloat((totalPagaresCuota - totalAbonosCobranzaContpaqi).toFixed(2)));
+    saldoContpaqiApi = Math.max(0, parseFloat((totalPagaresCuota - totalAbonosCobranzaContpaqi - totalNotasCreditoMonto).toFixed(2)));
   } else {
     saldoContpaqiApi = Math.max(0, parseFloat(totalPendientePagares.toFixed(2)));
   }

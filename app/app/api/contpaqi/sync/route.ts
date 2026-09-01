@@ -138,10 +138,14 @@ export async function GET(request: NextRequest) {
             try {
                 const documentos = await service.getClientDocumentos(codigo);
                 if (Array.isArray(documentos) && documentos.length > 0) {
-                    // A. Calcular saldo fiel: Total Venta (Factura o Pagarés) - Total Abonos recibidos
+                    // A. Calcular saldo fiel: Total Venta (Factura o Pagarés) - Total Abonos recibidos - Notas de Crédito/Devoluciones
                     const facturas = documentos.filter((doc: any) => {
                         const c = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
                         return ['100', '4', '5'].includes(c) && !doc.cancelado;
+                    });
+                    const notasCredito = documentos.filter((doc: any) => {
+                        const c = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
+                        return ['6', '7', '102', '103'].includes(c) && !doc.cancelado;
                     });
                     const pagares = documentos.filter((doc: any) => {
                         const c = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
@@ -149,14 +153,15 @@ export async function GET(request: NextRequest) {
                     });
                     const abonos = documentos.filter((doc: any) => {
                         const c = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
-                        return ['101', '102'].includes(c) && !doc.cancelado;
+                        return ['101'].includes(c) && !doc.cancelado;
                     });
 
                     const totalFacturas = facturas.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
+                    const totalNotasCredito = notasCredito.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
                     const totalAbonos = abonos.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
 
                     if (totalFacturas > 0) {
-                        saldoReal = Math.max(0, parseFloat((totalFacturas - totalAbonos).toFixed(2)));
+                        saldoReal = Math.max(0, parseFloat((totalFacturas - totalAbonos - totalNotasCredito).toFixed(2)));
                     } else if (pagares.length > 0) {
                         const pagaresCuota = pagares.filter((d: any) => String(d.codigoConcepto || d.Concepto || '').trim() === '16');
                         const totalPagaresCuota = pagaresCuota.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
@@ -164,8 +169,8 @@ export async function GET(request: NextRequest) {
                             const ref = (a.referencia || '').trim().toUpperCase();
                             return !ref.includes('FACTURA') && !ref.includes('ENGANCHE');
                         });
-                        const totalAbonosCobranza = abonosCobranza.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || 0) || 0), 0);
-                        saldoReal = Math.max(0, parseFloat((totalPagaresCuota - totalAbonosCobranza).toFixed(2)));
+                        const totalAbonosCobranza = abonosCobranza.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
+                        saldoReal = Math.max(0, parseFloat((totalPagaresCuota - totalAbonosCobranza - totalNotasCredito).toFixed(2)));
                     }
 
                     if (facturas.length > 0) {
