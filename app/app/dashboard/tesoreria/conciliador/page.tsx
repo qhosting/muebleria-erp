@@ -687,7 +687,11 @@ export default function ConciliadorPage() {
                                                     const horaOperacionStr = formatHora(mov.horaOperacion);
                                                     const horaLabel = horaOperacionStr ? ` | Hr: ${horaOperacionStr}` : "";
                                                     const montoMov = parseFloat(mov.abono?.toString() || "0").toFixed(2);
-                                                    const label = `ID: ${movIndex} | Fecha: ${fechaOperacionStr}${horaLabel} | Monto: ${montoMov} | Desc: ${mov.descripcionGeneral || mov.concepto || "ABONO"} | Concepto: ${(mov.concepto || mov.descripcionDetallada || "").slice(0, 45)}...`;
+                                                    const bancoLabel = mov.bancoDestino || (mov.cuentaDestino ? `CTA ${mov.cuentaDestino}` : "BANCO");
+                                                    const rastreoShort = mov.claveRastreo ? ` | Rastreo: ${mov.claveRastreo}` : "";
+                                                    const refShort = mov.referencia ? ` | Ref: ${mov.referencia}` : "";
+                                                    const conceptoShort = mov.concepto ? ` | Concepto: ${mov.concepto}` : ` | Desc: ${mov.descripcionGeneral || "ABONO"}`;
+                                                    const label = `ID: ${movIndex} | ${fechaOperacionStr}${horaLabel} | $${montoMov} | [${bancoLabel}]${conceptoShort}${refShort}${rastreoShort}`;
                                                     return (
                                                         <option key={valKey} value={valKey}>
                                                             {label}
@@ -697,24 +701,89 @@ export default function ConciliadorPage() {
                                             </select>
                                         </div>
 
-                                        {/* Vista Previa Detallada del Movimiento Seleccionado */}
+                                        {/* Vista Previa Detallada del Movimiento Seleccionado (Cajas Completas) */}
                                         {selectedMovObj && (() => {
                                             const selectedValKey = `${selectedMovObj.tabla}__${selectedMovObj.id}`;
                                             const selectedMovIdx = globalMovIndexMap.get(selectedValKey) ?? 0;
                                             const horaStr = formatHora(selectedMovObj.horaOperacion);
+                                            const montoMovNum = parseFloat(selectedMovObj.abono?.toString() || "0");
+                                            const fechaOperacionStr = selectedMovObj.fechaOperacion ? selectedMovObj.fechaOperacion.toString().slice(0, 10) : "N/A";
+                                            const cuentaDestinoStr = selectedMovObj.cuentaDestino || (selectedMovObj.tabla?.includes("22001022837") ? "22001022837" : selectedMovObj.tabla?.includes("65505732541") ? "65505732541" : selectedMovObj.tabla?.includes("0330253963") ? "0330253963" : "N/A");
+                                            const bancoDestinoStr = selectedMovObj.bancoDestino || (selectedMovObj.tabla?.includes("Banorte") ? "BANORTE" : "SANTANDER");
+
                                             return (
-                                                <div className="bg-gray-100 border border-gray-200 rounded-lg p-3 text-[11px] font-mono text-gray-800 leading-relaxed break-words select-text">
-                                                    <p>
-                                                        <strong>ID:</strong> {selectedMovIdx} |{" "}
-                                                        <strong>Fecha:</strong> {selectedMovObj.fechaOperacion ? selectedMovObj.fechaOperacion.toString().slice(0, 10) : "N/A"} |{" "}
-                                                        {horaStr ? <><strong>Hora:</strong> {horaStr} | </> : null}
-                                                        <strong>Monto:</strong> ${parseFloat(selectedMovObj.abono?.toString() || "0").toFixed(2)} |{" "}
-                                                        <strong>Desc:</strong> {selectedMovObj.descripcionGeneral || "ABONO TRANSFERENCIA SPEI"} |{" "}
-                                                        <strong>Concepto:</strong> {selectedMovObj.concepto || "N/A"}{" "}
-                                                        {selectedMovObj.descripcionDetallada ? `| Origen: ${selectedMovObj.descripcionDetallada}` : ""}{" "}
-                                                        {selectedMovObj.bancoOrigen ? `(${selectedMovObj.bancoOrigen})` : ""}{" "}
-                                                        | <strong>Banco Destino:</strong> {selectedMovObj.bancoDestino || "SANTANDER"}
-                                                    </p>
+                                                <div className="bg-slate-50 border border-slate-300 rounded-lg p-3 text-xs space-y-2.5 shadow-2xs">
+                                                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-900">
+                                                                🏦 Movimiento Bancario: ID #{selectedMovIdx}
+                                                            </span>
+                                                            <span className="text-[11px] font-semibold text-slate-700">
+                                                                {bancoDestinoStr} ({cuentaDestinoStr})
+                                                            </span>
+                                                        </div>
+                                                        <span className="font-bold text-sm text-emerald-700">
+                                                            {formatCurrency(montoMovNum)}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Grid de Cajas de Datos del Movimiento Bancario */}
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">ID MOVIMIENTO:</span>
+                                                            <span className="font-mono font-bold text-slate-900 block mt-0.5">
+                                                                ID: {selectedMovIdx}
+                                                            </span>
+                                                        </div>
+                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">FECHA OPERACIÓN:</span>
+                                                            <span className="font-medium text-slate-900 block mt-0.5">
+                                                                {fechaOperacionStr}
+                                                            </span>
+                                                        </div>
+                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">HORA OPERACIÓN:</span>
+                                                            <span className="font-mono font-medium text-slate-900 block mt-0.5">
+                                                                {horaStr || "N/A"}
+                                                            </span>
+                                                        </div>
+                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">BANCO ORIGEN:</span>
+                                                            <span className="font-bold text-slate-900 block mt-0.5 truncate" title={selectedMovObj.bancoOrigen || "N/A"}>
+                                                                {selectedMovObj.bancoOrigen || "N/A"}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">REFERENCIA:</span>
+                                                            <span className="font-mono font-semibold text-slate-900 block mt-0.5 truncate" title={selectedMovObj.referencia || "null"}>
+                                                                {selectedMovObj.referencia || "null"}
+                                                            </span>
+                                                        </div>
+                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">CLAVE DE RASTREO SPEI:</span>
+                                                            <span className="font-mono font-semibold text-blue-800 block mt-0.5 truncate" title={selectedMovObj.claveRastreo || "null"}>
+                                                                {selectedMovObj.claveRastreo || "null"}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">CONCEPTO / MOTIVO:</span>
+                                                            <span className="font-medium text-slate-900 block mt-0.5 break-words">
+                                                                {selectedMovObj.concepto || selectedMovObj.descripcionGeneral || "ABONO TRANSFERENCIA SPEI"}
+                                                            </span>
+                                                        </div>
+                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">ORDENANTE / DETALLES:</span>
+                                                            <span className="font-medium text-slate-900 block mt-0.5 break-words">
+                                                                {selectedMovObj.descripcionDetallada || selectedMovObj.cuentaEmisor || "N/A"}
+                                                            </span>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             );
                                         })()}
