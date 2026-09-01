@@ -73,6 +73,24 @@ function formatHora(horaOp: any): string {
     return str;
 }
 
+// Función para formatear Fecha y Hora completa (YYYY-MM-DD HH:MM:SS)
+function formatDateTime(val: any): string {
+    if (!val) return "N/A";
+    try {
+        const d = new Date(val);
+        if (isNaN(d.getTime())) return String(val);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        const ss = String(d.getSeconds()).padStart(2, '0');
+        return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+    } catch {
+        return String(val);
+    }
+}
+
 export default function ConciliadorPage() {
     const [tickets, setTickets] = useState<any[]>([]);
     const [movimientos, setMovimientos] = useState<any[]>([]);
@@ -533,19 +551,50 @@ export default function ConciliadorPage() {
                                         </div>
                                     </div>
 
-                                    {/* 4 Cajas de Resumen en Fila (ID mostrando el Folio del Ticket) */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800" title={`ID Ticket: ${ticket.id}`}>
-                                            <span className="font-bold">ID:</span> {folioDisplay}
+                                    {/* Cajas de Información del Ticket (8 campos) */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 mt-4">
+                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800" title={`ID: ${ticket.id}`}>
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">TICKET ID:</span>
+                                            <span className="font-mono font-bold text-gray-900 truncate block mt-0.5">
+                                                {ticket.legacyId ? ticket.legacyId : ticket.id}
+                                            </span>
                                         </div>
                                         <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
-                                            <span className="font-bold">Monto:</span> {formatCurrency(montoTicketNum)}
-                                        </div>
-                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800 truncate" title={formatDateTimeLocal(ticket.fecha || ticket.creadoEn)}>
-                                            <span className="font-bold">Fecha:</span> {formatDateTimeLocal(ticket.fecha || ticket.creadoEn)}
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">MONTO:</span>
+                                            <span className="font-bold text-gray-900 block mt-0.5">{formatCurrency(montoTicketNum)}</span>
                                         </div>
                                         <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
-                                            <span className="font-bold">Gestor:</span> {gestorDisplay}
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">FECHA:</span>
+                                            <span className="font-medium text-gray-900 truncate block mt-0.5" title={formatDateTime(ticket.fecha || ticket.creadoEn)}>
+                                                {formatDateTime(ticket.fecha || ticket.creadoEn)}
+                                            </span>
+                                        </div>
+                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">FOLIO:</span>
+                                            <span className="font-mono font-semibold text-gray-900 truncate block mt-0.5">{ticket.folio ? ticket.folio : "null"}</span>
+                                        </div>
+                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">GESTOR:</span>
+                                            <span className="font-bold text-blue-900 truncate block mt-0.5">{gestorDisplay}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2.5">
+                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">REF:</span>
+                                            <span className="font-mono font-semibold text-gray-900 truncate block mt-0.5">{ticket.referencia || "null"}</span>
+                                        </div>
+                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">RASTREO:</span>
+                                            <span className="font-mono font-semibold text-blue-700 truncate block mt-0.5" title={ticket.claveRastreo || "null"}>
+                                                {ticket.claveRastreo || "null"}
+                                            </span>
+                                        </div>
+                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">REMITENTE:</span>
+                                            <span className="font-mono text-gray-700 truncate block mt-0.5" title={ticket.remitente || "null"}>
+                                                {ticket.remitente || "null"}
+                                            </span>
                                         </div>
                                     </div>
 
