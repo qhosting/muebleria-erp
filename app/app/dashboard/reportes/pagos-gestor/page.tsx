@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Download, Filter, Receipt, Users, Banknote, Building2 } from "lucide-react";
+import { Download, Filter, Receipt, Users, Banknote, Building2, Search } from "lucide-react";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
@@ -37,6 +37,7 @@ export default function PagosGestorPage() {
     // Filtros
     const [selectedCobrador, setSelectedCobrador] = useState<string>("all");
     const [tipoFiltro, setTipoFiltro] = useState<string>("todos"); // 'todos', 'DQ', 'DP'
+    const [searchTerm, setSearchTerm] = useState<string>("");
 
     const [fechaDesde, setFechaDesde] = useState(() => {
         const d = new Date(); d.setDate(d.getDate() - 30);
@@ -382,8 +383,21 @@ export default function PagosGestorPage() {
 
                 {/* Tabla Analítica */}
                 <Card>
-                    <CardHeader className="bg-gray-50 border-b">
-                        <CardTitle className="text-lg text-gray-700">Explorador de Transacciones</CardTitle>
+                    <CardHeader className="bg-gray-50 border-b py-3 px-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div>
+                            <CardTitle className="text-base text-gray-800">Explorador de Transacciones</CardTitle>
+                            <p className="text-xs text-gray-500 mt-0.5">Mostrando pagos ordenados del más reciente al más antiguo</p>
+                        </div>
+                        <div className="relative w-full sm:w-80">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                            <Input
+                                type="text"
+                                placeholder="Buscar por código (DQ/DP), cliente, folio..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-9 h-9 text-xs bg-white"
+                            />
+                        </div>
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
@@ -408,13 +422,29 @@ export default function PagosGestorPage() {
                                 <tbody className="divide-y divide-gray-100">
                                     {loading ? (
                                         <tr><td colSpan={13} className="py-8 text-center">Cargando pagos...</td></tr>
-                                    ) : detallado.length === 0 ? (
+                                    ) : detallado.filter((pago: any) => {
+                                        if (!searchTerm.trim()) return true;
+                                        const q = searchTerm.toLowerCase().trim();
+                                        const cod = (pago.cliente?.codigoCliente || '').toLowerCase();
+                                        const nom = (pago.cliente?.nombreCompleto || '').toLowerCase();
+                                        const ref = (pago.numeroRecibo || pago.ticket?.referencia || pago.ticket?.folio || pago.ticket?.id || pago.ticket?.claveRastreo || '').toLowerCase();
+                                        const id = (pago.id || '').toLowerCase();
+                                        return cod.includes(q) || nom.includes(q) || ref.includes(q) || id.includes(q);
+                                    }).length === 0 ? (
                                         <tr>
                                             <td colSpan={13} className="py-12 text-center text-gray-500">
-                                                No se encontraron pagos con esos filtros en estas fechas.
+                                                No se encontraron pagos que coincidan con la búsqueda.
                                             </td>
                                         </tr>
-                                    ) : detallado.map((pago: any) => {
+                                    ) : detallado.filter((pago: any) => {
+                                        if (!searchTerm.trim()) return true;
+                                        const q = searchTerm.toLowerCase().trim();
+                                        const cod = (pago.cliente?.codigoCliente || '').toLowerCase();
+                                        const nom = (pago.cliente?.nombreCompleto || '').toLowerCase();
+                                        const ref = (pago.numeroRecibo || pago.ticket?.referencia || pago.ticket?.folio || pago.ticket?.id || pago.ticket?.claveRastreo || '').toLowerCase();
+                                        const id = (pago.id || '').toLowerCase();
+                                        return cod.includes(q) || nom.includes(q) || ref.includes(q) || id.includes(q);
+                                    }).map((pago: any) => {
                                         const isDQ = pago.cliente?.codigoCliente?.startsWith('DQ');
                                         const isDP = pago.cliente?.codigoCliente?.startsWith('DP');
 

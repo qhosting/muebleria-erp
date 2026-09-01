@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
                     select: { id: true, folio: true, referencia: true, claveRastreo: true }
                 }
             },
-            orderBy: { fechaPago: 'asc' },
+            orderBy: { fechaPago: 'desc' },
         });
 
         const resumen = {
