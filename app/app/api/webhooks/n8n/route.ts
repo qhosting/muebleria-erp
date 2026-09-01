@@ -664,9 +664,9 @@ export async function POST(req: Request) {
                 clienteId: cliente.id,
                 OR: [
                     (legacyIdNum) ? { legacyId: legacyIdNum } : { id: 'none' },
-                    (claverastreo && claverastreo !== 'null' && claverastreo.length >= 10) ? { claveRastreo: claverastreo } : { id: 'none' },
+                    (claverastreo && claverastreo !== 'null' && claverastreo.length >= 12) ? { claveRastreo: claverastreo } : { id: 'none' },
                     (isNumericRef && safeSearchDate) ? { referencia: String(referencia).trim(), fecha: safeSearchDate } : { id: 'none' },
-                    (isNumericFolio && safeSearchDate) ? { folio: String(folio).trim(), fecha: safeSearchDate } : (isNumericFolio ? { folio: String(folio).trim() } : { id: 'none' }),
+                    (isNumericFolio && safeSearchDate) ? { folio: String(folio).trim(), fecha: safeSearchDate } : { id: 'none' },
                     {
                         monto: parseFloat(monto || '0'),
                         creadoEn: { gte: fifteenMinutesAgo }
