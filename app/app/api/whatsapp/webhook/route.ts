@@ -497,7 +497,7 @@ async function finalizeTicketCreation(from: string, extracted: any, contractId: 
                         monto: montoPago,
                         concepto: `TKT: ${ticket.id} / Ref: ${extracted.referencia || 'N/A'}`,
                         tipoPago: tipoPagoStr as any,
-                        fechaPago: ticketFecha,
+                        fechaPago: new Date(),
                         metodoPago: 'BANCOS BOT',
                         saldoAnterior,
                         saldoNuevo,

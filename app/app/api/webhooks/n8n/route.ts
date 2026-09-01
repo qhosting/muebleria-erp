@@ -240,7 +240,7 @@ export async function POST(req: Request) {
                         monto: montoNum,
                         concepto: `Pago Ticket WhatsApp (${referencia || 'BANORTE'})`,
                         tipoPago: 'regular',
-                        fechaPago: fechaParsed,
+                        fechaPago: new Date(),
                         metodoPago: 'TRANSFERENCIA BANORTE',
                         saldoAnterior: saldoAnterior,
                         saldoNuevo: saldoNuevo,
@@ -684,13 +684,6 @@ export async function POST(req: Request) {
                         where: { id: existingTicket.id },
                         data: {
                             fecha: combinedDate
-                        }
-                    });
-
-                    await prisma.pago.updateMany({
-                        where: { ticketId: existingTicket.id },
-                        data: {
-                            fechaPago: combinedDate
                         }
                     });
                 }
