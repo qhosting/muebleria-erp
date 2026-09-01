@@ -45,11 +45,48 @@ function getSabadoAViernesRange(offsetWeeks = 0) {
     };
 }
 
+// Función para formatear la hora de operación (HH:MM)
+function formatHora(horaOp: any): string {
+    if (!horaOp) return "";
+    const str = String(horaOp).trim();
+    if (str.includes("T")) {
+        const timePart = str.split("T")[1]?.slice(0, 5);
+        if (timePart && timePart !== "00:00") return timePart;
+    }
+    if (str.includes(":")) {
+        const parts = str.split(":");
+        if (parts.length >= 2) {
+            return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+        }
+    }
+    try {
+        const d = new Date(horaOp);
+        if (!isNaN(d.getTime())) {
+            const iso = d.toISOString();
+            if (iso.startsWith("1970-01-01T")) {
+                const h = iso.slice(11, 16);
+                if (h !== "00:00") return h;
+            }
+            return d.toTimeString().slice(0, 5);
+        }
+    } catch {}
+    return str;
+}
+
 export default function ConciliadorPage() {
     const [tickets, setTickets] = useState<any[]>([]);
     const [movimientos, setMovimientos] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
+
+    // Mapeo de índice numérico corto (0, 1, 2...) para cada movimiento bancario disponible
+    const globalMovIndexMap = useMemo(() => {
+        const map = new Map<string, number>();
+        movimientos.forEach((m, idx) => {
+            map.set(`${m.tabla}__${m.id}`, idx);
+        });
+        return map;
+    }, [movimientos]);
 
     // Rango inicial de fecha: Semana actual (Sábado a Viernes)
     const initialWeek = getSabadoAViernesRange();
@@ -591,11 +628,14 @@ export default function ConciliadorPage() {
                                                 className="w-full h-9 bg-white border border-gray-300 rounded-md px-3 text-xs text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono truncate disabled:bg-gray-100"
                                             >
                                                 <option value="">-- Seleccionar Movimiento Bancario --</option>
-                                                {filteredMovimientos.map((mov) => {
+                                                {filteredMovimientos.map((mov, idx) => {
                                                     const valKey = `${mov.tabla}__${mov.id}`;
+                                                    const movIndex = globalMovIndexMap.get(valKey) ?? idx;
                                                     const fechaOperacionStr = mov.fechaOperacion ? mov.fechaOperacion.toString().slice(0, 10) : "N/A";
+                                                    const horaOperacionStr = formatHora(mov.horaOperacion);
+                                                    const horaLabel = horaOperacionStr ? ` | Hr: ${horaOperacionStr}` : "";
                                                     const montoMov = parseFloat(mov.abono?.toString() || "0").toFixed(2);
-                                                    const label = `ID: ${mov.id} | Fecha: ${fechaOperacionStr} | Monto: ${montoMov} | Desc: ${mov.descripcionGeneral || mov.concepto || "ABONO"} | Concepto: ${(mov.concepto || mov.descripcionDetallada || "").slice(0, 45)}...`;
+                                                    const label = `ID: ${movIndex} | Fecha: ${fechaOperacionStr}${horaLabel} | Monto: ${montoMov} | Desc: ${mov.descripcionGeneral || mov.concepto || "ABONO"} | Concepto: ${(mov.concepto || mov.descripcionDetallada || "").slice(0, 45)}...`;
                                                     return (
                                                         <option key={valKey} value={valKey}>
                                                             {label}
@@ -606,20 +646,26 @@ export default function ConciliadorPage() {
                                         </div>
 
                                         {/* Vista Previa Detallada del Movimiento Seleccionado */}
-                                        {selectedMovObj && (
-                                            <div className="bg-gray-100 border border-gray-200 rounded-lg p-3 text-[11px] font-mono text-gray-800 leading-relaxed break-words select-text">
-                                                <p>
-                                                    <strong>ID:</strong> {selectedMovObj.id} |{" "}
-                                                    <strong>Fecha:</strong> {selectedMovObj.fechaOperacion ? selectedMovObj.fechaOperacion.toString().slice(0, 10) : "N/A"} |{" "}
-                                                    <strong>Monto:</strong> ${parseFloat(selectedMovObj.abono?.toString() || "0").toFixed(2)} |{" "}
-                                                    <strong>Desc:</strong> {selectedMovObj.descripcionGeneral || "ABONO TRANSFERENCIA SPEI"} |{" "}
-                                                    <strong>Concepto:</strong> {selectedMovObj.concepto || "N/A"}{" "}
-                                                    {selectedMovObj.descripcionDetallada ? `| Origen: ${selectedMovObj.descripcionDetallada}` : ""}{" "}
-                                                    {selectedMovObj.bancoOrigen ? `(${selectedMovObj.bancoOrigen})` : ""}{" "}
-                                                    | <strong>Banco Destino:</strong> {selectedMovObj.bancoDestino || "SANTANDER"}
-                                                </p>
-                                            </div>
-                                        )}
+                                        {selectedMovObj && (() => {
+                                            const selectedValKey = `${selectedMovObj.tabla}__${selectedMovObj.id}`;
+                                            const selectedMovIdx = globalMovIndexMap.get(selectedValKey) ?? 0;
+                                            const horaStr = formatHora(selectedMovObj.horaOperacion);
+                                            return (
+                                                <div className="bg-gray-100 border border-gray-200 rounded-lg p-3 text-[11px] font-mono text-gray-800 leading-relaxed break-words select-text">
+                                                    <p>
+                                                        <strong>ID:</strong> {selectedMovIdx} |{" "}
+                                                        <strong>Fecha:</strong> {selectedMovObj.fechaOperacion ? selectedMovObj.fechaOperacion.toString().slice(0, 10) : "N/A"} |{" "}
+                                                        {horaStr ? <><strong>Hora:</strong> {horaStr} | </> : null}
+                                                        <strong>Monto:</strong> ${parseFloat(selectedMovObj.abono?.toString() || "0").toFixed(2)} |{" "}
+                                                        <strong>Desc:</strong> {selectedMovObj.descripcionGeneral || "ABONO TRANSFERENCIA SPEI"} |{" "}
+                                                        <strong>Concepto:</strong> {selectedMovObj.concepto || "N/A"}{" "}
+                                                        {selectedMovObj.descripcionDetallada ? `| Origen: ${selectedMovObj.descripcionDetallada}` : ""}{" "}
+                                                        {selectedMovObj.bancoOrigen ? `(${selectedMovObj.bancoOrigen})` : ""}{" "}
+                                                        | <strong>Banco Destino:</strong> {selectedMovObj.bancoDestino || "SANTANDER"}
+                                                    </p>
+                                                </div>
+                                            );
+                                        })()}
 
                                         {/* Botón Grande de Conciliar */}
                                         {estaConciliado ? (
