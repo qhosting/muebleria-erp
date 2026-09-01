@@ -73,19 +73,22 @@ function formatHora(horaOp: any): string {
     return str;
 }
 
-// Función para formatear Fecha y Hora completa (YYYY-MM-DD HH:MM:SS)
+// Función para formatear Fecha y Hora completa en zona horaria CDMX (YYYY-MM-DD HH:MM:SS)
 function formatDateTime(val: any): string {
     if (!val) return "N/A";
     try {
         const d = new Date(val);
         if (isNaN(d.getTime())) return String(val);
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const hh = String(d.getHours()).padStart(2, '0');
-        const mm = String(d.getMinutes()).padStart(2, '0');
-        const ss = String(d.getSeconds()).padStart(2, '0');
-        return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+        return new Intl.DateTimeFormat('sv-SE', {
+            timeZone: 'America/Mexico_City',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        }).format(d);
     } catch {
         return String(val);
     }
