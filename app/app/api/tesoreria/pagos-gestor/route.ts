@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { checkPermission } from '@/lib/permissions';
+import { getCdmxDateRange } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,31 +19,28 @@ export async function GET(request: NextRequest) {
         const fechaDesdeStr = searchParams.get('desde');
         const fechaHastaStr = searchParams.get('hasta');
 
-        // Configuración de fechas predeterminadas (como en el PHP)
-        // PHP: last Saturday to next Friday
-        const now = new Date();
-        const lastSaturday = new Date(now);
-        lastSaturday.setDate(now.getDate() - (now.getDay() + 1) % 7);
-        lastSaturday.setHours(0, 0, 0, 0);
+        let dateRange: { gte: Date; lte: Date };
 
-        const nextFriday = new Date(lastSaturday);
-        nextFriday.setDate(lastSaturday.getDate() + 6);
-        nextFriday.setHours(23, 59, 59, 999);
+        if (fechaDesdeStr || fechaHastaStr) {
+            dateRange = getCdmxDateRange(fechaDesdeStr, fechaHastaStr);
+        } else {
+            // PHP: last Saturday to next Friday en CDMX
+            const now = new Date();
+            const lastSaturday = new Date(now);
+            lastSaturday.setDate(now.getDate() - (now.getDay() + 1) % 7);
+            const satStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(lastSaturday);
+            
+            const nextFriday = new Date(lastSaturday);
+            nextFriday.setDate(lastSaturday.getDate() + 6);
+            const friStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(nextFriday);
 
-        const since = fechaDesdeStr ? new Date(fechaDesdeStr) : lastSaturday;
-        const until = fechaHastaStr ? new Date(fechaHastaStr) : nextFriday;
-
-        // Ponemos since a inicio de día y until a fin de día si vienen de params
-        if (fechaDesdeStr) since.setHours(0, 0, 0, 0);
-        if (fechaHastaStr) until.setHours(23, 59, 59, 999);
+            dateRange = getCdmxDateRange(satStr, friStr);
+        }
 
         // Obtener todos los pagos en el rango que sean DQ
         const pagos: any[] = await prisma.pago.findMany({
             where: {
-                fechaPago: {
-                    gte: since,
-                    lte: until,
-                },
+                fechaPago: dateRange,
                 cliente: {
                     codigoCliente: {
                         startsWith: 'DQ',
@@ -115,8 +113,8 @@ export async function GET(request: NextRequest) {
             resumen,
             totales,
             filtros: {
-                desde: since.toISOString(),
-                hasta: until.toISOString(),
+                desde: dateRange.gte.toISOString(),
+                hasta: dateRange.lte.toISOString(),
             }
         });
 

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getCdmxDateRange } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,9 +28,7 @@ export async function GET(request: NextRequest) {
         };
 
         if (desde || hasta) {
-            filter.fechaPago = {};
-            if (desde) filter.fechaPago.gte = new Date(desde + 'T00:00:00');
-            if (hasta) filter.fechaPago.lte = new Date(hasta + 'T23:59:59');
+            filter.fechaPago = getCdmxDateRange(desde, hasta);
         }
 
         if (cobradorId && cobradorId !== 'all') {

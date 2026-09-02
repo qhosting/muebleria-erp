@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getCdmxDateRange } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,10 +23,7 @@ export async function GET(request: NextRequest) {
         const where: any = {};
 
         if (fechaDesde && fechaHasta) {
-            where.fechaPago = {
-                gte: new Date(fechaDesde),
-                lte: new Date(fechaHasta),
-            };
+            where.fechaPago = getCdmxDateRange(fechaDesde, fechaHasta);
         }
 
         // Gestor Cobranza y Admins pueden filtrar por cualquier cobrador. Cobradores solo a si mismos

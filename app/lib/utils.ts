@@ -157,6 +157,24 @@ export function parseValidDate(dateInput?: Date | string | null, hrInput?: strin
   return isNaN(result.getTime()) ? new Date() : result;
 }
 
+/**
+ * Convierte strings de fecha (ej. "2026-09-01", "2026-09-01T00:00:00.000Z")
+ * en un rango con límites de inicio (00:00:00.000) y fin (23:59:59.999)
+ * en la zona horaria de la Ciudad de México (America/Mexico_City / UTC-6).
+ */
+export function getCdmxDateRange(fechaDesdeStr?: string | null, fechaHastaStr?: string | null): { gte: Date; lte: Date } {
+  const dStr = fechaDesdeStr ? fechaDesdeStr.split('T')[0].trim() : new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+  const hStr = fechaHastaStr ? fechaHastaStr.split('T')[0].trim() : dStr;
+
+  const gte = new Date(`${dStr}T00:00:00.000-06:00`);
+  const lte = new Date(`${hStr}T23:59:59.999-06:00`);
+
+  return {
+    gte: isNaN(gte.getTime()) ? new Date() : gte,
+    lte: isNaN(lte.getTime()) ? new Date() : lte
+  };
+}
+
 export function getDayName(dayNumber: string): string {
   const days = {
     '1': 'Lunes',

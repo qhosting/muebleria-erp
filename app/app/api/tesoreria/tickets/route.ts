@@ -182,3 +182,111 @@ export async function POST(request: NextRequest) {
         );
     }
 }
+
+// DELETE - Eliminar un ticket, sus pagos asociados y revertir (sumar) el saldo al cliente
+export async function DELETE(request: NextRequest) {
+    try {
+        const session = await getServerSession(authOptions);
+
+        if (!session?.user) {
+            return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+        }
+
+        const { searchParams } = new URL(request.url);
+        let ticketId = searchParams.get('ticketId') || searchParams.get('id');
+
+        if (!ticketId) {
+            try {
+                const body = await request.json();
+                ticketId = body.ticketId || body.id;
+            } catch (e) {
+                // Si no hay body json, ignorar
+            }
+        }
+
+        if (!ticketId) {
+            return NextResponse.json({ error: 'El ID del ticket es obligatorio' }, { status: 400 });
+        }
+
+        // Obtener el ticket completo con cliente, pagos y relaciones
+        const ticket = await prisma.ticket.findUnique({
+            where: { id: ticketId },
+            include: {
+                cliente: true,
+                pagos: true,
+            }
+        });
+
+        if (!ticket) {
+            return NextResponse.json({ error: 'Ticket no encontrado' }, { status: 404 });
+        }
+
+        let saldoNuevo = null;
+        let saldoAnterior = null;
+        let montoRevertido = 0;
+
+        await prisma.$transaction(async (tx: any) => {
+            // 1. Calcular el monto total de pagos asociados que fueron aplicados al cliente
+            if (ticket.clienteId && ticket.cliente && ticket.pagos && ticket.pagos.length > 0) {
+                montoRevertido = ticket.pagos.reduce((acc: number, p: any) => acc + parseFloat(p.monto.toString() || '0'), 0);
+                
+                saldoAnterior = parseFloat(ticket.cliente.saldoActual.toString() || '0');
+                saldoNuevo = saldoAnterior + montoRevertido;
+
+                // Revertir sumando el monto al saldo del cliente
+                await tx.cliente.update({
+                    where: { id: ticket.clienteId },
+                    data: { 
+                        saldoActual: saldoNuevo,
+                        updatedAt: new Date()
+                    }
+                });
+            }
+
+            // 2. Desvincular movimientos bancarios (para no borrarlos del registro contable de bancos)
+            await tx.movimientoBancario.updateMany({
+                where: { ticketId: ticket.id },
+                data: { ticketId: null }
+            });
+            await tx.movimientoBanorte0330253963.updateMany({
+                where: { ticketId: ticket.id },
+                data: { ticketId: null }
+            });
+            await tx.movimientoSantander22001022837.updateMany({
+                where: { ticketId: ticket.id },
+                data: { ticketId: null }
+            });
+            await tx.movimientoSantander65505732541.updateMany({
+                where: { ticketId: ticket.id },
+                data: { ticketId: null }
+            });
+
+            // 3. Eliminar los registros de pago asociados
+            if (ticket.pagos && ticket.pagos.length > 0) {
+                await tx.pago.deleteMany({
+                    where: { ticketId: ticket.id }
+                });
+            }
+
+            // 4. Eliminar el ticket
+            await tx.ticket.delete({
+                where: { id: ticket.id }
+            });
+        });
+
+        return NextResponse.json({
+            success: true,
+            message: `Ticket ${ticket.id} eliminado correctamente. ${montoRevertido > 0 ? `Se reintegraron $${montoRevertido.toFixed(2)} al saldo del cliente.` : ''}`,
+            ticketId: ticket.id,
+            montoRevertido,
+            saldoAnterior,
+            saldoNuevo
+        });
+    } catch (error: any) {
+        console.error('Error al eliminar ticket:', error);
+        return NextResponse.json(
+            { error: error.message || 'Error interno del servidor al eliminar el ticket' },
+            { status: 500 }
+        );
+    }
+}

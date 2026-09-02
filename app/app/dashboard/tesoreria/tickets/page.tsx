@@ -23,7 +23,8 @@ import {
     User,
     Calendar,
     Phone,
-    CreditCard
+    CreditCard,
+    Trash2
 } from "lucide-react";
 import {
     Dialog,
@@ -41,6 +42,8 @@ export default function TicketsPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [applyingId, setApplyingId] = useState<string | null>(null);
+    const [deletingTicket, setDeletingTicket] = useState<any | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [pagination, setPagination] = useState({
         total: 0,
         pages: 0,
@@ -141,6 +144,32 @@ export default function TicketsPage() {
             toast.error("Error de conexión con el servidor");
         } finally {
             setApplyingId(null);
+        }
+    };
+
+    const confirmDeleteTicket = async () => {
+        if (!deletingTicket) return;
+        setIsDeleting(true);
+        try {
+            const res = await fetch(`/api/tesoreria/tickets?ticketId=${deletingTicket.id}`, {
+                method: "DELETE",
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(data.message || "Ticket eliminado y saldo revertido exitosamente");
+                if (selectedTicket?.id === deletingTicket.id) {
+                    setSelectedTicket(null);
+                }
+                setDeletingTicket(null);
+                fetchTickets();
+            } else {
+                toast.error(data.error || "Error al eliminar el ticket");
+            }
+        } catch (error) {
+            console.error("Error al eliminar ticket:", error);
+            toast.error("Error de conexión al eliminar el ticket");
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -331,6 +360,15 @@ export default function TicketsPage() {
                                                                     Aplicar Pago
                                                                 </Button>
                                                             )}
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => setDeletingTicket(ticket)}
+                                                                className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors"
+                                                                title="Eliminar ticket y revertir saldo"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -535,9 +573,9 @@ export default function TicketsPage() {
                                     </div>
                                 </div>
 
-                                {/* Acciones de Aplicación */}
-                                {(!selectedTicket.pagos || selectedTicket.pagos.length === 0) && selectedTicket.clienteId && (
-                                    <div className="pt-2">
+                                {/* Acciones de Aplicación y Eliminación */}
+                                <div className="pt-2 flex flex-col gap-2">
+                                    {(!selectedTicket.pagos || selectedTicket.pagos.length === 0) && selectedTicket.clienteId && (
                                         <Button
                                             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl flex items-center justify-center gap-2"
                                             disabled={applyingId === selectedTicket.id}
@@ -550,8 +588,103 @@ export default function TicketsPage() {
                                             )}
                                             Aplicar Pago Manualmente a la Cuenta
                                         </Button>
-                                    </div>
-                                )}
+                                    )}
+                                    <Button
+                                        variant="outline"
+                                        className="w-full border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800 font-semibold py-2 rounded-xl flex items-center justify-center gap-2 transition-all"
+                                        onClick={() => setDeletingTicket(selectedTicket)}
+                                    >
+                                        <Trash2 className="w-4 h-4 text-rose-600" />
+                                        Eliminar Ticket y Revertir Saldo
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Confirmación de Eliminación y Reversión de Saldo */}
+            <Dialog open={!!deletingTicket} onOpenChange={(open) => !open && !isDeleting && setDeletingTicket(null)}>
+                <DialogContent className="max-w-md p-6">
+                    <DialogHeader>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-rose-100 text-rose-600 rounded-full">
+                                <Trash2 className="h-6 w-6" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-bold text-gray-900">
+                                    ¿Eliminar Ticket y Revertir Saldo?
+                                </DialogTitle>
+                                <DialogDescription className="text-xs text-gray-500 mt-0.5">
+                                    Esta acción eliminará el ticket y restaurará el saldo del cliente
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    {deletingTicket && (
+                        <div className="space-y-4 my-2">
+                            <div className="p-3.5 bg-rose-50/70 border border-rose-100 rounded-xl space-y-2 text-xs">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Ticket ID:</span>
+                                    <span className="font-mono font-bold text-gray-800">#{deletingTicket.id}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Folio / Ref:</span>
+                                    <span className="font-mono text-gray-700">{deletingTicket.folio || deletingTicket.referencia || deletingTicket.claveRastreo || "S/N"}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Cliente:</span>
+                                    <span className="font-semibold text-gray-900 truncate max-w-[200px]">
+                                        {deletingTicket.cliente?.nombreCompleto || "Desconocido"} ({deletingTicket.cliente?.codigoCliente || "N/A"})
+                                    </span>
+                                </div>
+                                <div className="flex justify-between pt-1.5 border-t border-rose-200">
+                                    <span className="text-rose-800 font-medium">Monto a reintegrar:</span>
+                                    <span className="font-bold text-rose-700 text-sm">+{formatCurrency(deletingTicket.monto || 0)}</span>
+                                </div>
+                            </div>
+
+                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 text-xs text-amber-800">
+                                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="font-semibold">Efectos de esta operación:</p>
+                                    <ul className="list-disc list-inside space-y-0.5 mt-1 text-[11px] text-amber-700">
+                                        <li>Se eliminará el ticket definitivamente.</li>
+                                        <li>Se eliminarán los registros de pago asociados en la cartera.</li>
+                                        {deletingTicket.pagos && deletingTicket.pagos.length > 0 ? (
+                                            <li>
+                                                <strong>Se sumarán {formatCurrency(deletingTicket.monto || 0)}</strong> al saldo pendiente del cliente.
+                                            </li>
+                                        ) : (
+                                            <li>El ticket no tenía pagos aplicados (no modificará saldos).</li>
+                                        )}
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 justify-end pt-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setDeletingTicket(null)}
+                                    disabled={isDeleting}
+                                    className="rounded-xl"
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    onClick={confirmDeleteTicket}
+                                    disabled={isDeleting}
+                                    className="bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl flex items-center gap-2"
+                                >
+                                    {isDeleting ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Trash2 className="w-4 h-4" />
+                                    )}
+                                    Confirmar y Eliminar
+                                </Button>
                             </div>
                         </div>
                     )}

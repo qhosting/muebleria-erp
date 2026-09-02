@@ -76,8 +76,8 @@ export default function PagosGestorPage() {
         setLoading(true);
         try {
             const p = new URLSearchParams({
-                fechaDesde: fechaDesde + "T00:00:00.000Z",
-                fechaHasta: fechaHasta + "T23:59:59.999Z",
+                fechaDesde: fechaDesde,
+                fechaHasta: fechaHasta,
                 tipo: tipoFiltro
             });
             if (selectedCobrador !== "all") p.append("cobradorId", selectedCobrador);
