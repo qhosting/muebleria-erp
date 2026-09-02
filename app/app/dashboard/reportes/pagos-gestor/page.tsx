@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Download, Filter, Receipt, Users, Banknote, Building2, Search } from "lucide-react";
+import { Download, Filter, Receipt, Users, Banknote, Building2, Search, CalendarDays, BarChart3 } from "lucide-react";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
@@ -29,6 +30,41 @@ interface AgentSummary {
     montoGestor: number;
 }
 
+interface AgentDailySummary {
+    cobradorId: string;
+    agenteName: string;
+    dias: {
+        sabado: number;
+        domingo: number;
+        lunes: number;
+        martes: number;
+        miercoles: number;
+        jueves: number;
+        viernes: number;
+    };
+    cuentasDias: {
+        sabado: number;
+        domingo: number;
+        lunes: number;
+        martes: number;
+        miercoles: number;
+        jueves: number;
+        viernes: number;
+    };
+    totalMonto: number;
+    totalCuentas: number;
+}
+
+const DIAS_SEMANA = [
+    { key: 'sabado' as const, label: 'Sábado', short: 'Sáb' },
+    { key: 'domingo' as const, label: 'Domingo', short: 'Dom' },
+    { key: 'lunes' as const, label: 'Lunes', short: 'Lun' },
+    { key: 'martes' as const, label: 'Martes', short: 'Mar' },
+    { key: 'miercoles' as const, label: 'Miércoles', short: 'Mié' },
+    { key: 'jueves' as const, label: 'Jueves', short: 'Jue' },
+    { key: 'viernes' as const, label: 'Viernes', short: 'Vie' },
+];
+
 export default function PagosGestorPage() {
     const { data: session } = useSession();
     const [cobradores, setCobradores] = useState<User[]>([]);
@@ -38,6 +74,7 @@ export default function PagosGestorPage() {
     const [selectedCobrador, setSelectedCobrador] = useState<string>("all");
     const [tipoFiltro, setTipoFiltro] = useState<string>("todos"); // 'todos', 'DQ', 'DP'
     const [searchTerm, setSearchTerm] = useState<string>("");
+    const [resumenTab, setResumenTab] = useState<string>("general"); // 'general', 'pordia'
 
     const [fechaDesde, setFechaDesde] = useState(() => {
         const d = new Date(); d.setDate(d.getDate() - 30);
@@ -107,6 +144,49 @@ export default function PagosGestorPage() {
         return 0;
     };
 
+    const getDayKeyFromDate = (dateInput: Date | string): 'sabado' | 'domingo' | 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | null => {
+        if (!dateInput) return null;
+
+        if (typeof dateInput === 'string') {
+            const trimmed = dateInput.trim();
+            const dateOnlyMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](00:00(?::00(?:\.000)?)?(?:Z|[+-]00:00)?))?$/);
+            if (dateOnlyMatch) {
+                const [, year, month, day] = dateOnlyMatch;
+                const d = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12, 0, 0));
+                const dayOfWeek = d.getUTCDay();
+                switch (dayOfWeek) {
+                    case 6: return 'sabado';
+                    case 0: return 'domingo';
+                    case 1: return 'lunes';
+                    case 2: return 'martes';
+                    case 3: return 'miercoles';
+                    case 4: return 'jueves';
+                    case 5: return 'viernes';
+                    default: return null;
+                }
+            }
+        }
+
+        const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+        if (isNaN(d.getTime())) return null;
+
+        const weekday = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/Mexico_City',
+            weekday: 'short'
+        }).format(d);
+
+        switch (weekday) {
+            case 'Sat': return 'sabado';
+            case 'Sun': return 'domingo';
+            case 'Mon': return 'lunes';
+            case 'Tue': return 'martes';
+            case 'Wed': return 'miercoles';
+            case 'Thu': return 'jueves';
+            case 'Fri': return 'viernes';
+            default: return null;
+        }
+    };
+
     const exportarExcel = () => {
         if (detallado.length === 0) return;
 
@@ -140,6 +220,39 @@ export default function PagosGestorPage() {
                 const wsDQ = XLSX.utils.json_to_sheet(rowsDQ);
                 XLSX.utils.book_append_sheet(wb, wsDQ, "Resumen DQ");
             }
+
+            const dailyDQ = getDailySummaryByPrefix('DQ');
+            if (dailyDQ.length > 0) {
+                const dTotalsDQ = calculateDailyTotals(dailyDQ);
+                const rowsDailyDQ = [
+                    ...dailyDQ.map(r => ({
+                        "Agente": r.agenteName,
+                        "Sábado": r.dias.sabado,
+                        "Domingo": r.dias.domingo,
+                        "Lunes": r.dias.lunes,
+                        "Martes": r.dias.martes,
+                        "Miércoles": r.dias.miercoles,
+                        "Jueves": r.dias.jueves,
+                        "Viernes": r.dias.viernes,
+                        "Total Monto": r.totalMonto,
+                        "Total Cuentas": r.totalCuentas
+                    })),
+                    {
+                        "Agente": "Total General",
+                        "Sábado": dTotalsDQ.sabado,
+                        "Domingo": dTotalsDQ.domingo,
+                        "Lunes": dTotalsDQ.lunes,
+                        "Martes": dTotalsDQ.martes,
+                        "Miércoles": dTotalsDQ.miercoles,
+                        "Jueves": dTotalsDQ.jueves,
+                        "Viernes": dTotalsDQ.viernes,
+                        "Total Monto": dTotalsDQ.totalMonto,
+                        "Total Cuentas": dTotalsDQ.totalCuentas
+                    }
+                ];
+                const wsDailyDQ = XLSX.utils.json_to_sheet(rowsDailyDQ);
+                XLSX.utils.book_append_sheet(wb, wsDailyDQ, "Resumen DQ (Por Día)");
+            }
         }
 
         // Hoja 2: Resumen Clientes DP (si aplica)
@@ -167,6 +280,39 @@ export default function PagosGestorPage() {
                 ];
                 const wsDP = XLSX.utils.json_to_sheet(rowsDP);
                 XLSX.utils.book_append_sheet(wb, wsDP, "Resumen DP");
+            }
+
+            const dailyDP = getDailySummaryByPrefix('DP');
+            if (dailyDP.length > 0) {
+                const dTotalsDP = calculateDailyTotals(dailyDP);
+                const rowsDailyDP = [
+                    ...dailyDP.map(r => ({
+                        "Agente": r.agenteName,
+                        "Sábado": r.dias.sabado,
+                        "Domingo": r.dias.domingo,
+                        "Lunes": r.dias.lunes,
+                        "Martes": r.dias.martes,
+                        "Miércoles": r.dias.miercoles,
+                        "Jueves": r.dias.jueves,
+                        "Viernes": r.dias.viernes,
+                        "Total Monto": r.totalMonto,
+                        "Total Cuentas": r.totalCuentas
+                    })),
+                    {
+                        "Agente": "Total General",
+                        "Sábado": dTotalsDP.sabado,
+                        "Domingo": dTotalsDP.domingo,
+                        "Lunes": dTotalsDP.lunes,
+                        "Martes": dTotalsDP.martes,
+                        "Miércoles": dTotalsDP.miercoles,
+                        "Jueves": dTotalsDP.jueves,
+                        "Viernes": dTotalsDP.viernes,
+                        "Total Monto": dTotalsDP.totalMonto,
+                        "Total Cuentas": dTotalsDP.totalCuentas
+                    }
+                ];
+                const wsDailyDP = XLSX.utils.json_to_sheet(rowsDailyDP);
+                XLSX.utils.book_append_sheet(wb, wsDailyDP, "Resumen DP (Por Día)");
             }
         }
 
@@ -242,6 +388,58 @@ export default function PagosGestorPage() {
             } else {
                 map[cobradorId].montoGestor += monto;
             }
+        });
+
+        return Object.values(map).sort((a, b) => a.agenteName.localeCompare(b.agenteName));
+    };
+
+    const getDailySummaryByPrefix = (prefix: 'DP' | 'DQ'): AgentDailySummary[] => {
+        const map: Record<string, AgentDailySummary> = {};
+
+        detallado.forEach((pago) => {
+            const codigo = pago.cliente?.codigoCliente || '';
+            if (!codigo.toUpperCase().startsWith(prefix)) return;
+
+            const cobradorId = pago.cobradorId || 'sistema';
+            const agenteName = (pago.cobrador?.codigoGestor || pago.cobrador?.name || 'SISTEMA').toUpperCase();
+
+            if (!map[cobradorId]) {
+                map[cobradorId] = {
+                    cobradorId,
+                    agenteName,
+                    dias: {
+                        sabado: 0,
+                        domingo: 0,
+                        lunes: 0,
+                        martes: 0,
+                        miercoles: 0,
+                        jueves: 0,
+                        viernes: 0,
+                    },
+                    cuentasDias: {
+                        sabado: 0,
+                        domingo: 0,
+                        lunes: 0,
+                        martes: 0,
+                        miercoles: 0,
+                        jueves: 0,
+                        viernes: 0,
+                    },
+                    totalMonto: 0,
+                    totalCuentas: 0,
+                };
+            }
+
+            const monto = Number(pago.monto) || 0;
+            const dayKey = getDayKeyFromDate(pago.fechaPago);
+
+            if (dayKey) {
+                map[cobradorId].dias[dayKey] += monto;
+                map[cobradorId].cuentasDias[dayKey] += 1;
+            }
+
+            map[cobradorId].totalMonto += monto;
+            map[cobradorId].totalCuentas += 1;
         });
 
         return Object.values(map).sort((a, b) => a.agenteName.localeCompare(b.agenteName));
@@ -348,38 +546,105 @@ export default function PagosGestorPage() {
                     </Card>
                 </div>
 
-                {/* Tablas de Resumen por Agente (DP y DQ) */}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    {/* Tabla DQ */}
-                    {(tipoFiltro === "todos" || tipoFiltro === "DQ") && (
-                        <Card className={`shadow-sm border-gray-200 ${tipoFiltro !== "todos" ? "xl:col-span-2" : ""}`}>
-                            <CardHeader className="bg-slate-50 border-b py-4">
-                                <CardTitle className="text-lg text-slate-700 flex items-center gap-2">
-                                    <Building2 className="h-5 w-5 text-emerald-600" />
-                                    Resumen por Gestor - Clientes DQ
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-0">
-                                <ResumenAgenteTable data={getSummaryByPrefix('DQ')} />
-                            </CardContent>
-                        </Card>
-                    )}
+                {/* Tablas de Resumen por Agente (DP y DQ) con Pestañas General / Por Día */}
+                <Tabs value={resumenTab} onValueChange={setResumenTab} className="w-full">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+                        <div>
+                            <h2 className="text-base font-bold text-gray-900">Resumen de Cobranza por Gestor</h2>
+                            <p className="text-xs text-gray-500">Selecciona entre la vista consolidada o el desglose diario (Sábado a Viernes).</p>
+                        </div>
+                        <TabsList className="bg-slate-100 p-1 rounded-lg self-start sm:self-auto">
+                            <TabsTrigger value="general" className="text-xs font-semibold px-3 py-1.5 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm flex items-center gap-1.5">
+                                <BarChart3 className="h-3.5 w-3.5 text-blue-600" />
+                                Resumen General
+                            </TabsTrigger>
+                            <TabsTrigger value="pordia" className="text-xs font-semibold px-3 py-1.5 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm flex items-center gap-1.5">
+                                <CalendarDays className="h-3.5 w-3.5 text-indigo-600" />
+                                Por Día (Sáb - Vie)
+                            </TabsTrigger>
+                        </TabsList>
+                    </div>
 
-                    {/* Tabla DP */}
-                    {(tipoFiltro === "todos" || tipoFiltro === "DP") && (
-                        <Card className={`shadow-sm border-gray-200 ${tipoFiltro !== "todos" ? "xl:col-span-2" : ""}`}>
-                            <CardHeader className="bg-slate-50 border-b py-4">
-                                <CardTitle className="text-lg text-slate-700 flex items-center gap-2">
-                                    <Building2 className="h-5 w-5 text-blue-600" />
-                                    Resumen por Gestor - Clientes DP
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-0">
-                                <ResumenAgenteTable data={getSummaryByPrefix('DP')} />
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
+                    {/* Contenido Pestaña 1: Resumen General */}
+                    <TabsContent value="general" className="mt-2 space-y-6">
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                            {/* Tabla DQ */}
+                            {(tipoFiltro === "todos" || tipoFiltro === "DQ") && (
+                                <Card className={`shadow-sm border-gray-200 ${tipoFiltro !== "todos" ? "xl:col-span-2" : ""}`}>
+                                    <CardHeader className="bg-slate-50 border-b py-4">
+                                        <CardTitle className="text-lg text-slate-700 flex items-center gap-2">
+                                            <Building2 className="h-5 w-5 text-emerald-600" />
+                                            Resumen por Gestor - Clientes DQ
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="p-0">
+                                        <ResumenAgenteTable data={getSummaryByPrefix('DQ')} />
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Tabla DP */}
+                            {(tipoFiltro === "todos" || tipoFiltro === "DP") && (
+                                <Card className={`shadow-sm border-gray-200 ${tipoFiltro !== "todos" ? "xl:col-span-2" : ""}`}>
+                                    <CardHeader className="bg-slate-50 border-b py-4">
+                                        <CardTitle className="text-lg text-slate-700 flex items-center gap-2">
+                                            <Building2 className="h-5 w-5 text-blue-600" />
+                                            Resumen por Gestor - Clientes DP
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="p-0">
+                                        <ResumenAgenteTable data={getSummaryByPrefix('DP')} />
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
+                    </TabsContent>
+
+                    {/* Contenido Pestaña 2: Desglose por Día (Sábado a Viernes) */}
+                    <TabsContent value="pordia" className="mt-2 space-y-6">
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                            {/* Tabla DQ Por Día */}
+                            {(tipoFiltro === "todos" || tipoFiltro === "DQ") && (
+                                <Card className={`shadow-sm border-gray-200 ${tipoFiltro !== "todos" ? "xl:col-span-2" : ""}`}>
+                                    <CardHeader className="bg-slate-50 border-b py-4">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                            <CardTitle className="text-lg text-slate-700 flex items-center gap-2">
+                                                <Building2 className="h-5 w-5 text-emerald-600" />
+                                                Resumen por Gestor (Sáb - Vie) - Clientes DQ
+                                            </CardTitle>
+                                            <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                Semana Sáb a Vie
+                                            </Badge>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="p-0">
+                                        <ResumenAgentePorDiaTable data={getDailySummaryByPrefix('DQ')} />
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Tabla DP Por Día */}
+                            {(tipoFiltro === "todos" || tipoFiltro === "DP") && (
+                                <Card className={`shadow-sm border-gray-200 ${tipoFiltro !== "todos" ? "xl:col-span-2" : ""}`}>
+                                    <CardHeader className="bg-slate-50 border-b py-4">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                            <CardTitle className="text-lg text-slate-700 flex items-center gap-2">
+                                                <Building2 className="h-5 w-5 text-blue-600" />
+                                                Resumen por Gestor (Sáb - Vie) - Clientes DP
+                                            </CardTitle>
+                                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                                Semana Sáb a Vie
+                                            </Badge>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="p-0">
+                                        <ResumenAgentePorDiaTable data={getDailySummaryByPrefix('DP')} />
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
+                    </TabsContent>
+                </Tabs>
 
                 {/* Tabla Analítica */}
                 <Card>
@@ -517,6 +782,44 @@ const calculateTotals = (summaries: AgentSummary[]) => {
     });
 };
 
+const calculateDailyTotals = (summaries: AgentDailySummary[]) => {
+    return summaries.reduce((acc, curr) => ({
+        sabado: acc.sabado + curr.dias.sabado,
+        domingo: acc.domingo + curr.dias.domingo,
+        lunes: acc.lunes + curr.dias.lunes,
+        martes: acc.martes + curr.dias.martes,
+        miercoles: acc.miercoles + curr.dias.miercoles,
+        jueves: acc.jueves + curr.dias.jueves,
+        viernes: acc.viernes + curr.dias.viernes,
+        totalMonto: acc.totalMonto + curr.totalMonto,
+        totalCuentas: acc.totalCuentas + curr.totalCuentas,
+        cuentasSabado: acc.cuentasSabado + curr.cuentasDias.sabado,
+        cuentasDomingo: acc.cuentasDomingo + curr.cuentasDias.domingo,
+        cuentasLunes: acc.cuentasLunes + curr.cuentasDias.lunes,
+        cuentasMartes: acc.cuentasMartes + curr.cuentasDias.martes,
+        cuentasMiercoles: acc.cuentasMiercoles + curr.cuentasDias.miercoles,
+        cuentasJueves: acc.cuentasJueves + curr.cuentasDias.jueves,
+        cuentasViernes: acc.cuentasViernes + curr.cuentasDias.viernes,
+    }), {
+        sabado: 0,
+        domingo: 0,
+        lunes: 0,
+        martes: 0,
+        miercoles: 0,
+        jueves: 0,
+        viernes: 0,
+        totalMonto: 0,
+        totalCuentas: 0,
+        cuentasSabado: 0,
+        cuentasDomingo: 0,
+        cuentasLunes: 0,
+        cuentasMartes: 0,
+        cuentasMiercoles: 0,
+        cuentasJueves: 0,
+        cuentasViernes: 0,
+    });
+};
+
 function ResumenAgenteTable({ data }: { data: AgentSummary[] }) {
     const totals = calculateTotals(data);
 
@@ -592,3 +895,111 @@ function ResumenAgenteTable({ data }: { data: AgentSummary[] }) {
         </div>
     );
 }
+
+function ResumenAgentePorDiaTable({ data }: { data: AgentDailySummary[] }) {
+    const totals = calculateDailyTotals(data);
+
+    return (
+        <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left align-middle text-slate-700 border-collapse">
+                <thead className="bg-[#1e293b] text-white text-[11px] font-semibold uppercase tracking-wider">
+                    <tr>
+                        <th className="px-3 py-3 text-center border border-slate-700">Agente</th>
+                        <th className="px-2.5 py-3 text-center border border-slate-700">Sábado</th>
+                        <th className="px-2.5 py-3 text-center border border-slate-700">Domingo</th>
+                        <th className="px-2.5 py-3 text-center border border-slate-700">Lunes</th>
+                        <th className="px-2.5 py-3 text-center border border-slate-700">Martes</th>
+                        <th className="px-2.5 py-3 text-center border border-slate-700">Miércoles</th>
+                        <th className="px-2.5 py-3 text-center border border-slate-700">Jueves</th>
+                        <th className="px-2.5 py-3 text-center border border-slate-700">Viernes</th>
+                        <th className="px-3 py-3 text-center border border-slate-700 bg-slate-900">Total</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white">
+                    {data.length === 0 ? (
+                        <tr>
+                            <td colSpan={9} className="px-4 py-8 text-center text-slate-400 text-xs">
+                                No hay transacciones registradas en este período.
+                            </td>
+                        </tr>
+                    ) : (
+                        <>
+                            {data.map((row) => (
+                                <tr key={row.cobradorId} className="hover:bg-slate-50 transition-colors text-xs">
+                                    <td className="px-3 py-2 text-center font-bold text-slate-900 border border-slate-200 font-mono whitespace-nowrap">
+                                        {row.agenteName}
+                                    </td>
+                                    {DIAS_SEMANA.map((dia) => {
+                                        const monto = row.dias[dia.key];
+                                        const ctas = row.cuentasDias[dia.key];
+                                        return (
+                                            <td key={dia.key} className={`px-2 py-2 text-center border border-slate-200 ${monto > 0 ? 'text-slate-900 font-medium' : 'text-slate-300'}`}>
+                                                {monto > 0 ? (
+                                                    <div>
+                                                        <span className="font-semibold">{formatCurrency(monto)}</span>
+                                                        <span className="block text-[10px] text-slate-400 font-normal">
+                                                            {ctas} {ctas === 1 ? 'cta' : 'ctas'}
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <span>-</span>
+                                                )}
+                                            </td>
+                                        );
+                                    })}
+                                    <td className="px-3 py-2 text-center border border-slate-200 font-bold text-slate-900 bg-slate-50/70">
+                                        <div>
+                                            <span className="text-emerald-700 font-bold">{formatCurrency(row.totalMonto)}</span>
+                                            <span className="block text-[10px] text-slate-500 font-normal">
+                                                {row.totalCuentas} {row.totalCuentas === 1 ? 'cta' : 'ctas'}
+                                            </span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                            {/* Fila Total General */}
+                            <tr className="bg-slate-50 font-bold text-xs text-slate-900 border-t-2 border-slate-300">
+                                <td className="px-3 py-3 text-center border border-slate-200">
+                                    Total General
+                                </td>
+                                {DIAS_SEMANA.map((dia) => {
+                                    const montoTotal = totals[dia.key];
+                                    const ctasTotal = dia.key === 'sabado' ? totals.cuentasSabado
+                                        : dia.key === 'domingo' ? totals.cuentasDomingo
+                                        : dia.key === 'lunes' ? totals.cuentasLunes
+                                        : dia.key === 'martes' ? totals.cuentasMartes
+                                        : dia.key === 'miercoles' ? totals.cuentasMiercoles
+                                        : dia.key === 'jueves' ? totals.cuentasJueves
+                                        : totals.cuentasViernes;
+                                    return (
+                                        <td key={dia.key} className="px-2 py-3 text-center border border-slate-200">
+                                            {montoTotal > 0 ? (
+                                                <div>
+                                                    <span className="text-slate-900">{formatCurrency(montoTotal)}</span>
+                                                    <span className="block text-[10px] text-slate-500 font-normal">
+                                                        {ctasTotal} ctas
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-slate-400">$0</span>
+                                            )}
+                                        </td>
+                                    );
+                                })}
+                                <td className="px-3 py-3 text-center border border-slate-200 bg-slate-100">
+                                    <div>
+                                        <span className="text-emerald-800 font-extrabold">{formatCurrency(totals.totalMonto)}</span>
+                                        <span className="block text-[10px] text-slate-600 font-normal">
+                                            {totals.totalCuentas} ctas
+                                        </span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </>
+                    )}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
