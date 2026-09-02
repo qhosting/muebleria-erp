@@ -287,6 +287,21 @@ export async function POST(req: Request) {
                 const rastreo = m.claveRastreo || null;
                 const saldo = m.saldo ? parseFloat(m.saldo) : null;
 
+                const rawHora = m.hora || m.horaOperacion || m.time || null;
+                let hOp: Date | undefined = undefined;
+                if (rawHora) {
+                    if (typeof rawHora === 'string' && rawHora.includes(':')) {
+                        const parts = rawHora.split(':');
+                        const hh = parts[0].padStart(2, '0');
+                        const mm = (parts[1] || '00').padStart(2, '0');
+                        const ss = (parts[2] || '00').slice(0, 2).padStart(2, '0');
+                        hOp = new Date(`1970-01-01T${hh}:${mm}:${ss}.000Z`);
+                    } else {
+                        const parsed = new Date(rawHora);
+                        if (!isNaN(parsed.getTime())) hOp = parsed;
+                    }
+                }
+
                 if (banco.includes('santander')) {
                     const exists = await prisma.movimientoSantander22001022837.findFirst({
                         where: {
@@ -302,6 +317,7 @@ export async function POST(req: Request) {
                             data: {
                                 bancoOrigen: 'SANTANDER',
                                 fechaOperacion: fOperacion,
+                                horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
                                 descripcionGeneral: desc,
                                 cargo,
                                 abono,

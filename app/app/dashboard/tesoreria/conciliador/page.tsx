@@ -45,32 +45,118 @@ function getSabadoAViernesRange(offsetWeeks = 0) {
     };
 }
 
-// Función para formatear la hora de operación (HH:MM)
-function formatHora(horaOp: any): string {
-    if (!horaOp) return "";
-    const str = String(horaOp).trim();
-    if (str.includes("T")) {
-        const timePart = str.split("T")[1]?.slice(0, 5);
-        if (timePart && timePart !== "00:00") return timePart;
+// Función inteligente para extraer y formatear la hora de operación (HH:MM / HH:MM:SS) de cualquier movimiento bancario
+function extractHoraOperacion(mov: any): string {
+    if (!mov) return "";
+
+    // Si se pasa directamente un string o date
+    if (typeof mov === "string" || mov instanceof Date) {
+        return formatHoraString(mov);
     }
-    if (str.includes(":")) {
-        const parts = str.split(":");
-        if (parts.length >= 2) {
-            return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+
+    // 1. Extraer del campo horaOperacion
+    if (mov.horaOperacion) {
+        const res = formatHoraString(mov.horaOperacion);
+        if (res && res !== "00:00" && res !== "00:00:00") return res;
+    }
+
+    // 2. Extraer de fechaOperacion si contiene hora (distinta a medianoche 00:00 UTC)
+    if (mov.fechaOperacion) {
+        const res = formatHoraFromDateTime(mov.fechaOperacion);
+        if (res && res !== "00:00" && res !== "00:00:00") return res;
+    }
+
+    // 3. Buscar patrón de hora en descripcionDetallada, concepto o descripcionGeneral
+    const textPool = `${mov.descripcionDetallada || ''} ${mov.concepto || ''} ${mov.descripcionGeneral || ''}`;
+    if (textPool.trim()) {
+        const match = textPool.match(/(?:(?:HORA|HR|HRS|A LAS)\s*:?\s*)?([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?/i);
+        if (match) {
+            const hh = match[1].padStart(2, '0');
+            const mm = match[2].padStart(2, '0');
+            const ss = match[3] ? `:${match[3].padStart(2, '0')}` : '';
+            return `${hh}:${mm}${ss}`;
         }
     }
-    try {
-        const d = new Date(horaOp);
-        if (!isNaN(d.getTime())) {
-            const iso = d.toISOString();
-            if (iso.startsWith("1970-01-01T")) {
-                const h = iso.slice(11, 16);
-                if (h !== "00:00") return h;
+
+    // 4. Fallback a fechaIngreso si existe hora registrada
+    if (mov.fechaIngreso) {
+        const res = formatHoraFromDateTime(mov.fechaIngreso);
+        if (res && res !== "00:00" && res !== "00:00:00") return res;
+    }
+
+    return "";
+}
+
+function formatHoraString(val: any): string {
+    if (!val) return "";
+    const str = String(val).trim();
+
+    // Formato directo HH:MM o HH:MM:SS
+    const simpleMatch = str.match(/^([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/);
+    if (simpleMatch) {
+        const hh = simpleMatch[1].padStart(2, '0');
+        const mm = simpleMatch[2].padStart(2, '0');
+        const ss = simpleMatch[3] ? `:${simpleMatch[3].padStart(2, '0')}` : '';
+        return `${hh}:${mm}${ss}`;
+    }
+
+    // Formato ISO string con T (ej: 1970-01-01T15:25:00.000Z o 2026-09-01T15:25:00Z)
+    if (str.includes("T")) {
+        const timePart = str.split("T")[1];
+        if (timePart) {
+            const m = timePart.match(/^([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?/);
+            if (m) {
+                const hh = m[1].padStart(2, '0');
+                const mm = m[2].padStart(2, '0');
+                const ss = m[3] ? `:${m[3].padStart(2, '0')}` : '';
+                if (hh !== "00" || mm !== "00") return `${hh}:${mm}${ss}`;
             }
-            return d.toTimeString().slice(0, 5);
+        }
+    }
+
+    try {
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) {
+            // Si es fecha base 1970, tomar UTC
+            if (d.getUTCFullYear() === 1970) {
+                const hh = String(d.getUTCHours()).padStart(2, '0');
+                const mm = String(d.getUTCMinutes()).padStart(2, '0');
+                const ss = String(d.getUTCSeconds()).padStart(2, '0');
+                if (hh !== "00" || mm !== "00") {
+                    return ss !== "00" ? `${hh}:${mm}:${ss}` : `${hh}:${mm}`;
+                }
+            }
+            return new Intl.DateTimeFormat('es-MX', {
+                timeZone: 'America/Mexico_City',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            }).format(d);
         }
     } catch {}
+
     return str;
+}
+
+function formatHoraFromDateTime(val: any): string {
+    if (!val) return "";
+    try {
+        const d = typeof val === "string" ? new Date(val) : val;
+        if (d instanceof Date && !isNaN(d.getTime())) {
+            // Si no es medianoche exacta UTC (00:00:00.000Z)
+            if (!(d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0)) {
+                return new Intl.DateTimeFormat('es-MX', {
+                    timeZone: 'America/Mexico_City',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                }).format(d);
+            }
+        }
+    } catch {}
+    return "";
 }
 
 // Función para formatear Fecha y Hora completa en zona horaria CDMX (YYYY-MM-DD HH:MM:SS)
@@ -684,7 +770,7 @@ export default function ConciliadorPage() {
                                                     const valKey = `${mov.tabla}__${mov.id}`;
                                                     const movIndex = globalMovIndexMap.get(valKey) ?? idx;
                                                     const fechaOperacionStr = mov.fechaOperacion ? mov.fechaOperacion.toString().slice(0, 10) : "N/A";
-                                                    const horaOperacionStr = formatHora(mov.horaOperacion);
+                                                    const horaOperacionStr = extractHoraOperacion(mov);
                                                     const horaLabel = horaOperacionStr ? ` | Hr: ${horaOperacionStr}` : "";
                                                     const montoMov = parseFloat(mov.abono?.toString() || "0").toFixed(2);
                                                     const bancoLabel = mov.bancoDestino || (mov.cuentaDestino ? `CTA ${mov.cuentaDestino}` : "BANCO");
@@ -705,7 +791,7 @@ export default function ConciliadorPage() {
                                         {selectedMovObj && (() => {
                                             const selectedValKey = `${selectedMovObj.tabla}__${selectedMovObj.id}`;
                                             const selectedMovIdx = globalMovIndexMap.get(selectedValKey) ?? 0;
-                                            const horaStr = formatHora(selectedMovObj.horaOperacion);
+                                            const horaStr = extractHoraOperacion(selectedMovObj);
                                             const montoMovNum = parseFloat(selectedMovObj.abono?.toString() || "0");
                                             const fechaOperacionStr = selectedMovObj.fechaOperacion ? selectedMovObj.fechaOperacion.toString().slice(0, 10) : "N/A";
                                             const cuentaDestinoStr = selectedMovObj.cuentaDestino || (selectedMovObj.tabla?.includes("22001022837") ? "22001022837" : selectedMovObj.tabla?.includes("65505732541") ? "65505732541" : selectedMovObj.tabla?.includes("0330253963") ? "0330253963" : "N/A");
