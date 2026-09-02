@@ -165,6 +165,74 @@ export async function POST(req: Request) {
             });
         }
 
+        // --- ACCIÓN: ACTUALIZAR MONTO DE TICKET ---
+        if (action === "actualizar_monto_ticket") {
+            const ticketId = body.ticketId || body.id;
+            const nuevoMontoNum = parseFloat(body.monto || body.nuevoMonto || monto || '0');
+
+            if (!ticketId || isNaN(nuevoMontoNum) || nuevoMontoNum <= 0) {
+                return NextResponse.json({ error: "ticketId y monto válido son requeridos" }, { status: 400 });
+            }
+
+            const ticket = await prisma.ticket.findUnique({
+                where: { id: ticketId },
+                include: { cliente: true, pagos: true }
+            });
+
+            if (!ticket) {
+                return NextResponse.json({ error: "Ticket no encontrado" }, { status: 404 });
+            }
+
+            const montoAnterior = parseFloat(ticket.monto.toString());
+            const diff = nuevoMontoNum - montoAnterior;
+
+            const operations: any[] = [
+                prisma.ticket.update({
+                    where: { id: ticketId },
+                    data: { monto: nuevoMontoNum }
+                })
+            ];
+
+            // Si hay pagos vinculados, actualizar su monto y ajustar saldos
+            if (ticket.pagos && ticket.pagos.length > 0) {
+                for (const pago of ticket.pagos) {
+                    const saldoAnt = parseFloat(pago.saldoAnterior.toString());
+                    const saldoNvo = Math.max(0, saldoAnt - nuevoMontoNum);
+                    operations.push(
+                        prisma.pago.update({
+                            where: { id: pago.id },
+                            data: {
+                                monto: nuevoMontoNum,
+                                saldoNuevo: saldoNvo
+                            }
+                        })
+                    );
+                }
+            }
+
+            // Si el cliente existe, descontar la diferencia del saldo actual
+            if (ticket.cliente) {
+                const clienteSaldoActual = parseFloat(ticket.cliente.saldoActual.toString());
+                const nuevoSaldoCliente = Math.max(0, clienteSaldoActual - diff);
+                operations.push(
+                    prisma.cliente.update({
+                        where: { id: ticket.cliente.id },
+                        data: { saldoActual: nuevoSaldoCliente }
+                    })
+                );
+            }
+
+            await prisma.$transaction(operations);
+
+            return NextResponse.json({
+                success: true,
+                message: `Ticket ${ticketId} actualizado de $${montoAnterior.toFixed(2)} a $${nuevoMontoNum.toFixed(2)} correctamente`,
+                montoAnterior,
+                nuevoMonto: nuevoMontoNum,
+                diferenciaAjustada: diff
+            });
+        }
+
         // --- ACCIÓN: LISTAR PAGOS Y TICKETS DE CLIENTE ---
         if (action === "listar_pagos_cliente") {
             const cod = (body.contrato || body.codigoCliente || contrato || '').trim().toUpperCase();

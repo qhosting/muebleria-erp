@@ -185,7 +185,6 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
     name: 'TICKETS2',
     active: true,
     isArchived: false,
-    projectId: 'a7Cqq8ZCzgtHPblJ',
     settings: {
         executionOrder: 'v1',
         availableInMCP: false,
@@ -236,7 +235,7 @@ export class Tickets2Workflow {
 **INSTRUCCIONES POR CAMPO:**
 
 -   \`contrato\`: Si observas el código de contrato (DP o DQ seguido de 5 a 8 dígitos, ej: "DP2605137", "DQ2506016") anotado o impreso en el comprobante, extráelo. De lo contrario, devuelve \`null\`.
--   \`monto\`: El importe principal de la transacción, ignorando siempre comisiones, IVA o el "PAGO TOTAL".
+-   \`monto\`: El importe exacto del abono o pago principal. Lee los dígitos numéricos con máxima precisión (distinguiendo nítidamente entre 3 y 2, 8 y 0, 5 y 6). Si hay comisiones adicionales de tienda o tienda de conveniencia (ej: $10, $12, $15), ignora la comisión y extrae ÚNICAMENTE el monto abonado a la cuenta. Devolver como número decimal.
 -   \`referencia\`: Busca el número de "REFERENCIA". Si está oculto con asteriscos (ej: \`**********1858\`), extrae solo la parte numérica. Si el campo no existe, el valor es \`null\`.
 -   \`folio\`: **INSTRUCCIÓN ACTUALIZADA:**
     1.  **Prioridad 1 (Depósitos en efectivo):** Busca un campo etiquetado como "# DE AFILIACION" o "AFILIACION". Este es el valor más importante para los tickets de OXXO o tiendas similares.
