@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { getCdmxDateRange } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -45,9 +46,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (fechaDesde || fechaHasta) {
-      where.fechaPago = {};
-      if (fechaDesde) where.fechaPago.gte = new Date(fechaDesde);
-      if (fechaHasta) where.fechaPago.lte = new Date(fechaHasta);
+      where.fechaPago = getCdmxDateRange(fechaDesde, fechaHasta);
     }
 
     const userRole = (session.user as any).role;
