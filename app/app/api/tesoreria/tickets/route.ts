@@ -183,6 +183,131 @@ export async function POST(request: NextRequest) {
     }
 }
 
+// PUT - Editar datos del ticket y sincronizar monto con pagos y saldo del cliente
+export async function PUT(request: NextRequest) {
+    try {
+        const session = await getServerSession(authOptions);
+
+        if (!session?.user) {
+            return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+        }
+
+        const body = await request.json();
+        const ticketId = body.ticketId || body.id;
+
+        if (!ticketId) {
+            return NextResponse.json({ error: 'El ID del ticket es obligatorio' }, { status: 400 });
+        }
+
+        const ticket = await prisma.ticket.findUnique({
+            where: { id: ticketId },
+            include: {
+                cliente: true,
+                pagos: true,
+            }
+        });
+
+        if (!ticket) {
+            return NextResponse.json({ error: 'Ticket no encontrado' }, { status: 404 });
+        }
+
+        const dataToUpdate: any = {};
+
+        // 1. Campos de texto / fecha editables
+        if (body.folio !== undefined) dataToUpdate.folio = body.folio?.trim() || null;
+        if (body.referencia !== undefined) dataToUpdate.referencia = body.referencia?.trim() || null;
+        if (body.claveRastreo !== undefined) dataToUpdate.claveRastreo = body.claveRastreo?.trim() || null;
+        if (body.concepto !== undefined) dataToUpdate.concepto = body.concepto?.trim() || null;
+        if (body.conciliado !== undefined) dataToUpdate.conciliado = Boolean(body.conciliado);
+
+        if (body.fecha) {
+            const parsed = new Date(body.fecha);
+            if (!isNaN(parsed.getTime())) {
+                dataToUpdate.fecha = parsed;
+            }
+        }
+
+        // 2. Manejo de Monto y propagación a Pagos y Saldo de Cliente
+        let nuevoMonto: number | null = null;
+        let diffMonto = 0;
+        const montoAnterior = parseFloat(ticket.monto.toString());
+
+        if (body.monto !== undefined) {
+            const parsedMonto = parseFloat(body.monto.toString());
+            if (!isNaN(parsedMonto) && parsedMonto >= 0) {
+                nuevoMonto = parsedMonto;
+                dataToUpdate.monto = nuevoMonto;
+                diffMonto = nuevoMonto - montoAnterior; // Ejemplo: $300 - $200 = +$100
+            }
+        }
+
+        let saldoNuevoCliente: number | null = null;
+        let saldoAnteriorCliente: number | null = null;
+
+        await prisma.$transaction(async (tx: any) => {
+            // A. Actualizar Ticket
+            await tx.ticket.update({
+                where: { id: ticket.id },
+                data: dataToUpdate
+            });
+
+            // B. Si cambió el monto o la fecha, actualizar pagos asociados
+            if (ticket.pagos && ticket.pagos.length > 0) {
+                for (const pago of ticket.pagos) {
+                    const updatePagoData: any = {};
+                    if (dataToUpdate.fecha) {
+                        updatePagoData.fechaPago = dataToUpdate.fecha;
+                    }
+                    if (nuevoMonto !== null) {
+                        const saldoAnt = parseFloat(pago.saldoAnterior.toString() || '0');
+                        const saldoNvo = Math.max(0, saldoAnt - nuevoMonto);
+                        updatePagoData.monto = nuevoMonto;
+                        updatePagoData.saldoNuevo = saldoNvo;
+                    }
+                    if (Object.keys(updatePagoData).length > 0) {
+                        await tx.pago.update({
+                            where: { id: pago.id },
+                            data: updatePagoData
+                        });
+                    }
+                }
+            }
+
+            // C. Si cambió el monto y tiene cliente, ajustar el saldo actual del cliente
+            if (nuevoMonto !== null && diffMonto !== 0 && ticket.clienteId && ticket.cliente) {
+                saldoAnteriorCliente = parseFloat(ticket.cliente.saldoActual.toString() || '0');
+                // Si el abono aumentó (+$100), el saldo deudor disminuye (-$100)
+                saldoNuevoCliente = Math.max(0, saldoAnteriorCliente - diffMonto);
+
+                await tx.cliente.update({
+                    where: { id: ticket.clienteId },
+                    data: {
+                        saldoActual: saldoNuevoCliente,
+                        updatedAt: new Date()
+                    }
+                });
+            }
+        });
+
+        return NextResponse.json({
+            success: true,
+            message: `Ticket ${ticket.id} actualizado correctamente${diffMonto !== 0 ? ` (Monto ajustado de $${montoAnterior.toFixed(2)} a $${(nuevoMonto || 0).toFixed(2)})` : ''}`,
+            ticketId: ticket.id,
+            montoAnterior,
+            nuevoMonto: nuevoMonto !== null ? nuevoMonto : montoAnterior,
+            diferenciaAjustada: diffMonto,
+            saldoAnteriorCliente,
+            saldoNuevoCliente
+        });
+    } catch (error: any) {
+        console.error('Error al editar ticket:', error);
+        return NextResponse.json(
+            { error: error.message || 'Error interno del servidor al editar el ticket' },
+            { status: 500 }
+        );
+    }
+}
+
 // DELETE - Eliminar un ticket, sus pagos asociados y revertir (sumar) el saldo al cliente
 export async function DELETE(request: NextRequest) {
     try {

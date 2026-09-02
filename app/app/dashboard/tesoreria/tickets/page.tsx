@@ -24,7 +24,8 @@ import {
     Calendar,
     Phone,
     CreditCard,
-    Trash2
+    Trash2,
+    Pencil
 } from "lucide-react";
 import {
     Dialog,
@@ -50,6 +51,19 @@ export default function TicketsPage() {
         currentPage: 1,
         perPage: 50,
     });
+
+    // Modal de edición de ticket
+    const [editingTicket, setEditingTicket] = useState<any | null>(null);
+    const [editForm, setEditForm] = useState({
+        monto: "",
+        fecha: "",
+        folio: "",
+        referencia: "",
+        claveRastreo: "",
+        concepto: "",
+        conciliado: false,
+    });
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
 
     // Modal de visualización de ticket
     const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
@@ -144,6 +158,74 @@ export default function TicketsPage() {
             toast.error("Error de conexión con el servidor");
         } finally {
             setApplyingId(null);
+        }
+    };
+
+    const handleOpenEdit = (ticket: any) => {
+        setEditingTicket(ticket);
+        const fechaISO = ticket.fecha || ticket.creadoEn || new Date().toISOString();
+        setEditForm({
+            monto: ticket.monto?.toString() || "0",
+            fecha: fechaISO.split("T")[0],
+            folio: ticket.folio || "",
+            referencia: ticket.referencia || "",
+            claveRastreo: ticket.claveRastreo || "",
+            concepto: ticket.concepto || "",
+            conciliado: Boolean(ticket.conciliado),
+        });
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingTicket) return;
+        const montoNum = parseFloat(editForm.monto);
+        if (isNaN(montoNum) || montoNum < 0) {
+            toast.error("Por favor ingresa un monto válido");
+            return;
+        }
+
+        setIsSavingEdit(true);
+        try {
+            const res = await fetch("/api/tesoreria/tickets", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    ticketId: editingTicket.id,
+                    monto: montoNum,
+                    fecha: editForm.fecha,
+                    folio: editForm.folio,
+                    referencia: editForm.referencia,
+                    claveRastreo: editForm.claveRastreo,
+                    concepto: editForm.concepto,
+                    conciliado: editForm.conciliado,
+                }),
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(data.message || "Ticket y saldo actualizados correctamente");
+                setEditingTicket(null);
+                fetchTickets();
+                if (selectedTicket?.id === editingTicket.id) {
+                    setSelectedTicket((prev: any) => prev ? {
+                        ...prev,
+                        monto: montoNum,
+                        fecha: editForm.fecha,
+                        folio: editForm.folio,
+                        referencia: editForm.referencia,
+                        claveRastreo: editForm.claveRastreo,
+                        concepto: editForm.concepto,
+                        conciliado: editForm.conciliado,
+                        pagos: prev.pagos?.map((p: any) => ({ ...p, monto: montoNum }))
+                    } : null);
+                }
+            } else {
+                toast.error(data.error || "Error al actualizar el ticket");
+            }
+        } catch (err) {
+            console.error("Error al actualizar ticket:", err);
+            toast.error("Error de conexión al actualizar el ticket");
+        } finally {
+            setIsSavingEdit(false);
         }
     };
 
@@ -343,6 +425,15 @@ export default function TicketsPage() {
                                                                 title="Ver detalles y comprobante"
                                                             >
                                                                 <Eye className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => handleOpenEdit(ticket)}
+                                                                className="h-8 w-8 text-amber-600 hover:bg-amber-50 hover:text-amber-800 transition-colors"
+                                                                title="Editar datos del ticket y saldo"
+                                                            >
+                                                                <Pencil className="h-4 w-4" />
                                                             </Button>
                                                             {!tienePago && ticket.clienteId && (
                                                                 <Button
@@ -591,6 +682,14 @@ export default function TicketsPage() {
                                     )}
                                     <Button
                                         variant="outline"
+                                        className="w-full border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 font-semibold py-2 rounded-xl flex items-center justify-center gap-2 transition-all"
+                                        onClick={() => handleOpenEdit(selectedTicket)}
+                                    >
+                                        <Pencil className="w-4 h-4 text-amber-600" />
+                                        Editar Datos del Ticket y Saldo
+                                    </Button>
+                                    <Button
+                                        variant="outline"
                                         className="w-full border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800 font-semibold py-2 rounded-xl flex items-center justify-center gap-2 transition-all"
                                         onClick={() => setDeletingTicket(selectedTicket)}
                                     >
@@ -598,6 +697,200 @@ export default function TicketsPage() {
                                         Eliminar Ticket y Revertir Saldo
                                     </Button>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Edición de Ticket */}
+            <Dialog open={!!editingTicket} onOpenChange={(open) => !open && !isSavingEdit && setEditingTicket(null)}>
+                <DialogContent className="max-w-lg p-6">
+                    <DialogHeader>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-amber-100 text-amber-700 rounded-full">
+                                <Pencil className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-bold text-gray-900">
+                                    Editar Ticket #{editingTicket?.id}
+                                </DialogTitle>
+                                <DialogDescription className="text-xs text-gray-500 mt-0.5">
+                                    Modifica los datos del comprobante, pago y saldo asociado
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    {editingTicket && (
+                        <div className="space-y-4 my-2">
+                            {/* Tarjeta de información del cliente */}
+                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-500">Cliente:</span>
+                                    <span className="font-semibold text-gray-900 truncate max-w-[240px]">
+                                        {editingTicket.cliente?.nombreCompleto || "Sin Cliente"} ({editingTicket.cliente?.codigoCliente || "N/A"})
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-500">Saldo actual cliente:</span>
+                                    <span className="font-mono font-medium text-gray-800">
+                                        {formatCurrency(editingTicket.cliente?.saldoActual || 0)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-500">Pagos vinculados:</span>
+                                    <span className="font-mono text-indigo-700 font-semibold">
+                                        {editingTicket.pagos && editingTicket.pagos.length > 0 ? `${editingTicket.pagos.length} pago(s) vinculado(s)` : "Sin pago aplicado"}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Formulario de Campos */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                <div>
+                                    <label className="font-semibold text-gray-700 block mb-1">
+                                        Monto del Ticket ($) <span className="text-red-500">*</span>
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={editForm.monto}
+                                        onChange={(e) => setEditForm({ ...editForm, monto: e.target.value })}
+                                        className="font-mono font-bold text-sm bg-white"
+                                        placeholder="0.00"
+                                    />
+                                    {/* Indicador de diferencia en tiempo real */}
+                                    {(() => {
+                                        const original = parseFloat(editingTicket.monto?.toString() || "0");
+                                        const actual = parseFloat(editForm.monto || "0");
+                                        const diff = actual - original;
+                                        if (isNaN(diff) || diff === 0) return null;
+                                        return (
+                                            <p className={`text-[11px] mt-1 font-medium ${diff > 0 ? "text-emerald-600" : "text-amber-600"}`}>
+                                                {diff > 0 ? `+${formatCurrency(diff)} (Se descontarán del saldo)` : `${formatCurrency(diff)} (Se sumarán al saldo)`}
+                                            </p>
+                                        );
+                                    })()}
+                                </div>
+
+                                <div>
+                                    <label className="font-semibold text-gray-700 block mb-1">
+                                        Fecha de Operación
+                                    </label>
+                                    <Input
+                                        type="date"
+                                        value={editForm.fecha}
+                                        onChange={(e) => setEditForm({ ...editForm, fecha: e.target.value })}
+                                        className="bg-white"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="font-semibold text-gray-700 block mb-1">
+                                        Folio
+                                    </label>
+                                    <Input
+                                        type="text"
+                                        value={editForm.folio}
+                                        onChange={(e) => setEditForm({ ...editForm, folio: e.target.value })}
+                                        placeholder="Ej: 1752422635775"
+                                        className="font-mono bg-white"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="font-semibold text-gray-700 block mb-1">
+                                        Referencia
+                                    </label>
+                                    <Input
+                                        type="text"
+                                        value={editForm.referencia}
+                                        onChange={(e) => setEditForm({ ...editForm, referencia: e.target.value })}
+                                        placeholder="Ej: 1858"
+                                        className="font-mono bg-white"
+                                    />
+                                </div>
+
+                                <div className="sm:col-span-2">
+                                    <label className="font-semibold text-gray-700 block mb-1">
+                                        Clave de Rastreo (SPEI)
+                                    </label>
+                                    <Input
+                                        type="text"
+                                        value={editForm.claveRastreo}
+                                        onChange={(e) => setEditForm({ ...editForm, claveRastreo: e.target.value })}
+                                        placeholder="Clave de rastreo o ID de transferencia"
+                                        className="font-mono bg-white"
+                                    />
+                                </div>
+
+                                <div className="sm:col-span-2">
+                                    <label className="font-semibold text-gray-700 block mb-1">
+                                        Concepto / Observaciones
+                                    </label>
+                                    <Input
+                                        type="text"
+                                        value={editForm.concepto}
+                                        onChange={(e) => setEditForm({ ...editForm, concepto: e.target.value })}
+                                        placeholder="Ej: Abono recibido por WhatsApp"
+                                        className="bg-white"
+                                    />
+                                </div>
+
+                                <div className="sm:col-span-2 flex items-center justify-between p-3 bg-amber-50/60 border border-amber-200/70 rounded-xl">
+                                    <div>
+                                        <span className="font-semibold text-gray-800 block text-xs">Estado de Conciliación</span>
+                                        <span className="text-[11px] text-gray-500">¿El comprobante ya fue conciliado con bancos?</span>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setEditForm({ ...editForm, conciliado: !editForm.conciliado })}
+                                        className={`rounded-lg font-semibold text-xs ${
+                                            editForm.conciliado
+                                                ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                                                : "bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100"
+                                        }`}
+                                    >
+                                        {editForm.conciliado ? "✓ Conciliado" : "⏳ Pendiente"}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl flex items-start gap-2 text-xs text-blue-900">
+                                <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="font-semibold">Sincronización Automática:</p>
+                                    <p className="text-[11px] text-blue-700 mt-0.5">
+                                        Si modificas el monto del ticket, el monto del pago asociado se actualizará y la diferencia se ajustará automáticamente en el saldo deudor del cliente.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 justify-end pt-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setEditingTicket(null)}
+                                    disabled={isSavingEdit}
+                                    className="rounded-xl"
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    onClick={handleSaveEdit}
+                                    disabled={isSavingEdit}
+                                    className="bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-xl flex items-center gap-2"
+                                >
+                                    {isSavingEdit ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Pencil className="w-4 h-4" />
+                                    )}
+                                    Guardar y Sincronizar
+                                </Button>
                             </div>
                         </div>
                     )}
