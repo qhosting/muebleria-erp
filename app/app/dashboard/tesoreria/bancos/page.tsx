@@ -26,6 +26,7 @@ import {
     User,
     Hash,
     FileText,
+    Trash2
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
@@ -291,6 +292,32 @@ export default function BancosPage() {
         return { label: "Manual", color: "bg-gray-100 text-gray-700" };
     };
 
+    const [deletingOld, setDeletingOld] = useState(false);
+
+    const handleEliminarAnteriores = async () => {
+        const confirm = window.confirm("¿Estás seguro de eliminar todos los registros bancarios anteriores al 27/08/2026 de todas las cuentas bancarias? Esta acción es irreversible.");
+        if (!confirm) return;
+
+        setDeletingOld(true);
+        try {
+            const res = await fetch("/api/tesoreria/bancos?antesDe=2026-08-27", {
+                method: "DELETE"
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(`¡Se eliminaron ${data.eliminados.total} registros bancarios anteriores al 27/08/2026!`);
+                fetchMovimientos();
+            } else {
+                toast.error(data.error || "Error al eliminar registros bancarios");
+            }
+        } catch (err) {
+            console.error("Error al eliminar registros:", err);
+            toast.error("Error de conexión al eliminar registros");
+        } finally {
+            setDeletingOld(false);
+        }
+    };
+
     const colSpan = activeTab === "todas" ? 8 : 7;
 
     return (
@@ -308,7 +335,21 @@ export default function BancosPage() {
                                 Importa, visualiza y concilia movimientos bancarios con tickets de pago.
                             </p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={handleEliminarAnteriores}
+                                disabled={loading || deletingOld}
+                                className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 text-xs font-semibold"
+                                title="Eliminar movimientos bancarios anteriores al 27 de agosto de 2026"
+                            >
+                                {deletingOld ? (
+                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Trash2 className="mr-1.5 h-3.5 w-3.5 text-red-600" />
+                                )}
+                                Depurar &lt; 27/08/2026
+                            </Button>
                             <Button variant="outline" onClick={exportarCSV} disabled={loading || movimientos.length === 0}>
                                 <Download className="mr-2 h-4 w-4" /> Exportar CSV
                             </Button>
