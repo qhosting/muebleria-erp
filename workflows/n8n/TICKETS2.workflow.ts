@@ -345,13 +345,14 @@ try {
   parsedJson = JSON.parse(jsonText);
 } catch (error) {
   // Fallback con expresiones regulares para no perder monto ni campos clave
-  const matchMonto = iaResponseString.match(/"monto"s*:s*"?([d.,]+)"?/i) || iaResponseString.match(/(?:monto|importe|total|abono|cantidad)[^d]*(d+(?:.d{1,2})?)/i);
-  const matchContrato = iaResponseString.match(/"contrato"s*:s*"?(D[PQ]d{5,8})"?/i);
-  const matchRef = iaResponseString.match(/"referencia"s*:s*"([^"]+)"/i);
-  const matchFolio = iaResponseString.match(/"folio"s*:s*"([^"]+)"/i);
-  const matchFecha = iaResponseString.match(/"fecha"s*:s*"(d{4}-d{2}-d{2})"/i);
-  const matchHr = iaResponseString.match(/"hr"s*:s*"(d{2}:d{2}(?::d{2})?)"/i);
-  const matchRastreo = iaResponseString.match(/"claverastreo"s*:s*"([^"]+)"/i);
+  const matchMonto = iaResponseString.match(/"monto"\\s*:\\s*"?([\\d\\.,]+)"?/i) || iaResponseString.match(/\\b(?:monto|importe|total|abono|cantidad)\\b[^\\d]*(\\d+(?:\\.\\d{1,2})?)/i);
+  const cleanContractText = iaResponseString.toUpperCase().replace(/[^A-Z0-9":]/g, '');
+  const matchContrato = cleanContractText.match(/"CONTRATO":.*?(D[PQ]\\d{5,8})/i) || iaResponseString.match(/\\b(D[PQ]\\d{5,8})\\b/i);
+  const matchRef = iaResponseString.match(/"referencia"\\s*:\\s*"([^"]+)"/i);
+  const matchFolio = iaResponseString.match(/"folio"\\s*:\\s*"([^"]+)"/i);
+  const matchFecha = iaResponseString.match(/"fecha"\\s*:\\s*"(\\d{4}-\\d{2}-\\d{2})"/i) || iaResponseString.match(/\\b(\\d{4}-\\d{2}-\\d{2})\\b/);
+  const matchHr = iaResponseString.match(/"hr"\\s*:\\s*"(\\d{2}:\\d{2}(?::\\d{2})?)"/i) || iaResponseString.match(/\\b(\\d{2}:\\d{2}(?::\\d{2})?)\\b/);
+  const matchRastreo = iaResponseString.match(/"claverastreo"\\s*:\\s*"([^"]+)"/i);
 
   parsedJson = {
     contrato: matchContrato ? matchContrato[1] : null,
@@ -366,7 +367,8 @@ try {
 
 // Si la IA extrajo un contrato y no teníamos uno previo, usarlo
 if (!contratoInicial && parsedJson.contrato) {
-  const matchAIContrato = String(parsedJson.contrato).toUpperCase().match(/(DP|DQ)(d{5,8})/i);
+  const cleanContractStr = String(parsedJson.contrato).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const matchAIContrato = cleanContractStr.match(/(DP|DQ)(\\d{5,8})/i);
   if (matchAIContrato) {
     contratoInicial = (matchAIContrato[1] + matchAIContrato[2]).toUpperCase();
   }
