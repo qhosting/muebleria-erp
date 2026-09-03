@@ -6,6 +6,100 @@ import { parseValidDate } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
+function extractDatosOrdenante(mov: any, ticket: any) {
+    let clabe: string | null = null;
+    let cuenta: string | null = null;
+    let banco: string | null = mov?.bancoOrigen || null;
+    let nombreTitular: string | null = null;
+
+    const dataPool = `${mov?.clabeEmisor || ''} ${mov?.cuentaEmisor || ''} ${mov?.concepto || ''} ${mov?.descripcionDetallada || ''} ${mov?.descripcionGeneral || ''}`;
+
+    // CLABE de 18 dígitos
+    const clabeDirect = mov?.clabeEmisor && String(mov.clabeEmisor).trim().length === 18 ? String(mov.clabeEmisor).trim() : null;
+    const clabeMatch = (dataPool.match(/\b\d{18}\b/) || [])[0] || null;
+    clabe = clabeDirect || clabeMatch;
+
+    // Cuenta de 10-16 dígitos
+    const cuentaDirect = mov?.cuentaEmisor && String(mov.cuentaEmisor).trim().length >= 10 ? String(mov.cuentaEmisor).trim() : null;
+    const cuentaMatch = (dataPool.match(/(?:CLABE\/Cta|Cta|Cuenta|CLABE):\s*(\d{10,18})/i) || [])[1] || (dataPool.match(/\b\d{10,16}\b/) || [])[0] || null;
+    cuenta = cuentaDirect || cuentaMatch;
+    if (cuenta === clabe) cuenta = null;
+
+    // Nombre titular / ordenante
+    if (mov?.descripcionDetallada) {
+        const mOrigen = mov.descripcionDetallada.match(/Origen:\s*([^(|]+)(?:\s*\(([^)]+)\))?/i);
+        if (mOrigen && mOrigen[1].trim()) {
+            nombreTitular = mOrigen[1].trim();
+            if (!banco && mOrigen[2]) banco = mOrigen[2].trim();
+        }
+        if (!nombreTitular) {
+            const mTitular = mov.descripcionDetallada.match(/Titular:\s*([^,|]+)/i);
+            if (mTitular && mTitular[1].trim()) nombreTitular = mTitular[1].trim();
+        }
+    }
+    if (!nombreTitular && ticket?.remitente) {
+        nombreTitular = ticket.remitente.trim();
+    }
+    if (!nombreTitular && ticket?.cliente?.nombreCompleto) {
+        nombreTitular = ticket.cliente.nombreCompleto.trim();
+    }
+
+    return { clabe, cuenta, banco, nombreTitular };
+}
+
+async function guardarCuentaCliente(prismaTx: any, clienteId: string, datos: { clabe: string | null, cuenta: string | null, banco: string | null, nombreTitular: string | null }) {
+    if (!clienteId) return;
+    const { clabe, cuenta, banco, nombreTitular } = datos;
+    if (!clabe && !cuenta && !nombreTitular) return;
+
+    try {
+        if (clabe) {
+            await (prismaTx as any).cuentaBancariaCliente.upsert({
+                where: { clabe },
+                update: {
+                    clienteId,
+                    cuenta: cuenta || undefined,
+                    banco: banco || undefined,
+                    nombreTitular: nombreTitular || undefined,
+                    updatedAt: new Date()
+                },
+                create: {
+                    clabe,
+                    cuenta: cuenta || null,
+                    banco: banco || null,
+                    nombreTitular: nombreTitular || null,
+                    clienteId
+                }
+            });
+        } else if (cuenta) {
+            const existing = await (prismaTx as any).cuentaBancariaCliente.findFirst({
+                where: { clienteId, cuenta }
+            });
+            if (existing) {
+                await (prismaTx as any).cuentaBancariaCliente.update({
+                    where: { id: existing.id },
+                    data: {
+                        banco: banco || undefined,
+                        nombreTitular: nombreTitular || undefined,
+                        updatedAt: new Date()
+                    }
+                });
+            } else {
+                await (prismaTx as any).cuentaBancariaCliente.create({
+                    data: {
+                        clienteId,
+                        cuenta,
+                        banco: banco || null,
+                        nombreTitular: nombreTitular || null
+                    }
+                });
+            }
+        }
+    } catch (err) {
+        console.error('Error guardando cuenta bancaria de cliente:', err);
+    }
+}
+
 export async function GET(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
@@ -434,7 +528,8 @@ export async function POST(request: NextRequest) {
                             codigoCliente: true,
                             nombreCompleto: true,
                             saldoActual: true,
-                            cobradorAsignadoId: true
+                            cobradorAsignadoId: true,
+                            cuentasBancarias: true
                         }
                     }, 
                     pagos: true 
@@ -546,6 +641,35 @@ export async function POST(request: NextRequest) {
                                 tipoMatch = 'CONTRATO_DP_DQ';
                                 scoreMatch = isMontoExact ? 2 : 2.5;
                                 if (isMontoExact) break;
+                            }
+                        }
+
+                        // 2.5 PRIORIDAD 2.5: Cuenta Bancaria o CLABE Habitual del Cliente
+                        const cuentasCliente = (ticket.cliente as any)?.cuentasBancarias || [];
+                        if (cuentasCliente.length > 0 && scoreMatch > 2.5) {
+                            const clabesCliente = cuentasCliente.map((c: any) => c.clabe).filter(Boolean);
+                            const cuentasNumCliente = cuentasCliente.map((c: any) => c.cuenta).filter(Boolean);
+                            const titularesCliente = cuentasCliente.map((c: any) => normalizar(c.nombreTitular || '')).filter((t: string) => t.length >= 4);
+
+                            const movClabe = mov.clabeEmisor || (movRawText.match(/\b\d{18}\b/) || [])[0];
+                            const movCta = mov.cuentaEmisor || (movRawText.match(/\b\d{10,16}\b/) || [])[0];
+
+                            const matchClabe = movClabe && clabesCliente.includes(movClabe);
+                            const matchCta = movCta && cuentasNumCliente.includes(movCta);
+                            const matchTitular = titularesCliente.some((t: string) => movNormText.includes(t));
+
+                            if (matchClabe || matchCta) {
+                                matchMov = mov;
+                                razonMatch = `Cuenta/CLABE habitual (${movClabe || movCta}) del cliente detectada${isMontoExact ? ' (Monto exacto)' : ''}`;
+                                tipoMatch = 'CUENTA_HABITUAL_CLIENTE';
+                                scoreMatch = isMontoExact ? 2.2 : 2.7;
+                                if (isMontoExact) break;
+                            } else if (isMontoExact && matchTitular && scoreMatch > 3.1) {
+                                matchMov = mov;
+                                razonMatch = `Titular/remitente habitual del cliente detectado en banco con monto exacto`;
+                                tipoMatch = 'REMITENTE_HABITUAL';
+                                scoreMatch = 3.1;
+                                continue;
                             }
                         }
 
@@ -707,6 +831,12 @@ export async function POST(request: NextRequest) {
 
                         await prisma.$transaction(operations);
 
+                        // Guardar/Actualizar la cuenta y titular/remitente habitual del cliente
+                        if (ticket.clienteId) {
+                            const datosOrdenante = extractDatosOrdenante(matchMov, ticket);
+                            await guardarCuentaCliente(prisma, ticket.clienteId, datosOrdenante);
+                        }
+
                         conciliados.push({
                             ticketId: ticket.id,
                             contrato: ticket.cliente?.codigoCliente || 'N/A',
@@ -849,27 +979,13 @@ export async function POST(request: NextRequest) {
             }));
         }
 
-        // Si detectamos una nueva CLABE para este cliente, la guardamos/actualizamos
-        if (ticket.clienteId && (clabeMatch || cuentaMatch)) {
-            const clabe = clabeMatch ? clabeMatch[0] : null;
-            if (clabe) {
-                operations.push((prisma as any).cuentaBancariaCliente.upsert({
-                    where: { clabe: clabe },
-                    update: { 
-                        clienteId: ticket.clienteId, 
-                        nombreTitular: ticket.cliente?.nombreCompleto 
-                    },
-                    create: {
-                        clabe: clabe,
-                        clienteId: ticket.clienteId,
-                        nombreTitular: ticket.cliente?.nombreCompleto,
-                        banco: movimiento.bancoOrigen
-                    }
-                }));
-            }
-        }
-
         await prisma.$transaction(operations);
+
+        // Guardar/Actualizar la cuenta y titular/remitente habitual del cliente
+        if (ticket.clienteId) {
+            const datosOrdenante = extractDatosOrdenante(movimiento, ticket);
+            await guardarCuentaCliente(prisma, ticket.clienteId, datosOrdenante);
+        }
 
         return NextResponse.json({ success: true, message: 'Conciliación y aprendizaje exitosos' });
     } catch (error) {
