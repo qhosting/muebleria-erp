@@ -26,10 +26,62 @@ import {
     User,
     Hash,
     FileText,
-    Trash2
+    Trash2,
+    Calendar,
+    Clock
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
+
+// Funciones para formatear Fecha y Hora exacta del Ticket en Zona Horaria CDMX
+function formatFechaTicket(fechaInput: any, creadoEnInput?: any): string {
+    const val = fechaInput || creadoEnInput;
+    if (!val) return "Sin fecha";
+    try {
+        const d = typeof val === "string" ? new Date(val) : val;
+        if (d instanceof Date && !isNaN(d.getTime())) {
+            return new Intl.DateTimeFormat('es-MX', {
+                timeZone: 'America/Mexico_City',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }).format(d);
+        }
+    } catch {}
+    return String(val).slice(0, 10);
+}
+
+function formatHoraTicket(fechaInput: any, creadoEnInput?: any): string {
+    const val = fechaInput || creadoEnInput;
+    if (!val) return "";
+    try {
+        const d = typeof val === "string" ? new Date(val) : val;
+        if (d instanceof Date && !isNaN(d.getTime())) {
+            if (!(d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0)) {
+                return new Intl.DateTimeFormat('es-MX', {
+                    timeZone: 'America/Mexico_City',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                }).format(d);
+            }
+            if (creadoEnInput && creadoEnInput !== fechaInput) {
+                const c = new Date(creadoEnInput);
+                if (!isNaN(c.getTime()) && !(c.getUTCHours() === 0 && c.getUTCMinutes() === 0 && c.getUTCSeconds() === 0)) {
+                    return new Intl.DateTimeFormat('es-MX', {
+                        timeZone: 'America/Mexico_City',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    }).format(c);
+                }
+            }
+        }
+    } catch {}
+    return "";
+}
 
 type TabKey = "todas" | "santander_22001022837" | "santander_65505732541" | "banorte_0330253963";
 
@@ -666,11 +718,39 @@ export default function BancosPage() {
                                                 <div className="flex items-start justify-between gap-2">
                                                     <div className="flex-1 min-w-0">
                                                         <p className="font-bold text-gray-900 text-sm truncate">{sugerenciaIA.ticket.cliente?.nombreCompleto || "Sin cliente"}</p>
-                                                        <p className="text-xs text-gray-500 mt-0.5">{sugerenciaIA.ticket.cliente?.codigoCliente} · {sugerenciaIA.ticket.gestor?.name}</p>
+                                                        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-1">
+                                                            {sugerenciaIA.ticket.cliente?.codigoCliente && (
+                                                                <span className="font-mono font-bold text-blue-700 bg-blue-100/70 px-1.5 py-0.5 rounded text-[11px]">
+                                                                    #{sugerenciaIA.ticket.cliente.codigoCliente}
+                                                                </span>
+                                                            )}
+                                                            {sugerenciaIA.ticket.gestor && <span>· {sugerenciaIA.ticket.gestor.name}</span>}
+                                                        </div>
                                                     </div>
                                                     <p className="font-black text-green-700 text-base whitespace-nowrap">{formatCurrency(sugerenciaIA.ticket.monto)}</p>
                                                 </div>
+
+                                                {/* Fecha y Hora */}
+                                                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-600 font-medium">
+                                                    <span className="flex items-center gap-1 bg-white/80 px-2 py-0.5 rounded border border-amber-200/60">
+                                                        <Calendar className="h-3 w-3 text-amber-600" />
+                                                        {formatFechaTicket(sugerenciaIA.ticket.fecha, sugerenciaIA.ticket.creadoEn)}
+                                                    </span>
+                                                    {formatHoraTicket(sugerenciaIA.ticket.fecha, sugerenciaIA.ticket.creadoEn) && (
+                                                        <span className="flex items-center gap-1 bg-white/80 px-2 py-0.5 rounded border border-amber-200/60 font-mono">
+                                                            <Clock className="h-3 w-3 text-amber-600" />
+                                                            {formatHoraTicket(sugerenciaIA.ticket.fecha, sugerenciaIA.ticket.creadoEn)}
+                                                        </span>
+                                                    )}
+                                                </div>
+
                                                 <p className="text-[10px] text-amber-700 mt-2 font-medium bg-amber-100/60 rounded px-2 py-1">{sugerenciaIA.razon}</p>
+                                                
+                                                {sugerenciaIA.ticket.claveRastreo && (
+                                                    <p className="text-[10px] text-blue-700 mt-1.5 font-mono break-all bg-blue-50/70 px-2 py-0.5 rounded border border-blue-200/50">
+                                                        SPEI: {sugerenciaIA.ticket.claveRastreo}
+                                                    </p>
+                                                )}
                                                 {sugerenciaIA.ticket.folio && (
                                                     <p className="text-[10px] text-gray-400 mt-1 font-mono">Folio: {sugerenciaIA.ticket.folio}</p>
                                                 )}
@@ -700,30 +780,59 @@ export default function BancosPage() {
                                                 <p className="text-sm">No hay tickets pendientes</p>
                                             </div>
                                         ) : (
-                                            <div className="space-y-2 max-h-[340px] overflow-y-auto">
+                                            <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
                                                 {ticketsFiltrados.map((ticket) => {
                                                     const isSelected = ticketSeleccionado?.id === ticket.id;
                                                     const montoCoincidie = ticket.monto === panelMov.abono;
+                                                    const fechaFormatted = formatFechaTicket(ticket.fecha, ticket.creadoEn);
+                                                    const horaFormatted = formatHoraTicket(ticket.fecha, ticket.creadoEn);
+
                                                     return (
                                                         <div
                                                             key={ticket.id}
                                                             onClick={() => setTicketSeleccionado(ticket)}
-                                                            className={`border rounded-xl p-3 cursor-pointer transition-all hover:shadow-sm ${isSelected ? "border-blue-500 bg-blue-50" : "border-gray-100 hover:border-gray-300"}`}
+                                                            className={`border rounded-xl p-3 cursor-pointer transition-all hover:shadow-sm ${isSelected ? "border-blue-500 bg-blue-50 shadow-sm" : "border-gray-200 bg-white hover:border-gray-300"}`}
                                                         >
                                                             <div className="flex items-start justify-between gap-2">
                                                                 <div className="flex-1 min-w-0">
                                                                     <div className="flex items-center gap-1.5 mb-0.5">
-                                                                        <User className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                                                                        <p className="font-semibold text-gray-900 text-xs truncate">{ticket.cliente?.nombreCompleto || "Sin cliente"}</p>
+                                                                        <User className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
+                                                                        <p className="font-bold text-gray-900 text-xs truncate">{ticket.cliente?.nombreCompleto || "Sin cliente"}</p>
                                                                     </div>
-                                                                    <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                                                                    
+                                                                    {/* Código, Folio y Gestor */}
+                                                                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500 mt-1">
                                                                         {ticket.cliente?.codigoCliente && (
-                                                                            <span className="flex items-center gap-0.5"><Hash className="h-2.5 w-2.5" />{ticket.cliente.codigoCliente}</span>
+                                                                            <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                                                                                #{ticket.cliente.codigoCliente}
+                                                                            </span>
                                                                         )}
-                                                                        {ticket.folio && <span>Folio: {ticket.folio}</span>}
-                                                                        {ticket.gestor && <span>· {ticket.gestor.name}</span>}
+                                                                        {ticket.folio && <span className="font-mono text-gray-500">Folio: {ticket.folio}</span>}
+                                                                        {ticket.gestor && <span className="text-gray-400">· {ticket.gestor.name}</span>}
                                                                     </div>
+
+                                                                    {/* Fecha y Hora del Ticket */}
+                                                                    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-gray-600">
+                                                                        <span className="flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded text-gray-700 font-medium">
+                                                                            <Calendar className="h-3 w-3 text-gray-500" />
+                                                                            {fechaFormatted}
+                                                                        </span>
+                                                                        {horaFormatted && (
+                                                                            <span className="flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded text-gray-700 font-mono font-medium">
+                                                                                <Clock className="h-3 w-3 text-blue-600" />
+                                                                                {horaFormatted}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {/* Clave de Rastreo SPEI si existe */}
+                                                                    {ticket.claveRastreo && (
+                                                                        <div className="mt-1 text-[10px] font-mono text-blue-700 bg-blue-50/80 px-1.5 py-0.5 rounded border border-blue-100 truncate" title={ticket.claveRastreo}>
+                                                                            SPEI: {ticket.claveRastreo}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
+
                                                                 <div className="text-right flex-shrink-0">
                                                                     <p className={`font-black text-sm ${montoCoincidie ? "text-green-700" : "text-gray-800"}`}>
                                                                         {formatCurrency(ticket.monto)}
@@ -731,10 +840,14 @@ export default function BancosPage() {
                                                                     {montoCoincidie && <p className="text-[9px] text-green-600 font-bold">✓ Monto exacto</p>}
                                                                 </div>
                                                             </div>
+
                                                             {isSelected && (
-                                                                <div className="mt-2 flex items-center gap-1 text-blue-600">
-                                                                    <CheckCircle2 className="h-3 w-3" />
-                                                                    <span className="text-[10px] font-bold">Seleccionado</span>
+                                                                <div className="mt-2.5 pt-1.5 border-t border-blue-200/60 flex items-center justify-between text-blue-700">
+                                                                    <div className="flex items-center gap-1">
+                                                                        <CheckCircle2 className="h-3.5 w-3.5" />
+                                                                        <span className="text-[11px] font-bold">Seleccionado para conciliar</span>
+                                                                    </div>
+                                                                    <span className="text-[10px] font-mono font-semibold">#{ticket.id}</span>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -750,18 +863,29 @@ export default function BancosPage() {
                         {/* Footer de acción */}
                         <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/50 flex-shrink-0 space-y-2">
                             {ticketSeleccionado && (
-                                <div className="bg-blue-50 rounded-xl p-3 flex items-center justify-between">
-                                    <div>
-                                        <p className="text-xs text-blue-500 font-semibold">Ticket seleccionado</p>
-                                        <p className="font-bold text-blue-900 text-sm truncate">{ticketSeleccionado.cliente?.nombreCompleto}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="font-black text-green-700">{formatCurrency(ticketSeleccionado.monto)}</p>
-                                        {ticketSeleccionado.monto !== panelMov.abono && (
-                                            <p className="text-[10px] text-amber-600 font-bold">
-                                                Dif: {formatCurrency(Math.abs(ticketSeleccionado.monto - (panelMov.abono || 0)))}
-                                            </p>
-                                        )}
+                                <div className="bg-blue-50 rounded-xl p-3 border border-blue-200/60">
+                                    <div className="flex items-start justify-between">
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-[11px] text-blue-600 font-semibold uppercase tracking-wide">Ticket seleccionado</p>
+                                            <p className="font-bold text-blue-950 text-sm truncate">{ticketSeleccionado.cliente?.nombreCompleto || "Sin cliente"}</p>
+                                            <div className="flex flex-wrap items-center gap-2 text-[11px] text-blue-800 mt-1">
+                                                {ticketSeleccionado.cliente?.codigoCliente && (
+                                                    <span className="font-mono font-bold">#{ticketSeleccionado.cliente.codigoCliente}</span>
+                                                )}
+                                                <span>· {formatFechaTicket(ticketSeleccionado.fecha, ticketSeleccionado.creadoEn)}</span>
+                                                {formatHoraTicket(ticketSeleccionado.fecha, ticketSeleccionado.creadoEn) && (
+                                                    <span className="font-mono">· {formatHoraTicket(ticketSeleccionado.fecha, ticketSeleccionado.creadoEn)}</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="text-right flex-shrink-0">
+                                            <p className="font-black text-green-700 text-base">{formatCurrency(ticketSeleccionado.monto)}</p>
+                                            {ticketSeleccionado.monto !== panelMov.abono && (
+                                                <p className="text-[10px] text-amber-600 font-bold">
+                                                    Dif: {formatCurrency(Math.abs(ticketSeleccionado.monto - (panelMov.abono || 0)))}
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             )}
