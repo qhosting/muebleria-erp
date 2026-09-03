@@ -135,6 +135,105 @@ interface SugerenciaIA {
     razon: string;
 }
 
+// ── Motor Inteligente de Sugerencias para el Movimiento Bancario Seleccionado ──
+function encontrarSugerenciaParaMovimiento(mov: Movimiento, tickets: Ticket[]): SugerenciaIA | null {
+    if (!mov || !tickets || tickets.length === 0) return null;
+
+    const montoMov = mov.abono || 0;
+    const movClaveRastreo = (mov.claveRastreo || '').trim().toUpperCase();
+    const movConcepto = `${mov.claveRastreo || ''} ${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''} ${mov.referencia || ''} ${mov.cuentaEmisor || ''}`.toUpperCase();
+    const movNorm = movConcepto.replace(/[^A-Z0-9]/g, '');
+
+    let bestTicket: Ticket | null = null;
+    let bestPrioridad = 999;
+    let bestRazon = "";
+
+    for (const ticket of tickets) {
+        const montoTicket = ticket.monto || 0;
+        const isMontoExact = Math.abs(montoTicket - montoMov) < 0.01;
+        
+        // 1. Clave de Rastreo SPEI exacta (Prioridad 0)
+        const rastreo = (ticket.claveRastreo || '').trim().toUpperCase();
+        if (rastreo && rastreo.length >= 6) {
+            const normRastreo = rastreo.replace(/[^A-Z0-9]/g, '');
+            if (movClaveRastreo === rastreo || movConcepto.includes(rastreo) || movNorm.includes(normRastreo)) {
+                return {
+                    ticket,
+                    prioridad: 0,
+                    razon: `Clave SPEI exacta: ${rastreo}`
+                };
+            }
+        }
+
+        // 2. Contrato DP o DQ en el concepto bancario (Prioridad 1)
+        const contrato = (ticket.cliente?.codigoCliente || '').trim().toUpperCase();
+        if (contrato && contrato.length >= 5) {
+            const normContrato = contrato.replace(/[^A-Z0-9]/g, '');
+            if (movConcepto.includes(contrato) || movNorm.includes(normContrato)) {
+                if (bestPrioridad > 1) {
+                    bestTicket = ticket;
+                    bestPrioridad = isMontoExact ? 1 : 1.5;
+                    bestRazon = `Contrato ${contrato} detectado en la leyenda bancaria${isMontoExact ? ' (Monto exacto)' : ''}`;
+                    if (isMontoExact) break;
+                }
+            }
+        }
+
+        // 3. Nombre del cliente en el concepto bancario (Prioridad 2)
+        const nombreCompleto = (ticket.cliente?.nombreCompleto || '').trim().toUpperCase();
+        const palabras = nombreCompleto
+            .split(/\s+/)
+            .filter(w => w.length >= 4 && !['DE', 'DEL', 'LOS', 'LAS', 'SAN', 'SANTA', 'MARIA', 'JOSE'].includes(w));
+        
+        if (palabras.length > 0) {
+            const coincidencias = palabras.filter(p => movConcepto.includes(p));
+            if (movConcepto.includes(nombreCompleto) || coincidencias.length >= 2) {
+                if (bestPrioridad > 2) {
+                    bestTicket = ticket;
+                    bestPrioridad = isMontoExact ? 2 : 2.5;
+                    bestRazon = `Nombre "${coincidencias.join(' ')}" detectado en banco${isMontoExact ? ' con monto exacto' : ''}`;
+                }
+            }
+        }
+
+        // 4. Folio o Referencia del ticket (Prioridad 3)
+        const folio = (ticket.folio || '').trim().toUpperCase();
+        const ref = (ticket.referencia || '').trim().toUpperCase();
+        if (isMontoExact && bestPrioridad > 3) {
+            if ((folio.length >= 5 && movConcepto.includes(folio)) || (ref.length >= 5 && movConcepto.includes(ref))) {
+                bestTicket = ticket;
+                bestPrioridad = 3;
+                bestRazon = `Folio/Referencia (${folio || ref}) coincidente con monto exacto`;
+            }
+        }
+
+        // 5. Monto exacto y fecha cercana (Prioridad 4)
+        if (isMontoExact && bestPrioridad > 4) {
+            const ticketDate = ticket.fecha || ticket.creadoEn;
+            if (ticketDate && mov.fechaOperacion) {
+                const tDate = new Date(ticketDate);
+                const mDate = new Date(mov.fechaOperacion);
+                const diffHours = Math.abs(tDate.getTime() - mDate.getTime()) / (1000 * 60 * 60);
+                if (diffHours <= 48) {
+                    bestTicket = ticket;
+                    bestPrioridad = 4;
+                    bestRazon = `Monto exacto ($${montoTicket.toFixed(2)}) y fecha cercana (${formatFechaTicket(ticketDate)})`;
+                }
+            }
+        }
+    }
+
+    if (bestTicket) {
+        return {
+            ticket: bestTicket,
+            prioridad: bestPrioridad,
+            razon: bestRazon
+        };
+    }
+
+    return null;
+}
+
 export default function BancosPage() {
     const [activeTab, setActiveTab] = useState<TabKey>("todas");
     const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
@@ -186,22 +285,40 @@ export default function BancosPage() {
         if (!mov.abono || mov.ticketId) return;
         setPanelMov(mov);
         setTicketSeleccionado(null);
-        setTicketSearch("");
         setSugerenciaIA(null);
         setLoadingPanel(true);
 
+        // Pre-cargar en el buscador si se detecta un contrato DP o DQ en el concepto
+        const matchContrato = (mov.concepto || mov.descripcionGeneral || mov.descripcionDetallada || '').match(/\b(DP|DQ)\d{5,9}\b/i);
+        if (matchContrato) {
+            setTicketSearch(matchContrato[0].toUpperCase());
+        } else {
+            setTicketSearch("");
+        }
+
         try {
-            // Cargar tickets pendientes + sugerencia IA del conciliador
+            // Cargar tickets pendientes
             const res = await fetch("/api/tesoreria/conciliador");
             if (res.ok) {
                 const data = await res.json();
-                setTicketsPendientes(data.tickets || []);
+                const tickets: Ticket[] = data.tickets || [];
+                setTicketsPendientes(tickets);
 
-                // Buscar la sugerencia para este movimiento específico
-                const match = (data.sugerencias || []).find(
-                    (s: any) => s.movimiento?.id === mov.id && s.movimiento?.tabla === mov.tabla
-                );
-                if (match) setSugerenciaIA(match);
+                // 1. Encontrar sugerencia óptima directamente contra todos los tickets
+                const sugerenciaCalculada = encontrarSugerenciaParaMovimiento(mov, tickets);
+                if (sugerenciaCalculada) {
+                    setSugerenciaIA(sugerenciaCalculada);
+                    setTicketSeleccionado(sugerenciaCalculada.ticket);
+                } else {
+                    // Fallback a sugerencia devuelta por backend
+                    const match = (data.sugerencias || []).find(
+                        (s: any) => s.movimiento?.id === mov.id && s.movimiento?.tabla === mov.tabla
+                    );
+                    if (match) {
+                        setSugerenciaIA(match);
+                        setTicketSeleccionado(match.ticket);
+                    }
+                }
             }
         } catch {
             toast.error("No se pudieron cargar los tickets pendientes");
@@ -335,13 +452,12 @@ export default function BancosPage() {
     });
 
     const getPrioridadLabel = (p: number) => {
-        if (p === 0) return { label: "Clave Rastreo", color: "bg-emerald-100 text-emerald-800" };
-        if (p === 1) return { label: "Cuenta Conocida", color: "bg-green-100 text-green-800" };
-        if (p === 2) return { label: "Contrato", color: "bg-blue-100 text-blue-800" };
-        if (p === 3) return { label: "Referencia", color: "bg-indigo-100 text-indigo-800" };
-        if (p === 4) return { label: "Nombre", color: "bg-violet-100 text-violet-800" };
-        if (p <= 8) return { label: "Monto", color: "bg-amber-100 text-amber-800" };
-        return { label: "Manual", color: "bg-gray-100 text-gray-700" };
+        if (p === 0) return { label: "⚡ SPEI Exacto", color: "bg-emerald-100 text-emerald-800 font-bold border border-emerald-300" };
+        if (p <= 1.5) return { label: "📄 Contrato DP/DQ", color: "bg-blue-100 text-blue-800 font-bold border border-blue-300" };
+        if (p <= 2.5) return { label: "👤 Nombre Cliente", color: "bg-purple-100 text-purple-800 font-bold border border-purple-300" };
+        if (p <= 3) return { label: "🔢 Folio / Ref", color: "bg-orange-100 text-orange-800 font-bold border border-orange-300" };
+        if (p <= 5) return { label: "💰 Monto y Fecha", color: "bg-amber-100 text-amber-800 font-bold border border-amber-300" };
+        return { label: "Sugerencia", color: "bg-gray-100 text-gray-700 font-semibold" };
     };
 
     const [deletingOld, setDeletingOld] = useState(false);
