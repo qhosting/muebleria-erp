@@ -1211,7 +1211,7 @@ export async function POST(req: Request) {
             remitente: remitente || cliente.telefono,
             contrato: codigoFinal,
             cod_cliente: codigoFinal,
-            mensaje: `✅ *¡COMPROBANTE REGISTRADO CON ÉXITO!*\n\n📌 *Detalles del Recibo*\n- 🆔 Folio Ticket: *${result.ticketId}*\n- 📄 Contrato: *${codigoFinal}*\n- 👤 Cliente: *${cliente.nombreCompleto}*\n- 💰 Abono: *$${parseFloat(monto).toFixed(2)}*\n- 💳 Saldo Anterior: *$${cliente.saldoActual.toFixed(2)}*\n- 💵 Saldo Nuevo: *$${result.saldoNuevo.toFixed(2)}*${saldoContpaqiInfo}\n- 📅 Fecha: ${fecha || new Date().toISOString().slice(0, 10)}\n- ⏰ Hora: ${hr || new Date().toLocaleTimeString('es-MX')}\n- 📦 Rastreo SPEI: ${claverastreo !== 'null' ? claverastreo : 'N/A'}\n- 🏦 Estado: *${result.conciliado ? 'CONCILIADO EN BANCO' : 'EN PROCESO DE CONCILIACIÓN'}*\n\n📄 *Ver tu Recibo Oficial Digital:* \n👉 ${urlRecibo}\n\n_Mueblería Daso agradece su preferencia._`
+            mensaje: `✅ *¡COMPROBANTE REGISTRADO CON ÉXITO!*\n\n📌 *Detalles del Recibo*\n- 🆔 Folio Ticket: *${result.ticketId}*\n- 📄 Contrato: *${codigoFinal}*\n- 👤 Cliente: *${cliente.nombreCompleto}*\n- 💰 Abono: *$${parseFloat(monto).toFixed(2)}*\n- 💳 Saldo Anterior: *$${cliente.saldoActual.toFixed(2)}*\n- 💵 Saldo Nuevo: *$${result.saldoNuevo.toFixed(2)}*\n- 📅 Fecha: ${fecha || new Date().toISOString().slice(0, 10)}\n- ⏰ Hora: ${hr || new Date().toLocaleTimeString('es-MX')}\n- 📦 Rastreo SPEI: ${claverastreo !== 'null' ? claverastreo : 'N/A'}\n- 🏦 Estado: *${result.conciliado ? 'CONCILIADO EN BANCO' : 'EN PROCESO DE CONCILIACIÓN'}*\n\n📄 *Ver tu Recibo Oficial Digital:* \n👉 ${urlRecibo}\n\n_Mueblería Daso agradece su preferencia._`
         });
 
     } catch (error: any) {
