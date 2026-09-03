@@ -330,25 +330,43 @@ try {
 } catch (e) {}
 
 // PASO 2: OBTENER Y LIMPIAR LA RESPUESTA DE LA IA
-const iaResponseString = $('Analyze image').first().json.content;
+const aiItem = $('Analyze image')?.first()?.json || $('Analyze image')?.item?.json || $json || {};
+const iaResponseString = String(aiItem.text || aiItem.content || aiItem.message?.content || aiItem.output || (typeof aiItem === 'string' ? aiItem : JSON.stringify(aiItem)) || '');
 let jsonText = iaResponseString;
 
-const jsonMatch = iaResponseString.match(/{[\\s\\S]*}/);
+const jsonMatch = iaResponseString.match(/{[sS]*}/);
 if (jsonMatch) {
   jsonText = jsonMatch[0];
 }
 
-// PASO 3: PARSEAR EL JSON LIMPIO
+// PASO 3: PARSEAR EL JSON LIMPIO CON FALLBACK ROBUSTO
 let parsedJson = {};
 try {
   parsedJson = JSON.parse(jsonText);
 } catch (error) {
-  return [{ json: { validData: false, error: "Formato de IA inválido." } }];
+  // Fallback con expresiones regulares para no perder monto ni campos clave
+  const matchMonto = iaResponseString.match(/"monto"s*:s*"?([d.,]+)"?/i) || iaResponseString.match(/(?:monto|importe|total|abono|cantidad)[^d]*(d+(?:.d{1,2})?)/i);
+  const matchContrato = iaResponseString.match(/"contrato"s*:s*"?(D[PQ]d{5,8})"?/i);
+  const matchRef = iaResponseString.match(/"referencia"s*:s*"([^"]+)"/i);
+  const matchFolio = iaResponseString.match(/"folio"s*:s*"([^"]+)"/i);
+  const matchFecha = iaResponseString.match(/"fecha"s*:s*"(d{4}-d{2}-d{2})"/i);
+  const matchHr = iaResponseString.match(/"hr"s*:s*"(d{2}:d{2}(?::d{2})?)"/i);
+  const matchRastreo = iaResponseString.match(/"claverastreo"s*:s*"([^"]+)"/i);
+
+  parsedJson = {
+    contrato: matchContrato ? matchContrato[1] : null,
+    monto: matchMonto ? matchMonto[1] : null,
+    referencia: matchRef ? matchRef[1] : null,
+    folio: matchFolio ? matchFolio[1] : null,
+    fecha: matchFecha ? matchFecha[1] : null,
+    hr: matchHr ? matchHr[1] : null,
+    claverastreo: matchRastreo ? matchRastreo[1] : null
+  };
 }
 
 // Si la IA extrajo un contrato y no teníamos uno previo, usarlo
 if (!contratoInicial && parsedJson.contrato) {
-  const matchAIContrato = String(parsedJson.contrato).toUpperCase().match(/(DP|DQ)(\\d{5,8})/i);
+  const matchAIContrato = String(parsedJson.contrato).toUpperCase().match(/(DP|DQ)(d{5,8})/i);
   if (matchAIContrato) {
     contratoInicial = (matchAIContrato[1] + matchAIContrato[2]).toUpperCase();
   }
@@ -369,7 +387,7 @@ const extractedData = {
 
 // PASO 5: VALIDACIÓN DE LOS DATOS
 if (extractedData.monto) {
-  const montoNumerico = parseFloat(String(extractedData.monto).replace(/[\\$,]/g, ''));
+  const montoNumerico = parseFloat(String(extractedData.monto).replace(/[$,]/g, ''));
   if (!isNaN(montoNumerico)) {
     extractedData.monto = montoNumerico.toFixed(2);
     extractedData.validData = true;
