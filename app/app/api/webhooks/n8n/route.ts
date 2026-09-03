@@ -168,6 +168,55 @@ export async function POST(req: Request) {
             });
         }
 
+        // --- ACCIÓN: CORREGIR TICKET Y VINCULAR COMPROBANTE ---
+        if (action === "corregir_ticket") {
+            const ticketId = body.ticketId || body.id;
+            if (!ticketId) return NextResponse.json({ error: "ticketId requerido" }, { status: 400 });
+
+            const updateData: any = {};
+            if (body.monto !== undefined) updateData.monto = parseFloat(String(body.monto));
+            if (body.folio !== undefined) updateData.folio = String(body.folio);
+            if (body.referencia !== undefined) updateData.referencia = String(body.referencia);
+            if (body.claveRastreo !== undefined) updateData.claveRastreo = body.claveRastreo;
+            if (body.fecha !== undefined) updateData.fecha = new Date(body.fecha);
+            if (body.concepto !== undefined) updateData.concepto = String(body.concepto);
+            if (body.urlComprobante !== undefined) updateData.urlComprobante = body.urlComprobante;
+
+            const updatedTicket = await prisma.ticket.update({
+                where: { id: ticketId },
+                data: updateData,
+                include: { cliente: true }
+            });
+
+            if (body.base64Data || body.urlComprobante) {
+                const b64 = body.base64Data || (body.urlComprobante?.startsWith('data:') ? body.urlComprobante : null);
+                const url = !body.urlComprobante?.startsWith('data:') ? body.urlComprobante : null;
+                await (prisma as any).buzonTesoreria.create({
+                    data: {
+                        contractId: updatedTicket.cliente?.codigoCliente || body.contrato || 'DQ2501155',
+                        telefono: updatedTicket.remitente || body.telefono || '',
+                        monto: updatedTicket.monto,
+                        referencia: updatedTicket.referencia,
+                        base64Data: b64,
+                        urlImagen: url,
+                        metadata: {
+                            ticketId: updatedTicket.id,
+                            folio: updatedTicket.folio,
+                            referencia: updatedTicket.referencia,
+                            contrato: updatedTicket.cliente?.codigoCliente || body.contrato,
+                            fecha: updatedTicket.fecha,
+                            monto: updatedTicket.monto
+                        }
+                    }
+                });
+            }
+
+            return NextResponse.json({
+                success: true,
+                ticket: updatedTicket
+            });
+        }
+
 
         // --- ACCIÓN: BUSCAR CLIENTE POR TELÉFONO O CONTRATO (MUEBLERIA-ERP) ---
         if (action === "buscar_cliente") {

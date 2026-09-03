@@ -30,19 +30,34 @@ export async function GET(
         }
 
         if (ticket.urlComprobante) {
+            const isBase64 = ticket.urlComprobante.startsWith('data:');
             return NextResponse.json({
                 found: true,
-                url: ticket.urlComprobante,
-                type: 'url'
+                url: isBase64 ? undefined : ticket.urlComprobante,
+                base64: isBase64 ? ticket.urlComprobante : undefined,
+                type: isBase64 ? 'base64' : 'url'
             });
         }
 
-        // Buscar en buzon_tesoreria por folio, referencia, claveRastreo o contrato
-        const orConditions: any[] = [];
-        if (ticket.folio) orConditions.push({ metadata: { path: ['folio'], equals: ticket.folio } });
-        if (ticket.referencia) orConditions.push({ referencia: ticket.referencia });
-        if (ticket.claveRastreo) orConditions.push({ metadata: { path: ['claverastreo'], equals: ticket.claveRastreo } });
-        if (ticket.cliente?.codigoCliente) orConditions.push({ contractId: ticket.cliente.codigoCliente });
+        // Buscar en buzon_tesoreria por ticketId exacto, contrato o metadatos
+        // IMPORTANTE: Excluir referencias genericas bancarias como '1858' (Oxxo convenio) para evitar contaminacion cruzada
+        const orConditions: any[] = [
+            { metadata: { path: ['ticketId'], equals: ticket.id } }
+        ];
+
+        if (ticket.cliente?.codigoCliente) {
+            orConditions.push({ contractId: ticket.cliente.codigoCliente });
+            orConditions.push({ metadata: { path: ['contrato'], equals: ticket.cliente.codigoCliente } });
+        }
+        if (ticket.folio && ticket.folio !== 'null' && ticket.folio !== 'N/A' && ticket.folio.length >= 4) {
+            orConditions.push({ metadata: { path: ['folio'], equals: ticket.folio } });
+        }
+        if (ticket.claveRastreo && ticket.claveRastreo !== 'null' && ticket.claveRastreo !== 'N/A' && ticket.claveRastreo.length >= 6) {
+            orConditions.push({ metadata: { path: ['claverastreo'], equals: ticket.claveRastreo } });
+        }
+        if (ticket.referencia && ticket.referencia !== '1858' && ticket.referencia !== 'null' && ticket.referencia.length >= 6) {
+            orConditions.push({ referencia: ticket.referencia });
+        }
 
         let buzon = null;
         if (orConditions.length > 0) {
