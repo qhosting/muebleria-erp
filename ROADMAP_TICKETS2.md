@@ -4,112 +4,130 @@
 
 ## 1. 🏗️ Arquitectura General del Flujo TICKETS2
 
-El flujo **`TICKETS2`** (81 nodos, 79 conexiones) es el motor neurálgico de automatización de cobranza, recepción de comprobantes bancarios, OCR con IA y conciliación bancaria multicanal de Mueblería Daso.
+El flujo **`TICKETS2`** (81 nodos, 79 conexiones en producción sobre n8n 2.34.5) es el motor neurálgico de automatización de cobranza, recepción de comprobantes bancarios, OCR con IA y conciliación bancaria multicanal de Mueblería Daso.
 
 ```mermaid
 flowchart TD
     subgraph INGESTA_WHATSAPP [1. Ingesta WhatsApp WAHA]
-        WH[WebhookWaha] --> TI{Tiene Imagen?}
-        TI -->|Sí| DM[Descargar Media]
-        DM --> ADP[Adaptador Formato]
+        WH[Webhook WAHA] --> TI{¿Tiene Imagen?}
+        TI -->|Sí: Media| DM[Descargar Media WAHA]
+        DM --> ADP[Adaptador Formato Evolution]
+        TI -->|No: Texto| VRT[Validar Respuesta de Texto]
     end
 
     subgraph ENRUTAMIENTO [2. Gran Enrutador]
-        ADP --> GE[GranEnrutador]
+        ADP --> GE[Gran Enrutador]
         GE -->|CSV Bancario| CSV_R[Santander / Banorte CSV]
         GE -->|Comprobante Pago| EP[Enrutador Principal]
-        GE -->|Respuesta Texto| VRT[Validar Respuesta Cliente]
     end
 
     subgraph PROCESAMIENTO_OCR [3. OCR e IA Vision]
         EP --> BC[Buscar Cliente por Teléfono]
         BC -->|Encontrado| MRG[Merge Datos]
-        BC -->|No Encontrado| STP[Guardar Ticket Pendiente + Preguntar por WhatsApp]
-        VRT --> REC[Recuperar Pendiente] --> MRG
-        MRG --> OAI[OpenAI Vision: AnalyzeImage]
-        OAI --> EXD[Extraer Datos JSON]
-        EXD --> DB_TKT[(MySQL: Insertar Ticket)]
-        DB_TKT --> ERP_WH[Webhook Next.js ERP]
-        DB_TKT --> CONC_IA[Intentar Conciliación Inteligente]
-        CONC_IA --> W_CONF[Notificar Cliente por WhatsApp]
+        BC -->|No Encontrado| STP[Guardar Ticket Pendiente + Pedir Contrato por WhatsApp]
+        VRT --> V_OK{¿Formato Válido?}
+        V_OK -->|Sí DP/DQ| BTP[Buscar Ticket Pendiente] --> MRG
+        V_OK -->|No| ERR_TXT[Mensaje Formato Incorrecto]
+        MRG --> EST[Estandarizar Variables de Imagen]
+        EST --> IMG[IMAGEN: toBinary]
+        IMG --> OAI[OpenAI Vision: Analyze image]
+        OAI --> EXD[EXTRAE_DATOS: Limpieza y Fallback]
+        EXD --> DB_TKT[Insertar_Ticket: ERP API]
+        DB_TKT --> MENSAJE[MENSAJE: Preparar Estado]
+        MENSAJE --> CONC_IA[Intentar Conciliación Inteligente]
+        CONC_IA --> NOTIF_PREP[Preparar Mensaje de Notificación]
+        NOTIF_PREP --> W_CONF[Enviar por WAHA: Acuse Validación]
     end
 
     subgraph CRON_AUTOMATIZACIONES [4. Tareas Programadas]
         CRON1[DiarioConciliacionSpei] --> CONC_SPEI[Conciliar SPEI con Estado de Cuenta]
         CRON2[ConciliarDeposito] --> CONC_DEP[Conciliar Depósitos en Efectivo]
-        CRON3[EnvioDeSaldos] --> NOTIF_SALDO[Notificar Recibo y Saldo a Clientes]
+        CRON3[EnvioDeSaldos: PAUSADO] -.-> NOTIF_SALDO[Notificar Recibo y Saldo a Clientes]
     end
 ```
 
 ---
 
-## 2. 🔍 Diagnóstico y Cuellos de Botella Detectados
+## 2. 📝 Bitácora de Cambios y Correcciones Realizadas (03/09/2026)
 
-| Componente / Nodo | Situación Actual en TICKETS | Riesgo / Oportunidad |
-| :--- | :--- | :--- |
-| **OCR Vision (`AnalyzeImage`)** | Usa versión legacy de LangChain OpenAI (`typeVersion: 1.8`, `operation: analyze`). | Riesgo de deprecación en versiones recientes de n8n. Se debe migrar a `@n8n/n8n-nodes-langchain.agent` o `openAi` nativo con structured output. |
-| **Persistencia Principal** | Inserta directamente en MySQL (`admin_dasomuebles.ticket`). | Los tickets deben sincronizarse bidireccionalmente en tiempo real con PostgreSQL del ERP (`tickets` table). |
-| **Conciliación Bancaria** | Queries directas a `estado_de_cuenta` de MySQL. | No aprovecha los saldos y estados de cuenta en vivo de ContPAQi API ni las cuentas de tesorería del ERP. |
-| **Manejo de Errores** | Nodos HTTP sin fallbacks unificados en caso de caída de Waha. | Si Waha se desconecta, los mensajes fallan sin reintentos automáticos estructurados. |
+### 🔴 Fix 1: Error 400 en OpenAI Vision (`Analyze image`) por modo `filesystem-v2`
+* **Síntoma:** OpenAI rechazaba imágenes con `400 - You uploaded an unsupported image. Please make sure your image has one of the following formats: ['png', 'jpeg', 'gif', 'webp']`.
+* **Causa Raíz:** Con `N8N_DEFAULT_BINARY_DATA_MODE=filesystem`, n8n almacena binarios en disco y expone el puntero textual `"filesystem-v2"` (13 bytes) en `binary.data.data`. El nodo `Estandarizar Variables de Imagen` evaluaba `$('Descargar Media WAHA')?.item?.binary?.data?.data` antes que el payload base64 real de WAHA, inyectando un archivo ficticio de 13 bytes a OpenAI.
+* **Solución:** Se corrigieron las expresiones en `Estandarizar Variables de Imagen`, `Unir Datos de Busqueda` y `GuardarTicketPendiente` para priorizar el Base64 íntegro de WAHA (`$json.body?.data?.message?.base64` o `$json.body?.payload?.media`), garantizando JPEGs de 30–100 KB válidos.
 
 ---
 
-## 3. 🗺️ Roadmap de Evolución para TICKETS2
+### 🔴 Fix 2: Respuestas de Texto de Clientes Desconectadas (`¿Tiene Imagen?.out(1)`)
+* **Síntoma:** Clientes que enviaban su comprobante sin contrato en la foto recibían la pregunta del bot *"Por favor envía tu número de contrato"*, pero al responder por texto (ej. `"DQ2510118"`), el bot no procesaba nada y la ejecución finalizaba en silencio sin registrar el ticket.
+* **Causa Raíz:** La salida `False` (out 1) del nodo condicional `¿Tiene Imagen?` no estaba conectada a ningún nodo; `Validar Respuesta de Texto` era un nodo huérfano. Además, dicho nodo esperaba la estructura legacy de Evolution API en lugar de WAHA (`$json.body?.payload?.body`).
+* **Solución:** Se conectó `¿Tiene Imagen?.out(1)` a `Validar Respuesta de Texto` y se actualizó el parseo para leer `$json.body?.payload?.body`, permitiendo que el contrato enviado por texto recupere automáticamente el ticket pendiente y continúe el procesamiento OCR.
+
+---
+
+### 🔴 Fix 3: Pérdida de Contrato en Caption de WhatsApp en `EXTRAE_DATOS`
+* **Síntoma:** Al enviar un comprobante bancario donde el contrato no está impreso en el papel/recibo (ej. transferencia Mercado Pago `DQ2601058`), pero sí escrito en el pie de foto de WhatsApp, el ticket se guardaba como *"Sin Contrato"* en la cola de tesorería y el bot respondía con `- 🆔 ID: N/A`.
+* **Causa Raíz:** En `EXTRAE_DATOS`, la lista de nodos examinados para `contratoInicial` no incluía `$('Merge')`, `$('Selector de Acción')` ni el caption del webhook entrante. Si OpenAI devolvía `"contrato": null`, la variable se mantenía nula.
+* **Solución:** Se agregaron `$('Merge')?.item?.json?.contrato`, `$('Selector de Acción')?.item?.json?.contrato`, `$('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.caption` y los payloads de WAHA en `EXTRAE_DATOS` y `Estandarizar Variables de Imagen`.
+
+---
+
+### 🛡️ Fix 4: Política de Notificación al Cliente: Solo Acuse de Validación (Sin Saldo)
+* **Requerimiento Operativo:** Al recibir un comprobante, el cliente **nunca debe recibir saldos preliminares ni confirmación de pago aplicado** hasta que tesorería o el conciliador oficial validen el dinero en banco.
+* **Ajustes:**
+  1. **`Preparar Mensaje de Notificación`:** Se eliminó la rama que enviaba *"¡Tu pago ha sido conciliado y aplicado exitosamente! Nuevo Saldo: $..."*. Ahora todo comprobante nuevo recibe estrictamente el acuse estándar de validación:
+     ```text
+     📌 *Detalles del Ticket*
+     - 🆔 ID: {ticketId}
+     - 📅 Fecha: {fecha}
+     - ⏰ Hora: {hora}
+     - 💰 Monto: ${monto}
+     - 🔢 Referencia: {referencia}
+     - 📝 Folio: {folio}
+     - 📦 Clave de rastreo: {claverastreo}
+     --------------------------------
+     🚨 *Tu comprobante está en proceso de validación.*
+     Ya lo guardamos en el sistema. En cuanto el banco refleje el movimiento, recibirás tu NUEVO SALDO.
+     ```
+  2. **`Envío de Saldos`:** Se configuró en `disabled: true` el trigger periódico para suspender notificaciones automáticas masivas de saldos a clientes.
+
+---
+
+### 📊 Historial de Tickets Críticos Recuperados y Regularizados (03/09/2026)
+
+| Contrato | Remitente | Banco / Tipo | Monto | Ticket ERP | Estado |
+| :--- | :--- | :--- | :---: | :---: | :---: |
+| **`DP2603090`** | `136988535562466@lid` | BBVA $\rightarrow$ Santander (Folio `7360695289`) | **$2,230.00** | **`5Q8JH9FB`** | ✅ Conciliado y Saldo Ajustado |
+| **`DQ2509096`** | `277167309123741@lid` | BBVA $\rightarrow$ Santander (Folio `0071104008`) | **$200.00** | **`HK6M5F66`** | ✅ Procesado y Notificado |
+| **`DP2603150`** | `64304518844534@lid` | BBVA $\rightarrow$ Santander (Folio `0071069804`) | **$250.00** | **`97E07TNK`** | ✅ Procesado y Notificado |
+| **`DQ2510118`** | `256091736772799@lid` | Banorte (Folio `DQ2510118`) | **$310.00** | **`NI9EQ3SK`** | ✅ Procesado y Notificado |
+| **`DQ2601058`** | `277167309123741@lid` | Mercado Pago $\rightarrow$ Banorte (Folio `177061094488`) | **$300.00** | **`9G85EST0`** | ✅ Procesado y Notificado |
+
+---
+
+## 3. 🖥️ Mejoras en el Conciliador Bancario del ERP (`/dashboard/tesoreria/conciliador`)
+
+* **Buscador Dinámico en Modal de Coincidencias SPEI:** Filtrado en tiempo real por Nombre del Cliente, Contrato DP/DQ, Folio o Clave de Rastreo SPEI.
+* **Filtros Rápidos por Prefijo:** Botones interactivos `[Todos (N)]`, `[Solo DP (N)]`, `[Solo DQ (N)]`.
+* **Selección Selectiva Inteligente:** Botones de `Seleccionar Visibles` / `Deseleccionar Visibles` y acciones rápidas `Aprobar solo DP` y `Aprobar solo DQ` con 1 clic.
+
+---
+
+## 4. 🗺️ Próximos Pasos en el Roadmap de TICKETS2
 
 ```
-Fase 1: Estabilización y Modernización (Actual)
-  ├── 1.1 Migración de nodo OpenAI Vision a JSON Schema estructurado
-  ├── 1.2 Unificación de variables de entorno (ERP URL, Waha API Key)
-  └── 1.3 Validación de no colisión de webhooks con TICKETS (v1)
+Fase 1: Estabilización Operativa (COMPLETADA - Sep 2026)
+  ├── ✅ Solución a binary filesystem-v2 en OpenAI Vision
+  ├── ✅ Conexión de respuestas de texto cliente (¿Tiene Imagen? False -> ValidarRespuesta)
+  ├── ✅ Herencia estricta de contrato desde Caption de WhatsApp
+  ├── ✅ Estandarización de mensaje de recepción sin saldo preliminar
+  └── ✅ Pausa de cron EnvioDeSaldos
 
-Fase 2: Integración Nativa con Next.js ERP & ContPAQi
-  ├── 2.1 Webhook bidireccional Next.js ERP (/api/webhooks/n8n)
-  ├── 2.2 Validación de saldos en ContPAQi API antes de emitir recibo
-  └── 2.3 Auto-registro de comprobante en Bóveda Digital de Clientes
+Fase 2: Robustez y Auditoría (En Curso)
+  ├── [ ] Reintentos automáticos estructurados con Backoff en caso de caída temporal de WAHA
+  ├── [ ] Detección anti-fraude: Hash MD5/SHA256 de imagen para rechazar capturas idénticas
+  └── [ ] Sincronización automática de estado de tickets entre Cola de Tesorería y Dashboard
 
-Fase 3: Inteligencia de Conciliación y Anti-Fraude
-  ├── 3.1 Detección de comprobantes duplicados o editados por IA
-  ├── 3.2 Conciliación instantánea contra Santander y Banorte API / Webhooks
-  └── 3.3 Generación y envío automático de Recibo Térmico Digital
+Fase 3: Conciliación en Tiempo Real y Bóveda Digital (Mediano Plazo)
+  ├── [ ] Generación de Recibo Digital Térmico con QR descargable
+  └── [ ] Archivo automático de comprobante en la Bóveda Digital del Cliente (/dashboard/ventas/boveda)
 ```
-
----
-
-### Fase 1: Estabilización y Modernización de Nodos (Inmediato)
-* **Objetivo:** Garantizar que el flujo compile y ejecute sin advertencias en n8n 2.x.
-* **Acciones:**
-  1. Actualizar el nodo `AnalyzeImage` para utilizar `chat` con `gpt-4o-mini` / `gpt-4o` enviando la imagen en base64 y requiriendo un **JSON Schema estricto** (evita fallos de parseo en `ExtraeDatos`).
-  2. Configurar la URL de Webhook de Waha en `TICKETS2` con una ruta diferenciada (`/webhook/waha-tickets2`) para permitir pruebas seguras en paralelo con producción.
-
----
-
-### Fase 2: Integración Profunda con ERP y ContPAQi (Corto Plazo)
-* **Objetivo:** Que cada ticket recibido actualice inmediatamente el ERP y verifique saldos comerciales.
-* **Acciones:**
-  1. Enriquecer el payload enviado al webhook del ERP (`NextjsErpWebhook` $\rightarrow$ `/api/webhooks/n8n`):
-     - `clienteId`, `monto`, `folio`, `banco`, `claveRastreo`, `urlComprobante`.
-  2. Consultar el saldo actualizado en ContPAQi API (`/api/Documentos/cliente/{cod}`) para incluir el saldo pendiente exacto en el mensaje de WhatsApp que recibe el cliente.
-  3. Vincular automáticamente la imagen del ticket con la **Bóveda de Documentos** del cliente en `/dashboard/ventas/boveda`.
-
----
-
-### Fase 3: Conciliación Inteligente y Anti-Fraude (Mediano Plazo)
-* **Objetivo:** Conciliación en tiempo real y detección de transferencias falsas o reutilizadas.
-* **Acciones:**
-  1. **Regla Anti-Duplicados:** Validar por `claveRastreo` + `monto` + `cuentaDestino` tanto en PostgreSQL como en MySQL antes de dar por válido un pago.
-  2. **Generación de Ticket PDF / Térmico Digital:** Generar la imagen del ticket térmico con código QR y enviarla adjunta en el mismo mensaje de confirmación de WhatsApp.
-  3. **Escalamiento a Cobrador:** Notificar automáticamente al gestor de cobranza asignado cuando su cliente realice una transferencia.
-
----
-
-## 4. 📊 Matriz de Nodos Clave en TICKETS2
-
-| Nodo | Función | Entrada | Salida |
-| :--- | :--- | :--- | :--- |
-| `WebhookWaha` | Receptor de mensajes de WhatsApp | Webhook HTTP POST | Payload de mensaje (texto o imagen) |
-| `GranEnrutador` | Clasifica entre extracto bancario, ticket o respuesta | JSON de WhatsApp | Rama de ejecución especializada |
-| `AnalyzeImage` | OCR con Inteligencia Artificial | Archivo Binario (JPG/PNG) | JSON con datos del pago (monto, fecha, rastreo) |
-| `InsertarTicket` | Guarda el ticket en base de datos | Variables extraídas | ID del Ticket generado |
-| `NextjsErpWebhook` | Notifica al ERP en tiempo real | Datos del Ticket + Cliente | HTTP 200 OK en ERP |
-| `IntentarConciliacionInteligente` | Cruza con extracto bancario SPEI | Clave de rastreo y fecha | Estado: `CONCILIADO` o `PENDIENTE` |
-| `EnviarPorWaha` | Envía confirmación al cliente | Mensaje formateado | Mensaje enviado por WhatsApp |
