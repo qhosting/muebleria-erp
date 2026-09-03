@@ -303,17 +303,22 @@ export class Tickets2Workflow {
         position: [2032, 784],
     })
     ExtraeDatos = {
-        jsCode: `// Nodo: EXTRAE_DATOS (Versión final que maneja bloques de código)
+        jsCode: `// Nodo: EXTRAE_DATOS (Versión final que maneja bloques de código y herencia completa de contrato)
 
 // PASO 1: OBTENER EL CONTRATO Y EL REMITENTE
 let contratoInicial = null;
 let remitenteInicial = null;
 
 try {
-  contratoInicial = $('Unir Datos de Busqueda')?.item?.json?.contrato ||
+  contratoInicial = $('Estandarizar Variables de Imagen')?.item?.json?.contrato ||
+                    $('Merge')?.item?.json?.contrato ||
+                    $('Selector de Acción')?.item?.json?.contrato ||
+                    $('Unir Datos de Busqueda')?.item?.json?.contrato ||
                     $('Buscar Cliente por Teléfono')?.item?.json?.cod_cliente ||
                     $('Buscar Cliente por Teléfono')?.item?.json?.cliente?.codigoCliente ||
-                    $('Estandarizar Variables de Imagen')?.item?.json?.contrato ||
+                    $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.caption ||
+                    $('Webhook WAHA')?.first()?.json?.body?.payload?.caption ||
+                    $('Webhook WAHA')?.first()?.json?.body?.payload?.body ||
                     $('Enrutador Principal')?.item?.json?.contrato ||
                     $('Buscar_Ticket_Pendiente')?.item?.json?.contrato ||
                     $('Validar Respuesta de Texto')?.item?.json?.contrato ||
@@ -321,6 +326,14 @@ try {
                     $json.cod_cliente ||
                     $json.contacto;
 } catch (e) {}
+
+// Si contratoInicial tiene texto con formato DP o DQ, limpiarlo para asegurar formato uniforme
+if (contratoInicial && typeof contratoInicial === 'string') {
+  const matchCode = String(contratoInicial).toUpperCase().match(/(DP|DQ)\\d{5,8}/i);
+  if (matchCode) {
+    contratoInicial = matchCode[0].toUpperCase();
+  }
+}
 
 try {
   remitenteInicial = $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid ||
@@ -336,7 +349,7 @@ const aiItem = $('Analyze image')?.first()?.json || $('Analyze image')?.item?.js
 const iaResponseString = String(aiItem.text || aiItem.content || aiItem.message?.content || aiItem.output || (typeof aiItem === 'string' ? aiItem : JSON.stringify(aiItem)) || '');
 let jsonText = iaResponseString;
 
-const jsonMatch = iaResponseString.match(/{[sS]*}/);
+const jsonMatch = iaResponseString.match(/\\{[\\s\\S]*\\}/);
 if (jsonMatch) {
   jsonText = jsonMatch[0];
 }
@@ -346,7 +359,6 @@ let parsedJson = {};
 try {
   parsedJson = JSON.parse(jsonText);
 } catch (error) {
-  // Fallback con expresiones regulares para no perder monto ni campos clave
   const matchMonto = iaResponseString.match(/"monto"\\s*:\\s*"?([\\d\\.,]+)"?/i) || iaResponseString.match(/\\b(?:monto|importe|total|abono|cantidad)\\b[^\\d]*(\\d+(?:\\.\\d{1,2})?)/i);
   const cleanContractText = iaResponseString.toUpperCase().replace(/[^A-Z0-9":]/g, '');
   const matchContrato = cleanContractText.match(/"CONTRATO":.*?(D[PQ]\\d{5,8})/i) || iaResponseString.match(/\\b(D[PQ]\\d{5,8})\\b/i);
@@ -2303,13 +2315,13 @@ return [{
                 {
                     id: 'c03ccc3a-c1f6-49b5-b587-fef118d98824',
                     name: 'contrato',
-                    value: "={{ $json.contrato || $json.cod_cliente || $('Buscar Cliente por Teléfono')?.item?.json?.cod_cliente || $('Buscar Cliente por Teléfono')?.item?.json?.cliente?.codigoCliente || $json.contrato_respuesta || $json.contacto || '' }}",
+                    value: "={{ $json.contrato || $('Merge')?.item?.json?.contrato || $('Selector de Acción')?.item?.json?.contrato || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.caption || $('Webhook WAHA')?.first()?.json?.body?.payload?.caption || $json.cod_cliente || $('Buscar Cliente por Teléfono')?.item?.json?.cod_cliente || $('Buscar Cliente por Teléfono')?.item?.json?.cliente?.codigoCliente || $json.contrato_respuesta || $json.contacto || '' }}",
                     type: 'string',
                 },
                 {
                     id: 'c03ccc3a-c1f6-49b5-b587-fef118d98825',
                     name: 'contacto',
-                    value: "={{ $json.contrato || $json.cod_cliente || $('Buscar Cliente por Teléfono')?.item?.json?.cod_cliente || $json.contrato_respuesta || $json.contacto || '' }}",
+                    value: "={{ $json.contrato || $('Merge')?.item?.json?.contrato || $('Selector de Acción')?.item?.json?.contrato || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.caption || $('Webhook WAHA')?.first()?.json?.body?.payload?.caption || $json.cod_cliente || $('Buscar Cliente por Teléfono')?.item?.json?.cod_cliente || $json.contrato_respuesta || $json.contacto || '' }}",
                     type: 'string',
                 },
                 {
