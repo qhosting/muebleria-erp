@@ -275,6 +275,10 @@ export default function ConciliadorPage() {
     const [isConfirmingSpei, setIsConfirmingSpei] = useState(false);
     const [vistaModo, setVistaModo] = useState<"tabla" | "tarjetas">("tabla");
 
+    // Filtros y búsqueda para el Modal de Aprobación SPEI
+    const [speiSearchText, setSpeiSearchText] = useState<string>("");
+    const [speiCodigoFilter, setSpeiCodigoFilter] = useState<"TODOS" | "DP" | "DQ">("TODOS");
+
     useEffect(() => {
         fetchData();
     }, [estadoFiltro, cobradorFiltro]);
@@ -370,6 +374,8 @@ export default function ConciliadorPage() {
             if (res.ok) {
                 if (data.matchesCount > 0 && Array.isArray(data.matches)) {
                     setPreviewMatches(data.matches);
+                    setSpeiSearchText("");
+                    setSpeiCodigoFilter("TODOS");
                     // Por defecto, marcar todas las coincidencias como aprobadas/seleccionadas
                     const initialSelection: Record<string, boolean> = {};
                     data.matches.forEach((m: any) => {
@@ -390,6 +396,57 @@ export default function ConciliadorPage() {
         }
     };
 
+    // Estadísticas de códigos DP / DQ en las coincidencias encontradas
+    const speiStats = useMemo(() => {
+        if (!previewMatches) return { total: 0, dp: 0, dq: 0, otros: 0 };
+        let dp = 0, dq = 0, otros = 0;
+        previewMatches.forEach(m => {
+            const c = (m.ticket?.contrato || "").toUpperCase();
+            if (c.startsWith("DP")) dp++;
+            else if (c.startsWith("DQ")) dq++;
+            else otros++;
+        });
+        return { total: previewMatches.length, dp, dq, otros };
+    }, [previewMatches]);
+
+    // Coincidencias filtradas según búsqueda de texto y tipo de código (DP/DQ)
+    const filteredPreviewMatches = useMemo(() => {
+        if (!previewMatches) return [];
+        return previewMatches.filter(m => {
+            // Filtro por código DP / DQ
+            if (speiCodigoFilter === "DP" && !m.ticket?.contrato?.toUpperCase().startsWith("DP")) {
+                return false;
+            }
+            if (speiCodigoFilter === "DQ" && !m.ticket?.contrato?.toUpperCase().startsWith("DQ")) {
+                return false;
+            }
+
+            // Filtro de texto libre (Nombre, Código DP/DQ, Folio, Rastreo, Concepto, ID Ticket)
+            if (speiSearchText.trim()) {
+                const query = speiSearchText.toLowerCase().trim();
+                const nombre = (m.ticket?.nombre || "").toLowerCase();
+                const contrato = (m.ticket?.contrato || "").toLowerCase();
+                const ticketId = String(m.ticket?.id || "").toLowerCase();
+                const folio = (m.ticket?.folio || "").toLowerCase();
+                const claveRastreo = (m.ticket?.claveRastreo || "").toLowerCase();
+                const concepto = (m.movimiento?.concepto || "").toLowerCase();
+                const banco = (m.banco || "").toLowerCase();
+
+                const matchText = nombre.includes(query) ||
+                    contrato.includes(query) ||
+                    ticketId.includes(query) ||
+                    folio.includes(query) ||
+                    claveRastreo.includes(query) ||
+                    concepto.includes(query) ||
+                    banco.includes(query);
+
+                if (!matchText) return false;
+            }
+
+            return true;
+        });
+    }, [previewMatches, speiCodigoFilter, speiSearchText]);
+
     // Alternar selección individual de una coincidencia
     const toggleMatchSelection = (matchKey: string) => {
         setSelectedMatches(prev => ({
@@ -398,7 +455,7 @@ export default function ConciliadorPage() {
         }));
     };
 
-    // Seleccionar o deseleccionar todas las coincidencias
+    // Seleccionar o deseleccionar todas las coincidencias globales
     const toggleSelectAllMatches = (select: boolean) => {
         if (!previewMatches) return;
         const newSelection: Record<string, boolean> = {};
@@ -406,6 +463,30 @@ export default function ConciliadorPage() {
             newSelection[m.matchKey] = select;
         });
         setSelectedMatches(newSelection);
+    };
+
+    // Seleccionar o deseleccionar solo las coincidencias actualmente filtradas/visibles
+    const toggleSelectFilteredMatches = (select: boolean) => {
+        if (!previewMatches) return;
+        setSelectedMatches(prev => {
+            const next = { ...prev };
+            filteredPreviewMatches.forEach(m => {
+                next[m.matchKey] = select;
+            });
+            return next;
+        });
+    };
+
+    // Seleccionar solo por código específico (DP o DQ)
+    const selectOnlyByCode = (prefix: "DP" | "DQ") => {
+        if (!previewMatches) return;
+        const next: Record<string, boolean> = {};
+        previewMatches.forEach(m => {
+            const c = (m.ticket?.contrato || "").toUpperCase();
+            next[m.matchKey] = c.startsWith(prefix);
+        });
+        setSelectedMatches(next);
+        toast.info(`Marcadas únicamente coincidencias con contrato ${prefix}`);
     };
 
     // 2. Ejecutar la conciliación solo de las cuentas aprobadas
@@ -1536,49 +1617,169 @@ export default function ConciliadorPage() {
                             </div>
                         </div>
 
-                        {/* Barra de Acciones Rápidas y Resumen de Selección */}
+                        {/* Barra de Filtros, Búsqueda y Acciones Rápidas */}
                         {previewMatches && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => toggleSelectAllMatches(true)}
-                                        className="h-7 text-[11px] px-2.5 bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50 font-semibold flex items-center gap-1"
-                                    >
-                                        <CheckSquare className="w-3.5 h-3.5" />
-                                        Seleccionar Todas
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => toggleSelectAllMatches(false)}
-                                        className="h-7 text-[11px] px-2.5 bg-white text-gray-600 border-gray-300 hover:bg-gray-100 font-semibold flex items-center gap-1"
-                                    >
-                                        <Square className="w-3.5 h-3.5" />
-                                        Deseleccionar Todas
-                                    </Button>
+                            <div className="mt-3 space-y-2.5">
+                                {/* Fila 1: Buscador de texto libre y Selector rápido de Código DP / DQ */}
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                    <div className="relative flex-1">
+                                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                                        <Input
+                                            type="text"
+                                            placeholder="Buscar por Nombre de cliente, Contrato DP/DQ, Folio, Rastreo..."
+                                            value={speiSearchText}
+                                            onChange={(e) => setSpeiSearchText(e.target.value)}
+                                            className="h-8 pl-8 pr-7 text-xs bg-white border-gray-300 focus-visible:ring-emerald-500 rounded-lg"
+                                        />
+                                        {speiSearchText && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setSpeiSearchText("")}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Selector rápido de Código DP / DQ */}
+                                    <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpeiCodigoFilter("TODOS")}
+                                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
+                                                speiCodigoFilter === "TODOS"
+                                                    ? "bg-white text-gray-900 shadow-sm"
+                                                    : "text-gray-500 hover:text-gray-800"
+                                            }`}
+                                        >
+                                            Todos ({speiStats.total})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpeiCodigoFilter("DP")}
+                                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
+                                                speiCodigoFilter === "DP"
+                                                    ? "bg-indigo-600 text-white shadow-sm font-bold"
+                                                    : "text-indigo-700 hover:bg-indigo-50"
+                                            }`}
+                                        >
+                                            Solo DP ({speiStats.dp})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpeiCodigoFilter("DQ")}
+                                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
+                                                speiCodigoFilter === "DQ"
+                                                    ? "bg-purple-600 text-white shadow-sm font-bold"
+                                                    : "text-purple-700 hover:bg-purple-50"
+                                            }`}
+                                        >
+                                            Solo DQ ({speiStats.dq})
+                                        </button>
+                                    </div>
                                 </div>
 
-                                <div className="flex items-center gap-4 text-xs">
-                                    <span className="text-gray-600">
-                                        Aprobadas:{" "}
-                                        <strong className="text-emerald-700 font-bold font-mono">
-                                            {previewMatches.filter(m => selectedMatches[m.matchKey]).length} de {previewMatches.length}
-                                        </strong>
-                                    </span>
-                                    <span className="text-gray-600">
-                                        Monto total a conciliar:{" "}
-                                        <strong className="text-gray-900 font-bold font-mono">
-                                            {formatCurrency(
-                                                previewMatches
-                                                    .filter(m => selectedMatches[m.matchKey])
-                                                    .reduce((sum, m) => sum + (m.ticket?.monto || 0), 0)
-                                            )}
-                                        </strong>
-                                    </span>
+                                {/* Fila 2: Acciones de Selección y Resumen */}
+                                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 bg-slate-50/70 p-2.5 rounded-xl border text-xs">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        {/* Botones contextuales según si hay filtros activos o no */}
+                                        {(speiSearchText.trim() || speiCodigoFilter !== "TODOS") ? (
+                                            <>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => toggleSelectFilteredMatches(true)}
+                                                    className="h-7 text-[11px] px-2 bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 font-semibold flex items-center gap-1"
+                                                >
+                                                    <CheckSquare className="w-3.5 h-3.5" />
+                                                    Seleccionar Visibles ({filteredPreviewMatches.length})
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => toggleSelectFilteredMatches(false)}
+                                                    className="h-7 text-[11px] px-2 bg-white text-gray-600 border-gray-300 hover:bg-gray-100 font-semibold flex items-center gap-1"
+                                                >
+                                                    <Square className="w-3.5 h-3.5" />
+                                                    Deseleccionar Visibles
+                                                </Button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => toggleSelectAllMatches(true)}
+                                                    className="h-7 text-[11px] px-2.5 bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50 font-semibold flex items-center gap-1"
+                                                >
+                                                    <CheckSquare className="w-3.5 h-3.5" />
+                                                    Seleccionar Todas
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => toggleSelectAllMatches(false)}
+                                                    className="h-7 text-[11px] px-2.5 bg-white text-gray-600 border-gray-300 hover:bg-gray-100 font-semibold flex items-center gap-1"
+                                                >
+                                                    <Square className="w-3.5 h-3.5" />
+                                                    Deseleccionar Todas
+                                                </Button>
+                                            </>
+                                        )}
+
+                                        <div className="h-4 w-px bg-gray-300 mx-1 hidden sm:block" />
+
+                                        {/* Botones directos de 1 clic para seleccionar solo DP o solo DQ */}
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => selectOnlyByCode("DP")}
+                                            className="h-7 text-[10px] px-2 text-indigo-700 hover:bg-indigo-100 font-semibold border border-indigo-200/60"
+                                            title="Marcar únicamente cuentas con contrato DP"
+                                        >
+                                            Aprobar solo DP
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => selectOnlyByCode("DQ")}
+                                            className="h-7 text-[10px] px-2 text-purple-700 hover:bg-purple-100 font-semibold border border-purple-200/60"
+                                            title="Marcar únicamente cuentas con contrato DQ"
+                                        >
+                                            Aprobar solo DQ
+                                        </Button>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 text-xs">
+                                        {(speiSearchText.trim() || speiCodigoFilter !== "TODOS") && (
+                                            <span className="text-gray-500 font-medium">
+                                                Visibles: <strong className="text-gray-800 font-bold font-mono">{filteredPreviewMatches.length}</strong> de {previewMatches.length}
+                                            </span>
+                                        )}
+                                        <span className="text-gray-600">
+                                            Aprobadas:{" "}
+                                            <strong className="text-emerald-700 font-bold font-mono">
+                                                {previewMatches.filter(m => selectedMatches[m.matchKey]).length} de {previewMatches.length}
+                                            </strong>
+                                        </span>
+                                        <span className="text-gray-600">
+                                            Monto:{" "}
+                                            <strong className="text-gray-900 font-bold font-mono">
+                                                {formatCurrency(
+                                                    previewMatches
+                                                        .filter(m => selectedMatches[m.matchKey])
+                                                        .reduce((sum, m) => sum + (m.ticket?.monto || 0), 0)
+                                                )}
+                                            </strong>
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1586,141 +1787,167 @@ export default function ConciliadorPage() {
 
                     {/* Lista de Tarjetas de Coincidencias */}
                     <div className="flex-1 overflow-y-auto py-3 space-y-3 pr-1">
-                        {previewMatches?.map((m) => {
-                            const isSelected = !!selectedMatches[m.matchKey];
-                            return (
-                                <div
-                                    key={m.matchKey}
-                                    onClick={() => toggleMatchSelection(m.matchKey)}
-                                    className={`p-4 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
-                                        isSelected
-                                            ? "bg-emerald-50/50 border-emerald-400 shadow-sm"
-                                            : "bg-gray-50/70 border-gray-200 opacity-60 hover:opacity-100"
-                                    }`}
+                        {filteredPreviewMatches.length === 0 ? (
+                            <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-gray-300">
+                                <Search className="w-8 h-8 text-gray-400 mx-auto mb-2 opacity-50" />
+                                <p className="text-xs font-semibold text-gray-700">No se encontraron coincidencias con los filtros aplicados</p>
+                                <p className="text-[11px] text-gray-400 mt-0.5">Prueba cambiando el término de búsqueda o seleccionando "Todos".</p>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        setSpeiSearchText("");
+                                        setSpeiCodigoFilter("TODOS");
+                                    }}
+                                    className="mt-3 h-7 text-xs font-semibold"
                                 >
-                                    {/* Botón de Check / Toggle */}
-                                    <div className="flex items-center gap-3">
-                                        <div
-                                            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${
-                                                isSelected
-                                                    ? "bg-emerald-600 text-white shadow"
-                                                    : "border-2 border-gray-300 bg-white text-transparent"
-                                            }`}
-                                        >
-                                            <Check className="w-4 h-4 stroke-[3]" />
+                                    Limpiar Filtros
+                                </Button>
+                            </div>
+                        ) : (
+                            filteredPreviewMatches.map((m) => {
+                                const isSelected = !!selectedMatches[m.matchKey];
+                                return (
+                                    <div
+                                        key={m.matchKey}
+                                        onClick={() => toggleMatchSelection(m.matchKey)}
+                                        className={`p-4 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+                                            isSelected
+                                                ? "bg-emerald-50/50 border-emerald-400 shadow-sm"
+                                                : "bg-gray-50/70 border-gray-200 opacity-60 hover:opacity-100"
+                                        }`}
+                                    >
+                                        {/* Botón de Check / Toggle */}
+                                        <div className="flex items-center gap-3">
+                                            <div
+                                                className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${
+                                                    isSelected
+                                                        ? "bg-emerald-600 text-white shadow"
+                                                        : "border-2 border-gray-300 bg-white text-transparent"
+                                                }`}
+                                            >
+                                                <Check className="w-4 h-4 stroke-[3]" />
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    {/* Columna Izquierda: Información del Ticket */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                            {m.tipoMatch === 'SPEI_EXACTO' ? (
-                                                <Badge className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 flex items-center gap-1 shadow-sm">
-                                                    <Zap className="w-3 h-3 fill-amber-300 text-amber-300" />
-                                                    SPEI Exacto
-                                                </Badge>
-                                            ) : m.tipoMatch === 'CONTRATO_DP_DQ' ? (
-                                                <Badge className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 flex items-center gap-1 shadow-sm">
-                                                    <FileText className="w-3 h-3 text-white" />
-                                                    Contrato DP/DQ
-                                                </Badge>
-                                            ) : m.tipoMatch === 'NOMBRE_CLIENTE' ? (
-                                                <Badge className="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 flex items-center gap-1 shadow-sm">
-                                                    <User className="w-3 h-3 text-white" />
-                                                    Nombre Cliente
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-800 border-amber-300 font-bold">
-                                                    {m.tipoMatch || 'Sugerencia'}
-                                                </Badge>
-                                            )}
+                                        {/* Columna Izquierda: Información del Ticket */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                {m.tipoMatch === 'SPEI_EXACTO' ? (
+                                                    <Badge className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 flex items-center gap-1 shadow-sm">
+                                                        <Zap className="w-3 h-3 fill-amber-300 text-amber-300" />
+                                                        SPEI Exacto
+                                                    </Badge>
+                                                ) : m.tipoMatch === 'CONTRATO_DP_DQ' ? (
+                                                    <Badge className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 flex items-center gap-1 shadow-sm">
+                                                        <FileText className="w-3 h-3 text-white" />
+                                                        Contrato DP/DQ
+                                                    </Badge>
+                                                ) : m.tipoMatch === 'NOMBRE_CLIENTE' ? (
+                                                    <Badge className="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 flex items-center gap-1 shadow-sm">
+                                                        <User className="w-3 h-3 text-white" />
+                                                        Nombre Cliente
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-800 border-amber-300 font-bold">
+                                                        {m.tipoMatch || 'Sugerencia'}
+                                                    </Badge>
+                                                )}
 
-                                            <Badge variant="outline" className="text-[10px] font-mono bg-white font-bold border-indigo-200 text-indigo-700">
-                                                Ticket #{m.ticket.id}
-                                            </Badge>
-                                            <span className="font-mono text-xs font-bold text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded">
-                                                {m.ticket.contrato}
-                                            </span>
-                                            {m.ticket.tienePago ? (
-                                                <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700 border-blue-200">
-                                                    Pago Vinculado
+                                                <Badge variant="outline" className="text-[10px] font-mono bg-white font-bold border-indigo-200 text-indigo-700">
+                                                    Ticket #{m.ticket.id}
                                                 </Badge>
-                                            ) : (
-                                                <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">
-                                                    Crea Pago Nuevo
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        <p className="text-xs font-bold text-gray-900 truncate">
-                                            {m.ticket.nombre}
-                                        </p>
-                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                                            <span className="font-semibold text-gray-500">Rastreo SPEI:</span>
-                                            <span className="font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 break-all">
-                                                {m.ticket.claveRastreo || 'N/A'}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Separador / Flecha */}
-                                    <div className="hidden md:flex flex-col items-center justify-center px-2 text-gray-400">
-                                        <ArrowRight className="w-5 h-5 text-emerald-600" />
-                                    </div>
-
-                                    {/* Columna Derecha: Información Bancaria */}
-                                    <div className="flex-1 min-w-0 bg-white/80 p-2.5 rounded-lg border border-gray-200">
-                                        <div className="flex items-center justify-between gap-2 mb-1">
-                                            <div className="flex items-center gap-1.5">
-                                                <Building className="w-3.5 h-3.5 text-gray-500" />
-                                                <Badge variant="outline" className="text-[10px] font-bold bg-slate-100 text-slate-800 border-slate-300">
-                                                    {m.banco}
-                                                </Badge>
-                                                <span className="text-[10px] font-mono text-gray-500 font-semibold">
-                                                    Cta: {m.cuentaDestino}
+                                                <span className={`font-mono text-xs font-bold px-1.5 py-0.5 rounded ${
+                                                    m.ticket.contrato?.toUpperCase().startsWith("DP")
+                                                        ? "bg-indigo-100 text-indigo-800"
+                                                        : m.ticket.contrato?.toUpperCase().startsWith("DQ")
+                                                        ? "bg-purple-100 text-purple-800"
+                                                        : "bg-gray-100 text-gray-800"
+                                                }`}>
+                                                    {m.ticket.contrato}
+                                                </span>
+                                                {m.ticket.tienePago ? (
+                                                    <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700 border-blue-200">
+                                                        Pago Vinculado
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">
+                                                        Crea Pago Nuevo
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <p className="text-xs font-bold text-gray-900 truncate">
+                                                {m.ticket.nombre}
+                                            </p>
+                                            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                                                <span className="font-semibold text-gray-500">Rastreo SPEI:</span>
+                                                <span className="font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 break-all">
+                                                    {m.ticket.claveRastreo || 'N/A'}
                                                 </span>
                                             </div>
-                                            <span className="text-[10px] text-gray-500 font-mono">
-                                                {formatDateTime(m.movimiento.fechaOperacion)}
-                                            </span>
-                                        </div>
-                                        <p className="text-[11px] text-gray-700 line-clamp-2" title={m.movimiento.concepto}>
-                                            <span className="font-semibold text-gray-500">Concepto: </span>
-                                            {m.movimiento.concepto || "Sin concepto"}
-                                        </p>
-                                        <div className="mt-1 flex items-center justify-between text-xs">
-                                            <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                                ✓ {m.razon}
-                                            </span>
-                                            <span className="font-mono font-bold text-gray-900">
-                                                Abono: {formatCurrency(m.movimiento.abono)}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Monto y Estado */}
-                                    <div className="text-right flex md:flex-col items-center md:items-end justify-between w-full md:w-auto gap-2">
-                                        <div className="text-right">
-                                            <span className="text-[10px] text-gray-400 block uppercase">Monto Ticket</span>
-                                            <span className="text-base font-black font-mono text-gray-900">
-                                                {formatCurrency(m.ticket.monto)}
-                                            </span>
                                         </div>
 
-                                        <div>
-                                            {isSelected ? (
-                                                <Badge className="bg-emerald-600 text-white text-[10px] px-2 py-0.5">
-                                                    ✓ Aprobado
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="outline" className="bg-gray-100 text-gray-500 border-gray-300 text-[10px] px-2 py-0.5">
-                                                    Excluido
-                                                </Badge>
-                                            )}
+                                        {/* Separador / Flecha */}
+                                        <div className="hidden md:flex flex-col items-center justify-center px-2 text-gray-400">
+                                            <ArrowRight className="w-5 h-5 text-emerald-600" />
+                                        </div>
+
+                                        {/* Columna Derecha: Información Bancaria */}
+                                        <div className="flex-1 min-w-0 bg-white/80 p-2.5 rounded-lg border border-gray-200">
+                                            <div className="flex items-center justify-between gap-2 mb-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Building className="w-3.5 h-3.5 text-gray-500" />
+                                                    <Badge variant="outline" className="text-[10px] font-bold bg-slate-100 text-slate-800 border-slate-300">
+                                                        {m.banco}
+                                                    </Badge>
+                                                    <span className="text-[10px] font-mono text-gray-500 font-semibold">
+                                                        Cta: {m.cuentaDestino}
+                                                    </span>
+                                                </div>
+                                                <span className="text-[10px] text-gray-500 font-mono">
+                                                    {formatDateTime(m.movimiento.fechaOperacion)}
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] text-gray-700 line-clamp-2" title={m.movimiento.concepto}>
+                                                <span className="font-semibold text-gray-500">Concepto: </span>
+                                                {m.movimiento.concepto || "Sin concepto"}
+                                            </p>
+                                            <div className="mt-1 flex items-center justify-between text-xs">
+                                                <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                                    ✓ {m.razon}
+                                                </span>
+                                                <span className="font-mono font-bold text-gray-900">
+                                                    Abono: {formatCurrency(m.movimiento.abono)}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Monto y Estado */}
+                                        <div className="text-right flex md:flex-col items-center md:items-end justify-between w-full md:w-auto gap-2">
+                                            <div className="text-right">
+                                                <span className="text-[10px] text-gray-400 block uppercase">Monto Ticket</span>
+                                                <span className="text-base font-black font-mono text-gray-900">
+                                                    {formatCurrency(m.ticket.monto)}
+                                                </span>
+                                            </div>
+
+                                            <div>
+                                                {isSelected ? (
+                                                    <Badge className="bg-emerald-600 text-white text-[10px] px-2 py-0.5">
+                                                        ✓ Aprobado
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="bg-gray-100 text-gray-500 border-gray-300 text-[10px] px-2 py-0.5">
+                                                        Excluido
+                                                    </Badge>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })
+                        )}
                     </div>
 
                     {/* Pie de Diálogo con Confirmación */}
