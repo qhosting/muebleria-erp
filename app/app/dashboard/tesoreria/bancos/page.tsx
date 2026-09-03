@@ -62,6 +62,47 @@ function formatHoraOperacion(horaInput: any): string {
     return String(horaInput).slice(0, 8);
 }
 
+// Extraer Nombre del Ordenante de la información bancaria o ticket vinculado
+function getNombreOrdenante(mov: any): string {
+    if (mov.descripcionDetallada) {
+        const mOrigen = mov.descripcionDetallada.match(/Origen:\s*([^(|]+)(?:\s*\(([^)]+)\))?/i);
+        if (mOrigen && mOrigen[1].trim()) {
+            return mOrigen[1].trim();
+        }
+        const mTitular = mov.descripcionDetallada.match(/Titular:\s*([^,|]+)/i);
+        if (mTitular && mTitular[1].trim()) {
+            return mTitular[1].trim();
+        }
+        const mDe = mov.descripcionDetallada.match(/(?:ordenante|emisor):\s*([^,|]+)/i);
+        if (mDe && mDe[1].trim()) {
+            return mDe[1].trim();
+        }
+    }
+    const concepto = mov.concepto || mov.descripcionGeneral || "";
+    const mConceptoDe = concepto.match(/\b(?:DE|ORDENANTE)\s+([A-ZÁÉÍÓÚÑ\s]{4,35})/i);
+    if (mConceptoDe && mConceptoDe[1].trim()) {
+        return mConceptoDe[1].trim();
+    }
+    if (mov.ticket?.cliente?.nombreCompleto) {
+        return mov.ticket.cliente.nombreCompleto;
+    }
+    if (mov.cliente?.nombreCompleto) {
+        return mov.cliente.nombreCompleto;
+    }
+    return "—";
+}
+
+// Extraer Cuenta o CLABE del Ordenante
+function getCuentaOrdenante(mov: any): string {
+    if (mov.clabeEmisor) return mov.clabeEmisor;
+    if (mov.cuentaEmisor) return mov.cuentaEmisor;
+    if (mov.descripcionDetallada) {
+        const mCta = mov.descripcionDetallada.match(/(?:CLABE\/Cta|Cta|Cuenta|CLABE):\s*(\d{10,18})/i);
+        if (mCta && mCta[1]) return mCta[1];
+    }
+    return "—";
+}
+
 // Funciones para formatear Fecha y Hora exacta del Ticket en Zona Horaria CDMX
 function formatFechaTicket(fechaInput: any, creadoEnInput?: any): string {
     const val = fechaInput || creadoEnInput;
@@ -741,21 +782,24 @@ export default function BancosPage() {
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left align-middle text-gray-600">
                                     {(() => {
-                                        const colSpan = activeTab === "todas" ? 11 : 10;
+                                        const colSpan = activeTab === "todas" ? 14 : 13;
                                         return (
                                             <>
                                                 <thead className="bg-gray-50/75 border-b border-gray-100 font-medium text-gray-700">
                                                     <tr>
                                                         <th className="px-3 py-3 w-8"></th>
-                                                        <th className="px-3 py-3">Fecha y Hora</th>
-                                                        {activeTab === "todas" && <th className="px-3 py-3">Cuenta Destino</th>}
-                                                        <th className="px-3 py-3">Banco</th>
-                                                        <th className="px-3 py-3 min-w-[220px]">Concepto / Ordenante</th>
-                                                        <th className="px-3 py-3">Rastreo SPEI / Ref</th>
-                                                        <th className="px-3 py-3 text-right text-green-700">Abono</th>
-                                                        <th className="px-3 py-3 text-right text-red-700">Cargo</th>
-                                                        <th className="px-3 py-3 text-right text-blue-700">Saldo</th>
-                                                        <th className="px-3 py-3 text-center">Estatus / Ticket</th>
+                                                        <th className="px-3 py-3 whitespace-nowrap">Fecha y Hora</th>
+                                                        {activeTab === "todas" && <th className="px-3 py-3 whitespace-nowrap">Cuenta Destino</th>}
+                                                        <th className="px-3 py-3 whitespace-nowrap">Banco</th>
+                                                        <th className="px-3 py-3 min-w-[180px]">Concepto</th>
+                                                        <th className="px-3 py-3 min-w-[180px]">Nombre Ordenante</th>
+                                                        <th className="px-3 py-3 min-w-[140px]">Cta Ordenante</th>
+                                                        <th className="px-3 py-3 min-w-[160px]">Clave de Rastreo</th>
+                                                        <th className="px-3 py-3 whitespace-nowrap">Referencia</th>
+                                                        <th className="px-3 py-3 text-right text-green-700 whitespace-nowrap">Abono</th>
+                                                        <th className="px-3 py-3 text-right text-red-700 whitespace-nowrap">Cargo</th>
+                                                        <th className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">Saldo</th>
+                                                        <th className="px-3 py-3 text-center whitespace-nowrap">Estatus / Ticket</th>
                                                         <th className="px-3 py-3 text-center w-16">Ficha</th>
                                                     </tr>
                                                 </thead>
@@ -819,7 +863,7 @@ export default function BancosPage() {
 
                                                                     {/* Cuenta Destino (si todas) */}
                                                                     {activeTab === "todas" && (
-                                                                        <td className="px-3 py-3">
+                                                                        <td className="px-3 py-3 whitespace-nowrap">
                                                                             {mov.cuentaDestino ? (
                                                                                 <Badge variant="outline" className={`text-xs font-semibold ${mov.bancoDestino === "SANTANDER" ? "border-red-200 text-red-700 bg-red-50" : "border-orange-200 text-orange-700 bg-orange-50"}`}>
                                                                                     {mov.cuentaDestino}
@@ -833,28 +877,56 @@ export default function BancosPage() {
                                                                         {mov.bancoOrigen}
                                                                     </td>
 
-                                                                    {/* Concepto / Ordenante */}
-                                                                    <td className="px-3 py-3 min-w-[220px] max-w-[320px]">
+                                                                    {/* Concepto */}
+                                                                    <td className="px-3 py-3 min-w-[180px] max-w-[240px]">
                                                                         <p className="font-semibold text-gray-900 text-xs truncate" title={mov.concepto || mov.descripcionGeneral || ""}>
                                                                             {mov.concepto || mov.descripcionGeneral || "—"}
                                                                         </p>
-                                                                        {mov.descripcionDetallada && (
-                                                                            <p className="text-[11px] text-gray-500 truncate mt-0.5" title={mov.descripcionDetallada}>
-                                                                                {mov.descripcionDetallada}
-                                                                            </p>
-                                                                        )}
-                                                                        {(mov.cuentaEmisor || mov.clabeEmisor) && (
-                                                                            <p className="text-[10px] font-mono text-gray-400 mt-0.5">
-                                                                                Cta/CLABE: {mov.clabeEmisor || mov.cuentaEmisor}
-                                                                            </p>
-                                                                        )}
                                                                     </td>
 
-                                                                    {/* Rastreo SPEI / Referencia */}
-                                                                    <td className="px-3 py-3 text-xs">
+                                                                    {/* Nombre Ordenante */}
+                                                                    <td className="px-3 py-3 min-w-[180px] max-w-[240px]">
+                                                                        {(() => {
+                                                                            const nom = getNombreOrdenante(mov);
+                                                                            return (
+                                                                                <p className={`text-xs truncate font-medium ${nom !== '—' ? 'text-slate-900 font-semibold' : 'text-slate-400'}`} title={nom}>
+                                                                                    {nom}
+                                                                                </p>
+                                                                            );
+                                                                        })()}
+                                                                    </td>
+
+                                                                    {/* Cta Ordenante */}
+                                                                    <td className="px-3 py-3 min-w-[140px]">
+                                                                        {(() => {
+                                                                            const cta = getCuentaOrdenante(mov);
+                                                                            return cta !== '—' ? (
+                                                                                <div className="flex items-center gap-1">
+                                                                                    <span className="font-mono text-xs text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 truncate max-w-[130px]" title={cta}>
+                                                                                        {cta}
+                                                                                    </span>
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            copiarAlPortapapeles(cta, "Cuenta Ordenante");
+                                                                                        }}
+                                                                                        className="text-gray-400 hover:text-slate-700 p-0.5"
+                                                                                        title="Copiar Cuenta Ordenante"
+                                                                                    >
+                                                                                        <Copy className="h-3 w-3" />
+                                                                                    </button>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="text-slate-400 text-xs">—</span>
+                                                                            );
+                                                                        })()}
+                                                                    </td>
+
+                                                                    {/* Clave de Rastreo */}
+                                                                    <td className="px-3 py-3 min-w-[160px]">
                                                                         {mov.claveRastreo ? (
                                                                             <div className="flex items-center gap-1">
-                                                                                <span className="font-mono text-[11px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 truncate max-w-[140px]" title={mov.claveRastreo}>
+                                                                                <span className="font-mono text-xs text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 truncate max-w-[140px]" title={mov.claveRastreo}>
                                                                                     {mov.claveRastreo}
                                                                                 </span>
                                                                                 <button
@@ -868,13 +940,14 @@ export default function BancosPage() {
                                                                                     <Copy className="h-3 w-3" />
                                                                                 </button>
                                                                             </div>
-                                                                        ) : null}
-                                                                        {mov.referencia ? (
-                                                                            <span className="font-mono text-[11px] text-gray-500 block mt-0.5">
-                                                                                Ref: {mov.referencia}
-                                                                            </span>
-                                                                        ) : null}
-                                                                        {!mov.claveRastreo && !mov.referencia && <span className="text-gray-400 text-xs">—</span>}
+                                                                        ) : (
+                                                                            <span className="text-gray-400 text-xs">—</span>
+                                                                        )}
+                                                                    </td>
+
+                                                                    {/* Referencia */}
+                                                                    <td className="px-3 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">
+                                                                        {mov.referencia || <span className="text-gray-400">—</span>}
                                                                     </td>
 
                                                                     {/* Abono */}
