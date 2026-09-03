@@ -2,7 +2,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 // <workflow-map>
 // Workflow : TICKETS2
-// Nodes   : 81  |  Connections: 79
+// Nodes   : 81  |  Connections: 80
 //
 // NODE INDEX
 // ──────────────────────────────────────────────────────────────────
@@ -174,6 +174,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 //                        → MensajeTicket2
 //                 .out(3) → GenerarMensajeDeFormatoInvalido
 //                    → EnviarMensajeDeErrorDeFormato
+//     .out(1) → ValidarRespuestaDeTexto (↩ loop)
 // </workflow-map>
 
 // =====================================================================
@@ -2111,7 +2112,7 @@ return [{
         position: [-992, 1056],
     })
     ValidarRespuestaDeTexto = {
-        jsCode: `const rawText = ($json.body?.data?.message?.conversation || $json.body?.data?.message?.extendedTextMessage?.text || '').trim();
+        jsCode: `const rawText = ($json.body?.payload?.body || $json.body?.payload?.caption || $json.body?.data?.message?.conversation || $json.body?.data?.message?.extendedTextMessage?.text || '').trim();
 const textoContrato = rawText.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 // Validamos el texto de la respuesta para contratos DP o DQ
@@ -2120,6 +2121,7 @@ const formatoValido = /^(DP|DQ)\\d{5,8}$/i.test(textoContrato);
 $json.formatoRespuestaValido = formatoValido;
 $json.contrato = textoContrato;
 $json.contrato_respuesta = textoContrato;
+$json.remitente = $json.body?.payload?.from || $json.body?.data?.key?.remoteJid || null;
 
 return $json;`,
     };
@@ -2251,11 +2253,17 @@ let mensaje = \`📌 *Detalles del Ticket*\` +
 
 mensaje += \`\\n--------------------------------\\n\`;
 
-// Lógica de respuesta: por ahora NUNCA se envía saldo ni conciliación al recibir el comprobante
+// Lógica de respuesta según estado
 if (esDuplicado === true) {
   mensaje += \`⚠️ *ESTE COMPROBANTE YA FUE REGISTRADO PREVIAMENTE*\\n\` +
              \`El sistema ya tiene este ticket procesándose con el ID \${ticketId}. \` +
              \`No es necesario subirlo nuevamente.\`;
+} else if (item.estado === 'EXITO' || item.estado === 'EXITO_Y_APLICADO' || item.conc_status === 'CONCILIADO') {
+  mensaje += \`✅ ¡Tu pago ha sido conciliado y aplicado exitosamente!\` +
+             \`\\n\\n- 📄 Contrato: \${contrato}\` +
+             \`\\n- 💰 Nuevo Saldo: $\${parseFloat(saldo).toFixed(2)}\` +
+             \`\\n- 💳 ID de Pago Aplicado: \${idPago}\` +
+             \`\\n- 🏦 ID Bancario: \${movimientoId}\`;
 } else {
   mensaje += \`🚨 *Tu comprobante está en proceso de validación.*\\n\` +
              \`Ya lo guardamos en el sistema. En cuanto el banco refleje el movimiento, recibirás tu NUEVO SALDO.\`;
@@ -3133,6 +3141,7 @@ Actualizado:{{ DateTime.local().setZone('America/Mexico_City').toFormat('yyyy-MM
         this.NumeroInvalido.out(0).to(this.EnviarPorWaha4.in(0));
         this.WebhookWaha.out(0).to(this.TieneImagen.in(0));
         this.TieneImagen.out(0).to(this.DescargarMediaWaha.in(0));
+        this.TieneImagen.out(1).to(this.ValidarRespuestaDeTexto.in(0));
         this.DescargarMediaWaha.out(0).to(this.AdaptadorAFormatoEvolution.in(0));
         this.AdaptadorAFormatoEvolution.out(0).to(this.GranEnrutador.in(0));
         this.EnviarPorWaha1.out(0).to(this.If1.in(0));
