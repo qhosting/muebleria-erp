@@ -107,8 +107,18 @@ flowchart TD
 ## 3. 🖥️ Mejoras en el Conciliador Bancario del ERP (`/dashboard/tesoreria/conciliador`)
 
 * **Buscador Dinámico en Modal de Coincidencias SPEI:** Filtrado en tiempo real por Nombre del Cliente, Contrato DP/DQ, Folio o Clave de Rastreo SPEI.
-* **Filtros Rápidos por Prefijo:** Botones interactivos `[Todos (N)]`, `[Solo DP (N)]`, `[Solo DQ (N)]`.
-* **Selección Selectiva Inteligente:** Botones de `Seleccionar Visibles` / `Deseleccionar Visibles` y acciones rápidas `Aprobar solo DP` y `Aprobar solo DQ` con 1 clic.
+* **Filtros Rápidos por Prefijo de Contrato:** Botones interactivos `[Todos (N)]`, `[Solo DP (N)]`, `[Solo DQ (N)]`.
+* **Filtros Interactivos por Etiqueta / Método de Coincidencia:** Píldoras con conteo en vivo para ver y aislar:
+  - `[👤 Nombre Cliente (N)]`
+  - `[🔢 Folio / Referencia (N)]`
+  - `[⚡ SPEI Exacto (N)]`
+  - `[📄 Contrato en Leyenda (N)]`
+  - `[🏦 Cuenta Habitual (N)]`
+  - `[📅 Monto y Fecha (N)]`
+* **Selección Directa por Criterio (Marcar Solo):**
+  - Botones de 1 clic: `Por Nombre`, `Por Folio/Ref`, `Por SPEI`, `Por Cuenta`, `Solo DP`, `Solo DQ`.
+  - Botones contextuales de `Seleccionar Visibles (N)` y `Deseleccionar Visibles` que actúan sobre el subconjunto filtrado activo.
+* **Estilos Profesionales de Etiquetas:** Badges con iconos y paleta cromática diferenciada por tipo de match (Púrpura para Nombre, Ámbar para Folio, Esmeralda para SPEI, Cian para Cuenta Habitual).
 
 ---
 
