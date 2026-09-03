@@ -213,6 +213,8 @@ export default function ConciliadorPage() {
     const [desde, setDesde] = useState(initialWeek.desde);
     const [hasta, setHasta] = useState(initialWeek.hasta);
     const [estadoFiltro, setEstadoFiltro] = useState<string>("PENDIENTE"); // PENDIENTE, CONCILIADO, TODOS
+    const [cobradorFiltro, setCobradorFiltro] = useState<string>("TODOS"); // ID del cobrador o TODOS
+    const [cobradores, setCobradores] = useState<any[]>([]);
 
     // Estado por cada ticket para el movimiento seleccionado y el filtro de monto
     const [selectedMovByTicket, setSelectedMovByTicket] = useState<Record<string, string>>({});
@@ -233,25 +235,30 @@ export default function ConciliadorPage() {
 
     useEffect(() => {
         fetchData();
-    }, [estadoFiltro]);
+    }, [estadoFiltro, cobradorFiltro]);
 
-    const fetchData = async (customDesde?: string, customHasta?: string, customEstado?: string) => {
+    const fetchData = async (customDesde?: string, customHasta?: string, customEstado?: string, customCobrador?: string) => {
         setLoading(true);
         try {
             const d = customDesde !== undefined ? customDesde : desde;
             const h = customHasta !== undefined ? customHasta : hasta;
             const est = customEstado !== undefined ? customEstado : estadoFiltro;
+            const cob = customCobrador !== undefined ? customCobrador : cobradorFiltro;
 
             const params = new URLSearchParams();
             if (d) params.append("desde", d);
             if (h) params.append("hasta", h);
             if (est) params.append("estado", est);
+            if (cob && cob !== "TODOS") params.append("cobradorId", cob);
 
             const res = await fetch(`/api/tesoreria/conciliador?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
                 setTickets(data.tickets || []);
                 setMovimientos(data.movimientos || []);
+                if (data.cobradores && Array.isArray(data.cobradores)) {
+                    setCobradores(data.cobradores);
+                }
 
                 // Auto-seleccionar el mejor movimiento para cada ticket si coincide el monto
                 const initialSelected: Record<string, string> = {};
@@ -288,21 +295,21 @@ export default function ConciliadorPage() {
 
     const handleFiltrar = (e: React.FormEvent) => {
         e.preventDefault();
-        fetchData(desde, hasta, estadoFiltro);
+        fetchData(desde, hasta, estadoFiltro, cobradorFiltro);
     };
 
     const setSemanaActual = () => {
         const week = getSabadoAViernesRange(0);
         setDesde(week.desde);
         setHasta(week.hasta);
-        fetchData(week.desde, week.hasta, estadoFiltro);
+        fetchData(week.desde, week.hasta, estadoFiltro, cobradorFiltro);
     };
 
     const setSemanaAnterior = () => {
         const week = getSabadoAViernesRange(-1);
         setDesde(week.desde);
         setHasta(week.hasta);
-        fetchData(week.desde, week.hasta, estadoFiltro);
+        fetchData(week.desde, week.hasta, estadoFiltro, cobradorFiltro);
     };
 
     // 1. Escanear y Previsualizar Coincidencias SPEI sin conciliar todavía
@@ -603,6 +610,26 @@ export default function ConciliadorPage() {
                                 <option value="PENDIENTE">No Conciliados (Pendientes)</option>
                                 <option value="CONCILIADO">Conciliados</option>
                                 <option value="TODOS">Todos (Pendientes y Conciliados)</option>
+                            </select>
+                        </div>
+
+                        {/* Filtro por Cobrador */}
+                        <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-700 text-xs flex items-center gap-1">
+                                <User className="w-3.5 h-3.5 text-gray-500" />
+                                Cobrador:
+                            </span>
+                            <select
+                                value={cobradorFiltro}
+                                onChange={(e) => setCobradorFiltro(e.target.value)}
+                                className="h-9 bg-gray-50 border border-gray-300 rounded px-2.5 text-xs text-gray-800 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 max-w-[220px]"
+                            >
+                                <option value="TODOS">Todos los Cobradores</option>
+                                {cobradores.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                        {c.name} {c.codigoGestor ? `(${c.codigoGestor})` : ''}
+                                    </option>
+                                ))}
                             </select>
                         </div>
 

@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
         const desde = searchParams.get('desde');
         const hasta = searchParams.get('hasta');
         const estado = (searchParams.get('estado') || 'PENDIENTE').toUpperCase();
+        const cobradorId = searchParams.get('cobradorId') || searchParams.get('cobrador');
 
         // Filtro de estado de conciliación
         const ticketWhere: any = {};
@@ -31,14 +32,31 @@ export async function GET(request: NextRequest) {
             movWhere.ticketId = { not: null };
         } // Si es TODOS no agregamos restricción en conciliado / ticketId
 
+        if (cobradorId && cobradorId !== 'TODOS') {
+            ticketWhere.OR = [
+                { gestorId: cobradorId },
+                { cliente: { cobradorAsignadoId: cobradorId } }
+            ];
+        }
+
         if (desde && hasta) {
             const dStart = new Date(`${desde}T00:00:00.000Z`);
             const dEnd = new Date(`${hasta}T23:59:59.999Z`);
 
-            ticketWhere.OR = [
+            const dateFilter = [
                 { fecha: { gte: dStart, lte: dEnd } },
                 { creadoEn: { gte: dStart, lte: dEnd } }
             ];
+
+            if (ticketWhere.OR) {
+                ticketWhere.AND = [
+                    { OR: ticketWhere.OR },
+                    { OR: dateFilter }
+                ];
+                delete ticketWhere.OR;
+            } else {
+                ticketWhere.OR = dateFilter;
+            }
 
             movWhere.fechaOperacion = { gte: dStart, lte: dEnd };
         }
@@ -243,10 +261,31 @@ export async function GET(request: NextRequest) {
             }
         }
 
+        // 5. Obtener lista de todos los cobradores / gestores
+        const cobradores = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { role: 'cobrador' },
+                    { codigoGestor: { not: null } },
+                    { clientesAsignados: { some: {} } },
+                    { ticketsGestor: { some: {} } }
+                ]
+            },
+            select: {
+                id: true,
+                name: true,
+                codigoGestor: true,
+                email: true,
+                role: true
+            },
+            orderBy: { name: 'asc' }
+        });
+
         return NextResponse.json({
             tickets: ticketsPendientes,
             movimientos: movimientosPendientes,
             sugerencias,
+            cobradores,
             cuentasConocidas: cuentasConocidas.length
         });
 
