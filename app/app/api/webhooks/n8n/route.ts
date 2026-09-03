@@ -594,28 +594,66 @@ export async function POST(req: Request) {
                     }
                 }
 
-                if (banco.includes('santander')) {
+                const targetCuenta = String(m.cuenta || banco).replace(/\D/g, '');
+
+                if (targetCuenta === '65505732541' || banco.includes('65505732541')) {
+                    const exists = await prisma.movimientoSantander65505732541.findFirst({
+                        where: {
+                            OR: [
+                                rastreo ? { claveRastreo: rastreo } : { id: 'none' },
+                                ref ? { referencia: ref, abono: abono || undefined } : { id: 'none' },
+                                { fechaOperacion: fOperacion, abono: abono || undefined, cargo: cargo || undefined }
+                            ]
+                        }
+                    });
+                    if (!exists) {
+                        await prisma.movimientoSantander65505732541.create({
+                            data: {
+                                bancoOrigen: m.bancoEmisor || m.bancoOrigen || 'SANTANDER',
+                                fechaOperacion: fOperacion,
+                                horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
+                                descripcionGeneral: desc,
+                                concepto: m.concepto || desc,
+                                descripcionDetallada: m.descripcionDetallada || null,
+                                cargo,
+                                abono,
+                                saldo,
+                                referencia: ref,
+                                claveRastreo: rastreo,
+                                clabeEmisor: m.clabeEmisor || null,
+                                cuentaEmisor: m.cuentaEmisor || null,
+                            }
+                        });
+                        insertados++;
+                    } else {
+                        omitidos++;
+                    }
+                } else if (targetCuenta === '22001022837' || banco.includes('22001022837') || (banco.includes('santander') && !banco.includes('65505732541'))) {
                     const exists = await prisma.movimientoSantander22001022837.findFirst({
                         where: {
                             OR: [
                                 rastreo ? { claveRastreo: rastreo } : { id: 'none' },
                                 ref ? { referencia: ref, abono: abono || undefined } : { id: 'none' },
-                                { fechaOperacion: fOperacion, abono: abono || undefined, descripcionGeneral: desc }
+                                { fechaOperacion: fOperacion, abono: abono || undefined, cargo: cargo || undefined }
                             ]
                         }
                     });
                     if (!exists) {
                         await prisma.movimientoSantander22001022837.create({
                             data: {
-                                bancoOrigen: 'SANTANDER',
+                                bancoOrigen: m.bancoEmisor || m.bancoOrigen || 'SANTANDER',
                                 fechaOperacion: fOperacion,
                                 horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
                                 descripcionGeneral: desc,
+                                concepto: m.concepto || desc,
+                                descripcionDetallada: m.descripcionDetallada || null,
                                 cargo,
                                 abono,
                                 saldo,
                                 referencia: ref,
                                 claveRastreo: rastreo,
+                                clabeEmisor: m.clabeEmisor || null,
+                                cuentaEmisor: m.cuentaEmisor || null,
                             }
                         });
                         insertados++;
