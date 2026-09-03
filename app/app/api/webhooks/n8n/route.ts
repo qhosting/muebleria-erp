@@ -103,7 +103,7 @@ export async function POST(req: Request) {
                                                 direccionCompleta: 'ContPAQi Sync',
                                                 descripcionProducto: 'Muebles',
                                                 diaPago: 'LUNES',
-                                                periodicidad: 'SEMANAL',
+                                                periodicidad: 'semanal',
                                                 montoPago: 0,
                                                 saldoActual: saldoContpaqi,
                                                 limiteCredito: saldoContpaqi
@@ -640,8 +640,8 @@ export async function POST(req: Request) {
         if (action === "consultar_estado_tickets" || action === "tickets_pendientes_info") {
             const [pendientes, buzon, noConciliados, noConciliadosCount, mb1, mb2, mb3] = await Promise.all([
                 prisma.ticketPendiente.findMany({
-                    orderBy: { creadoEn: 'desc' },
-                    select: { id: true, remitente: true, tipoArchivo: true, creadoEn: true, updatedAt: true }
+                    orderBy: { createdAt: 'desc' },
+                    select: { id: true, remitente: true, tipoArchivo: true, createdAt: true, updatedAt: true }
                 }),
                 prisma.buzonTesoreria.findMany({
                     where: { estado: 'PENDIENTE' },
@@ -846,7 +846,7 @@ export async function POST(req: Request) {
                                 direccionCompleta: 'ContPAQi Sync',
                                 descripcionProducto: 'Muebles',
                                 diaPago: 'LUNES',
-                                periodicidad: 'SEMANAL',
+                                periodicidad: 'semanal',
                                 montoPago: 0,
                                 saldoActual: saldoContpaqi,
                                 limiteCredito: saldoContpaqi
