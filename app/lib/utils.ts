@@ -95,15 +95,18 @@ export function formatDateTime(date: Date | string | null | undefined): string {
 /**
  * Parsea una fecha de ticket de forma segura en zona horaria CDMX (UTC-6).
  * Si la fecha proporcionada es nula, vacía, "null", "N/A" o inválida,
- * toma la fecha y hora del momento en que se procesa/envía (new Date()).
+ * toma la fecha y hora del momento exacto en que se procesa/envía (new Date()).
+ * Si la fecha existe pero no trae hora, toma la hora y minutos actuales en que se envió.
  */
 export function parseValidDate(dateInput?: Date | string | null, hrInput?: string | null): Date {
+  const now = new Date();
+
   if (!dateInput || dateInput === 'null' || dateInput === 'undefined' || dateInput === 'N/A' || dateInput === 'none') {
-    return new Date();
+    return now;
   }
 
   if (dateInput instanceof Date) {
-    if (isNaN(dateInput.getTime())) return new Date();
+    if (isNaN(dateInput.getTime())) return now;
     return dateInput;
   }
 
@@ -113,10 +116,10 @@ export function parseValidDate(dateInput?: Date | string | null, hrInput?: strin
   const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   const mxMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
 
-  let hr = 12, min = 0, sec = 0;
+  let hr = 0, min = 0, sec = 0;
   let hasExplicitTime = false;
 
-  if (hrInput && typeof hrInput === 'string' && hrInput !== 'null' && hrInput !== 'undefined') {
+  if (hrInput && typeof hrInput === 'string' && hrInput !== 'null' && hrInput !== 'undefined' && hrInput !== 'N/A') {
     const parts = hrInput.trim().split(':');
     if (parts.length >= 2) {
       hr = parseInt(parts[0], 10) || 0;
@@ -135,14 +138,42 @@ export function parseValidDate(dateInput?: Date | string | null, hrInput?: strin
       hr = parseInt(timeMatch[1], 10) || 0;
       min = parseInt(timeMatch[2], 10) || 0;
       sec = parseInt(timeMatch[3], 10) || 0;
+      hasExplicitTime = true;
     }
   } else if (mxMatch) {
     d = parseInt(mxMatch[1], 10);
     m = parseInt(mxMatch[2], 10);
     y = parseInt(mxMatch[3], 10);
+    const timeMatch = str.match(/[T\s](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+    if (timeMatch && !hasExplicitTime) {
+      hr = parseInt(timeMatch[1], 10) || 0;
+      min = parseInt(timeMatch[2], 10) || 0;
+      sec = parseInt(timeMatch[3], 10) || 0;
+      hasExplicitTime = true;
+    }
   } else {
     const fallback = new Date(str);
-    return isNaN(fallback.getTime()) ? new Date() : fallback;
+    return isNaN(fallback.getTime()) ? now : fallback;
+  }
+
+  // Si no se detectó una hora explícita en el ticket, usar la hora/minuto/segundo actual en CDMX
+  if (!hasExplicitTime) {
+    try {
+      const cdmxParts = new Intl.DateTimeFormat('en-US', {
+        timeZone: TIMEZONE_CDMX,
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hour12: false
+      }).formatToParts(now);
+      hr = parseInt(cdmxParts.find(p => p.type === 'hour')?.value || '12', 10);
+      min = parseInt(cdmxParts.find(p => p.type === 'minute')?.value || '0', 10);
+      sec = parseInt(cdmxParts.find(p => p.type === 'second')?.value || '0', 10);
+    } catch {
+      hr = now.getHours();
+      min = now.getMinutes();
+      sec = now.getSeconds();
+    }
   }
 
   const yStr = String(y).padStart(4, '0');
@@ -154,7 +185,7 @@ export function parseValidDate(dateInput?: Date | string | null, hrInput?: strin
 
   const cdmxIso = `${yStr}-${mStr}-${dStr}T${hrStr}:${minStr}:${secStr}-06:00`;
   const result = new Date(cdmxIso);
-  return isNaN(result.getTime()) ? new Date() : result;
+  return isNaN(result.getTime()) ? now : result;
 }
 
 /**
