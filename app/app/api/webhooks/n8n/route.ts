@@ -87,16 +87,40 @@ export async function POST(req: Request) {
                                     const firstDoc = docs[0];
                                     const codCli = firstDoc.codigoCliente || (firstDoc.serie && firstDoc.folio ? `${firstDoc.serie}${firstDoc.folio}` : null) || firstDoc.referencia;
                                     if (codCli) {
-                                        return NextResponse.json({
-                                            encontrado: true,
-                                            cod_cliente: codCli,
-                                            cliente: {
-                                                id: codCli,
-                                                codigoCliente: codCli,
+                                        // Asegurar o crear el cliente en BD local para que el ticket y pago puedan relacionarse
+                                        const saldoContpaqi = parseFloat(firstDoc.total?.toString() || firstDoc.saldo?.toString() || '0');
+                                        cliente = await prisma.cliente.upsert({
+                                            where: { codigoCliente: codCli.toUpperCase() },
+                                            update: {
+                                                telefono: tel10,
+                                                nombreCompleto: firstDoc.razonSocial || 'Cliente ContPAQi'
+                                            },
+                                            create: {
+                                                codigoCliente: codCli.toUpperCase(),
                                                 nombreCompleto: firstDoc.razonSocial || 'Cliente ContPAQi',
                                                 telefono: tel10,
-                                                saldoActual: 0,
-                                                cobrador: null
+                                                saldoActual: saldoContpaqi,
+                                                limiteCredito: saldoContpaqi
+                                            },
+                                            include: { cobradorAsignado: true }
+                                        });
+
+                                        return NextResponse.json({
+                                            encontrado: true,
+                                            cod_cliente: cliente.codigoCliente,
+                                            codigoCliente: cliente.codigoCliente,
+                                            contrato: cliente.codigoCliente,
+                                            cliente: {
+                                                id: cliente.id,
+                                                codigoCliente: cliente.codigoCliente,
+                                                nombreCompleto: cliente.nombreCompleto,
+                                                telefono: tel10,
+                                                saldoActual: parseFloat(cliente.saldoActual.toString()),
+                                                cobrador: cliente.cobradorAsignado ? {
+                                                    id: cliente.cobradorAsignado.id,
+                                                    name: cliente.cobradorAsignado.name,
+                                                    codigoGestor: cliente.cobradorAsignado.codigoGestor
+                                                } : null
                                             }
                                         });
                                     }
@@ -116,6 +140,8 @@ export async function POST(req: Request) {
             return NextResponse.json({
                 encontrado: true,
                 cod_cliente: cliente.codigoCliente,
+                codigoCliente: cliente.codigoCliente,
+                contrato: cliente.codigoCliente,
                 cliente: {
                     id: cliente.id,
                     codigoCliente: cliente.codigoCliente,
@@ -715,12 +741,33 @@ export async function POST(req: Request) {
             if (match) codigoFinal = match[0].toUpperCase();
         }
 
-        // Si no se pudo detectar cliente o contrato, guardar en Cola de Tesorería (Buzón) para que no se pierda
-        const cliente = codigoFinal ? await prisma.cliente.findUnique({
+        let cliente = codigoFinal ? await prisma.cliente.findUnique({
             where: { codigoCliente: codigoFinal },
             include: { cobradorAsignado: true }
         }) : null;
 
+        // Fallback: Si no hay cliente por código, buscar por teléfono del remitente
+        if (!cliente && remitente) {
+            const telRaw = String(remitente).replace(/\D/g, '');
+            if (telRaw.length >= 10) {
+                const tel10 = telRaw.slice(-10);
+                const clientePorTel = await prisma.cliente.findFirst({
+                    where: {
+                        OR: [
+                            { telefono: { contains: tel10 } },
+                            { telefonoTrabajo: { contains: tel10 } }
+                        ]
+                    },
+                    include: { cobradorAsignado: true }
+                });
+                if (clientePorTel) {
+                    cliente = clientePorTel;
+                    codigoFinal = clientePorTel.codigoCliente;
+                }
+            }
+        }
+
+        // Si no se pudo detectar cliente o contrato, guardar en Cola de Tesorería (Buzón) para que no se pierda
         if (!cliente) {
             let uniqueHash = base64Data 
                 ? crypto.createHash('md5').update(base64Data).digest('hex')

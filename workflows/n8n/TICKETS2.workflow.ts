@@ -308,13 +308,15 @@ let contratoInicial = null;
 let remitenteInicial = null;
 
 try {
-  contratoInicial = $('Enrutador Principal')?.item?.json?.contrato ||
+  contratoInicial = $('Unir Datos de Busqueda')?.item?.json?.contrato ||
+                    $('Buscar Cliente por Teléfono')?.item?.json?.cod_cliente ||
+                    $('Buscar Cliente por Teléfono')?.item?.json?.cliente?.codigoCliente ||
                     $('Estandarizar Variables de Imagen')?.item?.json?.contrato ||
-                    $('Estandarizar Variables de Imagen')?.item?.json?.contacto ||
+                    $('Enrutador Principal')?.item?.json?.contrato ||
                     $('Buscar_Ticket_Pendiente')?.item?.json?.contrato ||
                     $('Validar Respuesta de Texto')?.item?.json?.contrato ||
-                    $('Unir Datos de Busqueda')?.item?.json?.contrato ||
                     $json.contrato ||
+                    $json.cod_cliente ||
                     $json.contacto;
 } catch (e) {}
 
@@ -2278,31 +2280,31 @@ return [{
                 {
                     id: 'c03ccc3a-c1f6-49b5-b587-fef118d98824',
                     name: 'contrato',
-                    value: '={{ $json.contrato || $json.cod_cliente || $json.contrato_respuesta || $json.contacto }}',
+                    value: "={{ $json.contrato || $json.cod_cliente || $('Buscar Cliente por Teléfono')?.item?.json?.cod_cliente || $('Buscar Cliente por Teléfono')?.item?.json?.cliente?.codigoCliente || $json.contrato_respuesta || $json.contacto || '' }}",
                     type: 'string',
                 },
                 {
                     id: 'c03ccc3a-c1f6-49b5-b587-fef118d98825',
                     name: 'contacto',
-                    value: '={{ $json.contrato || $json.cod_cliente || $json.contrato_respuesta || $json.contacto }}',
+                    value: "={{ $json.contrato || $json.cod_cliente || $('Buscar Cliente por Teléfono')?.item?.json?.cod_cliente || $json.contrato_respuesta || $json.contacto || '' }}",
                     type: 'string',
                 },
                 {
                     id: 'ff22a3c5-be4c-4dab-940c-c64758279f35',
                     name: 'base64',
-                    value: '={{ $json.body?.data?.message?.base64 || $json.body?.data?.base64 || $json.base64 || $json.base64_data }}',
+                    value: "={{ $json.base64 || $('Descargar Media WAHA')?.item?.binary?.data?.data || $json.body?.data?.message?.base64 || $json.body?.data?.base64 || $json.base64_data || '' }}",
                     type: 'string',
                 },
                 {
                     id: '70b50d23-a404-4ed1-befa-4b3c12edd376',
                     name: 'mimetype',
-                    value: '={{ $json.body?.data?.message?.imageMessage?.mimetype || $json.mimetype || $json.tipo_archivo }}',
+                    value: "={{ $json.mimetype || $('Descargar Media WAHA')?.item?.binary?.data?.mimeType || $json.body?.data?.message?.imageMessage?.mimetype || $json.tipo_archivo || 'image/jpeg' }}",
                     type: 'string',
                 },
                 {
                     id: 'ee6451bd-b72b-4993-8550-99d5f3b1762f',
                     name: 'remitente',
-                    value: '={{ $json.body?.data?.key?.remoteJid || $json.remitente }}',
+                    value: "={{ $json.remitente || $json.body?.data?.key?.remoteJid || $('Webhook WAHA')?.first()?.json?.body?.payload?.from || '' }}",
                     type: 'string',
                 },
             ],
@@ -2324,25 +2326,25 @@ return [{
                 {
                     id: '403811d6-bdb6-48c1-8575-457227817f2e',
                     name: 'contrato',
-                    value: "={{ $('Buscar Cliente por Teléfono').item.json.cod_cliente }}",
+                    value: "={{ $('Buscar Cliente por Teléfono')?.item?.json?.cod_cliente || $('Buscar Cliente por Teléfono')?.item?.json?.cliente?.codigoCliente || '' }}",
                     type: 'string',
                 },
                 {
                     id: 'cea9b660-3630-4638-add9-c58aeec1d14b',
                     name: 'base64',
-                    value: "={{ $('Gran Enrutador').item.json.body.data.message.base64 }}",
+                    value: "={{ $('Descargar Media WAHA')?.item?.binary?.data?.data || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.base64 || $('Gran Enrutador')?.item?.json?.body?.data?.message?.base64 || '' }}",
                     type: 'string',
                 },
                 {
                     id: '7b7d8acd-5535-49eb-8cca-eb1e308c1a62',
                     name: 'remitente',
-                    value: "={{ $('Gran Enrutador').item.json.body.data.key.remoteJid }}",
+                    value: "={{ $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.first()?.json?.body?.payload?.from || '' }}",
                     type: 'string',
                 },
                 {
                     id: '3ad3e148-dd48-4203-904e-5da9af980571',
                     name: 'mimetype',
-                    value: "={{ $('Gran Enrutador').item.json.body.data.message.imageMessage.mimetype }}",
+                    value: "={{ $('Descargar Media WAHA')?.item?.binary?.data?.mimeType || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.mimetype || $('Gran Enrutador')?.item?.json?.body?.data?.message?.imageMessage?.mimetype || 'image/jpeg' }}",
                     type: 'string',
                 },
             ],
