@@ -2251,17 +2251,11 @@ let mensaje = \`📌 *Detalles del Ticket*\` +
 
 mensaje += \`\\n--------------------------------\\n\`;
 
-// Lógica de respuesta según estado
+// Lógica de respuesta: por ahora NUNCA se envía saldo ni conciliación al recibir el comprobante
 if (esDuplicado === true) {
   mensaje += \`⚠️ *ESTE COMPROBANTE YA FUE REGISTRADO PREVIAMENTE*\\n\` +
              \`El sistema ya tiene este ticket procesándose con el ID \${ticketId}. \` +
              \`No es necesario subirlo nuevamente.\`;
-} else if (item.estado === 'EXITO' || item.estado === 'EXITO_Y_APLICADO' || item.conc_status === 'CONCILIADO') {
-  mensaje += \`✅ ¡Tu pago ha sido conciliado y aplicado exitosamente!\` +
-             \`\\n\\n- 📄 Contrato: \${contrato}\` +
-             \`\\n- 💰 Nuevo Saldo: $\${parseFloat(saldo).toFixed(2)}\` +
-             \`\\n- 💳 ID de Pago Aplicado: \${idPago}\` +
-             \`\\n- 🏦 ID Bancario: \${movimientoId}\`;
 } else {
   mensaje += \`🚨 *Tu comprobante está en proceso de validación.*\\n\` +
              \`Ya lo guardamos en el sistema. En cuanto el banco refleje el movimiento, recibirás tu NUEVO SALDO.\`;
