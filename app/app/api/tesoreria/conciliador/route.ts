@@ -583,10 +583,15 @@ export async function POST(request: NextRequest) {
                             banco: matchMov.banco,
                             cuentaDestino: matchMov.cuentaDestino,
                             abono: parseFloat(matchMov.abono.toString()),
+                            saldo: matchMov.saldo ? parseFloat(matchMov.saldo.toString()) : null,
                             fechaOperacion: matchMov.fechaOperacion,
                             horaOperacion: matchMov.horaOperacion,
                             concepto: matchMov.concepto || matchMov.descripcionGeneral || matchMov.descripcionDetallada,
-                            claveRastreo: matchMov.claveRastreo
+                            descripcionGeneral: matchMov.descripcionGeneral,
+                            descripcionDetallada: matchMov.descripcionDetallada,
+                            referencia: matchMov.referencia,
+                            claveRastreo: matchMov.claveRastreo,
+                            cuentaEmisor: matchMov.cuentaEmisor || matchMov.clabeEmisor
                         }
                     };
 

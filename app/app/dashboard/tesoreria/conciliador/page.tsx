@@ -925,83 +925,115 @@ export default function ConciliadorPage() {
                                             const selectedMovIdx = globalMovIndexMap.get(selectedValKey) ?? 0;
                                             const horaStr = extractHoraOperacion(selectedMovObj);
                                             const montoMovNum = parseFloat(selectedMovObj.abono?.toString() || "0");
-                                            const fechaOperacionStr = selectedMovObj.fechaOperacion ? selectedMovObj.fechaOperacion.toString().slice(0, 10) : "N/A";
+                                            const fechaOperacionStr = selectedMovObj.fechaOperacion ? formatDate(selectedMovObj.fechaOperacion) : "N/A";
                                             const cuentaDestinoStr = selectedMovObj.cuentaDestino || (selectedMovObj.tabla?.includes("22001022837") ? "22001022837" : selectedMovObj.tabla?.includes("65505732541") ? "65505732541" : selectedMovObj.tabla?.includes("0330253963") ? "0330253963" : "N/A");
                                             const bancoDestinoStr = selectedMovObj.bancoDestino || (selectedMovObj.tabla?.includes("Banorte") ? "BANORTE" : "SANTANDER");
 
+                                            const cleanText = (v: any) => {
+                                                if (!v || v === "null" || v === "undefined" || v === "N/A" || v === "none") return "—";
+                                                return String(v).trim();
+                                            };
+
+                                            const claveRastreoLimpia = cleanText(selectedMovObj.claveRastreo);
+                                            const referenciaLimpia = cleanText(selectedMovObj.referencia);
+                                            const cuentaEmisorLimpia = cleanText(selectedMovObj.cuentaEmisor || selectedMovObj.clabeEmisor);
+                                            const conceptoLimpio = cleanText(selectedMovObj.concepto || selectedMovObj.descripcionGeneral);
+                                            const descGeneralLimpia = cleanText(selectedMovObj.descripcionGeneral);
+                                            const descDetalladaLimpia = cleanText(selectedMovObj.descripcionDetallada);
+
                                             return (
-                                                <div className="bg-slate-50 border border-slate-300 rounded-lg p-3 text-xs space-y-2.5 shadow-2xs">
-                                                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-900">
+                                                <div className="bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-xs space-y-3 shadow-sm">
+                                                    {/* Encabezado del Movimiento */}
+                                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-950 border border-blue-200">
                                                                 🏦 Movimiento Bancario: ID #{selectedMovIdx}
                                                             </span>
-                                                            <span className="text-[11px] font-semibold text-slate-700">
-                                                                {bancoDestinoStr} ({cuentaDestinoStr})
+                                                            <span className="text-xs font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                                                {bancoDestinoStr} · Cta: {cuentaDestinoStr}
                                                             </span>
                                                         </div>
-                                                        <span className="font-bold text-sm text-emerald-700">
-                                                            {formatCurrency(montoMovNum)}
-                                                        </span>
+                                                        <div className="flex items-center gap-3">
+                                                            {selectedMovObj.saldo !== undefined && selectedMovObj.saldo !== null && (
+                                                                <span className="text-[11px] text-slate-500 font-mono">
+                                                                    Saldo: <strong className="text-slate-800">{formatCurrency(selectedMovObj.saldo)}</strong>
+                                                                </span>
+                                                            )}
+                                                            <span className="font-black text-base text-emerald-700 font-mono">
+                                                                {formatCurrency(montoMovNum)}
+                                                            </span>
+                                                        </div>
                                                     </div>
 
-                                                    {/* Grid de Cajas de Datos del Movimiento Bancario */}
+                                                    {/* Grid 1: Fechas, Horas e Identificadores */}
                                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                        <div className="bg-white border border-slate-200 rounded-lg p-2">
                                                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">ID MOVIMIENTO:</span>
                                                             <span className="font-mono font-bold text-slate-900 block mt-0.5">
                                                                 ID: {selectedMovIdx}
                                                             </span>
                                                         </div>
-                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                        <div className="bg-white border border-slate-200 rounded-lg p-2">
                                                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">FECHA OPERACIÓN:</span>
-                                                            <span className="font-medium text-slate-900 block mt-0.5">
+                                                            <span className="font-semibold text-slate-900 block mt-0.5">
                                                                 {fechaOperacionStr}
                                                             </span>
                                                         </div>
-                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                        <div className="bg-white border border-slate-200 rounded-lg p-2">
                                                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">HORA OPERACIÓN:</span>
-                                                            <span className="font-mono font-medium text-slate-900 block mt-0.5">
-                                                                {horaStr || "N/A"}
+                                                            <span className="font-mono font-semibold text-slate-900 block mt-0.5">
+                                                                {horaStr || "—"}
                                                             </span>
                                                         </div>
-                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                        <div className="bg-white border border-slate-200 rounded-lg p-2">
                                                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">BANCO ORIGEN:</span>
-                                                            <span className="font-bold text-slate-900 block mt-0.5 truncate" title={selectedMovObj.bancoOrigen || "N/A"}>
-                                                                {selectedMovObj.bancoOrigen || "N/A"}
+                                                            <span className="font-bold text-slate-900 block mt-0.5 truncate" title={selectedMovObj.bancoOrigen || "—"}>
+                                                                {cleanText(selectedMovObj.bancoOrigen)}
                                                             </span>
                                                         </div>
                                                     </div>
 
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                    {/* Grid 2: Referencias, SPEI y Cuentas Emisoras */}
+                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                        <div className="bg-white border border-slate-200 rounded-lg p-2">
                                                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">REFERENCIA:</span>
-                                                            <span className="font-mono font-semibold text-slate-900 block mt-0.5 truncate" title={selectedMovObj.referencia || "null"}>
-                                                                {selectedMovObj.referencia || "null"}
+                                                            <span className="font-mono font-bold text-slate-900 block mt-0.5 truncate" title={referenciaLimpia}>
+                                                                {referenciaLimpia}
                                                             </span>
                                                         </div>
-                                                        <div className="bg-white border border-slate-200 rounded p-2">
+                                                        <div className="bg-white border border-slate-200 rounded-lg p-2 sm:col-span-2">
                                                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">CLAVE DE RASTREO SPEI:</span>
-                                                            <span className="font-mono font-semibold text-blue-800 block mt-0.5 truncate" title={selectedMovObj.claveRastreo || "null"}>
-                                                                {selectedMovObj.claveRastreo || "null"}
+                                                            <span className="font-mono font-bold text-blue-700 bg-blue-50/70 px-1.5 py-0.5 rounded border border-blue-100 block mt-0.5 break-all" title={claveRastreoLimpia}>
+                                                                {claveRastreoLimpia}
                                                             </span>
                                                         </div>
                                                     </div>
 
+                                                    {/* Grid 3: Concepto, Descripción y Ordenante */}
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                        <div className="bg-white border border-slate-200 rounded p-2">
-                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">CONCEPTO / MOTIVO:</span>
-                                                            <span className="font-medium text-slate-900 block mt-0.5 break-words">
-                                                                {selectedMovObj.concepto || selectedMovObj.descripcionGeneral || "ABONO TRANSFERENCIA SPEI"}
+                                                        <div className="bg-white border border-slate-200 rounded-lg p-2.5">
+                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">CONCEPTO / MOTIVO DE PAGO:</span>
+                                                            <span className="font-semibold text-slate-900 block mt-1 break-words">
+                                                                {conceptoLimpio}
                                                             </span>
                                                         </div>
-                                                        <div className="bg-white border border-slate-200 rounded p-2">
-                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">ORDENANTE / DETALLES:</span>
-                                                            <span className="font-medium text-slate-900 block mt-0.5 break-words">
-                                                                {selectedMovObj.descripcionDetallada || selectedMovObj.cuentaEmisor || "N/A"}
+                                                        <div className="bg-white border border-slate-200 rounded-lg p-2.5">
+                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">ORDENANTE / CUENTA EMISORA:</span>
+                                                            <span className="font-mono font-medium text-slate-800 block mt-1 break-words">
+                                                                {cuentaEmisorLimpia !== "—" ? cuentaEmisorLimpia : (descDetalladaLimpia !== "—" ? descDetalladaLimpia : "—")}
                                                             </span>
                                                         </div>
                                                     </div>
+
+                                                    {/* Grid 4: Descripciones Adicionales si existen */}
+                                                    {(descDetalladaLimpia !== "—" && descDetalladaLimpia !== conceptoLimpio) && (
+                                                        <div className="bg-white border border-slate-200 rounded-lg p-2.5">
+                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">DESCRIPCIÓN DETALLADA / LEYENDA:</span>
+                                                            <span className="text-slate-700 block mt-1 break-words font-mono text-[11px]">
+                                                                {descDetalladaLimpia}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })()}
