@@ -429,6 +429,138 @@ export async function POST(req: Request) {
             });
         }
 
+        // --- ACCIÓN: VALIDAR Y SINCRONIZAR EXTRACTOS BANCARIOS (TEMPORALES) ---
+        if (action === "validar_bancos_temporales") {
+            const rawMovs = body.movimientos || [];
+            const ejecutarInsercion = !!body.insertar;
+
+            let total = rawMovs.length;
+            let yaExistian = 0;
+            let conciliadosPreviamente = 0;
+            let noConciliados = 0;
+            let faltantes: any[] = [];
+            let insertados = 0;
+            let errores = 0;
+
+            for (const m of rawMovs) {
+                try {
+                    const cuenta = String(m.cuenta || '').replace(/\D/g, '');
+                    const rastreo = m.claveRastreo || null;
+                    const ref = m.referencia || null;
+                    const abono = parseFloat(m.abono || '0') || 0;
+                    const cargo = parseFloat(m.cargo || '0') || 0;
+                    const fOperacion = m.fechaOperacion ? new Date(m.fechaOperacion) : new Date();
+
+                    let prismaModel: any = null;
+                    let cuentaNombre = '';
+
+                    if (cuenta === '65505732541' || (!cuenta && m.banco === 'santander')) {
+                        prismaModel = (prisma as any).movimientoSantander65505732541;
+                        cuentaNombre = 'Santander 65505732541';
+                    } else if (cuenta === '22001022837') {
+                        prismaModel = (prisma as any).movimientoSantander22001022837;
+                        cuentaNombre = 'Santander 22001022837';
+                    } else if (cuenta === '0330253963' || (!cuenta && m.banco === 'banorte')) {
+                        prismaModel = (prisma as any).movimientoBanorte0330253963;
+                        cuentaNombre = 'Banorte 0330253963';
+                    }
+
+                    if (!prismaModel) {
+                        errores++;
+                        continue;
+                    }
+
+                    // Buscar si ya existe en la base de datos (SIN TOCAR NI MODIFICAR NADA)
+                    let existing = null;
+                    if (rastreo) {
+                        existing = await prismaModel.findFirst({
+                            where: { claveRastreo: rastreo }
+                        });
+                    }
+
+                    if (!existing && (ref || abono > 0 || cargo > 0)) {
+                        existing = await prismaModel.findFirst({
+                            where: {
+                                fechaOperacion: fOperacion,
+                                abono: abono > 0 ? abono : 0,
+                                cargo: cargo > 0 ? cargo : 0,
+                                ...(ref ? { referencia: ref } : {})
+                            }
+                        });
+                    }
+
+                    if (existing) {
+                        yaExistian++;
+                        if (existing.ticketId || existing.conciliado) {
+                            conciliadosPreviamente++;
+                        } else {
+                            noConciliados++;
+                        }
+                    } else {
+                        faltantes.push({
+                            cuenta: cuentaNombre,
+                            fecha: m.fechaOperacion,
+                            hora: m.horaOperacion,
+                            abono,
+                            cargo,
+                            referencia: ref,
+                            claveRastreo: rastreo,
+                            concepto: m.concepto || m.descripcionGeneral
+                        });
+
+                        if (ejecutarInsercion) {
+                            const rawHora = m.horaOperacion || null;
+                            let hOp: Date | undefined = undefined;
+                            if (rawHora) {
+                                const hStr = String(rawHora);
+                                if (hStr.includes(':')) {
+                                    const parts = hStr.split(':');
+                                    const hh = parts[0].padStart(2, '0');
+                                    const mm = (parts[1] || '00').padStart(2, '0');
+                                    const ss = (parts[2] || '00').slice(0, 2).padStart(2, '0');
+                                    hOp = new Date(`1970-01-01T${hh}:${mm}:${ss}.000Z`);
+                                }
+                            }
+
+                            await prismaModel.create({
+                                data: {
+                                    bancoOrigen: m.bancoOrigen || (cuenta === '0330253963' ? 'BANORTE' : 'SANTANDER'),
+                                    fechaOperacion: fOperacion,
+                                    horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
+                                    descripcionGeneral: m.descripcionGeneral || m.concepto || '',
+                                    cargo: cargo,
+                                    abono: abono,
+                                    saldo: parseFloat(m.saldo || '0') || 0,
+                                    referencia: ref,
+                                    claveRastreo: rastreo,
+                                    concepto: m.concepto || null,
+                                    descripcionDetallada: m.descripcionDetallada || null,
+                                    clabeEmisor: m.clabeEmisor || null,
+                                    cuentaEmisor: m.cuentaEmisor || null
+                                }
+                            });
+                            insertados++;
+                        }
+                    }
+                } catch (e: any) {
+                    console.error('Error procesando mov temporal:', e);
+                    errores++;
+                }
+            }
+
+            return NextResponse.json({
+                success: true,
+                total,
+                yaExistian,
+                conciliadosPreviamente,
+                noConciliados,
+                faltantesCount: faltantes.length,
+                faltantes: faltantes.slice(0, 50),
+                insertados,
+                errores
+            });
+        }
+
         // --- ACCIÓN: IMPORTAR EXTRACTO BANCARIO ---
         if (action === "importar_banco") {
             const banco = (body.banco || '').toLowerCase();
