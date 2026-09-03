@@ -395,7 +395,7 @@ export async function POST(req: Request) {
                 const newPago = await tx.pago.create({
                     data: {
                         clienteId: cliente.id,
-                        cobradorId: cobradorId,
+                        cobradorId: cobradorId || '',
                         ticketId: newTicket.id,
                         monto: montoNum,
                         concepto: `Pago Ticket WhatsApp (${referencia || 'BANORTE'})`,

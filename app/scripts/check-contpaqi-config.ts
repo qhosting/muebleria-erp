@@ -37,11 +37,11 @@ async function main() {
     console.log('Resultado Empresas:', empresas);
 
     console.log('\n3. Probando buscar cliente DP2608003 en ContPAQi...');
-    const clienteContpaqi = await serviceDP.getClienteByCodigo('DP2608003').catch(e => ({ error: e.message }));
+    const clienteContpaqi = await (serviceDP as any).getClienteByCodigo?.('DP2608003').catch((e: any) => ({ error: e.message }));
     console.log('Resultado Cliente DP2608003:', clienteContpaqi);
 
     console.log('\n4. Probando estado de cuenta / saldo DP2608003...');
-    const estadoCuenta = await serviceDP.getEstadoCuenta('DP2608003').catch(e => ({ error: e.message }));
+    const estadoCuenta = await (serviceDP as any).getEstadoCuenta?.('DP2608003').catch((e: any) => ({ error: e.message }));
     console.log('Resultado Estado de Cuenta DP2608003:', estadoCuenta);
 
   } catch (error: any) {

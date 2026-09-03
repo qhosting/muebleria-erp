@@ -27,7 +27,7 @@ async function diagnose() {
                     'X-API-Key': apiKey,
                     'Accept': 'application/json'
                 },
-                timeout: 5000
+                signal: AbortSignal.timeout(5000)
             });
             const duration = Date.now() - start;
 

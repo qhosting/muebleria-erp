@@ -86,7 +86,7 @@ export async function POST(
       },
       cobrador: {
         nombre: pago.cobrador?.name || 'Cobrador Asignado',
-        id: pago.cobrador?.username || pago.cobradorId || '',
+        id: pago.cobrador?.codigoGestor || pago.cobrador?.id || pago.cobradorId || '',
       },
       pago: {
         monto: abonoNum,

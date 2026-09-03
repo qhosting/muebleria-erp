@@ -790,13 +790,17 @@ export default function BancosPage() {
                                                                     } ${isSelected ? "bg-blue-100/60 ring-1 ring-inset ring-blue-300" : ""}`}
                                                                 >
                                                                     {/* Indicador visual */}
-                                                                    <td className="pl-3 pr-1 py-3" onClick={(e) => { e.stopPropagation(); setDetalleModalMov(mov); }}>
+                                                                    <td
+                                                                        className="pl-3 pr-1 py-3"
+                                                                        onClick={(e) => { e.stopPropagation(); setDetalleModalMov(mov); }}
+                                                                        title={esConciliado ? "Conciliado" : esAbono ? "Abono pendiente de conciliar" : "Cargo / Retiro"}
+                                                                    >
                                                                         {esConciliado ? (
-                                                                            <CheckCircle2 className="h-4 w-4 text-emerald-500" title="Conciliado" />
+                                                                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                                                                         ) : esAbono ? (
-                                                                            <Link2 className="h-4 w-4 text-blue-500 opacity-80" title="Abono pendiente de conciliar" />
+                                                                            <Link2 className="h-4 w-4 text-blue-500 opacity-80" />
                                                                         ) : (
-                                                                            <CreditCard className="h-4 w-4 text-gray-400" title="Cargo / Retiro" />
+                                                                            <CreditCard className="h-4 w-4 text-gray-400" />
                                                                         )}
                                                                     </td>
 

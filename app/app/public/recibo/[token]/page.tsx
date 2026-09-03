@@ -106,7 +106,7 @@ export default async function PublicReceiptPage({ params }: PublicReceiptPagePro
             }
         };
 
-        return <ReceiptClientPage ticketData={ticketData} expiresAt={decrypted.expiresAt} />;
+        return <ReceiptClientPage ticketData={ticketData} expiresAt={decrypted?.expiresAt || 0} />;
     } catch (error) {
         console.error('Error al renderizar recibo público:', error);
         return <ExpiredTokenView message="Ocurrió un error al cargar el comprobante de pago." />;
