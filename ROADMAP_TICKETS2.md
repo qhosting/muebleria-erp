@@ -92,6 +92,24 @@ flowchart TD
 
 ---
 
+### 🔍 Fix 5: Corrección de Ticket `F6DALTDA` (DQ2501155) y Prevención de Contaminación Cruzada por Referencia `1858`
+* **Síntoma:** Al abrir el comprobante de `F6DALTDA` en el Conciliador, se mostraba la foto de un comprobante ajeno (de otro cliente) y la fecha tenía año erróneo `2020` con folio recortado `451042`.
+* **Causa Raíz:**
+  1. En `/api/tesoreria/tickets/[id]/comprobante/route.ts`, si el ticket carecía de `urlComprobante`, buscaba en `buzonTesoreria` con condición `OR` por `referencia: ticket.referencia`. Como Oxxo utiliza el convenio genérico `1858` para todos los depósitos a Santander, el `findFirst` con `orderBy: { createdAt: 'desc' }` devolvía la foto del último cliente que pagó en Oxxo.
+  2. El OCR original de IA Vision leyó el año `2026` como `2020` y truncó el número de afiliación/folio.
+* **Solución:**
+  1. Se descargó el comprobante original enviado por WhatsApp a las 9:37 AM (`AC73F6F79288B4CCA7A48E21B21F901C.jpeg`) directamente desde WAHA:
+     - **Comercio:** Oxxo Ferroparque QRF Plaza (Colón, Qro).
+     - **Fecha real:** `02/09/2026 09:28:00`.
+     - **Monto:** `$830.00` (Pago total con comisión: $845.00).
+     - **Folio de venta:** `356750` (Autorización: `141715`, Afiliación: `4510402`).
+     - **Banco:** Santander México S.A.
+  2. Se actualizó el ticket `F6DALTDA` en la base de datos con su fecha exacta (2026), folio real, monto `$830.00` y se le vinculó directamente el Base64 del comprobante en `urlComprobante`.
+  3. Se eliminaron registros duplicados generados durante la prueba (`31GEI6JE`) y se restauró el saldo del cliente a `$0.00` (Liquidado correctamente).
+  4. Se blindó `/api/tesoreria/tickets/[id]/comprobante/route.ts` para excluir referencias bancarias genéricas (como `1858`) de búsquedas ciegas y priorizar coincidencias exactas por `ticketId`, `contrato` y `folio`.
+
+---
+
 ### 📊 Historial de Tickets Críticos Recuperados y Regularizados (03/09/2026)
 
 | Contrato | Remitente | Banco / Tipo | Monto | Ticket ERP | Estado |
@@ -101,6 +119,7 @@ flowchart TD
 | **`DP2603150`** | `64304518844534@lid` | BBVA $\rightarrow$ Santander (Folio `0071069804`) | **$250.00** | **`97E07TNK`** | ✅ Procesado y Notificado |
 | **`DQ2510118`** | `256091736772799@lid` | Banorte (Folio `DQ2510118`) | **$310.00** | **`NI9EQ3SK`** | ✅ Procesado y Notificado |
 | **`DQ2601058`** | `277167309123741@lid` | Mercado Pago $\rightarrow$ Banorte (Folio `177061094488`) | **$300.00** | **`9G85EST0`** | ✅ Procesado y Notificado |
+| **`DQ2501155`** | `4461292209` / `277167309123741@lid` | Oxxo $\rightarrow$ Santander (Folio `356750`, Aut `141715`) | **$830.00** | **`F6DALTDA`** | ✅ Regularizado y Comprobante Vinculado |
 
 ---
 
