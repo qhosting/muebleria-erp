@@ -34,7 +34,10 @@ import {
     ShieldCheck,
     User,
     Hash,
-    FileText
+    FileText,
+    Copy,
+    LayoutList,
+    LayoutGrid
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -193,6 +196,44 @@ function formatDateTime(val: any): string {
     }
 }
 
+function copiarAlPortapapeles(texto: string, label: string) {
+    if (!texto || texto === "—") return;
+    navigator.clipboard.writeText(texto).then(() => {
+        toast.success(`${label} copiado al portapapeles`);
+    }).catch(() => {
+        toast.info(texto);
+    });
+}
+
+function getNombreOrdenante(mov: any): string {
+    if (!mov) return "—";
+    if (mov.descripcionDetallada) {
+        const mOrigen = mov.descripcionDetallada.match(/Origen:\s*([^(|]+)(?:\s*\(([^)]+)\))?/i);
+        if (mOrigen && mOrigen[1].trim()) return mOrigen[1].trim();
+        const mTitular = mov.descripcionDetallada.match(/Titular:\s*([^,|]+)/i);
+        if (mTitular && mTitular[1].trim()) return mTitular[1].trim();
+        const mDe = mov.descripcionDetallada.match(/(?:ordenante|emisor):\s*([^,|]+)/i);
+        if (mDe && mDe[1].trim()) return mDe[1].trim();
+    }
+    const concepto = mov.concepto || mov.descripcionGeneral || "";
+    const mConceptoDe = concepto.match(/\b(?:DE|ORDENANTE)\s+([A-ZÁÉÍÓÚÑ\s]{4,35})/i);
+    if (mConceptoDe && mConceptoDe[1].trim()) return mConceptoDe[1].trim();
+    if (mov.ticket?.cliente?.nombreCompleto) return mov.ticket.cliente.nombreCompleto;
+    if (mov.cliente?.nombreCompleto) return mov.cliente.nombreCompleto;
+    return "—";
+}
+
+function getCuentaOrdenante(mov: any): string {
+    if (!mov) return "—";
+    if (mov.clabeEmisor) return mov.clabeEmisor;
+    if (mov.cuentaEmisor) return mov.cuentaEmisor;
+    if (mov.descripcionDetallada) {
+        const mCta = mov.descripcionDetallada.match(/(?:CLABE\/Cta|Cta|Cuenta|CLABE):\s*(\d{10,18})/i);
+        if (mCta && mCta[1]) return mCta[1];
+    }
+    return "—";
+}
+
 export default function ConciliadorPage() {
     const [tickets, setTickets] = useState<any[]>([]);
     const [movimientos, setMovimientos] = useState<any[]>([]);
@@ -232,6 +273,7 @@ export default function ConciliadorPage() {
     const [previewMatches, setPreviewMatches] = useState<any[] | null>(null);
     const [selectedMatches, setSelectedMatches] = useState<Record<string, boolean>>({});
     const [isConfirmingSpei, setIsConfirmingSpei] = useState(false);
+    const [vistaModo, setVistaModo] = useState<"tabla" | "tarjetas">("tabla");
 
     useEffect(() => {
         fetchData();
@@ -535,11 +577,15 @@ export default function ConciliadorPage() {
         }
 
         const csvContent = [
-            ["Fecha", "Contrato", "Cliente", "ID Folio Ticket", "ID Sistema", "Pago Vinculado", "ID Pago", "Gestor", "Monto", "Estado"],
+            ["Fecha", "Contrato", "Cliente", "Concepto", "Ordenante", "Rastreo SPEI", "Referencia", "ID Folio Ticket", "ID Sistema", "Pago Vinculado", "ID Pago", "Gestor", "Monto", "Estado"],
             ...tickets.map(t => [
                 (t.fecha || t.creadoEn || "").slice(0, 19),
                 `"${t.cliente?.codigoCliente || "N/A"}"`,
                 `"${t.cliente?.nombreCompleto || "N/A"}"`,
+                `"${t.concepto || "-"}"`,
+                `"${t.remitente || t.cliente?.nombreCompleto || "-"}"`,
+                `"${t.claveRastreo || "-"}"`,
+                `"${t.referencia || "-"}"`,
                 `"${t.folio || t.referencia || t.legacyId || t.id}"`,
                 `"${t.id}"`,
                 (t.pagos && t.pagos.length > 0) ? "APLICADO" : "SIN APLICAR",
@@ -695,6 +741,28 @@ export default function ConciliadorPage() {
                             <Download className="w-3 h-3" />
                             Exportar a Excel
                         </Button>
+
+                        {/* Selector de Modo de Visualización: Tabla o Tarjetas */}
+                        <div className="flex items-center border border-gray-300 rounded overflow-hidden h-7 bg-white shadow-xs ml-1">
+                            <button
+                                type="button"
+                                onClick={() => setVistaModo("tabla")}
+                                className={`px-2.5 h-full text-[11px] font-semibold flex items-center gap-1 transition-colors ${vistaModo === "tabla" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                                title="Vista en Tabla con Columnas"
+                            >
+                                <LayoutList className="w-3.5 h-3.5" />
+                                Tabla
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setVistaModo("tarjetas")}
+                                className={`px-2.5 h-full text-[11px] font-semibold flex items-center gap-1 transition-colors ${vistaModo === "tarjetas" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                                title="Vista en Tarjetas Detalladas"
+                            >
+                                <LayoutGrid className="w-3.5 h-3.5" />
+                                Tarjetas
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -713,6 +781,227 @@ export default function ConciliadorPage() {
                         <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
                             No hay tickets registrados con estado <strong>{estadoFiltro}</strong> en el rango del <strong>{desde}</strong> al <strong>{hasta}</strong>.
                         </p>
+                    </div>
+                ) : vistaModo === "tabla" ? (
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs text-left align-middle text-gray-700">
+                                <thead className="bg-gray-50/90 border-b border-gray-200 font-semibold text-gray-700 text-xs">
+                                    <tr>
+                                        <th className="px-3 py-3 whitespace-nowrap">Fecha y Hora</th>
+                                        <th className="px-3 py-3 whitespace-nowrap">Contrato</th>
+                                        <th className="px-3 py-3 min-w-[150px]">Cliente</th>
+                                        <th className="px-3 py-3 whitespace-nowrap">Gestor</th>
+                                        <th className="px-3 py-3 min-w-[200px]">Concepto / Ordenante</th>
+                                        <th className="px-3 py-3 min-w-[170px]">Rastreo SPEI / Ref</th>
+                                        <th className="px-3 py-3 text-right whitespace-nowrap">Monto</th>
+                                        <th className="px-3 py-3 min-w-[260px]">Movimiento Bancario Asignado</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">Estado</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {tickets.map((ticket) => {
+                                        const montoTicketNum = parseFloat(ticket.monto?.toString() || "0");
+                                        const selectedMovValue = selectedMovByTicket[ticket.id];
+                                        const estaConciliado = ticket.conciliado;
+
+                                        let selectedMovObj: any = null;
+                                        if (selectedMovValue) {
+                                            const [tTabla, tId] = selectedMovValue.split("__");
+                                            selectedMovObj = movimientos.find(m => m.tabla === tTabla && String(m.id) === String(tId));
+                                        }
+
+                                        const gestorDisplay = ticket.gestor?.codigoGestor || ticket.cliente?.cobradorAsignado?.codigoGestor || ticket.gestor?.name || "Sin Asignar";
+                                        const conceptoDisplay = ticket.concepto || selectedMovObj?.concepto || selectedMovObj?.descripcionGeneral || "—";
+                                        const ordenanteDisplay = ticket.remitente || getNombreOrdenante(selectedMovObj) || ticket.cliente?.nombreCompleto || "—";
+                                        const rastreoVal = ticket.claveRastreo || selectedMovObj?.claveRastreo;
+                                        const refVal = ticket.referencia || selectedMovObj?.referencia;
+
+                                        return (
+                                            <tr key={ticket.id} className={`hover:bg-slate-50/70 transition-colors ${estaConciliado ? "bg-emerald-50/20" : ""}`}>
+                                                {/* Fecha y Hora */}
+                                                <td className="px-3 py-3 whitespace-nowrap text-gray-800">
+                                                    <span className="font-medium text-gray-900 block">
+                                                        {formatDateTime(ticket.fecha || ticket.creadoEn).split(' ')[0]}
+                                                    </span>
+                                                    <span className="text-[11px] text-gray-500 font-mono mt-0.5 block">
+                                                        {formatDateTime(ticket.fecha || ticket.creadoEn).split(' ')[1] || ""}
+                                                    </span>
+                                                </td>
+
+                                                {/* Contrato */}
+                                                <td className="px-3 py-3 whitespace-nowrap">
+                                                    <span className="font-mono font-bold text-xs bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200">
+                                                        {ticket.cliente?.codigoCliente || "S/C"}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400 block font-mono mt-0.5">
+                                                        #{ticket.legacyId || ticket.id.slice(-6)}
+                                                    </span>
+                                                </td>
+
+                                                {/* Cliente */}
+                                                <td className="px-3 py-3 min-w-[150px] max-w-[200px]">
+                                                    <p className="font-semibold text-gray-900 truncate" title={ticket.cliente?.nombreCompleto || "Cliente Desconocido"}>
+                                                        {ticket.cliente?.nombreCompleto || "Cliente Desconocido"}
+                                                    </p>
+                                                </td>
+
+                                                {/* Gestor */}
+                                                <td className="px-3 py-3 whitespace-nowrap">
+                                                    <Badge variant="outline" className="text-[11px] font-medium bg-blue-50 text-blue-700 border-blue-200">
+                                                        {gestorDisplay}
+                                                    </Badge>
+                                                </td>
+
+                                                {/* Concepto / Ordenante */}
+                                                <td className="px-3 py-3 min-w-[200px] max-w-[260px]">
+                                                    <p className="font-semibold text-gray-900 truncate" title={conceptoDisplay}>
+                                                        {conceptoDisplay}
+                                                    </p>
+                                                    <p className="text-[11px] text-gray-500 truncate mt-0.5 flex items-center gap-1" title={ordenanteDisplay}>
+                                                        <span className="text-gray-400 font-normal">Ord:</span>
+                                                        <span className="font-medium text-slate-700">{ordenanteDisplay}</span>
+                                                    </p>
+                                                </td>
+
+                                                {/* Rastreo SPEI / Ref */}
+                                                <td className="px-3 py-3 min-w-[170px] max-w-[220px]">
+                                                    <div className="space-y-1">
+                                                        {rastreoVal ? (
+                                                            <div className="flex items-center gap-1">
+                                                                <span className="font-mono text-[11px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 truncate max-w-[140px]" title={rastreoVal}>
+                                                                    {rastreoVal}
+                                                                </span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.stopPropagation(); copiarAlPortapapeles(rastreoVal, "Clave de Rastreo SPEI"); }}
+                                                                    className="text-gray-400 hover:text-blue-600 p-0.5"
+                                                                    title="Copiar Clave de Rastreo"
+                                                                >
+                                                                    <Copy className="h-3 w-3" />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-gray-400 text-[11px] block">—</span>
+                                                        )}
+                                                        {refVal && (
+                                                            <div className="flex items-center gap-1 text-[10px] text-gray-500 font-mono">
+                                                                <span className="truncate max-w-[130px]" title={`Ref: ${refVal}`}>Ref: {refVal}</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.stopPropagation(); copiarAlPortapapeles(refVal, "Referencia"); }}
+                                                                    className="text-gray-400 hover:text-gray-700 p-0.5"
+                                                                    title="Copiar Referencia"
+                                                                >
+                                                                    <Copy className="h-2.5 w-2.5" />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+
+                                                {/* Monto */}
+                                                <td className="px-3 py-3 text-right font-black text-xs text-gray-900 whitespace-nowrap">
+                                                    {formatCurrency(montoTicketNum)}
+                                                </td>
+
+                                                {/* Movimiento Bancario Asignado */}
+                                                <td className="px-3 py-3 min-w-[260px] max-w-[340px]">
+                                                    {estaConciliado ? (
+                                                        <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 rounded p-1.5 text-[11px]">
+                                                            <span className="font-bold block">✓ Conciliado en Banco</span>
+                                                            {selectedMovObj && (
+                                                                <span className="font-mono text-[10px] block mt-0.5">
+                                                                    {selectedMovObj.bancoDestino || "BANCO"} · {formatCurrency(selectedMovObj.abono)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <select
+                                                            value={selectedMovValue || ""}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                setSelectedMovByTicket(prev => ({ ...prev, [ticket.id]: val }));
+                                                            }}
+                                                            className="w-full h-8 bg-white border border-gray-300 rounded px-2 text-[11px] font-mono text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
+                                                        >
+                                                            <option value="">-- Seleccionar Movimiento Bancario --</option>
+                                                            {movimientos
+                                                                .filter(m => Math.abs(parseFloat(m.abono?.toString() || "0") - montoTicketNum) < 0.01)
+                                                                .concat(movimientos.filter(m => Math.abs(parseFloat(m.abono?.toString() || "0") - montoTicketNum) >= 0.01))
+                                                                .map((mov, idx) => {
+                                                                    const valKey = `${mov.tabla}__${mov.id}`;
+                                                                    const movIndex = globalMovIndexMap.get(valKey) ?? idx;
+                                                                    const fechaOperacionStr = mov.fechaOperacion ? mov.fechaOperacion.toString().slice(0, 10) : "N/A";
+                                                                    const horaOperacionStr = extractHoraOperacion(mov);
+                                                                    const horaLabel = horaOperacionStr ? ` ${horaOperacionStr}` : "";
+                                                                    const montoMov = parseFloat(mov.abono?.toString() || "0").toFixed(2);
+                                                                    const bancoLabel = mov.bancoDestino || (mov.cuentaDestino ? `CTA ${mov.cuentaDestino}` : "BANCO");
+                                                                    const label = `ID:${movIndex} | ${fechaOperacionStr}${horaLabel} | $${montoMov} | [${bancoLabel}]`;
+                                                                    return (
+                                                                        <option key={valKey} value={valKey}>
+                                                                            {label}
+                                                                        </option>
+                                                                    );
+                                                                })}
+                                                        </select>
+                                                    )}
+                                                </td>
+
+                                                {/* Estado */}
+                                                <td className="px-3 py-3 text-center whitespace-nowrap">
+                                                    {estaConciliado ? (
+                                                        <Badge variant="success" className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold">
+                                                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                                                            Conciliado
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="warning" className="bg-amber-100 text-amber-800 border-amber-200 text-[10px] font-bold">
+                                                            <AlertCircle className="w-3 h-3 mr-1" />
+                                                            Pendiente
+                                                        </Badge>
+                                                    )}
+                                                </td>
+
+                                                {/* Acciones */}
+                                                <td className="px-3 py-3 text-center whitespace-nowrap">
+                                                    <div className="flex items-center justify-center gap-1.5">
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleVerComprobante(ticket)}
+                                                            className="h-7 text-xs text-blue-600 hover:bg-blue-50 px-2 flex items-center gap-1 font-semibold"
+                                                            title="Ver Comprobante"
+                                                        >
+                                                            <Eye className="w-3.5 h-3.5" />
+                                                            Comprobante
+                                                        </Button>
+                                                        {!estaConciliado && (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                disabled={actionLoading[ticket.id] || !selectedMovValue}
+                                                                onClick={() => handleConciliarPago(ticket)}
+                                                                className="h-7 text-[11px] px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded shadow-none disabled:bg-gray-200 disabled:text-gray-400"
+                                                                title="Conciliar ticket con el movimiento bancario seleccionado"
+                                                            >
+                                                                {actionLoading[ticket.id] ? (
+                                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                                ) : (
+                                                                    "Conciliar"
+                                                                )}
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 ) : (
                     <div className="space-y-6">
@@ -827,21 +1116,53 @@ export default function ConciliadorPage() {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2.5">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mt-2.5">
                                         <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
                                             <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">REF:</span>
-                                            <span className="font-mono font-semibold text-gray-900 truncate block mt-0.5">{ticket.referencia || "null"}</span>
+                                            <div className="flex items-center justify-between gap-1 mt-0.5">
+                                                <span className="font-mono font-semibold text-gray-900 truncate" title={ticket.referencia || "—"}>
+                                                    {ticket.referencia || "—"}
+                                                </span>
+                                                {ticket.referencia && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); copiarAlPortapapeles(ticket.referencia, "Referencia"); }}
+                                                        className="text-gray-400 hover:text-gray-700 p-0.5"
+                                                        title="Copiar referencia"
+                                                    >
+                                                        <Copy className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">RASTREO:</span>
-                                            <span className="font-mono font-semibold text-blue-700 truncate block mt-0.5" title={ticket.claveRastreo || "null"}>
-                                                {ticket.claveRastreo || "null"}
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">RASTREO SPEI:</span>
+                                            <div className="flex items-center justify-between gap-1 mt-0.5">
+                                                <span className="font-mono font-semibold text-blue-700 truncate" title={ticket.claveRastreo || "—"}>
+                                                    {ticket.claveRastreo || "—"}
+                                                </span>
+                                                {ticket.claveRastreo && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); copiarAlPortapapeles(ticket.claveRastreo, "Clave de Rastreo"); }}
+                                                        className="text-gray-400 hover:text-blue-700 p-0.5"
+                                                        title="Copiar Clave de Rastreo"
+                                                    >
+                                                        <Copy className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">CONCEPTO:</span>
+                                            <span className="font-semibold text-gray-900 truncate block mt-0.5" title={ticket.concepto || "—"}>
+                                                {ticket.concepto || "—"}
                                             </span>
                                         </div>
                                         <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">REMITENTE:</span>
-                                            <span className="font-mono text-gray-700 truncate block mt-0.5" title={ticket.remitente || "null"}>
-                                                {ticket.remitente || "null"}
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">ORDENANTE / REMITENTE:</span>
+                                            <span className="font-medium text-gray-900 truncate block mt-0.5" title={ticket.remitente || ticket.cliente?.nombreCompleto || "—"}>
+                                                {ticket.remitente || ticket.cliente?.nombreCompleto || "—"}
                                             </span>
                                         </div>
                                     </div>
