@@ -518,6 +518,32 @@ export async function POST(req: Request) {
             });
         }
 
+        // --- ACCIÓN: ELIMINAR REGISTROS BANCARIOS ANTERIORES A UNA FECHA ---
+        if (action === "eliminar_bancos_anteriores" || action === "limpiar_bancos_antiguos") {
+            const fechaStr = body.fecha || '2026-08-27';
+            const fechaLimite = new Date(`${fechaStr}T00:00:00.000Z`);
+
+            const [delS1, delS2, delB, delMb] = await Promise.all([
+                prisma.movimientoSantander22001022837.deleteMany({ where: { fechaOperacion: { lt: fechaLimite } } }),
+                prisma.movimientoSantander65505732541.deleteMany({ where: { fechaOperacion: { lt: fechaLimite } } }),
+                prisma.movimientoBanorte0330253963.deleteMany({ where: { fechaOperacion: { lt: fechaLimite } } }),
+                prisma.movimientoBancario.deleteMany({ where: { fechaOperacion: { lt: fechaLimite } } }),
+            ]);
+
+            return NextResponse.json({
+                success: true,
+                message: `Registros bancarios anteriores al ${fechaStr} eliminados correctamente`,
+                fechaLimite: fechaLimite.toISOString(),
+                eliminados: {
+                    santander_22001022837: delS1.count,
+                    santander_65505732541: delS2.count,
+                    banorte_0330253963: delB.count,
+                    movimientos_bancarios_general: delMb.count,
+                    total: delS1.count + delS2.count + delB.count + delMb.count
+                }
+            });
+        }
+
         // --- ACCIÓN: CONCILIAR DEPÓSITOS EN EFECTIVO ---
         if (action === "conciliar_efectivo") {
             const ticketsEfectivo = await prisma.ticket.findMany({

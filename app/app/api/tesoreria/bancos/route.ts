@@ -124,3 +124,42 @@ export async function GET(request: NextRequest) {
         );
     }
 }
+
+export async function DELETE(request: NextRequest) {
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session?.user) {
+            return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+        }
+
+        const { searchParams } = new URL(request.url);
+        const fechaStr = searchParams.get('antesDe') || '2026-08-27';
+        const fechaLimite = new Date(`${fechaStr}T00:00:00.000Z`);
+
+        const [delS1, delS2, delB, delMb] = await Promise.all([
+            prisma.movimientoSantander22001022837.deleteMany({ where: { fechaOperacion: { lt: fechaLimite } } }),
+            prisma.movimientoSantander65505732541.deleteMany({ where: { fechaOperacion: { lt: fechaLimite } } }),
+            prisma.movimientoBanorte0330253963.deleteMany({ where: { fechaOperacion: { lt: fechaLimite } } }),
+            prisma.movimientoBancario.deleteMany({ where: { fechaOperacion: { lt: fechaLimite } } }),
+        ]);
+
+        return NextResponse.json({
+            success: true,
+            message: `Registros bancarios anteriores al ${fechaStr} eliminados correctamente`,
+            fechaLimite: fechaLimite.toISOString(),
+            eliminados: {
+                santander_22001022837: delS1.count,
+                santander_65505732541: delS2.count,
+                banorte_0330253963: delB.count,
+                movimientos_bancarios_general: delMb.count,
+                total: delS1.count + delS2.count + delB.count + delMb.count
+            }
+        });
+    } catch (error) {
+        console.error('Error al eliminar movimientos bancarios antiguos:', error);
+        return NextResponse.json(
+            { error: 'Error al eliminar movimientos bancarios' },
+            { status: 500 }
+        );
+    }
+}
