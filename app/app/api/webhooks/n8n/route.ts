@@ -566,9 +566,13 @@ export async function POST(req: Request) {
             const banco = (body.banco || '').toLowerCase();
             const rawMovs = body.movimientos || body.movimiento;
             const movimientos = Array.isArray(rawMovs) ? rawMovs : (rawMovs && typeof rawMovs === 'object' ? [rawMovs] : []);
+            const soloRevisar = !!(body.solo_revisar || body.dryRun || body.soloRevisar);
 
             let insertados = 0;
             let omitidos = 0;
+            let existentesConciliados = 0;
+            let existentesSinConciliar = 0;
+            const noEncontrados: any[] = [];
 
             for (const m of movimientos) {
                 const fOperacion = m.fecha ? new Date(m.fecha) : new Date();
@@ -607,26 +611,43 @@ export async function POST(req: Request) {
                         }
                     });
                     if (!exists) {
-                        await prisma.movimientoSantander65505732541.create({
-                            data: {
-                                bancoOrigen: m.bancoEmisor || m.bancoOrigen || 'SANTANDER',
-                                fechaOperacion: fOperacion,
-                                horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
-                                descripcionGeneral: desc,
-                                concepto: m.concepto || desc,
-                                descripcionDetallada: m.descripcionDetallada || null,
-                                cargo,
-                                abono,
-                                saldo,
-                                referencia: ref,
-                                claveRastreo: rastreo,
-                                clabeEmisor: m.clabeEmisor || null,
-                                cuentaEmisor: m.cuentaEmisor || null,
-                            }
+                        noEncontrados.push({
+                            cuenta: '65505732541',
+                            fecha: fOperacion.toISOString().slice(0, 10),
+                            hora: m.hora || null,
+                            abono,
+                            referencia: ref,
+                            claveRastreo: rastreo,
+                            concepto: m.concepto || desc,
+                            nombreOrdenante: m.nombreOrdenante || null
                         });
-                        insertados++;
+                        if (!soloRevisar) {
+                            await prisma.movimientoSantander65505732541.create({
+                                data: {
+                                    bancoOrigen: m.bancoEmisor || m.bancoOrigen || 'SANTANDER',
+                                    fechaOperacion: fOperacion,
+                                    horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
+                                    descripcionGeneral: desc,
+                                    concepto: m.concepto || desc,
+                                    descripcionDetallada: m.descripcionDetallada || null,
+                                    cargo,
+                                    abono,
+                                    saldo,
+                                    referencia: ref,
+                                    claveRastreo: rastreo,
+                                    clabeEmisor: m.clabeEmisor || null,
+                                    cuentaEmisor: m.cuentaEmisor || null,
+                                }
+                            });
+                            insertados++;
+                        }
                     } else {
                         omitidos++;
+                        if (exists.ticketId) {
+                            existentesConciliados++;
+                        } else {
+                            existentesSinConciliar++;
+                        }
                     }
                 } else if (targetCuenta === '22001022837' || banco.includes('22001022837') || (banco.includes('santander') && !banco.includes('65505732541'))) {
                     const exists = await prisma.movimientoSantander22001022837.findFirst({
@@ -639,26 +660,43 @@ export async function POST(req: Request) {
                         }
                     });
                     if (!exists) {
-                        await prisma.movimientoSantander22001022837.create({
-                            data: {
-                                bancoOrigen: m.bancoEmisor || m.bancoOrigen || 'SANTANDER',
-                                fechaOperacion: fOperacion,
-                                horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
-                                descripcionGeneral: desc,
-                                concepto: m.concepto || desc,
-                                descripcionDetallada: m.descripcionDetallada || null,
-                                cargo,
-                                abono,
-                                saldo,
-                                referencia: ref,
-                                claveRastreo: rastreo,
-                                clabeEmisor: m.clabeEmisor || null,
-                                cuentaEmisor: m.cuentaEmisor || null,
-                            }
+                        noEncontrados.push({
+                            cuenta: '22001022837',
+                            fecha: fOperacion.toISOString().slice(0, 10),
+                            hora: m.hora || null,
+                            abono,
+                            referencia: ref,
+                            claveRastreo: rastreo,
+                            concepto: m.concepto || desc,
+                            nombreOrdenante: m.nombreOrdenante || null
                         });
-                        insertados++;
+                        if (!soloRevisar) {
+                            await prisma.movimientoSantander22001022837.create({
+                                data: {
+                                    bancoOrigen: m.bancoEmisor || m.bancoOrigen || 'SANTANDER',
+                                    fechaOperacion: fOperacion,
+                                    horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
+                                    descripcionGeneral: desc,
+                                    concepto: m.concepto || desc,
+                                    descripcionDetallada: m.descripcionDetallada || null,
+                                    cargo,
+                                    abono,
+                                    saldo,
+                                    referencia: ref,
+                                    claveRastreo: rastreo,
+                                    clabeEmisor: m.clabeEmisor || null,
+                                    cuentaEmisor: m.cuentaEmisor || null,
+                                }
+                            });
+                            insertados++;
+                        }
                     } else {
                         omitidos++;
+                        if (exists.ticketId) {
+                            existentesConciliados++;
+                        } else {
+                            existentesSinConciliar++;
+                        }
                     }
                 } else if (banco.includes('banorte')) {
                     const exists = await prisma.movimientoBanorte0330253963.findFirst({
@@ -671,24 +709,41 @@ export async function POST(req: Request) {
                         }
                     });
                     if (!exists) {
-                        const hOp = m.hora ? new Date(`1970-01-01T${m.hora}.000Z`) : undefined;
-                        await prisma.movimientoBanorte0330253963.create({
-                            data: {
-                                bancoOrigen: m.bancoEmisor || 'BANORTE',
-                                fechaOperacion: fOperacion,
-                                horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
-                                descripcionGeneral: desc,
-                                concepto: m.concepto || desc,
-                                cargo,
-                                abono,
-                                saldo,
-                                referencia: ref,
-                                claveRastreo: rastreo,
-                            }
+                        noEncontrados.push({
+                            cuenta: '0330253963',
+                            fecha: fOperacion.toISOString().slice(0, 10),
+                            hora: m.hora || null,
+                            abono,
+                            referencia: ref,
+                            claveRastreo: rastreo,
+                            concepto: m.concepto || desc,
+                            nombreOrdenante: m.nombreOrdenante || null
                         });
-                        insertados++;
+                        if (!soloRevisar) {
+                            const hOp = m.hora ? new Date(`1970-01-01T${m.hora}.000Z`) : undefined;
+                            await prisma.movimientoBanorte0330253963.create({
+                                data: {
+                                    bancoOrigen: m.bancoEmisor || 'BANORTE',
+                                    fechaOperacion: fOperacion,
+                                    horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
+                                    descripcionGeneral: desc,
+                                    concepto: m.concepto || desc,
+                                    cargo,
+                                    abono,
+                                    saldo,
+                                    referencia: ref,
+                                    claveRastreo: rastreo,
+                                }
+                            });
+                            insertados++;
+                        }
                     } else {
                         omitidos++;
+                        if (exists.ticketId) {
+                            existentesConciliados++;
+                        } else {
+                            existentesSinConciliar++;
+                        }
                     }
                 } else {
                     const exists = await prisma.movimientoBancario.findFirst({
@@ -700,26 +755,47 @@ export async function POST(req: Request) {
                         }
                     });
                     if (!exists) {
-                        await prisma.movimientoBancario.create({
-                            data: {
-                                bancoOrigen: banco.toUpperCase() || 'BANCO',
-                                fechaOperacion: fOperacion,
-                                descripcionGeneral: desc,
-                                cargo,
-                                abono,
-                                saldo,
-                                referencia: ref,
-                                claveRastreo: rastreo,
-                            }
+                        noEncontrados.push({
+                            cuenta: banco.toUpperCase(),
+                            fecha: fOperacion.toISOString().slice(0, 10),
+                            hora: m.hora || null,
+                            abono,
+                            referencia: ref,
+                            claveRastreo: rastreo,
+                            concepto: desc
                         });
-                        insertados++;
+                        if (!soloRevisar) {
+                            await prisma.movimientoBancario.create({
+                                data: {
+                                    bancoOrigen: banco.toUpperCase() || 'BANCO',
+                                    fechaOperacion: fOperacion,
+                                    descripcionGeneral: desc,
+                                    cargo,
+                                    abono,
+                                    saldo,
+                                    referencia: ref,
+                                    claveRastreo: rastreo,
+                                }
+                            });
+                            insertados++;
+                        }
                     } else {
                         omitidos++;
                     }
                 }
             }
 
-            return NextResponse.json({ success: true, insertados, omitidos });
+            return NextResponse.json({ 
+                success: true, 
+                soloRevisar,
+                total: movimientos.length,
+                insertados, 
+                omitidos,
+                existentesConciliados,
+                existentesSinConciliar,
+                faltantesCount: noEncontrados.length,
+                faltantes: noEncontrados
+            });
         }
 
         // --- ACCIÓN: CONCILIAR SPEI AUTOMÁTICO ---
