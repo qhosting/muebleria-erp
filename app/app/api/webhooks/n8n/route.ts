@@ -636,6 +636,69 @@ export async function POST(req: Request) {
             });
         }
 
+        // --- ACCIÓN: CONSULTAR ESTADO DE TICKETS PENDIENTES ---
+        if (action === "consultar_estado_tickets" || action === "tickets_pendientes_info") {
+            const [pendientes, buzon, noConciliados, noConciliadosCount, mb1, mb2, mb3] = await Promise.all([
+                prisma.ticketPendiente.findMany({
+                    orderBy: { creadoEn: 'desc' },
+                    select: { id: true, remitente: true, tipoArchivo: true, creadoEn: true, updatedAt: true }
+                }),
+                prisma.buzonTesoreria.findMany({
+                    where: { estado: 'PENDIENTE' },
+                    orderBy: { fecha: 'desc' },
+                    select: { id: true, telefono: true, contractId: true, monto: true, referencia: true, fecha: true, estado: true, metadata: true }
+                }),
+                prisma.ticket.findMany({
+                    where: { conciliado: false },
+                    orderBy: { creadoEn: 'desc' },
+                    take: 20,
+                    include: {
+                        cliente: {
+                            select: { codigoCliente: true, nombreCompleto: true, telefono: true }
+                        }
+                    }
+                }),
+                prisma.ticket.count({ where: { conciliado: false } }),
+                prisma.movimientoSantander22001022837.count({ where: { ticketId: null, abono: { gt: 0 } } }),
+                prisma.movimientoSantander65505732541.count({ where: { ticketId: null, abono: { gt: 0 } } }),
+                prisma.movimientoBanorte0330253963.count({ where: { ticketId: null, abono: { gt: 0 } } })
+            ]);
+
+            return NextResponse.json({
+                success: true,
+                ticketPendienteWhatsapp: {
+                    count: pendientes.length,
+                    items: pendientes
+                },
+                buzonTesoreriaPendiente: {
+                    count: buzon.length,
+                    items: buzon
+                },
+                ticketsNoConciliados: {
+                    total: noConciliadosCount,
+                    ultimos: noConciliados.map(t => ({
+                        id: t.id,
+                        legacyId: t.legacyId,
+                        contrato: t.cliente?.codigoCliente,
+                        cliente: t.cliente?.nombreCompleto,
+                        monto: t.monto,
+                        referencia: t.referencia,
+                        folio: t.folio,
+                        claveRastreo: t.claveRastreo,
+                        fecha: t.fecha,
+                        creadoEn: t.creadoEn,
+                        remitente: t.remitente
+                    }))
+                },
+                movimientosBancariosSinConciliar: {
+                    santander_22001022837: mb1,
+                    santander_65505732541: mb2,
+                    banorte_0330253963: mb3,
+                    total: mb1 + mb2 + mb3
+                }
+            });
+        }
+
         // --- ACCIÓN: OBTENER PAGOS PENDIENTES DE NOTIFICAR ---
         if (action === "pagos_pendientes_notificar") {
             const limitNum = parseInt(body.limit || '20') || 20;
