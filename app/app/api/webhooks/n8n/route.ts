@@ -50,7 +50,7 @@ export async function POST(req: Request) {
             const telRaw = (body.telefono || body.phone || remitente || '').replace(/\D/g, '');
             const cod = (body.contrato || body.codigoCliente || contrato || '').trim().toUpperCase();
             
-            let cliente = null;
+            let cliente: any = null;
             if (cod) {
                 cliente = await prisma.cliente.findFirst({
                     where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
@@ -99,6 +99,12 @@ export async function POST(req: Request) {
                                                 codigoCliente: codCli.toUpperCase(),
                                                 nombreCompleto: firstDoc.razonSocial || 'Cliente ContPAQi',
                                                 telefono: tel10,
+                                                fechaVenta: new Date(),
+                                                direccionCompleta: 'ContPAQi Sync',
+                                                descripcionProducto: 'Muebles',
+                                                diaPago: 'LUNES',
+                                                periodicidad: 'SEMANAL',
+                                                montoPago: 0,
                                                 saldoActual: saldoContpaqi,
                                                 limiteCredito: saldoContpaqi
                                             },
