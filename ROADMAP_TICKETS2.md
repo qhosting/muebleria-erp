@@ -106,6 +106,33 @@ flowchart TD
 
 ## 3. 🖥️ Mejoras en el Conciliador Bancario del ERP (`/dashboard/tesoreria/conciliador`)
 
+### 🎴 Diseño Detallado de Tarjetas de Conciliación (Réplica y Evolución de `anterior/conciliador.php`)
+* **Borde Lateral Indicador de Estado:** Borde izquierdo prominente en color rojo (`border-l-[6px] border-l-red-600`) para tickets pendientes, virando a verde esmeralda (`border-l-emerald-600`) al ser conciliados.
+* **Cabecera de Contrato y Cliente:** Despliegue en alta jerarquía visual del número de contrato, nombre completo del titular en mayúsculas, botón de `Ver Comprobante` y botón de acción directa `[ 🗑 Eliminar ]` con confirmación de seguridad.
+* **Cuadrícula de 8 Cajas de Metadatos del Ticket:**
+  1. `TICKET ID:` Código o ID único del comprobante.
+  2. `MONTO:` Monto exacto formateado en moneda mexicana.
+  3. `FECHA:` Fecha y hora de emisión del comprobante.
+  4. `FOLIO:` Folio de operación o autorización bancaria.
+  5. `GESTOR:` Gestor/cobrador asignado al contrato o ticket.
+  6. `REFERENCIA:` Número de referencia bancaria con botón de 1 clic para copiar al portapapeles.
+  7. `CLAVE RASTREO:` Clave alfanumérica SPEI con botón de 1 clic para copiar al portapapeles.
+  8. `REMITENTE:` Identificador de la cuenta o teléfono WhatsApp remitente.
+* **Filtro Numérico por Monto en Vivo (`Filtrar por monto:`):** Campo numérico editable con botones rápidos de `Monto Ticket ($...)` y `Ver Todos (N)` para ajustar los movimientos bancarios listados en milisegundos.
+* **Selector Enriquecido con Sugerencias y Mayor Detalle Bancario:**
+  - Clasificador inteligente `getSugerenciasParaTicket` con agrupación en `<optgroup label="⭐ Sugerencias Automáticas">` y `<optgroup label="📋 Selección Manual">`.
+  - Detección y rotulado de prioridades automáticas:
+    - ⚡ `SPEI Exacto`
+    - 🟢 `Contrato` en leyenda bancaria
+    - 🔵 `Folio/Ref`
+    - 🟣 `Nombre` del cliente
+    - 🔴 `Monto Exacto`
+  - Formato expandido de cada opción en el desplegable: `ID: {idx} | [{banco} · {cuenta}] | {fecha} {hora} | ${monto} | {concepto} | Rastreo: {rastreo} | Ref: {ref}`.
+* **Caja de Detalle Completo del Movimiento Seleccionado:** Al elegir un movimiento del desplegable, se renderiza la ficha bancaria exhaustiva con banco destino, cuenta, saldo contable, banco origen, hora de operación, motivo de pago, cuenta ordenante y leyenda detallada.
+* **Botón Principal de Conciliación:** Botón verde prominente `[ ✓ Conciliar Ticket ]` que valida y asocia el pago en banco en un solo paso.
+* **Soporte de API para Eliminación (`action: 'eliminar'`):** Se agregó soporte en el backend `/api/tesoreria/conciliador` para eliminar tickets huérfanos o inválidos de forma limpia en la base de datos.
+
+### ⚡ Filtros y Selección Selectiva en Modal de Coincidencias SPEI
 * **Buscador Dinámico en Modal de Coincidencias SPEI:** Filtrado en tiempo real por Nombre del Cliente, Contrato DP/DQ, Folio o Clave de Rastreo SPEI.
 * **Filtros Rápidos por Prefijo de Contrato:** Botones interactivos `[Todos (N)]`, `[Solo DP (N)]`, `[Solo DQ (N)]`.
 * **Filtros Interactivos por Etiqueta / Método de Coincidencia:** Píldoras con conteo en vivo para ver y aislar:

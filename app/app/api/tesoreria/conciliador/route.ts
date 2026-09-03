@@ -398,6 +398,17 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const { ticketId, movimientoId, tabla, action } = body;
 
+        if (action === 'eliminar' || body.eliminar) {
+            if (!ticketId) return NextResponse.json({ error: 'ID de ticket requerido' }, { status: 400 });
+            await prisma.pago.deleteMany({
+                where: { ticketId }
+            });
+            await prisma.ticket.delete({
+                where: { id: ticketId }
+            });
+            return NextResponse.json({ success: true, message: 'Ticket eliminado exitosamente' });
+        }
+
         if (action === 'descartar' || body.descartar) {
             if (!ticketId) return NextResponse.json({ error: 'ID de ticket requerido' }, { status: 400 });
             await prisma.ticket.update({

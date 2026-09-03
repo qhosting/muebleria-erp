@@ -37,7 +37,8 @@ import {
     FileText,
     Copy,
     LayoutList,
-    LayoutGrid
+    LayoutGrid,
+    Trash2
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -234,6 +235,83 @@ function getCuentaOrdenante(mov: any): string {
     return "—";
 }
 
+function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalIndexMap: Map<string, number>) {
+    const montoTicket = parseFloat(ticket.monto?.toString() || "0");
+    const contratoNorm = (ticket.cliente?.codigoCliente || ticket.contrato || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const folioNorm = (ticket.folio || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const refNorm = (ticket.referencia || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const rastreoNorm = (ticket.claveRastreo || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const nombreCompleto = (ticket.cliente?.nombreCompleto || "").toUpperCase();
+    const palabrasNombre = nombreCompleto
+        .split(/\s+/)
+        .filter((w: string) => w.length >= 4 && !['DE', 'DEL', 'LOS', 'LAS', 'SAN', 'SANTA', 'MARIA', 'JOSE'].includes(w));
+
+    const sugerencias: any[] = [];
+    const manuales: any[] = [];
+
+    for (const mov of movsDisponibles) {
+        const valKey = `${mov.tabla}__${mov.id}`;
+        const movIdx = globalIndexMap.get(valKey) ?? 0;
+        const movAbono = parseFloat(mov.abono?.toString() || "0");
+        const isMontoExact = Math.abs(montoTicket - movAbono) < 0.01;
+
+        const bancoNombre = mov.bancoDestino || (mov.tabla?.includes("Banorte") ? "BANORTE" : "SANTANDER");
+        const ctaDestino = mov.cuentaDestino || (mov.tabla?.includes("22001022837") ? "22001022837" : mov.tabla?.includes("65505732541") ? "65505732541" : "0330253963");
+        const fechaStr = mov.fechaOperacion ? mov.fechaOperacion.toString().slice(0, 10) : "";
+        const horaStr = extractHoraOperacion(mov);
+        const horaDisplay = horaStr ? ` | Hr: ${horaStr}` : "";
+
+        const movRaw = `${mov.claveRastreo || ''} ${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''} ${mov.referencia || ''}`.toUpperCase();
+        const movNorm = movRaw.replace(/[^A-Z0-9]/g, "");
+
+        let prioridad = 999;
+        let etiquetaPrioridad = "";
+
+        if (rastreoNorm && rastreoNorm.length >= 6 && movNorm.includes(rastreoNorm)) {
+            prioridad = 1;
+            etiquetaPrioridad = "⚡ SPEI Exacto";
+        } else if (contratoNorm && contratoNorm.length >= 5 && movNorm.includes(contratoNorm)) {
+            prioridad = 2;
+            etiquetaPrioridad = "🟢 Contrato";
+        } else if ((folioNorm && folioNorm.length >= 6 && movNorm.includes(folioNorm)) || (refNorm && refNorm.length >= 6 && movNorm.includes(refNorm))) {
+            prioridad = 3;
+            etiquetaPrioridad = "🔵 Folio/Ref";
+        } else if (palabrasNombre.length > 0 && palabrasNombre.filter((p: string) => movRaw.includes(p)).length >= 2) {
+            prioridad = 4;
+            etiquetaPrioridad = "🟣 Nombre";
+        } else if (isMontoExact) {
+            prioridad = 5;
+            etiquetaPrioridad = "🔴 Monto Exacto";
+        }
+
+        const descFull = (mov.descripcionDetallada || mov.concepto || mov.descripcionGeneral || "ABONO").trim();
+        const descCorta = descFull.length > 55 ? `${descFull.slice(0, 55)}...` : descFull;
+        const rastreoTxt = mov.claveRastreo ? ` | Rastreo: ${mov.claveRastreo}` : "";
+        const refTxt = mov.referencia ? ` | Ref: ${mov.referencia}` : "";
+
+        const label = `ID: ${movIdx} | [${bancoNombre} ${ctaDestino}] | ${fechaStr}${horaDisplay} | $${movAbono.toFixed(2)} | ${descCorta}${refTxt}${rastreoTxt}${etiquetaPrioridad ? ` (${etiquetaPrioridad})` : ""}`;
+
+        const item = {
+            valKey,
+            movIdx,
+            mov,
+            prioridad,
+            etiquetaPrioridad,
+            label
+        };
+
+        if (prioridad < 999) {
+            sugerencias.push(item);
+        } else {
+            manuales.push(item);
+        }
+    }
+
+    sugerencias.sort((a, b) => a.prioridad - b.prioridad);
+
+    return { sugerencias, manuales };
+}
+
 export default function ConciliadorPage() {
     const [tickets, setTickets] = useState<any[]>([]);
     const [movimientos, setMovimientos] = useState<any[]>([]);
@@ -273,7 +351,7 @@ export default function ConciliadorPage() {
     const [previewMatches, setPreviewMatches] = useState<any[] | null>(null);
     const [selectedMatches, setSelectedMatches] = useState<Record<string, boolean>>({});
     const [isConfirmingSpei, setIsConfirmingSpei] = useState(false);
-    const [vistaModo, setVistaModo] = useState<"tabla" | "tarjetas">("tabla");
+    const [vistaModo, setVistaModo] = useState<"tabla" | "tarjetas">("tarjetas");
 
     // Filtros y búsqueda para el Modal de Aprobación SPEI
     const [speiSearchText, setSpeiSearchText] = useState<string>("");
@@ -643,6 +721,35 @@ export default function ConciliadorPage() {
             }
         } catch (error) {
             console.error("Error descartando ticket:", error);
+            toast.error("Error de conexión con el servidor");
+        } finally {
+            setActionLoading(prev => ({ ...prev, [ticketId]: false }));
+        }
+    };
+
+    const handleEliminarTicket = async (ticketId: string) => {
+        const confirm = window.confirm("¿Eliminar ticket? Esta acción no se puede deshacer.");
+        if (!confirm) return;
+
+        setActionLoading(prev => ({ ...prev, [ticketId]: true }));
+        try {
+            const res = await fetch("/api/tesoreria/conciliador", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "eliminar",
+                    ticketId
+                })
+            });
+
+            if (res.ok) {
+                toast.success("Ticket eliminado exitosamente");
+                setTickets(prev => prev.filter(t => t.id !== ticketId));
+            } else {
+                toast.error("Error al eliminar el ticket");
+            }
+        } catch (error) {
+            console.error("Error eliminando ticket:", error);
             toast.error("Error de conexión con el servidor");
         } finally {
             setActionLoading(prev => ({ ...prev, [ticketId]: false }));
@@ -1128,21 +1235,23 @@ export default function ConciliadorPage() {
                     <div className="space-y-6">
                         {tickets.map((ticket) => {
                             const montoTicketNum = parseFloat(ticket.monto?.toString() || "0");
-                            const currentAmountFilter = amountFilterByTicket[ticket.id] ?? montoTicketNum.toFixed(2);
+                            const currentAmountFilter = amountFilterByTicket[ticket.id] !== undefined
+                                ? amountFilterByTicket[ticket.id]
+                                : montoTicketNum.toFixed(2);
                             const selectedMovValue = selectedMovByTicket[ticket.id];
-                            const tienePago = ticket.pagos && ticket.pagos.length > 0;
-                            const pagoPrincipal = tienePago ? ticket.pagos[0] : null;
-                            const folioDisplay = ticket.folio || ticket.referencia || (ticket.legacyId ? `#${ticket.legacyId}` : ticket.id);
                             const estaConciliado = ticket.conciliado;
 
                             // Filtrar los movimientos disponibles para este ticket según el filtro de monto
                             const filteredMovimientos = movimientos.filter((m) => {
-                                if (currentAmountFilter === "TODOS") return true;
+                                if (!currentAmountFilter || currentAmountFilter === "TODOS") return true;
                                 const filterNum = parseFloat(currentAmountFilter);
                                 const movAbonoNum = parseFloat(m.abono?.toString() || "0");
                                 if (isNaN(filterNum)) return true;
                                 return Math.abs(movAbonoNum - filterNum) < 0.01;
                             });
+
+                            // Calcular sugerencias automáticas inteligentes y resto manual
+                            const { sugerencias, manuales } = getSugerenciasParaTicket(ticket, filteredMovimientos, globalMovIndexMap);
 
                             // Obtener el objeto del movimiento seleccionado actualmente
                             let selectedMovObj: any = null;
@@ -1156,26 +1265,26 @@ export default function ConciliadorPage() {
                             return (
                                 <div
                                     key={ticket.id}
-                                    className={`bg-white rounded-xl border border-gray-200 border-l-4 ${
-                                        estaConciliado ? "border-l-emerald-600 bg-emerald-50/10" : "border-l-blue-600"
+                                    className={`bg-white rounded-lg border border-gray-200 border-l-[6px] ${
+                                        estaConciliado ? "border-l-emerald-600 bg-emerald-50/10" : "border-l-red-600"
                                     } p-6 shadow-sm relative transition-all`}
                                 >
                                     {/* Cabecera del Contrato */}
-                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 mb-4 border-b border-gray-200">
                                         <div>
                                             <div className="flex items-center gap-2">
-                                                <h2 className="text-2xl font-black text-gray-900 tracking-tight">
-                                                    Contrato: {ticket.cliente?.codigoCliente || "SIN_CONTRATO"}
+                                                <h2 className="text-xl font-black text-gray-900 tracking-tight">
+                                                    Contrato: {ticket.cliente?.codigoCliente || ticket.contrato || "SIN_CONTRATO"}
                                                 </h2>
                                                 {estaConciliado ? (
-                                                    <Badge variant="success" className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs font-bold">
+                                                    <Badge variant="success" className="bg-emerald-100 text-emerald-800 border-emerald-300 text-xs font-bold">
                                                         <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                                                         Conciliado
                                                     </Badge>
                                                 ) : (
-                                                    <Badge variant="warning" className="bg-amber-100 text-amber-800 border-amber-200 text-xs font-bold">
+                                                    <Badge variant="warning" className="bg-amber-100 text-amber-800 border-amber-300 text-xs font-bold">
                                                         <AlertCircle className="w-3.5 h-3.5 mr-1" />
-                                                        No Conciliado
+                                                        Pendiente
                                                     </Badge>
                                                 )}
                                             </div>
@@ -1195,54 +1304,76 @@ export default function ConciliadorPage() {
                                                 <Eye className="w-3.5 h-3.5" />
                                                 Ver Comprobante
                                             </Button>
-                                            {!estaConciliado && (
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    disabled={actionLoading[ticket.id]}
-                                                    onClick={() => handleDescartar(ticket.id)}
-                                                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 h-8 rounded text-xs transition-colors shadow-none"
-                                                >
-                                                    {actionLoading[ticket.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Descartar"}
-                                                </Button>
-                                            )}
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                disabled={actionLoading[ticket.id]}
+                                                onClick={() => handleEliminarTicket(ticket.id)}
+                                                className="bg-red-600 hover:bg-red-700 text-white font-bold px-3.5 h-8 rounded text-xs flex items-center gap-1.5 shadow-none transition-colors"
+                                                title="Eliminar ticket"
+                                            >
+                                                {actionLoading[ticket.id] ? (
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                ) : (
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                )}
+                                                Eliminar
+                                            </Button>
                                         </div>
                                     </div>
 
-                                    {/* Cajas de Información del Ticket (8 campos) */}
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 mt-4">
-                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800" title={`ID: ${ticket.id}`}>
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">TICKET ID:</span>
-                                            <span className="font-mono font-bold text-gray-900 truncate block mt-0.5">
+                                    {/* Cajas de Información del Ticket (8 campos en 2 filas) */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                                        <div className="bg-[#f8f9fa] border border-[#e9ecef] rounded-lg p-3">
+                                            <strong className="text-[10px] font-bold text-[#495057] uppercase tracking-wider block mb-1">
+                                                TICKET ID
+                                            </strong>
+                                            <span className="font-semibold text-xs text-gray-900 block font-mono truncate">
                                                 {ticket.legacyId ? ticket.legacyId : ticket.id}
                                             </span>
                                         </div>
-                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">MONTO:</span>
-                                            <span className="font-bold text-gray-900 block mt-0.5">{formatCurrency(montoTicketNum)}</span>
+                                        <div className="bg-[#f8f9fa] border border-[#e9ecef] rounded-lg p-3">
+                                            <strong className="text-[10px] font-bold text-[#495057] uppercase tracking-wider block mb-1">
+                                                MONTO
+                                            </strong>
+                                            <span className="font-bold text-xs text-gray-900 block">
+                                                {formatCurrency(montoTicketNum)}
+                                            </span>
                                         </div>
-                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">FECHA:</span>
-                                            <span className="font-medium text-gray-900 truncate block mt-0.5" title={formatDateTime(ticket.fecha || ticket.creadoEn)}>
+                                        <div className="bg-[#f8f9fa] border border-[#e9ecef] rounded-lg p-3">
+                                            <strong className="text-[10px] font-bold text-[#495057] uppercase tracking-wider block mb-1">
+                                                FECHA
+                                            </strong>
+                                            <span className="font-medium text-xs text-gray-900 block truncate" title={formatDateTime(ticket.fecha || ticket.creadoEn)}>
                                                 {formatDateTime(ticket.fecha || ticket.creadoEn)}
                                             </span>
                                         </div>
-                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">FOLIO:</span>
-                                            <span className="font-mono font-semibold text-gray-900 truncate block mt-0.5">{ticket.folio ? ticket.folio : "null"}</span>
+                                        <div className="bg-[#f8f9fa] border border-[#e9ecef] rounded-lg p-3">
+                                            <strong className="text-[10px] font-bold text-[#495057] uppercase tracking-wider block mb-1">
+                                                FOLIO
+                                            </strong>
+                                            <span className="font-mono font-semibold text-xs text-gray-900 block truncate">
+                                                {ticket.folio ? ticket.folio : "null"}
+                                            </span>
                                         </div>
-                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">GESTOR:</span>
-                                            <span className="font-bold text-blue-900 truncate block mt-0.5">{gestorDisplay}</span>
+                                        <div className="bg-[#f8f9fa] border border-[#e9ecef] rounded-lg p-3">
+                                            <strong className="text-[10px] font-bold text-[#495057] uppercase tracking-wider block mb-1">
+                                                GESTOR
+                                            </strong>
+                                            <span className="font-bold text-xs text-blue-900 block truncate">
+                                                {gestorDisplay}
+                                            </span>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mt-2.5">
-                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">REF:</span>
-                                            <div className="flex items-center justify-between gap-1 mt-0.5">
-                                                <span className="font-mono font-semibold text-gray-900 truncate" title={ticket.referencia || "—"}>
-                                                    {ticket.referencia || "—"}
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                                        <div className="bg-[#f8f9fa] border border-[#e9ecef] rounded-lg p-3">
+                                            <strong className="text-[10px] font-bold text-[#495057] uppercase tracking-wider block mb-1">
+                                                REFERENCIA
+                                            </strong>
+                                            <div className="flex items-center justify-between gap-1">
+                                                <span className="font-mono font-semibold text-xs text-gray-900 truncate" title={ticket.referencia || "null"}>
+                                                    {ticket.referencia || "null"}
                                                 </span>
                                                 {ticket.referencia && (
                                                     <button
@@ -1256,11 +1387,13 @@ export default function ConciliadorPage() {
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">RASTREO SPEI:</span>
-                                            <div className="flex items-center justify-between gap-1 mt-0.5">
-                                                <span className="font-mono font-semibold text-blue-700 truncate" title={ticket.claveRastreo || "—"}>
-                                                    {ticket.claveRastreo || "—"}
+                                        <div className="bg-[#f8f9fa] border border-[#e9ecef] rounded-lg p-3">
+                                            <strong className="text-[10px] font-bold text-[#495057] uppercase tracking-wider block mb-1">
+                                                CLAVE RASTREO
+                                            </strong>
+                                            <div className="flex items-center justify-between gap-1">
+                                                <span className="font-mono font-bold text-xs text-blue-700 truncate" title={ticket.claveRastreo || "null"}>
+                                                    {ticket.claveRastreo || "null"}
                                                 </span>
                                                 {ticket.claveRastreo && (
                                                     <button
@@ -1274,56 +1407,15 @@ export default function ConciliadorPage() {
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">CONCEPTO:</span>
-                                            <span className="font-semibold text-gray-900 truncate block mt-0.5" title={ticket.concepto || "—"}>
-                                                {ticket.concepto || "—"}
-                                            </span>
-                                        </div>
-                                        <div className="bg-gray-50/90 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800">
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">ORDENANTE / REMITENTE:</span>
-                                            <span className="font-medium text-gray-900 truncate block mt-0.5" title={ticket.remitente || ticket.cliente?.nombreCompleto || "—"}>
-                                                {ticket.remitente || ticket.cliente?.nombreCompleto || "—"}
+                                        <div className="bg-[#f8f9fa] border border-[#e9ecef] rounded-lg p-3">
+                                            <strong className="text-[10px] font-bold text-[#495057] uppercase tracking-wider block mb-1">
+                                                REMITENTE
+                                            </strong>
+                                            <span className="font-medium text-xs text-gray-900 block truncate" title={ticket.remitente || ticket.cliente?.nombreCompleto || "null"}>
+                                                {ticket.remitente || ticket.cliente?.nombreCompleto || "null"}
                                             </span>
                                         </div>
                                     </div>
-
-                                    {/* Caja de Pago Vinculado a este Ticket */}
-                                    {tienePago && pagoPrincipal ? (
-                                        <div className="mt-3 bg-emerald-50/90 border border-emerald-200 rounded-lg p-2.5 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-200 text-emerald-900">
-                                                    <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-700" />
-                                                    Pago Vinculado
-                                                </span>
-                                                <span className="font-mono font-bold text-gray-900">
-                                                    ID: #{pagoPrincipal.id}
-                                                </span>
-                                                {pagoPrincipal.metodoPago && (
-                                                    <span className="text-[11px] text-emerald-800 font-medium">
-                                                        ({pagoPrincipal.metodoPago})
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="text-[11px] font-mono text-emerald-900 flex items-center gap-2">
-                                                <span>Monto: <strong>{formatCurrency(pagoPrincipal.monto)}</strong></span>
-                                                <span>•</span>
-                                                <span>{formatDateTimeLocal(pagoPrincipal.fechaPago)}</span>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="mt-3 bg-amber-50/80 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-900 flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-200 text-amber-900">
-                                                    <AlertCircle className="w-3 h-3 mr-1 text-amber-700" />
-                                                    Sin Pago en Sistema
-                                                </span>
-                                                <span className="text-amber-800 text-[11px]">
-                                                    El abono se aplicará y registrará automáticamente a la cuenta al conciliar
-                                                </span>
-                                            </div>
-                                        </div>
-                                    )}
 
                                     {/* Separador punteado */}
                                     <div className="border-t border-dotted border-gray-300 my-4" />
@@ -1331,32 +1423,63 @@ export default function ConciliadorPage() {
                                     {/* Sección de Selección y Filtrado de Movimiento Bancario */}
                                     <div className="space-y-3">
                                         <div>
-                                            <label className="text-xs font-semibold text-gray-700 mb-1 block">
-                                                Filtrar:
+                                            <label className="text-xs font-bold text-gray-800 block mb-1">
+                                                Filtrar por monto:
                                             </label>
-                                            <select
-                                                value={currentAmountFilter}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    setAmountFilterByTicket(prev => ({ ...prev, [ticket.id]: val }));
-                                                }}
-                                                className="w-full h-9 bg-white border border-gray-300 rounded-md px-3 text-xs text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
-                                            >
-                                                <option value={montoTicketNum.toFixed(2)}>{montoTicketNum.toFixed(2)} (Monto del ticket)</option>
-                                                <option value="TODOS">Todos los montos</option>
-                                                {/* Obtener otros montos únicos presentes en los movimientos */}
-                                                {Array.from(new Set(movimientos.map(m => parseFloat(m.abono?.toString() || "0").toFixed(2))))
-                                                    .filter(amt => amt !== montoTicketNum.toFixed(2))
-                                                    .sort((a, b) => parseFloat(a) - parseFloat(b))
-                                                    .map(amt => (
-                                                        <option key={amt} value={amt}>{amt}</option>
-                                                    ))
-                                                }
-                                            </select>
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={currentAmountFilter === "TODOS" ? "" : currentAmountFilter}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setAmountFilterByTicket(prev => ({ ...prev, [ticket.id]: val }));
+                                                    }}
+                                                    placeholder="0.00"
+                                                    className="w-full h-9 bg-white border border-gray-300 rounded-md px-3 text-xs font-mono font-bold text-gray-900"
+                                                />
+                                                {currentAmountFilter !== montoTicketNum.toFixed(2) && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => setAmountFilterByTicket(prev => ({ ...prev, [ticket.id]: montoTicketNum.toFixed(2) }))}
+                                                        className="h-9 text-[11px] px-2.5 text-gray-700 shrink-0 font-semibold"
+                                                        title="Restablecer al monto original del ticket"
+                                                    >
+                                                        Monto Ticket (${montoTicketNum.toFixed(2)})
+                                                    </Button>
+                                                )}
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setAmountFilterByTicket(prev => ({ ...prev, [ticket.id]: "TODOS" }))}
+                                                    className={`h-9 text-[11px] px-2.5 shrink-0 font-semibold ${currentAmountFilter === "TODOS" ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-100"}`}
+                                                    title="Ver todos los movimientos sin filtrar por monto"
+                                                >
+                                                    Ver Todos ({movimientos.length})
+                                                </Button>
+                                            </div>
                                         </div>
 
-                                        {/* Dropdown de Movimiento Bancario */}
-                                        <div>
+                                        {/* Dropdown de Movimiento Bancario con Sugerencias y Manual */}
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center gap-2">
+                                                <label className="text-xs font-bold text-gray-800 block">
+                                                    Sugerencias / Selección Manual:
+                                                </label>
+                                                {sugerencias.length > 0 ? (
+                                                    <Badge className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs">
+                                                        ⭐ {sugerencias.length} sugerencia{sugerencias.length > 1 ? "s" : ""}
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                                                        Sin sugerencias
+                                                    </Badge>
+                                                )}
+                                            </div>
+
                                             <select
                                                 value={selectedMovValue || ""}
                                                 onChange={(e) => {
@@ -1364,31 +1487,29 @@ export default function ConciliadorPage() {
                                                     setSelectedMovByTicket(prev => ({ ...prev, [ticket.id]: val }));
                                                 }}
                                                 disabled={estaConciliado}
-                                                className="w-full h-9 bg-white border border-gray-300 rounded-md px-3 text-xs text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono truncate disabled:bg-gray-100"
+                                                className="w-full h-10 bg-white border border-gray-300 rounded-md px-3 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono truncate disabled:bg-gray-100 shadow-xs"
                                             >
-                                                <option value="">-- Seleccionar Movimiento Bancario --</option>
-                                                {filteredMovimientos.map((mov, idx) => {
-                                                    const valKey = `${mov.tabla}__${mov.id}`;
-                                                    const movIndex = globalMovIndexMap.get(valKey) ?? idx;
-                                                    const fechaOperacionStr = mov.fechaOperacion ? mov.fechaOperacion.toString().slice(0, 10) : "N/A";
-                                                    const horaOperacionStr = extractHoraOperacion(mov);
-                                                    const horaLabel = horaOperacionStr ? ` | Hr: ${horaOperacionStr}` : "";
-                                                    const montoMov = parseFloat(mov.abono?.toString() || "0").toFixed(2);
-                                                    const bancoLabel = mov.bancoDestino || (mov.cuentaDestino ? `CTA ${mov.cuentaDestino}` : "BANCO");
-                                                    const rastreoShort = mov.claveRastreo ? ` | Rastreo: ${mov.claveRastreo}` : "";
-                                                    const refShort = mov.referencia ? ` | Ref: ${mov.referencia}` : "";
-                                                    const conceptoShort = mov.concepto ? ` | Concepto: ${mov.concepto}` : ` | Desc: ${mov.descripcionGeneral || "ABONO"}`;
-                                                    const label = `ID: ${movIndex} | ${fechaOperacionStr}${horaLabel} | $${montoMov} | [${bancoLabel}]${conceptoShort}${refShort}${rastreoShort}`;
-                                                    return (
-                                                        <option key={valKey} value={valKey}>
-                                                            {label}
+                                                <option value="">-- Seleccionar movimiento bancario --</option>
+                                                {sugerencias.length > 0 && (
+                                                    <optgroup label={`⭐ Sugerencias Automáticas (${sugerencias.length})`}>
+                                                        {sugerencias.map((sug) => (
+                                                            <option key={sug.valKey} value={sug.valKey}>
+                                                                {sug.label}
+                                                            </option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
+                                                <optgroup label={`📋 Selección Manual (${manuales.length} movimientos)`}>
+                                                    {manuales.map((mov) => (
+                                                        <option key={mov.valKey} value={mov.valKey}>
+                                                            {mov.label}
                                                         </option>
-                                                    );
-                                                })}
+                                                    ))}
+                                                </optgroup>
                                             </select>
                                         </div>
 
-                                        {/* Vista Previa Detallada del Movimiento Seleccionado (Cajas Completas) */}
+                                        {/* Vista Previa Detallada del Movimiento Seleccionado (Caja Completa) */}
                                         {selectedMovObj && (() => {
                                             const selectedValKey = `${selectedMovObj.tabla}__${selectedMovObj.id}`;
                                             const selectedMovIdx = globalMovIndexMap.get(selectedValKey) ?? 0;
@@ -1411,21 +1532,21 @@ export default function ConciliadorPage() {
                                             const descDetalladaLimpia = cleanText(selectedMovObj.descripcionDetallada);
 
                                             return (
-                                                <div className="bg-slate-50 border border-slate-300 rounded-xl p-3.5 text-xs space-y-3 shadow-sm">
+                                                <div className="bg-[#f8f9fa] border border-[#e9ecef] rounded-lg p-4 text-xs space-y-3 shadow-xs">
                                                     {/* Encabezado del Movimiento */}
-                                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 pb-2.5">
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-950 border border-blue-200">
                                                                 🏦 Movimiento Bancario: ID #{selectedMovIdx}
                                                             </span>
-                                                            <span className="text-xs font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                                            <span className="text-xs font-bold text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-200">
                                                                 {bancoDestinoStr} · Cta: {cuentaDestinoStr}
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center gap-3">
                                                             {selectedMovObj.saldo !== undefined && selectedMovObj.saldo !== null && (
-                                                                <span className="text-[11px] text-slate-500 font-mono">
-                                                                    Saldo: <strong className="text-slate-800">{formatCurrency(selectedMovObj.saldo)}</strong>
+                                                                <span className="text-[11px] text-gray-500 font-mono">
+                                                                    Saldo: <strong className="text-gray-800">{formatCurrency(selectedMovObj.saldo)}</strong>
                                                                 </span>
                                                             )}
                                                             <span className="font-black text-base text-emerald-700 font-mono">
@@ -1436,27 +1557,27 @@ export default function ConciliadorPage() {
 
                                                     {/* Grid 1: Fechas, Horas e Identificadores */}
                                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                                        <div className="bg-white border border-slate-200 rounded-lg p-2">
-                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">ID MOVIMIENTO:</span>
-                                                            <span className="font-mono font-bold text-slate-900 block mt-0.5">
+                                                        <div className="bg-white border border-gray-200 rounded-lg p-2">
+                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">ID MOVIMIENTO:</span>
+                                                            <span className="font-mono font-bold text-gray-900 block mt-0.5">
                                                                 ID: {selectedMovIdx}
                                                             </span>
                                                         </div>
-                                                        <div className="bg-white border border-slate-200 rounded-lg p-2">
-                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">FECHA OPERACIÓN:</span>
-                                                            <span className="font-semibold text-slate-900 block mt-0.5">
+                                                        <div className="bg-white border border-gray-200 rounded-lg p-2">
+                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">FECHA OPERACIÓN:</span>
+                                                            <span className="font-semibold text-gray-900 block mt-0.5">
                                                                 {fechaOperacionStr}
                                                             </span>
                                                         </div>
-                                                        <div className="bg-white border border-slate-200 rounded-lg p-2">
-                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">HORA OPERACIÓN:</span>
-                                                            <span className="font-mono font-semibold text-slate-900 block mt-0.5">
+                                                        <div className="bg-white border border-gray-200 rounded-lg p-2">
+                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">HORA OPERACIÓN:</span>
+                                                            <span className="font-mono font-semibold text-gray-900 block mt-0.5">
                                                                 {horaStr || "—"}
                                                             </span>
                                                         </div>
-                                                        <div className="bg-white border border-slate-200 rounded-lg p-2">
-                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">BANCO ORIGEN:</span>
-                                                            <span className="font-bold text-slate-900 block mt-0.5 truncate" title={selectedMovObj.bancoOrigen || "—"}>
+                                                        <div className="bg-white border border-gray-200 rounded-lg p-2">
+                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">BANCO ORIGEN:</span>
+                                                            <span className="font-bold text-gray-900 block mt-0.5 truncate" title={selectedMovObj.bancoOrigen || "—"}>
                                                                 {cleanText(selectedMovObj.bancoOrigen)}
                                                             </span>
                                                         </div>
@@ -1464,14 +1585,14 @@ export default function ConciliadorPage() {
 
                                                     {/* Grid 2: Referencias, SPEI y Cuentas Emisoras */}
                                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                                        <div className="bg-white border border-slate-200 rounded-lg p-2">
-                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">REFERENCIA:</span>
-                                                            <span className="font-mono font-bold text-slate-900 block mt-0.5 truncate" title={referenciaLimpia}>
+                                                        <div className="bg-white border border-gray-200 rounded-lg p-2">
+                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">REFERENCIA:</span>
+                                                            <span className="font-mono font-bold text-gray-900 block mt-0.5 truncate" title={referenciaLimpia}>
                                                                 {referenciaLimpia}
                                                             </span>
                                                         </div>
-                                                        <div className="bg-white border border-slate-200 rounded-lg p-2 sm:col-span-2">
-                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">CLAVE DE RASTREO SPEI:</span>
+                                                        <div className="bg-white border border-gray-200 rounded-lg p-2 sm:col-span-2">
+                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">CLAVE DE RASTREO SPEI:</span>
                                                             <span className="font-mono font-bold text-blue-700 bg-blue-50/70 px-1.5 py-0.5 rounded border border-blue-100 block mt-0.5 break-all" title={claveRastreoLimpia}>
                                                                 {claveRastreoLimpia}
                                                             </span>
@@ -1480,15 +1601,15 @@ export default function ConciliadorPage() {
 
                                                     {/* Grid 3: Concepto, Descripción y Ordenante */}
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                        <div className="bg-white border border-slate-200 rounded-lg p-2.5">
-                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">CONCEPTO / MOTIVO DE PAGO:</span>
-                                                            <span className="font-semibold text-slate-900 block mt-1 break-words">
+                                                        <div className="bg-white border border-gray-200 rounded-lg p-2.5">
+                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">CONCEPTO / MOTIVO DE PAGO:</span>
+                                                            <span className="font-semibold text-gray-900 block mt-1 break-words">
                                                                 {conceptoLimpio}
                                                             </span>
                                                         </div>
-                                                        <div className="bg-white border border-slate-200 rounded-lg p-2.5">
-                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">ORDENANTE / CUENTA EMISORA:</span>
-                                                            <span className="font-mono font-medium text-slate-800 block mt-1 break-words">
+                                                        <div className="bg-white border border-gray-200 rounded-lg p-2.5">
+                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">ORDENANTE / CUENTA EMISORA:</span>
+                                                            <span className="font-mono font-medium text-gray-800 block mt-1 break-words">
                                                                 {cuentaEmisorLimpia !== "—" ? cuentaEmisorLimpia : (descDetalladaLimpia !== "—" ? descDetalladaLimpia : "—")}
                                                             </span>
                                                         </div>
@@ -1496,9 +1617,9 @@ export default function ConciliadorPage() {
 
                                                     {/* Grid 4: Descripciones Adicionales si existen */}
                                                     {(descDetalladaLimpia !== "—" && descDetalladaLimpia !== conceptoLimpio) && (
-                                                        <div className="bg-white border border-slate-200 rounded-lg p-2.5">
-                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">DESCRIPCIÓN DETALLADA / LEYENDA:</span>
-                                                            <span className="text-slate-700 block mt-1 break-words font-mono text-[11px]">
+                                                        <div className="bg-white border border-gray-200 rounded-lg p-2.5">
+                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">DESCRIPCIÓN DETALLADA / LEYENDA:</span>
+                                                            <span className="text-gray-700 block mt-1 break-words font-mono text-[11px]">
                                                                 {descDetalladaLimpia}
                                                             </span>
                                                         </div>
@@ -1509,7 +1630,7 @@ export default function ConciliadorPage() {
 
                                         {/* Botón Grande de Conciliar */}
                                         {estaConciliado ? (
-                                            <div className="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold py-2.5 rounded-lg text-sm text-center flex items-center justify-center gap-2 mt-2">
+                                            <div className="w-full bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold py-3 rounded-lg text-sm text-center flex items-center justify-center gap-2 mt-4">
                                                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                                                 Ticket Conciliado en Banco
                                             </div>
@@ -1518,14 +1639,14 @@ export default function ConciliadorPage() {
                                                 type="button"
                                                 onClick={() => handleConciliarPago(ticket)}
                                                 disabled={actionLoading[ticket.id] || !selectedMovObj}
-                                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center justify-center gap-2 mt-2"
+                                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg text-sm transition-all shadow-sm flex items-center justify-center gap-2 mt-4 disabled:bg-gray-200 disabled:text-gray-400"
                                             >
                                                 {actionLoading[ticket.id] ? (
                                                     <Loader2 className="w-4 h-4 animate-spin" />
                                                 ) : (
-                                                    <CheckCircle2 className="w-4 h-4" />
+                                                    <Check className="w-4 h-4 stroke-[3]" />
                                                 )}
-                                                Conciliar Pago
+                                                ✓ Conciliar Ticket
                                             </Button>
                                         )}
                                     </div>
