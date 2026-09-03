@@ -278,6 +278,7 @@ export default function ConciliadorPage() {
     // Filtros y búsqueda para el Modal de Aprobación SPEI
     const [speiSearchText, setSpeiSearchText] = useState<string>("");
     const [speiCodigoFilter, setSpeiCodigoFilter] = useState<"TODOS" | "DP" | "DQ">("TODOS");
+    const [speiTipoFilter, setSpeiTipoFilter] = useState<string>("TODOS");
 
     useEffect(() => {
         fetchData();
@@ -376,6 +377,7 @@ export default function ConciliadorPage() {
                     setPreviewMatches(data.matches);
                     setSpeiSearchText("");
                     setSpeiCodigoFilter("TODOS");
+                    setSpeiTipoFilter("TODOS");
                     // Por defecto, marcar todas las coincidencias como aprobadas/seleccionadas
                     const initialSelection: Record<string, boolean> = {};
                     data.matches.forEach((m: any) => {
@@ -396,20 +398,31 @@ export default function ConciliadorPage() {
         }
     };
 
-    // Estadísticas de códigos DP / DQ en las coincidencias encontradas
+    // Estadísticas de códigos DP / DQ y tipos de coincidencia (Etiquetas)
     const speiStats = useMemo(() => {
-        if (!previewMatches) return { total: 0, dp: 0, dq: 0, otros: 0 };
+        if (!previewMatches) return { 
+            total: 0, 
+            dp: 0, 
+            dq: 0, 
+            otros: 0, 
+            byTipo: {} as Record<string, number> 
+        };
         let dp = 0, dq = 0, otros = 0;
+        const byTipo: Record<string, number> = {};
+
         previewMatches.forEach(m => {
             const c = (m.ticket?.contrato || "").toUpperCase();
             if (c.startsWith("DP")) dp++;
             else if (c.startsWith("DQ")) dq++;
             else otros++;
+
+            const tipo = m.tipoMatch || "SUGERENCIA";
+            byTipo[tipo] = (byTipo[tipo] || 0) + 1;
         });
-        return { total: previewMatches.length, dp, dq, otros };
+        return { total: previewMatches.length, dp, dq, otros, byTipo };
     }, [previewMatches]);
 
-    // Coincidencias filtradas según búsqueda de texto y tipo de código (DP/DQ)
+    // Coincidencias filtradas según búsqueda de texto, tipo de código (DP/DQ) y etiqueta (tipoMatch)
     const filteredPreviewMatches = useMemo(() => {
         if (!previewMatches) return [];
         return previewMatches.filter(m => {
@@ -419,6 +432,15 @@ export default function ConciliadorPage() {
             }
             if (speiCodigoFilter === "DQ" && !m.ticket?.contrato?.toUpperCase().startsWith("DQ")) {
                 return false;
+            }
+
+            // Filtro por Etiqueta / Tipo de Coincidencia
+            if (speiTipoFilter !== "TODOS") {
+                if (speiTipoFilter === "CUENTA_HABITUAL") {
+                    if (m.tipoMatch !== "CUENTA_HABITUAL_CLIENTE" && m.tipoMatch !== "REMITENTE_HABITUAL") return false;
+                } else if (m.tipoMatch !== speiTipoFilter) {
+                    return false;
+                }
             }
 
             // Filtro de texto libre (Nombre, Código DP/DQ, Folio, Rastreo, Concepto, ID Ticket)
@@ -431,6 +453,7 @@ export default function ConciliadorPage() {
                 const claveRastreo = (m.ticket?.claveRastreo || "").toLowerCase();
                 const concepto = (m.movimiento?.concepto || "").toLowerCase();
                 const banco = (m.banco || "").toLowerCase();
+                const tipoMatch = (m.tipoMatch || "").toLowerCase();
 
                 const matchText = nombre.includes(query) ||
                     contrato.includes(query) ||
@@ -438,14 +461,15 @@ export default function ConciliadorPage() {
                     folio.includes(query) ||
                     claveRastreo.includes(query) ||
                     concepto.includes(query) ||
-                    banco.includes(query);
+                    banco.includes(query) ||
+                    tipoMatch.includes(query);
 
                 if (!matchText) return false;
             }
 
             return true;
         });
-    }, [previewMatches, speiCodigoFilter, speiSearchText]);
+    }, [previewMatches, speiCodigoFilter, speiTipoFilter, speiSearchText]);
 
     // Alternar selección individual de una coincidencia
     const toggleMatchSelection = (matchKey: string) => {
@@ -487,6 +511,22 @@ export default function ConciliadorPage() {
         });
         setSelectedMatches(next);
         toast.info(`Marcadas únicamente coincidencias con contrato ${prefix}`);
+    };
+
+    // Seleccionar solo por una etiqueta / tipo de coincidencia (Nombre, Folio, SPEI, Cuenta Habitual, etc.)
+    const selectOnlyByTipo = (tipo: string, label: string) => {
+        if (!previewMatches) return;
+        const next: Record<string, boolean> = {};
+        let count = 0;
+        previewMatches.forEach(m => {
+            const isMatch = tipo === "CUENTA_HABITUAL"
+                ? (m.tipoMatch === "CUENTA_HABITUAL_CLIENTE" || m.tipoMatch === "REMITENTE_HABITUAL")
+                : m.tipoMatch === tipo;
+            next[m.matchKey] = isMatch;
+            if (isMatch) count++;
+        });
+        setSelectedMatches(next);
+        toast.info(`Marcadas ${count} coincidencias encontradas por "${label}"`);
     };
 
     // 2. Ejecutar la conciliación solo de las cuentas aprobadas
@@ -1680,11 +1720,120 @@ export default function ConciliadorPage() {
                                     </div>
                                 </div>
 
-                                {/* Fila 2: Acciones de Selección y Resumen */}
-                                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 bg-slate-50/70 p-2.5 rounded-xl border text-xs">
+                                {/* Fila 2: Filtros por Etiqueta / Método de Coincidencia */}
+                                <div className="flex flex-wrap items-center gap-1.5 py-1">
+                                    <span className="text-[11px] font-bold text-gray-500 mr-1 flex items-center gap-1">
+                                        <Filter className="w-3 h-3 text-gray-400" />
+                                        Etiqueta:
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSpeiTipoFilter("TODOS")}
+                                        className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border transition-all ${
+                                            speiTipoFilter === "TODOS"
+                                                ? "bg-gray-900 text-white border-gray-900 shadow-xs"
+                                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-100"
+                                        }`}
+                                    >
+                                        Todas ({speiStats.total})
+                                    </button>
+
+                                    {(speiStats.byTipo['NOMBRE_CLIENTE'] || 0) > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpeiTipoFilter(speiTipoFilter === "NOMBRE_CLIENTE" ? "TODOS" : "NOMBRE_CLIENTE")}
+                                            className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border transition-all flex items-center gap-1 ${
+                                                speiTipoFilter === "NOMBRE_CLIENTE"
+                                                    ? "bg-purple-600 text-white border-purple-600 shadow-xs"
+                                                    : "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
+                                            }`}
+                                        >
+                                            <User className="w-3 h-3" />
+                                            Nombre Cliente ({speiStats.byTipo['NOMBRE_CLIENTE']})
+                                        </button>
+                                    )}
+
+                                    {(speiStats.byTipo['FOLIO_REFERENCIA'] || 0) > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpeiTipoFilter(speiTipoFilter === "FOLIO_REFERENCIA" ? "TODOS" : "FOLIO_REFERENCIA")}
+                                            className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border transition-all flex items-center gap-1 ${
+                                                speiTipoFilter === "FOLIO_REFERENCIA"
+                                                    ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                                                    : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+                                            }`}
+                                        >
+                                            <Hash className="w-3 h-3" />
+                                            Folio / Referencia ({speiStats.byTipo['FOLIO_REFERENCIA']})
+                                        </button>
+                                    )}
+
+                                    {(speiStats.byTipo['SPEI_EXACTO'] || 0) > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpeiTipoFilter(speiTipoFilter === "SPEI_EXACTO" ? "TODOS" : "SPEI_EXACTO")}
+                                            className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border transition-all flex items-center gap-1 ${
+                                                speiTipoFilter === "SPEI_EXACTO"
+                                                    ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                                                    : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                            }`}
+                                        >
+                                            <Zap className="w-3 h-3" />
+                                            SPEI Exacto ({speiStats.byTipo['SPEI_EXACTO']})
+                                        </button>
+                                    )}
+
+                                    {(speiStats.byTipo['CONTRATO_DP_DQ'] || 0) > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpeiTipoFilter(speiTipoFilter === "CONTRATO_DP_DQ" ? "TODOS" : "CONTRATO_DP_DQ")}
+                                            className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border transition-all flex items-center gap-1 ${
+                                                speiTipoFilter === "CONTRATO_DP_DQ"
+                                                    ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                                                    : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                                            }`}
+                                        >
+                                            <FileText className="w-3 h-3" />
+                                            Contrato en Leyenda ({speiStats.byTipo['CONTRATO_DP_DQ']})
+                                        </button>
+                                    )}
+
+                                    {((speiStats.byTipo['CUENTA_HABITUAL_CLIENTE'] || 0) + (speiStats.byTipo['REMITENTE_HABITUAL'] || 0)) > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpeiTipoFilter(speiTipoFilter === "CUENTA_HABITUAL" ? "TODOS" : "CUENTA_HABITUAL")}
+                                            className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border transition-all flex items-center gap-1 ${
+                                                speiTipoFilter === "CUENTA_HABITUAL"
+                                                    ? "bg-cyan-700 text-white border-cyan-700 shadow-xs"
+                                                    : "bg-cyan-50 text-cyan-800 border-cyan-200 hover:bg-cyan-100"
+                                            }`}
+                                        >
+                                            <Building className="w-3 h-3" />
+                                            Cuenta Habitual ({(speiStats.byTipo['CUENTA_HABITUAL_CLIENTE'] || 0) + (speiStats.byTipo['REMITENTE_HABITUAL'] || 0)})
+                                        </button>
+                                    )}
+
+                                    {(speiStats.byTipo['MONTO_FECHA'] || 0) > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSpeiTipoFilter(speiTipoFilter === "MONTO_FECHA" ? "TODOS" : "MONTO_FECHA")}
+                                            className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border transition-all flex items-center gap-1 ${
+                                                speiTipoFilter === "MONTO_FECHA"
+                                                    ? "bg-slate-700 text-white border-slate-700 shadow-xs"
+                                                    : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+                                            }`}
+                                        >
+                                            <Calendar className="w-3 h-3" />
+                                            Monto y Fecha ({speiStats.byTipo['MONTO_FECHA']})
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Fila 3: Acciones de Selección Directa y Resumen */}
+                                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 bg-slate-50/80 p-2.5 rounded-xl border text-xs">
                                     <div className="flex flex-wrap items-center gap-1.5">
-                                        {/* Botones contextuales según si hay filtros activos o no */}
-                                        {(speiSearchText.trim() || speiCodigoFilter !== "TODOS") ? (
+                                        {/* Botones de Seleccionar Visibles / Todas */}
+                                        {(speiSearchText.trim() || speiCodigoFilter !== "TODOS" || speiTipoFilter !== "TODOS") ? (
                                             <>
                                                 <Button
                                                     type="button"
@@ -1734,16 +1883,18 @@ export default function ConciliadorPage() {
 
                                         <div className="h-4 w-px bg-gray-300 mx-1 hidden sm:block" />
 
-                                        {/* Botones directos de 1 clic para seleccionar solo DP o solo DQ */}
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase hidden lg:inline">Marcar solo:</span>
+
+                                        {/* Botones directos de 1 clic para seleccionar por Código */}
                                         <Button
                                             type="button"
                                             variant="ghost"
                                             size="sm"
                                             onClick={() => selectOnlyByCode("DP")}
                                             className="h-7 text-[10px] px-2 text-indigo-700 hover:bg-indigo-100 font-semibold border border-indigo-200/60"
-                                            title="Marcar únicamente cuentas con contrato DP"
+                                            title="Marcar únicamente contratos DP"
                                         >
-                                            Aprobar solo DP
+                                            Solo DP
                                         </Button>
                                         <Button
                                             type="button"
@@ -1751,14 +1902,71 @@ export default function ConciliadorPage() {
                                             size="sm"
                                             onClick={() => selectOnlyByCode("DQ")}
                                             className="h-7 text-[10px] px-2 text-purple-700 hover:bg-purple-100 font-semibold border border-purple-200/60"
-                                            title="Marcar únicamente cuentas con contrato DQ"
+                                            title="Marcar únicamente contratos DQ"
                                         >
-                                            Aprobar solo DQ
+                                            Solo DQ
                                         </Button>
+
+                                        {/* Botones directos de 1 clic para seleccionar por Etiqueta / Método */}
+                                        {(speiStats.byTipo['NOMBRE_CLIENTE'] || 0) > 0 && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => selectOnlyByTipo("NOMBRE_CLIENTE", "Nombre Cliente")}
+                                                className="h-7 text-[10px] px-2 text-purple-800 bg-purple-50 hover:bg-purple-100 font-semibold border border-purple-200"
+                                                title="Marcar todas las coincidencias encontradas por Nombre del Cliente"
+                                            >
+                                                <User className="w-3 h-3 mr-0.5 text-purple-600" />
+                                                Por Nombre ({speiStats.byTipo['NOMBRE_CLIENTE']})
+                                            </Button>
+                                        )}
+
+                                        {(speiStats.byTipo['FOLIO_REFERENCIA'] || 0) > 0 && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => selectOnlyByTipo("FOLIO_REFERENCIA", "Folio / Referencia")}
+                                                className="h-7 text-[10px] px-2 text-amber-800 bg-amber-50 hover:bg-amber-100 font-semibold border border-amber-200"
+                                                title="Marcar todas las coincidencias encontradas por Folio o Referencia"
+                                            >
+                                                <Hash className="w-3 h-3 mr-0.5 text-amber-600" />
+                                                Por Folio/Ref ({speiStats.byTipo['FOLIO_REFERENCIA']})
+                                            </Button>
+                                        )}
+
+                                        {(speiStats.byTipo['SPEI_EXACTO'] || 0) > 0 && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => selectOnlyByTipo("SPEI_EXACTO", "SPEI Exacto")}
+                                                className="h-7 text-[10px] px-2 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 font-semibold border border-emerald-200"
+                                                title="Marcar todas las coincidencias encontradas por Clave SPEI Exacta"
+                                            >
+                                                <Zap className="w-3 h-3 mr-0.5 text-emerald-600" />
+                                                Por SPEI ({speiStats.byTipo['SPEI_EXACTO']})
+                                            </Button>
+                                        )}
+
+                                        {((speiStats.byTipo['CUENTA_HABITUAL_CLIENTE'] || 0) + (speiStats.byTipo['REMITENTE_HABITUAL'] || 0)) > 0 && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => selectOnlyByTipo("CUENTA_HABITUAL", "Cuenta Habitual")}
+                                                className="h-7 text-[10px] px-2 text-cyan-800 bg-cyan-50 hover:bg-cyan-100 font-semibold border border-cyan-200"
+                                                title="Marcar todas las coincidencias por Cuenta o Remitente Habitual"
+                                            >
+                                                <Building className="w-3 h-3 mr-0.5 text-cyan-600" />
+                                                Por Cuenta
+                                            </Button>
+                                        )}
                                     </div>
 
                                     <div className="flex items-center gap-3 text-xs">
-                                        {(speiSearchText.trim() || speiCodigoFilter !== "TODOS") && (
+                                        {(speiSearchText.trim() || speiCodigoFilter !== "TODOS" || speiTipoFilter !== "TODOS") && (
                                             <span className="text-gray-500 font-medium">
                                                 Visibles: <strong className="text-gray-800 font-bold font-mono">{filteredPreviewMatches.length}</strong> de {previewMatches.length}
                                             </span>
@@ -1849,9 +2057,24 @@ export default function ConciliadorPage() {
                                                         <User className="w-3 h-3 text-white" />
                                                         Nombre Cliente
                                                     </Badge>
+                                                ) : m.tipoMatch === 'FOLIO_REFERENCIA' ? (
+                                                    <Badge className="bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 flex items-center gap-1 shadow-sm">
+                                                        <Hash className="w-3 h-3 text-white" />
+                                                        Folio / Referencia
+                                                    </Badge>
+                                                ) : m.tipoMatch === 'CUENTA_HABITUAL_CLIENTE' ? (
+                                                    <Badge className="bg-cyan-700 text-white text-[10px] font-bold px-2 py-0.5 flex items-center gap-1 shadow-sm">
+                                                        <Building className="w-3 h-3 text-white" />
+                                                        Cuenta Habitual
+                                                    </Badge>
+                                                ) : m.tipoMatch === 'REMITENTE_HABITUAL' ? (
+                                                    <Badge className="bg-teal-700 text-white text-[10px] font-bold px-2 py-0.5 flex items-center gap-1 shadow-sm">
+                                                        <User className="w-3 h-3 text-white" />
+                                                        Remitente Habitual
+                                                    </Badge>
                                                 ) : (
-                                                    <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-800 border-amber-300 font-bold">
-                                                        {m.tipoMatch || 'Sugerencia'}
+                                                    <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-700 border-slate-300 font-bold">
+                                                        {m.tipoMatch === 'MONTO_FECHA' ? 'Monto y Fecha' : (m.tipoMatch || 'Sugerencia')}
                                                     </Badge>
                                                 )}
 
