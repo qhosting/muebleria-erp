@@ -952,7 +952,7 @@ export default function ConciliadorPage() {
                                             const selectedMovIdx = globalMovIndexMap.get(selectedValKey) ?? 0;
                                             const horaStr = extractHoraOperacion(selectedMovObj);
                                             const montoMovNum = parseFloat(selectedMovObj.abono?.toString() || "0");
-                                            const fechaOperacionStr = selectedMovObj.fechaOperacion ? formatDate(selectedMovObj.fechaOperacion) : "N/A";
+                                            const fechaOperacionStr = selectedMovObj.fechaOperacion ? formatDateTime(selectedMovObj.fechaOperacion) : "N/A";
                                             const cuentaDestinoStr = selectedMovObj.cuentaDestino || (selectedMovObj.tabla?.includes("22001022837") ? "22001022837" : selectedMovObj.tabla?.includes("65505732541") ? "65505732541" : selectedMovObj.tabla?.includes("0330253963") ? "0330253963" : "N/A");
                                             const bancoDestinoStr = selectedMovObj.bancoDestino || (selectedMovObj.tabla?.includes("Banorte") ? "BANORTE" : "SANTANDER");
 

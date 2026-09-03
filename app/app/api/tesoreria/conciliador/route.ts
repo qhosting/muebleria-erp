@@ -268,7 +268,7 @@ export async function GET(request: NextRequest) {
                     { role: 'cobrador' },
                     { codigoGestor: { not: null } },
                     { clientesAsignados: { some: {} } },
-                    { ticketsGestor: { some: {} } }
+                    { tickets: { some: {} } }
                 ]
             },
             select: {
