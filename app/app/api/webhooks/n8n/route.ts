@@ -45,6 +45,129 @@ export async function POST(req: Request) {
         if (typeof fecha === "string") fecha = fecha.replace(/^=/, "").trim();
         if (typeof hr === "string") hr = hr.replace(/^=/, "").trim();
 
+        // --- ACCIÓN: INSPECCIONAR Y RECUPERAR TICKETS DE CLIENTE / BUZÓN ---
+        if (action === "inspeccionar_cliente_tickets" || action === "diagnostico_cliente") {
+            const codTarget = (body.contrato || body.codigoCliente || 'DQ2510106').trim().toUpperCase();
+            const telTarget = (body.telefono || body.phone || '7208702915').replace(/\D/g, '').slice(-10);
+
+            const [cliente, tickets, buzon, pendientes] = await Promise.all([
+                prisma.cliente.findFirst({
+                    where: {
+                        OR: [
+                            { codigoCliente: { equals: codTarget, mode: 'insensitive' } },
+                            { telefono: { contains: telTarget } }
+                        ]
+                    },
+                    include: { cobradorAsignado: true }
+                }),
+                prisma.ticket.findMany({
+                    where: {
+                        OR: [
+                            { cliente: { codigoCliente: { equals: codTarget, mode: 'insensitive' } } },
+                            { remitente: { contains: telTarget } }
+                        ]
+                    },
+                    orderBy: { creadoEn: 'desc' }
+                }),
+                prisma.buzonTesoreria.findMany({
+                    where: {
+                        OR: [
+                            { contractId: { equals: codTarget, mode: 'insensitive' } },
+                            { telefono: { contains: telTarget } }
+                        ]
+                    },
+                    orderBy: { createdAt: 'desc' }
+                }),
+                prisma.ticketPendiente.findMany({
+                    where: { remitente: { contains: telTarget } }
+                })
+            ]);
+
+            // Si se solicita procesar de inmediato el buzón pendiente
+            let procesadoResult: any = null;
+            if (body.procesar === true && buzon.length > 0 && cliente) {
+                const b = buzon[0];
+                const meta: any = b.metadata || {};
+                const montoVal = parseFloat(b.monto?.toString() || meta.monto || '0') || 0;
+                const refVal = b.referencia || meta.referencia || null;
+                const folioVal = meta.folio || null;
+                const rastreoVal = meta.claverastreo || null;
+                const fechaVal = meta.fecha ? new Date(meta.fecha) : new Date();
+
+                // Crear Ticket y Pago
+                const cobradorId = cliente.cobradorAsignadoId || cliente.cobradorAsignado?.id || (await prisma.user.findFirst({ where: { role: 'cobrador' } }))?.id;
+                
+                procesadoResult = await prisma.$transaction(async (tx) => {
+                    const ticketNuevo = await tx.ticket.create({
+                        data: {
+                            clienteId: cliente.id,
+                            gestorId: cobradorId,
+                            monto: montoVal,
+                            referencia: refVal,
+                            folio: folioVal,
+                            claveRastreo: rastreoVal,
+                            fecha: fechaVal,
+                            remitente: b.telefono || telTarget,
+                            base64Data: b.base64Data || null,
+                            conciliado: false,
+                            origen: 'WHATSAPP_BUZON'
+                        }
+                    });
+
+                    const saldoAnterior = parseFloat(cliente.saldoActual.toString());
+                    const saldoNuevo = Math.max(0, saldoAnterior - montoVal);
+
+                    const pagoNuevo = await tx.pago.create({
+                        data: {
+                            clienteId: cliente.id,
+                            cobradorId: cobradorId,
+                            monto: montoVal,
+                            saldoAnterior: saldoAnterior,
+                            saldoNuevo: saldoNuevo,
+                            metodoPago: 'BANCOS BOT',
+                            numeroRecibo: `REC-BOT-${Date.now()}`,
+                            fechaPago: new Date(),
+                            ticketImpreso: true,
+                            origen: 'WHATSAPP_BUZON'
+                        }
+                    });
+
+                    await tx.cliente.update({
+                        where: { id: cliente.id },
+                        data: {
+                            saldoActual: saldoNuevo,
+                            updatedAt: new Date()
+                        }
+                    });
+
+                    await tx.buzonTesoreria.update({
+                        where: { id: b.id },
+                        data: {
+                            estado: 'PROCESADO',
+                            updatedAt: new Date()
+                        }
+                    });
+
+                    return {
+                        ticketId: ticketNuevo.id,
+                        pagoId: pagoNuevo.id,
+                        saldoAnterior,
+                        saldoNuevo
+                    };
+                });
+            }
+
+            return NextResponse.json({
+                cliente,
+                ticketsCount: tickets.length,
+                tickets,
+                buzonCount: buzon.length,
+                buzon,
+                pendientesWhatsapp: pendientes,
+                procesadoResult
+            });
+        }
+
         // --- ACCIÓN: BUSCAR CLIENTE POR TELÉFONO O CONTRATO (MUEBLERIA-ERP) ---
         if (action === "buscar_cliente") {
             const telRaw = (body.telefono || body.phone || remitente || '').replace(/\D/g, '');
