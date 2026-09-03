@@ -217,6 +217,24 @@ export async function POST(req: Request) {
             });
         }
 
+        // --- ACCIÓN: ELIMINAR TICKET ERRÓNEO O DUPLICADO ---
+        if (action === "eliminar_ticket") {
+            const ticketId = body.ticketId || body.id;
+            if (!ticketId) return NextResponse.json({ error: "ticketId requerido" }, { status: 400 });
+
+            await prisma.pago.deleteMany({
+                where: { ticketId }
+            });
+            await prisma.ticket.delete({
+                where: { id: ticketId }
+            });
+
+            return NextResponse.json({
+                success: true,
+                message: `Ticket ${ticketId} eliminado exitosamente`
+            });
+        }
+
 
         // --- ACCIÓN: BUSCAR CLIENTE POR TELÉFONO O CONTRATO (MUEBLERIA-ERP) ---
         if (action === "buscar_cliente") {
