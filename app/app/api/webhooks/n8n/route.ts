@@ -95,7 +95,8 @@ export async function POST(req: Request) {
                 const fechaVal = meta.fecha ? new Date(meta.fecha) : new Date();
 
                 // Crear Ticket y Pago
-                const cobradorId = cliente.cobradorAsignadoId || cliente.cobradorAsignado?.id || (await prisma.user.findFirst({ where: { role: 'cobrador' } }))?.id;
+                const defaultUser = await prisma.user.findFirst({ where: { role: 'cobrador' } });
+                const cobradorId: string = cliente.cobradorAsignadoId || cliente.cobradorAsignado?.id || defaultUser?.id || cliente.id;
                 
                 procesadoResult = await prisma.$transaction(async (tx) => {
                     const ticketNuevo = await tx.ticket.create({
@@ -108,9 +109,8 @@ export async function POST(req: Request) {
                             claveRastreo: rastreoVal,
                             fecha: fechaVal,
                             remitente: b.telefono || telTarget,
-                            base64Data: b.base64Data || null,
-                            conciliado: false,
-                            origen: 'WHATSAPP_BUZON'
+                            concepto: 'WHATSAPP_BUZON',
+                            conciliado: false
                         }
                     });
 
@@ -128,7 +128,7 @@ export async function POST(req: Request) {
                             numeroRecibo: `REC-BOT-${Date.now()}`,
                             fechaPago: new Date(),
                             ticketImpreso: true,
-                            origen: 'WHATSAPP_BUZON'
+                            concepto: 'WHATSAPP_BUZON'
                         }
                     });
 
@@ -182,6 +182,11 @@ export async function POST(req: Request) {
                 return NextResponse.json({ error: "Ticket no encontrado" }, { status: 404 });
             }
 
+            if (!ticket.clienteId) {
+                return NextResponse.json({ error: "Ticket sin cliente asignado" }, { status: 400 });
+            }
+
+            const targetClienteId: string = ticket.clienteId;
             const montoAnterior = parseFloat(ticket.monto.toString());
             const diferencia = nuevoMonto - montoAnterior;
 
@@ -193,7 +198,7 @@ export async function POST(req: Request) {
 
                 // Actualizar el pago asociado si existe
                 const pago = await tx.pago.findFirst({
-                    where: { clienteId: ticket.clienteId },
+                    where: { clienteId: targetClienteId },
                     orderBy: { fechaPago: 'desc' }
                 });
 
@@ -214,7 +219,7 @@ export async function POST(req: Request) {
                     const saldoClienteActual = parseFloat(ticket.cliente.saldoActual.toString());
                     saldoFinal = Math.max(0, saldoClienteActual - diferencia);
                     await tx.cliente.update({
-                        where: { id: ticket.clienteId },
+                        where: { id: targetClienteId },
                         data: { saldoActual: saldoFinal }
                     });
                 }
