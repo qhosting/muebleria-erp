@@ -810,10 +810,55 @@ export async function POST(req: Request) {
             if (match) codigoFinal = match[0].toUpperCase();
         }
 
-        let cliente = codigoFinal ? await prisma.cliente.findUnique({
+        let cliente: any = codigoFinal ? await prisma.cliente.findUnique({
             where: { codigoCliente: codigoFinal },
             include: { cobradorAsignado: true }
         }) : null;
+
+        // Si no está en BD local pero tenemos el código de contrato (DP/DQ), buscar en ContPAQi API en vivo y auto-importar
+        if (!cliente && codigoFinal) {
+            try {
+                const emp = codigoFinal.startsWith('DP') ? 'DP' : 'DQ';
+                const cRes = await fetch(`http://vortex520.qhosting.net:5000/api/Documentos/cliente/${codigoFinal}?empresa=${emp}`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-API-Key': 'VERTEX123_CONTPAQI_ERP_2024',
+                        'X-Company-Id': emp,
+                        'X-Contpaqi-Empresa': emp
+                    }
+                });
+                if (cRes.ok) {
+                    const docs = await cRes.json();
+                    if (Array.isArray(docs) && docs.length > 0) {
+                        const firstDoc = docs[0];
+                        const saldoContpaqi = parseFloat(firstDoc.total?.toString() || firstDoc.saldo?.toString() || '0');
+                        const telFromRemitente = (remitente || '').replace(/\D/g, '').slice(-10) || null;
+                        cliente = await prisma.cliente.upsert({
+                            where: { codigoCliente: codigoFinal },
+                            update: {
+                                nombreCompleto: firstDoc.razonSocial || 'Cliente ContPAQi'
+                            },
+                            create: {
+                                codigoCliente: codigoFinal,
+                                nombreCompleto: firstDoc.razonSocial || 'Cliente ContPAQi',
+                                telefono: telFromRemitente,
+                                fechaVenta: new Date(),
+                                direccionCompleta: 'ContPAQi Sync',
+                                descripcionProducto: 'Muebles',
+                                diaPago: 'LUNES',
+                                periodicidad: 'SEMANAL',
+                                montoPago: 0,
+                                saldoActual: saldoContpaqi,
+                                limiteCredito: saldoContpaqi
+                            },
+                            include: { cobradorAsignado: true }
+                        });
+                    }
+                }
+            } catch (err: any) {
+                console.log('Error auto-importando cliente desde ContPAQi en create:', err.message);
+            }
+        }
 
         // Fallback: Si no hay cliente por código, buscar por teléfono del remitente
         if (!cliente && remitente) {

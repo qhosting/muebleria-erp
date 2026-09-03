@@ -28,7 +28,8 @@ VertexERP Muebles es un sistema integral de gestión de cobranza, ventas a créd
 
 #### 4. Finanzas, Tesorería y Reportes
 - **Dashboard Ejecutivo:** Métricas clave (KPIs), navegación activa por módulos y alertas en tiempo real.
-- **Conciliador Bancario Inteligente:** Algoritmo heurístico de conciliación de depósitos bancarios (Banorte, Santander) vs tickets y cobranza en campo.
+- **Conciliador Bancario Inteligente:** Algoritmo heurístico de conciliación de depósitos bancarios (Banorte, Santander) vs tickets y cobranza en campo. Incluye escaneo y aprobación de transferencias SPEI, sugerencias automáticas por contrato/nombre/monto, opción de desconciliación y filtros dinámicos por Cobrador / Gestor.
+- **Ingestión y Auto-Procesamiento de Tickets WhatsApp (n8n + IA):** Extracción con GPT-4o-mini, auto-búsqueda de cliente por número telefónico (cuando no escriben el código) y auto-importación en vivo desde ContPAQi Comercial si el cliente aún no existe en base de datos local (ej. DP/DQ).
 - **Campañas SMS:** Módulo de envíos masivos y automatizados para recordatorios preventivos y cobranza.
 - **Control de Morosidad:** Detección de cuentas vencidas, cálculo automático de moratorios y reportes de discrepancias.
 
