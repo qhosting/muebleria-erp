@@ -24,7 +24,14 @@ import {
     Filter,
     Zap,
     Sparkles,
-    CheckCheck
+    CheckCheck,
+    CheckSquare,
+    Square,
+    Check,
+    X,
+    Building,
+    ArrowRight,
+    ShieldCheck
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -217,6 +224,9 @@ export default function ConciliadorPage() {
     // Estado para Auto-Conciliación Inteligente SPEI
     const [autoSpeiLoading, setAutoSpeiLoading] = useState(false);
     const [autoSpeiResult, setAutoSpeiResult] = useState<any | null>(null);
+    const [previewMatches, setPreviewMatches] = useState<any[] | null>(null);
+    const [selectedMatches, setSelectedMatches] = useState<Record<string, boolean>>({});
+    const [isConfirmingSpei, setIsConfirmingSpei] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -292,7 +302,7 @@ export default function ConciliadorPage() {
         fetchData(week.desde, week.hasta, estadoFiltro);
     };
 
-    // Función de Auto-Conciliación Inteligente por Clave de Rastreo SPEI
+    // 1. Escanear y Previsualizar Coincidencias SPEI sin conciliar todavía
     const handleAutoConciliarSpei = async () => {
         setAutoSpeiLoading(true);
         try {
@@ -300,27 +310,91 @@ export default function ConciliadorPage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    action: "auto_spei"
+                    action: "preview_spei"
                 })
             });
 
             const data = await res.json();
             if (res.ok) {
-                if (data.conciliadosCount > 0) {
-                    toast.success(`🎉 ¡${data.conciliadosCount} ticket(s) conciliado(s) exitosamente mediante Clave de Rastreo SPEI!`);
-                    setAutoSpeiResult(data);
-                    fetchData(desde, hasta, estadoFiltro);
+                if (data.matchesCount > 0 && Array.isArray(data.matches)) {
+                    setPreviewMatches(data.matches);
+                    // Por defecto, marcar todas las coincidencias como aprobadas/seleccionadas
+                    const initialSelection: Record<string, boolean> = {};
+                    data.matches.forEach((m: any) => {
+                        initialSelection[m.matchKey] = true;
+                    });
+                    setSelectedMatches(initialSelection);
                 } else {
-                    toast.info("No se encontraron tickets pendientes con Clave de Rastreo SPEI coincidente en los movimientos bancarios actuales.");
+                    toast.info("No se encontraron tickets pendientes con Clave de Rastreo SPEI coincidente en los movimientos bancarios.");
                 }
             } else {
-                toast.error(data.error || "Error al ejecutar auto-conciliación SPEI");
+                toast.error(data.error || "Error al escanear coincidencias SPEI");
             }
         } catch (error) {
-            console.error("Error en auto-conciliación SPEI:", error);
-            toast.error("Error de conexión al ejecutar auto-conciliación SPEI");
+            console.error("Error al escanear coincidencias SPEI:", error);
+            toast.error("Error de conexión al consultar coincidencias SPEI");
         } finally {
             setAutoSpeiLoading(false);
+        }
+    };
+
+    // Alternar selección individual de una coincidencia
+    const toggleMatchSelection = (matchKey: string) => {
+        setSelectedMatches(prev => ({
+            ...prev,
+            [matchKey]: !prev[matchKey]
+        }));
+    };
+
+    // Seleccionar o deseleccionar todas las coincidencias
+    const toggleSelectAllMatches = (select: boolean) => {
+        if (!previewMatches) return;
+        const newSelection: Record<string, boolean> = {};
+        previewMatches.forEach(m => {
+            newSelection[m.matchKey] = select;
+        });
+        setSelectedMatches(newSelection);
+    };
+
+    // 2. Ejecutar la conciliación solo de las cuentas aprobadas
+    const handleConfirmApprovedSpei = async () => {
+        if (!previewMatches) return;
+
+        const approvedList = previewMatches.filter(m => selectedMatches[m.matchKey]);
+        if (approvedList.length === 0) {
+            toast.warning("Debes seleccionar al menos una cuenta para conciliar");
+            return;
+        }
+
+        setIsConfirmingSpei(true);
+        try {
+            const res = await fetch("/api/tesoreria/conciliador", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "confirm_spei",
+                    matches: approvedList.map(m => ({
+                        ticketId: m.ticketId,
+                        movimientoId: m.movimientoId,
+                        tabla: m.tabla
+                    }))
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(`🎉 ¡${data.conciliadosCount} ticket(s) conciliado(s) exitosamente!`);
+                setPreviewMatches(null);
+                setAutoSpeiResult(data);
+                fetchData(desde, hasta, estadoFiltro);
+            } else {
+                toast.error(data.error || "Error al conciliar las cuentas seleccionadas");
+            }
+        } catch (error) {
+            console.error("Error al confirmar conciliación SPEI:", error);
+            toast.error("Error de conexión al conciliar las cuentas");
+        } finally {
+            setIsConfirmingSpei(false);
         }
     };
 
@@ -1052,6 +1126,237 @@ export default function ConciliadorPage() {
                                 <p className="text-xs text-gray-400 mt-1">Este ticket fue registrado directamente sin captura visual.</p>
                             </div>
                         )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal Interactivo de Previsualización y Aprobación de Coincidencias SPEI */}
+            <Dialog open={!!previewMatches} onOpenChange={(open) => !open && !isConfirmingSpei && setPreviewMatches(null)}>
+                <DialogContent className="max-w-4xl p-6 max-h-[90vh] flex flex-col">
+                    <DialogHeader className="pb-3 border-b">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
+                                    <ShieldCheck className="h-6 w-6 text-emerald-600" />
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                        Aprobación de Coincidencias SPEI
+                                        <Badge className="bg-emerald-600 text-white font-mono text-xs">
+                                            {previewMatches?.length || 0} encontradas
+                                        </Badge>
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs text-gray-500 mt-0.5">
+                                        Revisa los detalles de cada ticket y cuenta bancaria emparejada. Puedes aprobar o desmarcar las que no desees conciliar.
+                                    </DialogDescription>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Barra de Acciones Rápidas y Resumen de Selección */}
+                        {previewMatches && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => toggleSelectAllMatches(true)}
+                                        className="h-7 text-[11px] px-2.5 bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50 font-semibold flex items-center gap-1"
+                                    >
+                                        <CheckSquare className="w-3.5 h-3.5" />
+                                        Seleccionar Todas
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => toggleSelectAllMatches(false)}
+                                        className="h-7 text-[11px] px-2.5 bg-white text-gray-600 border-gray-300 hover:bg-gray-100 font-semibold flex items-center gap-1"
+                                    >
+                                        <Square className="w-3.5 h-3.5" />
+                                        Deseleccionar Todas
+                                    </Button>
+                                </div>
+
+                                <div className="flex items-center gap-4 text-xs">
+                                    <span className="text-gray-600">
+                                        Aprobadas:{" "}
+                                        <strong className="text-emerald-700 font-bold font-mono">
+                                            {previewMatches.filter(m => selectedMatches[m.matchKey]).length} de {previewMatches.length}
+                                        </strong>
+                                    </span>
+                                    <span className="text-gray-600">
+                                        Monto total a conciliar:{" "}
+                                        <strong className="text-gray-900 font-bold font-mono">
+                                            {formatCurrency(
+                                                previewMatches
+                                                    .filter(m => selectedMatches[m.matchKey])
+                                                    .reduce((sum, m) => sum + (m.ticket?.monto || 0), 0)
+                                            )}
+                                        </strong>
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </DialogHeader>
+
+                    {/* Lista de Tarjetas de Coincidencias */}
+                    <div className="flex-1 overflow-y-auto py-3 space-y-3 pr-1">
+                        {previewMatches?.map((m) => {
+                            const isSelected = !!selectedMatches[m.matchKey];
+                            return (
+                                <div
+                                    key={m.matchKey}
+                                    onClick={() => toggleMatchSelection(m.matchKey)}
+                                    className={`p-4 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+                                        isSelected
+                                            ? "bg-emerald-50/50 border-emerald-400 shadow-sm"
+                                            : "bg-gray-50/70 border-gray-200 opacity-60 hover:opacity-100"
+                                    }`}
+                                >
+                                    {/* Botón de Check / Toggle */}
+                                    <div className="flex items-center gap-3">
+                                        <div
+                                            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${
+                                                isSelected
+                                                    ? "bg-emerald-600 text-white shadow"
+                                                    : "border-2 border-gray-300 bg-white text-transparent"
+                                            }`}
+                                        >
+                                            <Check className="w-4 h-4 stroke-[3]" />
+                                        </div>
+                                    </div>
+
+                                    {/* Columna Izquierda: Información del Ticket */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Badge variant="outline" className="text-[10px] font-mono bg-white font-bold border-indigo-200 text-indigo-700">
+                                                Ticket #{m.ticket.id}
+                                            </Badge>
+                                            <span className="font-mono text-xs font-bold text-gray-800">
+                                                {m.ticket.contrato}
+                                            </span>
+                                            {m.ticket.tienePago ? (
+                                                <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700 border-blue-200">
+                                                    Pago Vinculado
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">
+                                                    Crea Pago Nuevo
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <p className="text-xs font-bold text-gray-900 truncate">
+                                            {m.ticket.nombre}
+                                        </p>
+                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                                            <span className="font-semibold text-gray-500">Clave SPEI:</span>
+                                            <span className="font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 break-all">
+                                                {m.ticket.claveRastreo}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Separador / Flecha */}
+                                    <div className="hidden md:flex flex-col items-center justify-center px-2 text-gray-400">
+                                        <ArrowRight className="w-5 h-5 text-emerald-600" />
+                                    </div>
+
+                                    {/* Columna Derecha: Información Bancaria */}
+                                    <div className="flex-1 min-w-0 bg-white/80 p-2.5 rounded-lg border border-gray-200">
+                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                            <div className="flex items-center gap-1.5">
+                                                <Building className="w-3.5 h-3.5 text-gray-500" />
+                                                <Badge variant="outline" className="text-[10px] font-bold bg-slate-100 text-slate-800 border-slate-300">
+                                                    {m.banco}
+                                                </Badge>
+                                                <span className="text-[10px] font-mono text-gray-500">
+                                                    Cta: {m.cuentaDestino}
+                                                </span>
+                                            </div>
+                                            <span className="text-[10px] text-gray-500 font-mono">
+                                                {formatDateTime(m.movimiento.fechaOperacion)}
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-gray-700 line-clamp-2" title={m.movimiento.concepto}>
+                                            <span className="font-semibold text-gray-500">Concepto: </span>
+                                            {m.movimiento.concepto || "Sin concepto"}
+                                        </p>
+                                        <div className="mt-1 flex items-center justify-between text-xs">
+                                            <span className="text-[10px] text-emerald-700 font-medium">
+                                                {m.razon}
+                                            </span>
+                                            <span className="font-mono font-bold text-gray-900">
+                                                Abono: {formatCurrency(m.movimiento.abono)}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Monto y Estado */}
+                                    <div className="text-right flex md:flex-col items-center md:items-end justify-between w-full md:w-auto gap-2">
+                                        <div className="text-right">
+                                            <span className="text-[10px] text-gray-400 block uppercase">Monto Ticket</span>
+                                            <span className="text-base font-black font-mono text-gray-900">
+                                                {formatCurrency(m.ticket.monto)}
+                                            </span>
+                                        </div>
+
+                                        <div>
+                                            {isSelected ? (
+                                                <Badge className="bg-emerald-600 text-white text-[10px] px-2 py-0.5">
+                                                    ✓ Aprobado
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="bg-gray-100 text-gray-500 border-gray-300 text-[10px] px-2 py-0.5">
+                                                    Excluido
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Pie de Diálogo con Confirmación */}
+                    <div className="pt-3 border-t flex items-center justify-between gap-3">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={isConfirmingSpei}
+                            onClick={() => setPreviewMatches(null)}
+                            className="text-gray-600 text-xs"
+                        >
+                            Cancelar
+                        </Button>
+
+                        <div className="flex items-center gap-2">
+                            <Button
+                                type="button"
+                                size="sm"
+                                disabled={
+                                    isConfirmingSpei ||
+                                    !previewMatches ||
+                                    previewMatches.filter(m => selectedMatches[m.matchKey]).length === 0
+                                }
+                                onClick={handleConfirmApprovedSpei}
+                                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs px-5 h-9 rounded-xl shadow-md flex items-center gap-1.5 transition-all"
+                            >
+                                {isConfirmingSpei ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                                        Conciliando cuentas...
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCheck className="w-4 h-4" />
+                                        Aprobar y Conciliar ({previewMatches?.filter(m => selectedMatches[m.matchKey]).length || 0})
+                                    </>
+                                )}
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>
