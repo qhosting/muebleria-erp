@@ -45,7 +45,7 @@ export async function POST(req: Request) {
         if (typeof fecha === "string") fecha = fecha.replace(/^=/, "").trim();
         if (typeof hr === "string") hr = hr.replace(/^=/, "").trim();
 
-        // --- ACCIÓN: BUSCAR CLIENTE POR TELÉFONO O CÓDIGO ---
+        // --- ACCIÓN: BUSCAR CLIENTE POR TELÉFONO O CONTRATO (MUEBLERIA-ERP) ---
         if (action === "buscar_cliente") {
             const telRaw = (body.telefono || body.phone || remitente || '').replace(/\D/g, '');
             const cod = (body.contrato || body.codigoCliente || contrato || '').trim().toUpperCase();
@@ -63,103 +63,39 @@ export async function POST(req: Request) {
                     where: {
                         OR: [
                             { telefono: { contains: tel10 } },
-                            { telefonoTrabajo: { contains: tel10 } }
+                            { telefonoTrabajo: { contains: tel10 } },
+                            { telefono: { contains: telRaw } }
                         ]
                     },
                     include: { cobradorAsignado: true }
                 });
-
-                // Si no está en BD local, buscar en ContPAQi API en vivo por teléfono
-                if (!cliente) {
-                    try {
-                        for (const emp of ['DQ', 'DP']) {
-                            const cRes = await fetch(`http://vortex520.qhosting.net:5000/api/Documentos/cliente/${tel10}?empresa=${emp}`, {
-                                headers: {
-                                    'Accept': 'application/json',
-                                    'X-API-Key': 'VERTEX123_CONTPAQI_ERP_2024',
-                                    'X-Company-Id': emp,
-                                    'X-Contpaqi-Empresa': emp
-                                }
-                            });
-                            if (cRes.ok) {
-                                const docs = await cRes.json();
-                                if (Array.isArray(docs) && docs.length > 0) {
-                                    const firstDoc = docs[0];
-                                    const codCli = firstDoc.codigoCliente || (firstDoc.serie && firstDoc.folio ? `${firstDoc.serie}${firstDoc.folio}` : null) || firstDoc.referencia;
-                                    if (codCli) {
-                                        // Asegurar o crear el cliente en BD local para que el ticket y pago puedan relacionarse
-                                        const saldoContpaqi = parseFloat(firstDoc.total?.toString() || firstDoc.saldo?.toString() || '0');
-                                        cliente = await prisma.cliente.upsert({
-                                            where: { codigoCliente: codCli.toUpperCase() },
-                                            update: {
-                                                telefono: tel10,
-                                                nombreCompleto: firstDoc.razonSocial || 'Cliente ContPAQi'
-                                            },
-                                            create: {
-                                                codigoCliente: codCli.toUpperCase(),
-                                                nombreCompleto: firstDoc.razonSocial || 'Cliente ContPAQi',
-                                                telefono: tel10,
-                                                fechaVenta: new Date(),
-                                                direccionCompleta: 'ContPAQi Sync',
-                                                descripcionProducto: 'Muebles',
-                                                diaPago: 'LUNES',
-                                                periodicidad: 'semanal',
-                                                montoPago: 0,
-                                                saldoActual: saldoContpaqi,
-                                                limiteCredito: saldoContpaqi
-                                            },
-                                            include: { cobradorAsignado: true }
-                                        });
-
-                                        return NextResponse.json({
-                                            encontrado: true,
-                                            cod_cliente: cliente.codigoCliente,
-                                            codigoCliente: cliente.codigoCliente,
-                                            contrato: cliente.codigoCliente,
-                                            cliente: {
-                                                id: cliente.id,
-                                                codigoCliente: cliente.codigoCliente,
-                                                nombreCompleto: cliente.nombreCompleto,
-                                                telefono: tel10,
-                                                saldoActual: parseFloat(cliente.saldoActual.toString()),
-                                                cobrador: cliente.cobradorAsignado ? {
-                                                    id: cliente.cobradorAsignado.id,
-                                                    name: cliente.cobradorAsignado.name,
-                                                    codigoGestor: cliente.cobradorAsignado.codigoGestor
-                                                } : null
-                                            }
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    } catch (err: any) {
-                        console.log('Error buscando cliente en ContPAQi por tel:', err.message);
-                    }
-                }
             }
 
-            if (!cliente) {
-                return NextResponse.json({ encontrado: false, message: "Cliente no encontrado" });
+            if (cliente) {
+                return NextResponse.json({
+                    encontrado: true,
+                    cod_cliente: cliente.codigoCliente,
+                    codigoCliente: cliente.codigoCliente,
+                    contrato: cliente.codigoCliente,
+                    cliente: {
+                        id: cliente.id,
+                        codigoCliente: cliente.codigoCliente,
+                        nombreCompleto: cliente.nombreCompleto,
+                        telefono: cliente.telefono,
+                        saldoActual: parseFloat(cliente.saldoActual.toString()),
+                        cobrador: cliente.cobradorAsignado ? {
+                            id: cliente.cobradorAsignado.id,
+                            name: cliente.cobradorAsignado.name,
+                            codigoGestor: cliente.cobradorAsignado.codigoGestor
+                        } : null
+                    }
+                });
             }
 
             return NextResponse.json({
-                encontrado: true,
-                cod_cliente: cliente.codigoCliente,
-                codigoCliente: cliente.codigoCliente,
-                contrato: cliente.codigoCliente,
-                cliente: {
-                    id: cliente.id,
-                    codigoCliente: cliente.codigoCliente,
-                    nombreCompleto: cliente.nombreCompleto,
-                    telefono: cliente.telefono,
-                    saldoActual: parseFloat(cliente.saldoActual.toString()),
-                    cobrador: cliente.cobradorAsignado ? {
-                        id: cliente.cobradorAsignado.id,
-                        name: cliente.cobradorAsignado.name,
-                        codigoGestor: cliente.cobradorAsignado.codigoGestor
-                    } : null
-                }
+                encontrado: false,
+                cod_cliente: null,
+                mensaje: "Cliente no encontrado en muebleria-erp"
             });
         }
 
@@ -802,7 +738,7 @@ export async function POST(req: Request) {
         }
 
         // --- ACCIÓN: CREAR TICKET (DIRECTO O FINAL) ---
-        // --- AUTO-DETECCIÓN DE CONTRATO ---
+        // --- AUTO-DETECCIÓN DE CONTRATO EN MUEBLERIA-ERP ---
         let codigoFinal = contrato && contrato !== 'null' ? contrato.toUpperCase() : null;
         
         if (!codigoFinal && referencia && referencia !== 'null') {
@@ -810,57 +746,12 @@ export async function POST(req: Request) {
             if (match) codigoFinal = match[0].toUpperCase();
         }
 
-        let cliente: any = codigoFinal ? await prisma.cliente.findUnique({
-            where: { codigoCliente: codigoFinal },
+        let cliente: any = codigoFinal ? await prisma.cliente.findFirst({
+            where: { codigoCliente: { equals: codigoFinal, mode: 'insensitive' } },
             include: { cobradorAsignado: true }
         }) : null;
 
-        // Si no está en BD local pero tenemos el código de contrato (DP/DQ), buscar en ContPAQi API en vivo y auto-importar
-        if (!cliente && codigoFinal) {
-            try {
-                const emp = codigoFinal.startsWith('DP') ? 'DP' : 'DQ';
-                const cRes = await fetch(`http://vortex520.qhosting.net:5000/api/Documentos/cliente/${codigoFinal}?empresa=${emp}`, {
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-API-Key': 'VERTEX123_CONTPAQI_ERP_2024',
-                        'X-Company-Id': emp,
-                        'X-Contpaqi-Empresa': emp
-                    }
-                });
-                if (cRes.ok) {
-                    const docs = await cRes.json();
-                    if (Array.isArray(docs) && docs.length > 0) {
-                        const firstDoc = docs[0];
-                        const saldoContpaqi = parseFloat(firstDoc.total?.toString() || firstDoc.saldo?.toString() || '0');
-                        const telFromRemitente = (remitente || '').replace(/\D/g, '').slice(-10) || null;
-                        cliente = await prisma.cliente.upsert({
-                            where: { codigoCliente: codigoFinal },
-                            update: {
-                                nombreCompleto: firstDoc.razonSocial || 'Cliente ContPAQi'
-                            },
-                            create: {
-                                codigoCliente: codigoFinal,
-                                nombreCompleto: firstDoc.razonSocial || 'Cliente ContPAQi',
-                                telefono: telFromRemitente,
-                                fechaVenta: new Date(),
-                                direccionCompleta: 'ContPAQi Sync',
-                                descripcionProducto: 'Muebles',
-                                diaPago: 'LUNES',
-                                periodicidad: 'semanal',
-                                montoPago: 0,
-                                saldoActual: saldoContpaqi,
-                                limiteCredito: saldoContpaqi
-                            },
-                            include: { cobradorAsignado: true }
-                        });
-                    }
-                }
-            } catch (err: any) {
-                console.log('Error auto-importando cliente desde ContPAQi en create:', err.message);
-            }
-        }
-
-        // Fallback: Si no hay cliente por código, buscar por teléfono del remitente
+        // Fallback: Si no hay cliente por código, buscar por teléfono del remitente en muebleria-erp
         if (!cliente && remitente) {
             const telRaw = String(remitente).replace(/\D/g, '');
             if (telRaw.length >= 10) {
@@ -869,7 +760,8 @@ export async function POST(req: Request) {
                     where: {
                         OR: [
                             { telefono: { contains: tel10 } },
-                            { telefonoTrabajo: { contains: tel10 } }
+                            { telefonoTrabajo: { contains: tel10 } },
+                            { telefono: { contains: telRaw } }
                         ]
                     },
                     include: { cobradorAsignado: true }
@@ -1178,31 +1070,6 @@ export async function POST(req: Request) {
                 saldoNuevo: saldoNuevo.toNumber()
             };
         });
-
-        // Consultar saldo en vivo de ContPAQi API si está disponible
-        let saldoContpaqiInfo = "";
-        try {
-            const empresaCod = codigoFinal.startsWith('DP') ? 'DP' : 'DQ';
-            const contpaqiRes = await fetch(`http://vortex520.qhosting.net:5000/api/Documentos/cliente/${codigoFinal}?empresa=${empresaCod}`, {
-                headers: {
-                    'Accept': 'application/json',
-                    'X-API-Key': 'VERTEX123_CONTPAQI_ERP_2024',
-                    'X-Company-Id': empresaCod,
-                    'X-Contpaqi-Empresa': empresaCod
-                }
-            });
-            if (contpaqiRes.ok) {
-                const docs = await contpaqiRes.json();
-                if (Array.isArray(docs)) {
-                    const saldoPendiente = docs
-                        .filter((d: any) => d.cancelado === 0)
-                        .reduce((acc: number, d: any) => acc + (d.pendiente !== undefined ? d.pendiente : (d.total || 0)), 0);
-                    saldoContpaqiInfo = `\n- 💼 Saldo ContPAQi: *$${saldoPendiente.toFixed(2)}*`;
-                }
-            }
-        } catch (e: any) {
-            console.log("Aviso: ContPAQi API no respondió para saldo en vivo:", e.message);
-        }
 
         const urlRecibo = `https://erp.mueblesdaso.com/public/recibo/${result.ticketId}`;
 
