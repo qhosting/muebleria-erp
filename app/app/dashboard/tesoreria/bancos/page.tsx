@@ -29,10 +29,38 @@ import {
     Trash2,
     Calendar,
     Clock,
-    Unlink
+    Unlink,
+    Eye,
+    Copy,
+    Check,
+    ExternalLink,
+    Building2,
+    CreditCard
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
+
+// Formatear Hora de Operación Bancaria
+function formatHoraOperacion(horaInput: any): string {
+    if (!horaInput) return "";
+    try {
+        if (typeof horaInput === "string") {
+            if (horaInput.includes("T")) {
+                const d = new Date(horaInput);
+                if (!isNaN(d.getTime())) {
+                    return d.toISOString().slice(11, 19);
+                }
+            }
+            if (horaInput.includes(":")) {
+                return horaInput.slice(0, 8);
+            }
+        }
+        if (horaInput instanceof Date && !isNaN(horaInput.getTime())) {
+            return horaInput.toISOString().slice(11, 19);
+        }
+    } catch {}
+    return String(horaInput).slice(0, 8);
+}
 
 // Funciones para formatear Fecha y Hora exacta del Ticket en Zona Horaria CDMX
 function formatFechaTicket(fechaInput: any, creadoEnInput?: any): string {
@@ -99,6 +127,7 @@ const TABS: {
 interface Movimiento {
     id: string;
     fechaOperacion: string;
+    horaOperacion?: string | null;
     bancoOrigen: string;
     bancoDestino?: string;
     cuentaDestino?: string;
@@ -111,9 +140,21 @@ interface Movimiento {
     cuentaEmisor?: string;
     abono?: number;
     cargo?: number;
+    saldo?: number;
     ticketId?: string | null;
     clienteId?: string | null;
     tabla?: string;
+    ticket?: {
+        id: string;
+        folio?: string;
+        referencia?: string;
+        monto: number;
+        fecha?: string;
+        conciliado: boolean;
+        cliente?: { id: string; codigoCliente: string; nombreCompleto: string; telefono?: string } | null;
+        gestor?: { name: string; codigoGestor?: string } | null;
+    } | null;
+    cliente?: { id: string; codigoCliente: string; nombreCompleto: string; telefono?: string } | null;
 }
 
 interface Ticket {
@@ -253,6 +294,18 @@ export default function BancosPage() {
     const [conciliando, setConciliando] = useState(false);
     const [ticketSearch, setTicketSearch] = useState("");
     const [ticketSeleccionado, setTicketSeleccionado] = useState<Ticket | null>(null);
+
+    // Ficha completa del movimiento
+    const [detalleModalMov, setDetalleModalMov] = useState<Movimiento | null>(null);
+    const [copiadoCampo, setCopiadoCampo] = useState<string | null>(null);
+
+    const copiarAlPortapapeles = (texto: string, campo: string) => {
+        if (!texto) return;
+        navigator.clipboard.writeText(texto);
+        setCopiadoCampo(campo);
+        toast.success(`Copiado: ${campo}`);
+        setTimeout(() => setCopiadoCampo(null), 2000);
+    };
 
     const santanderInputRef = useRef<HTMLInputElement>(null);
     const banorteInputRef = useRef<HTMLInputElement>(null);
@@ -687,121 +740,231 @@ export default function BancosPage() {
                         <CardContent className="p-0">
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left align-middle text-gray-600">
-                                    <thead className="bg-gray-50/75 border-b border-gray-100 font-medium text-gray-700">
-                                        <tr>
-                                            <th className="px-4 py-3 w-8"></th>
-                                            <th className="px-4 py-3">Fecha</th>
-                                            {activeTab === "todas" && <th className="px-4 py-3">Cuenta</th>}
-                                            <th className="px-4 py-3">Banco Origen</th>
-                                            <th className="px-4 py-3 min-w-[200px]">Concepto</th>
-                                            <th className="px-4 py-3">Rastreo / Ref</th>
-                                            <th className="px-4 py-3 text-right text-green-700">Abono</th>
-                                            <th className="px-4 py-3 text-right text-red-700">Cargo</th>
-                                            <th className="px-4 py-3 text-center">Estatus</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {loading ? (
-                                            <tr><td colSpan={colSpan + 2} className="px-4 py-8 text-center text-gray-500">
-                                                <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-blue-600" /> Cargando movimientos...
-                                            </td></tr>
-                                        ) : movimientos.length === 0 ? (
-                                            <tr><td colSpan={colSpan + 2} className="px-4 py-12 text-center">
-                                                <Landmark className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                                                <p className="text-gray-500 font-medium">No se encontraron movimientos</p>
-                                                <p className="text-sm text-gray-400 mt-1">Importa un estado de cuenta para comenzar.</p>
-                                            </td></tr>
-                                        ) : (
-                                            movimientos.map((mov) => {
-                                                const esConciliado = !!mov.ticketId;
-                                                const esAbono = (mov.abono || 0) > 0;
-                                                const esClickable = esAbono && !esConciliado;
-                                                const isSelected = panelMov?.id === mov.id;
-
-                                                return (
-                                                    <tr
-                                                        key={mov.id}
-                                                        onClick={() => esClickable ? abrirPanel(mov) : undefined}
-                                                        className={`transition-colors ${esClickable
-                                                            ? "hover:bg-blue-50/60 cursor-pointer"
-                                                            : esConciliado ? "bg-emerald-50/30" : ""
-                                                        } ${isSelected ? "bg-blue-100/60 ring-1 ring-inset ring-blue-300" : ""}`}
-                                                    >
-                                                        {/* Indicador visual */}
-                                                        <td className="pl-3 pr-1 py-3">
-                                                            {esConciliado ? (
-                                                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                                            ) : esAbono ? (
-                                                                <Link2 className="h-4 w-4 text-blue-400 opacity-60" />
-                                                            ) : (
-                                                                <span className="block h-4 w-4" />
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3 whitespace-nowrap text-gray-800">
-                                                            {formatDate(mov.fechaOperacion).split(" ")[0]}
-                                                        </td>
-                                                        {activeTab === "todas" && (
-                                                            <td className="px-4 py-3">
-                                                                {mov.cuentaDestino ? (
-                                                                    <Badge variant="outline" className={`text-xs font-semibold ${mov.bancoDestino === "SANTANDER" ? "border-red-200 text-red-700 bg-red-50" : "border-orange-200 text-orange-700 bg-orange-50"}`}>
-                                                                        {mov.cuentaDestino}
-                                                                    </Badge>
-                                                                ) : <span className="text-gray-400 text-xs">—</span>}
-                                                            </td>
-                                                        )}
-                                                        <td className="px-4 py-3 font-medium text-gray-900 text-xs">{mov.bancoOrigen}</td>
-                                                        <td className="px-4 py-3">
-                                                            <p className="truncate max-w-[240px]" title={mov.concepto || mov.descripcionGeneral || ""}>
-                                                                {mov.concepto || mov.descripcionGeneral || "—"}
-                                                            </p>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-xs font-mono text-gray-500">
-                                                            {mov.claveRastreo || mov.referencia || "—"}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right font-semibold text-green-700">
-                                                            {mov.abono ? formatCurrency(mov.abono) : "—"}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right font-medium text-red-600">
-                                                            {mov.cargo ? formatCurrency(mov.cargo) : "—"}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center">
-                                                            {esConciliado ? (
-                                                                <div className="flex items-center justify-center gap-1.5">
-                                                                    <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold">
-                                                                        ✓ Conciliado
-                                                                    </Badge>
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="ghost"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            desconciliar(mov);
-                                                                        }}
-                                                                        disabled={desconciliandoId === mov.id}
-                                                                        className="h-6 px-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 text-[10px] font-semibold flex items-center gap-1 rounded border border-transparent hover:border-red-200"
-                                                                        title="Desconciliar movimiento del ticket"
-                                                                    >
-                                                                        {desconciliandoId === mov.id ? (
-                                                                            <Loader2 className="h-3 w-3 animate-spin text-red-600" />
-                                                                        ) : (
-                                                                            <Unlink className="h-3 w-3 text-red-500" />
-                                                                        )}
-                                                                        <span className="hidden xl:inline">Desconciliar</span>
-                                                                    </Button>
-                                                                </div>
-                                                            ) : esAbono ? (
-                                                                <Badge className="bg-amber-100 text-amber-800 border-none text-xs font-bold hover:bg-amber-200 transition-colors">
-                                                                    <Link2 className="h-3 w-3 mr-1" /> Conciliar
-                                                                </Badge>
-                                                            ) : (
-                                                                <Badge variant="outline" className="text-xs text-gray-400">Cargo</Badge>
-                                                            )}
-                                                        </td>
+                                    {(() => {
+                                        const colSpan = activeTab === "todas" ? 11 : 10;
+                                        return (
+                                            <>
+                                                <thead className="bg-gray-50/75 border-b border-gray-100 font-medium text-gray-700">
+                                                    <tr>
+                                                        <th className="px-3 py-3 w-8"></th>
+                                                        <th className="px-3 py-3">Fecha y Hora</th>
+                                                        {activeTab === "todas" && <th className="px-3 py-3">Cuenta Destino</th>}
+                                                        <th className="px-3 py-3">Banco</th>
+                                                        <th className="px-3 py-3 min-w-[220px]">Concepto / Ordenante</th>
+                                                        <th className="px-3 py-3">Rastreo SPEI / Ref</th>
+                                                        <th className="px-3 py-3 text-right text-green-700">Abono</th>
+                                                        <th className="px-3 py-3 text-right text-red-700">Cargo</th>
+                                                        <th className="px-3 py-3 text-right text-blue-700">Saldo</th>
+                                                        <th className="px-3 py-3 text-center">Estatus / Ticket</th>
+                                                        <th className="px-3 py-3 text-center w-16">Ficha</th>
                                                     </tr>
-                                                );
-                                            })
-                                        )}
-                                    </tbody>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100">
+                                                    {loading ? (
+                                                        <tr><td colSpan={colSpan} className="px-4 py-8 text-center text-gray-500">
+                                                            <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-blue-600" /> Cargando movimientos bancarios...
+                                                        </td></tr>
+                                                    ) : movimientos.length === 0 ? (
+                                                        <tr><td colSpan={colSpan} className="px-4 py-12 text-center">
+                                                            <Landmark className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                                                            <p className="text-gray-500 font-medium">No se encontraron movimientos</p>
+                                                            <p className="text-sm text-gray-400 mt-1">Importa un estado de cuenta para comenzar.</p>
+                                                        </td></tr>
+                                                    ) : (
+                                                        movimientos.map((mov) => {
+                                                            const esConciliado = !!mov.ticketId;
+                                                            const esAbono = (mov.abono || 0) > 0;
+                                                            const esClickable = esAbono && !esConciliado;
+                                                            const isSelected = panelMov?.id === mov.id;
+                                                            const horaStr = formatHoraOperacion(mov.horaOperacion);
+                                                            const contratoCliente = mov.ticket?.cliente?.codigoCliente || mov.cliente?.codigoCliente;
+                                                            const ticketIdVinculado = mov.ticket?.id || mov.ticketId;
+
+                                                            return (
+                                                                <tr
+                                                                    key={mov.id}
+                                                                    onClick={() => esClickable ? abrirPanel(mov) : setDetalleModalMov(mov)}
+                                                                    className={`transition-colors cursor-pointer ${esClickable
+                                                                        ? "hover:bg-blue-50/60"
+                                                                        : esConciliado ? "bg-emerald-50/20 hover:bg-emerald-50/40" : "hover:bg-gray-50/60"
+                                                                    } ${isSelected ? "bg-blue-100/60 ring-1 ring-inset ring-blue-300" : ""}`}
+                                                                >
+                                                                    {/* Indicador visual */}
+                                                                    <td className="pl-3 pr-1 py-3" onClick={(e) => { e.stopPropagation(); setDetalleModalMov(mov); }}>
+                                                                        {esConciliado ? (
+                                                                            <CheckCircle2 className="h-4 w-4 text-emerald-500" title="Conciliado" />
+                                                                        ) : esAbono ? (
+                                                                            <Link2 className="h-4 w-4 text-blue-500 opacity-80" title="Abono pendiente de conciliar" />
+                                                                        ) : (
+                                                                            <CreditCard className="h-4 w-4 text-gray-400" title="Cargo / Retiro" />
+                                                                        )}
+                                                                    </td>
+
+                                                                    {/* Fecha y Hora */}
+                                                                    <td className="px-3 py-3 whitespace-nowrap text-gray-800">
+                                                                        <div className="font-medium text-xs text-gray-900">
+                                                                            {formatDate(mov.fechaOperacion).split(" ")[0]}
+                                                                        </div>
+                                                                        {horaStr ? (
+                                                                            <span className="flex items-center gap-1 text-[11px] text-gray-500 font-mono mt-0.5">
+                                                                                <Clock className="h-3 w-3 text-gray-400" />
+                                                                                {horaStr}
+                                                                            </span>
+                                                                        ) : null}
+                                                                    </td>
+
+                                                                    {/* Cuenta Destino (si todas) */}
+                                                                    {activeTab === "todas" && (
+                                                                        <td className="px-3 py-3">
+                                                                            {mov.cuentaDestino ? (
+                                                                                <Badge variant="outline" className={`text-xs font-semibold ${mov.bancoDestino === "SANTANDER" ? "border-red-200 text-red-700 bg-red-50" : "border-orange-200 text-orange-700 bg-orange-50"}`}>
+                                                                                    {mov.cuentaDestino}
+                                                                                </Badge>
+                                                                            ) : <span className="text-gray-400 text-xs">—</span>}
+                                                                        </td>
+                                                                    )}
+
+                                                                    {/* Banco Origen */}
+                                                                    <td className="px-3 py-3 font-semibold text-gray-900 text-xs whitespace-nowrap">
+                                                                        {mov.bancoOrigen}
+                                                                    </td>
+
+                                                                    {/* Concepto / Ordenante */}
+                                                                    <td className="px-3 py-3 min-w-[220px] max-w-[320px]">
+                                                                        <p className="font-semibold text-gray-900 text-xs truncate" title={mov.concepto || mov.descripcionGeneral || ""}>
+                                                                            {mov.concepto || mov.descripcionGeneral || "—"}
+                                                                        </p>
+                                                                        {mov.descripcionDetallada && (
+                                                                            <p className="text-[11px] text-gray-500 truncate mt-0.5" title={mov.descripcionDetallada}>
+                                                                                {mov.descripcionDetallada}
+                                                                            </p>
+                                                                        )}
+                                                                        {(mov.cuentaEmisor || mov.clabeEmisor) && (
+                                                                            <p className="text-[10px] font-mono text-gray-400 mt-0.5">
+                                                                                Cta/CLABE: {mov.clabeEmisor || mov.cuentaEmisor}
+                                                                            </p>
+                                                                        )}
+                                                                    </td>
+
+                                                                    {/* Rastreo SPEI / Referencia */}
+                                                                    <td className="px-3 py-3 text-xs">
+                                                                        {mov.claveRastreo ? (
+                                                                            <div className="flex items-center gap-1">
+                                                                                <span className="font-mono text-[11px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 truncate max-w-[140px]" title={mov.claveRastreo}>
+                                                                                    {mov.claveRastreo}
+                                                                                </span>
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        copiarAlPortapapeles(mov.claveRastreo!, "Clave de Rastreo SPEI");
+                                                                                    }}
+                                                                                    className="text-gray-400 hover:text-blue-600 p-0.5"
+                                                                                    title="Copiar Clave de Rastreo"
+                                                                                >
+                                                                                    <Copy className="h-3 w-3" />
+                                                                                </button>
+                                                                            </div>
+                                                                        ) : null}
+                                                                        {mov.referencia ? (
+                                                                            <span className="font-mono text-[11px] text-gray-500 block mt-0.5">
+                                                                                Ref: {mov.referencia}
+                                                                            </span>
+                                                                        ) : null}
+                                                                        {!mov.claveRastreo && !mov.referencia && <span className="text-gray-400 text-xs">—</span>}
+                                                                    </td>
+
+                                                                    {/* Abono */}
+                                                                    <td className="px-3 py-3 text-right font-bold text-green-700 text-xs whitespace-nowrap">
+                                                                        {mov.abono ? formatCurrency(mov.abono) : "—"}
+                                                                    </td>
+
+                                                                    {/* Cargo */}
+                                                                    <td className="px-3 py-3 text-right font-semibold text-red-600 text-xs whitespace-nowrap">
+                                                                        {mov.cargo ? formatCurrency(mov.cargo) : "—"}
+                                                                    </td>
+
+                                                                    {/* Saldo */}
+                                                                    <td className="px-3 py-3 text-right font-mono text-xs font-medium text-slate-700 whitespace-nowrap">
+                                                                        {mov.saldo != null ? formatCurrency(mov.saldo) : <span className="text-gray-400">—</span>}
+                                                                    </td>
+
+                                                                    {/* Estatus / Ticket */}
+                                                                    <td className="px-3 py-3 text-center">
+                                                                        {esConciliado ? (
+                                                                            <div className="flex flex-col items-center gap-1">
+                                                                                <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold py-0.5 px-2">
+                                                                                    ✓ Conciliado
+                                                                                </Badge>
+                                                                                {contratoCliente && (
+                                                                                    <a
+                                                                                        href={`/public/recibo/${ticketIdVinculado}`}
+                                                                                        target="_blank"
+                                                                                        rel="noreferrer"
+                                                                                        onClick={(e) => e.stopPropagation()}
+                                                                                        className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors"
+                                                                                        title="Abrir Recibo Oficial en nueva pestaña"
+                                                                                    >
+                                                                                        #{contratoCliente}
+                                                                                        <ExternalLink className="h-2.5 w-2.5" />
+                                                                                    </a>
+                                                                                )}
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    variant="ghost"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        desconciliar(mov);
+                                                                                    }}
+                                                                                    disabled={desconciliandoId === mov.id}
+                                                                                    className="h-5 px-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 text-[9px] font-semibold flex items-center gap-1 rounded"
+                                                                                    title="Desvincular ticket de este movimiento"
+                                                                                >
+                                                                                    {desconciliandoId === mov.id ? (
+                                                                                        <Loader2 className="h-3 w-3 animate-spin text-red-600" />
+                                                                                    ) : (
+                                                                                        <Unlink className="h-2.5 w-2.5 text-red-500" />
+                                                                                    )}
+                                                                                    <span>Desconciliar</span>
+                                                                                </Button>
+                                                                            </div>
+                                                                        ) : esAbono ? (
+                                                                            <Badge
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    abrirPanel(mov);
+                                                                                }}
+                                                                                className="bg-amber-100 text-amber-800 border-none text-[11px] font-bold hover:bg-amber-200 transition-colors cursor-pointer py-0.5 px-2"
+                                                                            >
+                                                                                <Link2 className="h-3 w-3 mr-1" /> Conciliar
+                                                                            </Badge>
+                                                                        ) : (
+                                                                            <Badge variant="outline" className="text-[10px] text-gray-400">Cargo</Badge>
+                                                                        )}
+                                                                    </td>
+
+                                                                    {/* Botón Ver Ficha */}
+                                                                    <td className="px-3 py-3 text-center">
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setDetalleModalMov(mov);
+                                                                            }}
+                                                                            className="h-7 w-7 p-0 rounded-lg text-blue-600 border-blue-200 hover:bg-blue-50 hover:border-blue-300"
+                                                                            title="Ver ficha técnica completa del movimiento bancario"
+                                                                        >
+                                                                            <Eye className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })
+                                                    )}
+                                                </tbody>
+                                            </>
+                                        );
+                                    })()}
                                 </table>
                             </div>
 
@@ -1075,6 +1238,312 @@ export default function BancosPage() {
                                         ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Conciliando...</>
                                         : <><Link2 className="h-4 w-4 mr-2" /> Conciliar</>
                                     }
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Modal de Ficha Técnica Completa de Movimiento Bancario ── */}
+                {detalleModalMov && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-2xl w-full overflow-hidden flex flex-col my-8">
+                            {/* Modal Header */}
+                            <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 text-white p-5 flex items-start justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
+                                        <Landmark className="h-5 w-5 text-blue-300" />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-base font-bold">Ficha Técnica de Movimiento Bancario</h3>
+                                            {detalleModalMov.ticketId ? (
+                                                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]">
+                                                    ✓ Conciliado
+                                                </Badge>
+                                            ) : (detalleModalMov.abono || 0) > 0 ? (
+                                                <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px]">
+                                                    Pendiente de conciliar
+                                                </Badge>
+                                            ) : (
+                                                <Badge className="bg-gray-500/20 text-gray-300 border-gray-500/30 text-[10px]">
+                                                    Cargo / Retiro
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <p className="text-xs text-blue-200 mt-0.5">
+                                            {detalleModalMov.bancoDestino || "BANCO"} · Cuenta: <span className="font-mono font-bold text-white">{detalleModalMov.cuentaDestino || "General"}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setDetalleModalMov(null)}
+                                    className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10 rounded-full"
+                                >
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+
+                            {/* Modal Body */}
+                            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+                                {/* Grid de montos e importes */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    <div className="bg-green-50/70 border border-green-200/80 rounded-xl p-3">
+                                        <span className="text-[11px] font-bold text-green-700 uppercase tracking-wider block">Abono (Depósito)</span>
+                                        <span className="text-lg font-black text-green-900 mt-0.5 block">
+                                            {detalleModalMov.abono ? formatCurrency(detalleModalMov.abono) : "$0.00"}
+                                        </span>
+                                    </div>
+                                    <div className="bg-red-50/70 border border-red-200/80 rounded-xl p-3">
+                                        <span className="text-[11px] font-bold text-red-700 uppercase tracking-wider block">Cargo (Retiro)</span>
+                                        <span className="text-lg font-black text-red-900 mt-0.5 block">
+                                            {detalleModalMov.cargo ? formatCurrency(detalleModalMov.cargo) : "$0.00"}
+                                        </span>
+                                    </div>
+                                    <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-3">
+                                        <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider block">Saldo Posterior</span>
+                                        <span className="text-lg font-black text-blue-900 mt-0.5 block font-mono">
+                                            {detalleModalMov.saldo != null ? formatCurrency(detalleModalMov.saldo) : "—"}
+                                        </span>
+                                    </div>
+                                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">Fecha y Hora</span>
+                                        <span className="text-xs font-bold text-slate-900 mt-1 block">
+                                            {formatDate(detalleModalMov.fechaOperacion).split(" ")[0]}
+                                        </span>
+                                        <span className="text-[11px] font-mono text-slate-500">
+                                            {formatHoraOperacion(detalleModalMov.horaOperacion) || "Hora no reg."}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Identificadores y Clave de Rastreo */}
+                                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-3">
+                                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Hash className="h-3.5 w-3.5 text-slate-500" />
+                                        Identificadores y Rastreo Bancario
+                                    </h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                        <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                                            <span className="text-slate-400 block text-[10px] uppercase font-semibold">Clave de Rastreo SPEI</span>
+                                            <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                <span className="font-mono font-bold text-blue-700 break-all">
+                                                    {detalleModalMov.claveRastreo || "—"}
+                                                </span>
+                                                {detalleModalMov.claveRastreo && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => copiarAlPortapapeles(detalleModalMov.claveRastreo!, "Clave de Rastreo SPEI")}
+                                                        className="h-6 w-6 p-0 text-slate-400 hover:text-blue-600"
+                                                        title="Copiar Clave de Rastreo"
+                                                    >
+                                                        {copiadoCampo === "Clave de Rastreo SPEI" ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                                            <span className="text-slate-400 block text-[10px] uppercase font-semibold">Número de Referencia</span>
+                                            <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                <span className="font-mono font-bold text-slate-800">
+                                                    {detalleModalMov.referencia || "—"}
+                                                </span>
+                                                {detalleModalMov.referencia && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => copiarAlPortapapeles(detalleModalMov.referencia!, "Referencia Bancaria")}
+                                                        className="h-6 w-6 p-0 text-slate-400 hover:text-blue-600"
+                                                        title="Copiar Referencia"
+                                                    >
+                                                        {copiadoCampo === "Referencia Bancaria" ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white p-2.5 rounded-lg border border-slate-200 sm:col-span-2">
+                                            <span className="text-slate-400 block text-[10px] uppercase font-semibold">ID de Registro en Base de Datos</span>
+                                            <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                <span className="font-mono text-[11px] text-slate-600 break-all">
+                                                    {detalleModalMov.id}
+                                                </span>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => copiarAlPortapapeles(detalleModalMov.id, "ID de Movimiento")}
+                                                    className="h-6 w-6 p-0 text-slate-400 hover:text-blue-600"
+                                                    title="Copiar ID"
+                                                >
+                                                    {copiadoCampo === "ID de Movimiento" ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Datos del Emisor / Ordenante */}
+                                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-3">
+                                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Building2 className="h-3.5 w-3.5 text-slate-500" />
+                                        Información del Emisor / Ordenante
+                                    </h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                        <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                                            <span className="text-slate-400 block text-[10px] uppercase font-semibold">Banco Emisor / Participante</span>
+                                            <span className="font-bold text-slate-900 mt-0.5 block">{detalleModalMov.bancoOrigen}</span>
+                                        </div>
+                                        <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                                            <span className="text-slate-400 block text-[10px] uppercase font-semibold">Cuenta o CLABE Ordenante</span>
+                                            <span className="font-mono font-bold text-slate-800 mt-0.5 block">
+                                                {detalleModalMov.clabeEmisor || detalleModalMov.cuentaEmisor || "No especificada"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Concepto y Descripción Detallada */}
+                                <div className="space-y-2">
+                                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                                        Concepto y Leyenda Bancaria
+                                    </span>
+                                    <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs">
+                                        <p className="font-semibold text-slate-900">
+                                            {detalleModalMov.concepto || detalleModalMov.descripcionGeneral || "—"}
+                                        </p>
+                                    </div>
+                                    {detalleModalMov.descripcionDetallada && (
+                                        <div className="mt-2">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="text-[11px] font-semibold text-slate-500 uppercase">
+                                                    Detalle Crudo del Extracto (Full Bank Raw)
+                                                </span>
+                                                <button
+                                                    onClick={() => copiarAlPortapapeles(detalleModalMov.descripcionDetallada!, "Leyenda Detallada")}
+                                                    className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                                >
+                                                    <Copy className="h-3 w-3" /> Copiar texto
+                                                </button>
+                                            </div>
+                                            <div className="bg-slate-900 text-slate-100 p-3 rounded-xl font-mono text-[11px] leading-relaxed break-words select-all max-h-36 overflow-y-auto">
+                                                {detalleModalMov.descripcionDetallada}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Conciliación / Ticket Vinculado */}
+                                {detalleModalMov.ticketId ? (
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                                                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                                Ticket Conciliado en Tesorería
+                                            </span>
+                                            <a
+                                                href={`/public/recibo/${detalleModalMov.ticket?.id || detalleModalMov.ticketId}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-xs font-bold text-blue-700 hover:text-blue-800 bg-white px-2.5 py-1 rounded-lg border border-blue-200 flex items-center gap-1 shadow-sm"
+                                            >
+                                                Ver Recibo Oficial Digital
+                                                <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs bg-white/80 p-3 rounded-lg border border-emerald-100">
+                                            <div>
+                                                <span className="text-slate-400 text-[10px] uppercase block font-semibold">Contrato</span>
+                                                <span className="font-mono font-bold text-blue-900">
+                                                    #{detalleModalMov.ticket?.cliente?.codigoCliente || detalleModalMov.cliente?.codigoCliente || "N/A"}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 text-[10px] uppercase block font-semibold">Cliente</span>
+                                                <span className="font-bold text-slate-800 truncate block">
+                                                    {detalleModalMov.ticket?.cliente?.nombreCompleto || detalleModalMov.cliente?.nombreCompleto || "N/A"}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 text-[10px] uppercase block font-semibold">Monto del Ticket</span>
+                                                <span className="font-black text-green-700">
+                                                    {formatCurrency(detalleModalMov.ticket?.monto || detalleModalMov.abono || 0)}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 text-[10px] uppercase block font-semibold">Cobrador / Gestor</span>
+                                                <span className="text-slate-700">
+                                                    {detalleModalMov.ticket?.gestor?.name || "No asignado"}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 text-[10px] uppercase block font-semibold">Teléfono</span>
+                                                <span className="font-mono text-slate-700">
+                                                    {detalleModalMov.ticket?.cliente?.telefono || detalleModalMov.cliente?.telefono || "—"}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 text-[10px] uppercase block font-semibold">Ticket ID</span>
+                                                <span className="font-mono text-[10px] text-slate-500 truncate block">
+                                                    {detalleModalMov.ticket?.id || detalleModalMov.ticketId}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (detalleModalMov.abono || 0) > 0 ? (
+                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                                                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                                                Movimiento pendiente de conciliación
+                                            </p>
+                                            <p className="text-xs text-amber-700 mt-0.5">
+                                                Puedes vincular este depósito a un ticket o pago en la cola de tesorería.
+                                            </p>
+                                        </div>
+                                        <Button
+                                            onClick={() => {
+                                                const m = detalleModalMov;
+                                                setDetalleModalMov(null);
+                                                abrirPanel(m);
+                                            }}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-md shadow-blue-200 whitespace-nowrap"
+                                        >
+                                            <Link2 className="h-3.5 w-3.5 mr-1.5" />
+                                            Conciliar con Ticket
+                                        </Button>
+                                    </div>
+                                ) : null}
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div className="bg-slate-50 border-t border-slate-200 p-4 flex items-center justify-between">
+                                <div>
+                                    {detalleModalMov.ticketId && (
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => {
+                                                const m = detalleModalMov;
+                                                setDetalleModalMov(null);
+                                                desconciliar(m);
+                                            }}
+                                            className="text-red-600 hover:text-red-700 hover:bg-red-50 text-xs font-semibold"
+                                        >
+                                            <Unlink className="h-3.5 w-3.5 mr-1" />
+                                            Desconciliar movimiento
+                                        </Button>
+                                    )}
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setDetalleModalMov(null)}
+                                    className="px-5 text-xs font-semibold"
+                                >
+                                    Cerrar Ficha
                                 </Button>
                             </div>
                         </div>

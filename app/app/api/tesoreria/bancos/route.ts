@@ -26,11 +26,49 @@ export async function GET(request: NextRequest) {
             where.OR = [
                 { concepto: { contains: search, mode: 'insensitive' } },
                 { descripcionDetallada: { contains: search, mode: 'insensitive' } },
+                { descripcionGeneral: { contains: search, mode: 'insensitive' } },
                 { claveRastreo: { contains: search, mode: 'insensitive' } },
                 { referencia: { contains: search, mode: 'insensitive' } },
                 { bancoOrigen: { contains: search, mode: 'insensitive' } },
+                { clabeEmisor: { contains: search, mode: 'insensitive' } },
+                { cuentaEmisor: { contains: search, mode: 'insensitive' } }
             ];
         }
+
+        const includeRelations = {
+            ticket: {
+                select: {
+                    id: true,
+                    folio: true,
+                    referencia: true,
+                    monto: true,
+                    fecha: true,
+                    conciliado: true,
+                    cliente: {
+                        select: {
+                            id: true,
+                            codigoCliente: true,
+                            nombreCompleto: true,
+                            telefono: true
+                        }
+                    },
+                    gestor: {
+                        select: {
+                            name: true,
+                            codigoGestor: true
+                        }
+                    }
+                }
+            },
+            cliente: {
+                select: {
+                    id: true,
+                    codigoCliente: true,
+                    nombreCompleto: true,
+                    telefono: true
+                }
+            }
+        };
 
         let movimientos: any[] = [];
         let total = 0;
@@ -39,6 +77,7 @@ export async function GET(request: NextRequest) {
             const [data, count] = await Promise.all([
                 prisma.movimientoSantander22001022837.findMany({
                     where,
+                    include: includeRelations,
                     orderBy: { fechaOperacion: 'desc' },
                     skip,
                     take: limit,
@@ -51,6 +90,7 @@ export async function GET(request: NextRequest) {
             const [data, count] = await Promise.all([
                 prisma.movimientoSantander65505732541.findMany({
                     where,
+                    include: includeRelations,
                     orderBy: { fechaOperacion: 'desc' },
                     skip,
                     take: limit,
@@ -63,6 +103,7 @@ export async function GET(request: NextRequest) {
             const [data, count] = await Promise.all([
                 prisma.movimientoBanorte0330253963.findMany({
                     where,
+                    include: includeRelations,
                     orderBy: { fechaOperacion: 'desc' },
                     skip,
                     take: limit,
@@ -76,16 +117,19 @@ export async function GET(request: NextRequest) {
             const [m1, m2, m3, c1, c2, c3] = await Promise.all([
                 prisma.movimientoSantander22001022837.findMany({
                     where,
+                    include: includeRelations,
                     orderBy: { fechaOperacion: 'desc' },
                     take: skip + limit,
                 }),
                 prisma.movimientoSantander65505732541.findMany({
                     where,
+                    include: includeRelations,
                     orderBy: { fechaOperacion: 'desc' },
                     take: skip + limit,
                 }),
                 prisma.movimientoBanorte0330253963.findMany({
                     where,
+                    include: includeRelations,
                     orderBy: { fechaOperacion: 'desc' },
                     take: skip + limit,
                 }),
