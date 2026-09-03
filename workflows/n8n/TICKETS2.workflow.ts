@@ -647,8 +647,8 @@ return [{
         jsonBody: `={
   "action": "pending",
   "remitente": "{{ $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '' }}",
-  "base64Data": "{{ $('Descargar Media WAHA')?.item?.binary?.data?.data || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.base64 || '' }}",
-  "tipoArchivo": "{{ $('Descargar Media WAHA')?.item?.binary?.data?.mimeType || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.mimetype || 'image/jpeg' }}"
+  "base64Data": "{{ $json.body?.data?.message?.base64 || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.base64 || (typeof $json.base64 === 'string' && $json.base64.length > 50 ? $json.base64 : '') || '' }}",
+  "tipoArchivo": "{{ $json.body?.data?.message?.imageMessage?.mimetype || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.mimetype || 'image/jpeg' }}"
 }`,
         options: {},
     };
@@ -2312,13 +2312,13 @@ return [{
                 {
                     id: 'ff22a3c5-be4c-4dab-940c-c64758279f35',
                     name: 'base64',
-                    value: "={{ $json.base64 || $('Descargar Media WAHA')?.item?.binary?.data?.data || $json.body?.data?.message?.base64 || $json.body?.data?.base64 || $json.base64_data || '' }}",
+                    value: "={{ $json.body?.data?.message?.base64 || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.base64 || $json.body?.data?.base64 || (typeof $json.base64 === 'string' && $json.base64.length > 50 ? $json.base64 : '') || $json.base64_data || '' }}",
                     type: 'string',
                 },
                 {
                     id: '70b50d23-a404-4ed1-befa-4b3c12edd376',
                     name: 'mimetype',
-                    value: "={{ $json.mimetype || $('Descargar Media WAHA')?.item?.binary?.data?.mimeType || $json.body?.data?.message?.imageMessage?.mimetype || $json.tipo_archivo || 'image/jpeg' }}",
+                    value: "={{ $json.body?.data?.message?.imageMessage?.mimetype || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.mimetype || (typeof $json.mimetype === 'string' && $json.mimetype.includes('/') ? $json.mimetype : 'image/jpeg') }}",
                     type: 'string',
                 },
                 {
@@ -2352,7 +2352,7 @@ return [{
                 {
                     id: 'cea9b660-3630-4638-add9-c58aeec1d14b',
                     name: 'base64',
-                    value: "={{ $('Descargar Media WAHA')?.item?.binary?.data?.data || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.base64 || $('Gran Enrutador')?.item?.json?.body?.data?.message?.base64 || '' }}",
+                    value: "={{ $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.base64 || $('Gran Enrutador')?.item?.json?.body?.data?.message?.base64 || $json.body?.data?.message?.base64 || (typeof $json.base64 === 'string' && $json.base64.length > 50 ? $json.base64 : '') || '' }}",
                     type: 'string',
                 },
                 {
@@ -2364,7 +2364,7 @@ return [{
                 {
                     id: '3ad3e148-dd48-4203-904e-5da9af980571',
                     name: 'mimetype',
-                    value: "={{ $('Descargar Media WAHA')?.item?.binary?.data?.mimeType || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.mimetype || $('Gran Enrutador')?.item?.json?.body?.data?.message?.imageMessage?.mimetype || 'image/jpeg' }}",
+                    value: "={{ $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.mimetype || $('Gran Enrutador')?.item?.json?.body?.data?.message?.imageMessage?.mimetype || 'image/jpeg' }}",
                     type: 'string',
                 },
             ],
