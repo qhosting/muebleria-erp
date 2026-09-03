@@ -341,29 +341,28 @@ export async function POST(request: NextRequest) {
             const normalizar = (s: string) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
 
             for (const ticket of ticketsPendientes) {
+                const montoTicket = parseFloat(ticket.monto.toString());
                 const rawRastreo = (ticket.claveRastreo || '').trim().toUpperCase();
                 const normRastreo = normalizar(rawRastreo);
                 
+                const contrato = (ticket.cliente?.codigoCliente || '').trim().toUpperCase();
+                const normContrato = normalizar(contrato);
+
+                const nombreCompleto = (ticket.cliente?.nombreCompleto || '').trim().toUpperCase();
+                const palabrasNombre = nombreCompleto
+                    .split(/\s+/)
+                    .filter(w => w.length >= 4 && !['DE', 'DEL', 'LOS', 'LAS', 'SAN', 'SANTA', 'MARIA', 'JOSE'].includes(w));
+
                 const rawRef = (ticket.referencia || '').trim().toUpperCase();
                 const normRef = normalizar(rawRef);
 
                 const rawFolio = (ticket.folio || '').trim().toUpperCase();
                 const normFolio = normalizar(rawFolio);
 
-                const candidateKeys = [
-                    rawRastreo,
-                    normRastreo,
-                    rawRef.length >= 6 ? rawRef : null,
-                    normRef.length >= 6 ? normRef : null,
-                    rawFolio.length >= 6 ? rawFolio : null,
-                    normFolio.length >= 6 ? normFolio : null
-                ].filter(Boolean) as string[];
-
-                const validKeys = candidateKeys.filter(k => k.length >= 5);
-                if (validKeys.length === 0) continue;
-
                 let matchMov: any = null;
                 let razonMatch = '';
+                let tipoMatch = 'SUGERENCIA';
+                let scoreMatch = 999; // Menor es más prioritario
 
                 // Si viene confirm_spei con un movimiento específico aprobado
                 const specificApproved = approvedMatches?.find((m: any) => m.ticketId === ticket.id);
@@ -372,32 +371,96 @@ export async function POST(request: NextRequest) {
                     matchMov = movimientosPool.find(m => m.tabla === specificApproved.tabla && String(m.id) === String(specificApproved.movimientoId));
                     if (matchMov) {
                         razonMatch = 'Aprobado por el usuario';
+                        tipoMatch = 'APROBADO';
+                        scoreMatch = 0;
                     }
                 } else {
                     for (const mov of movimientosPool) {
                         const movKey = `${mov.tabla}__${mov.id}`;
                         if (usadosMovIds.has(movKey)) continue;
 
-                        const movRawText = `${mov.claveRastreo || ''} ${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''} ${mov.referencia || ''}`.toUpperCase();
+                        const movAbono = parseFloat(mov.abono?.toString() || '0');
+                        const isMontoExact = Math.abs(montoTicket - movAbono) < 0.01;
+
+                        const movClaveRastreo = (mov.claveRastreo || '').trim().toUpperCase();
+                        const movRawText = `${mov.claveRastreo || ''} ${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''} ${mov.referencia || ''} ${mov.cuentaEmisor || ''}`.toUpperCase();
                         const movNormText = normalizar(movRawText);
 
-                        const isMatched = validKeys.some(k => {
-                            if (movRawText.includes(k) || movNormText.includes(normalizar(k))) {
-                                razonMatch = `Coincidencia por Clave: ${k}`;
-                                return true;
-                            }
-                            return false;
-                        });
+                        // 1. PRIORIDAD 1: Clave de Rastreo SPEI Exacta
+                        if (normRastreo && normRastreo.length >= 6) {
+                            const isSpeiMatch = 
+                                (movClaveRastreo && (movClaveRastreo === rawRastreo || normalizar(movClaveRastreo) === normRastreo)) ||
+                                movRawText.includes(rawRastreo) ||
+                                movNormText.includes(normRastreo);
 
-                        if (isMatched) {
-                            matchMov = mov;
-                            usadosMovIds.add(movKey);
-                            break;
+                            if (isSpeiMatch) {
+                                matchMov = mov;
+                                razonMatch = `Clave SPEI exacta: ${rawRastreo}`;
+                                tipoMatch = 'SPEI_EXACTO';
+                                scoreMatch = 1;
+                                break; // SPEI exacto es match definitivo
+                            }
+                        }
+
+                        // 2. PRIORIDAD 2: Código de Cliente / Contrato DP o DQ en banco
+                        if (normContrato && normContrato.length >= 6 && scoreMatch > 2) {
+                            const isContratoMatch = movRawText.includes(contrato) || movNormText.includes(normContrato);
+                            if (isContratoMatch) {
+                                matchMov = mov;
+                                razonMatch = `Contrato ${contrato} detectado en la leyenda bancaria${isMontoExact ? ' (Monto exacto)' : ''}`;
+                                tipoMatch = 'CONTRATO_DP_DQ';
+                                scoreMatch = isMontoExact ? 2 : 2.5;
+                                if (isMontoExact) break;
+                            }
+                        }
+
+                        // 3. PRIORIDAD 3: Nombre del Cliente en concepto bancario
+                        if (isMontoExact && palabrasNombre.length > 0 && scoreMatch > 3) {
+                            // Coincidencia con nombre completo o al menos 2 palabras clave del cliente
+                            const palabrasCoincidentes = palabrasNombre.filter(p => movRawText.includes(p));
+                            if (movRawText.includes(nombreCompleto) || palabrasCoincidentes.length >= 2) {
+                                matchMov = mov;
+                                razonMatch = `Nombre "${palabrasCoincidentes.join(' ')}" detectado en banco con monto exacto`;
+                                tipoMatch = 'NOMBRE_CLIENTE';
+                                scoreMatch = 3;
+                                continue;
+                            }
+                        }
+
+                        // 4. PRIORIDAD 4: Folio o Referencia del Ticket
+                        if (isMontoExact && scoreMatch > 4) {
+                            if ((normFolio && normFolio.length >= 6 && movNormText.includes(normFolio)) ||
+                                (normRef && normRef.length >= 6 && movNormText.includes(normRef))) {
+                                matchMov = mov;
+                                razonMatch = `Folio/Referencia (${rawFolio || rawRef}) encontrado en banco con monto exacto`;
+                                tipoMatch = 'FOLIO_REFERENCIA';
+                                scoreMatch = 4;
+                                continue;
+                            }
+                        }
+
+                        // 5. PRIORIDAD 5: Mismo monto exacto y fecha cercana (±48 horas)
+                        if (isMontoExact && scoreMatch > 5) {
+                            const ticketDate = ticket.fecha || ticket.creadoEn;
+                            if (ticketDate && mov.fechaOperacion) {
+                                const tDate = new Date(ticketDate);
+                                const mDate = new Date(mov.fechaOperacion);
+                                const diffHours = Math.abs(tDate.getTime() - mDate.getTime()) / (1000 * 60 * 60);
+                                if (diffHours <= 48) {
+                                    matchMov = mov;
+                                    razonMatch = `Monto exacto ($${montoTicket.toFixed(2)}) y fecha cercana (${tDate.toISOString().slice(0, 10)})`;
+                                    tipoMatch = 'MONTO_FECHA';
+                                    scoreMatch = 5;
+                                    continue;
+                                }
+                            }
                         }
                     }
                 }
 
                 if (matchMov) {
+                    usadosMovIds.add(`${matchMov.tabla}__${matchMov.id}`);
+
                     const matchItem = {
                         matchKey: `${ticket.id}__${matchMov.tabla}__${matchMov.id}`,
                         ticketId: ticket.id,
@@ -406,6 +469,7 @@ export async function POST(request: NextRequest) {
                         banco: matchMov.banco,
                         cuentaDestino: matchMov.cuentaDestino,
                         razon: razonMatch,
+                        tipoMatch: tipoMatch,
                         ticket: {
                             id: ticket.id,
                             contrato: ticket.cliente?.codigoCliente || 'N/A',

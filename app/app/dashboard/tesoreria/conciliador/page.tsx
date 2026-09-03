@@ -31,7 +31,10 @@ import {
     X,
     Building,
     ArrowRight,
-    ShieldCheck
+    ShieldCheck,
+    User,
+    Hash,
+    FileText
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -1230,11 +1233,32 @@ export default function ConciliadorPage() {
 
                                     {/* Columna Izquierda: Información del Ticket */}
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            {m.tipoMatch === 'SPEI_EXACTO' ? (
+                                                <Badge className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 flex items-center gap-1 shadow-sm">
+                                                    <Zap className="w-3 h-3 fill-amber-300 text-amber-300" />
+                                                    SPEI Exacto
+                                                </Badge>
+                                            ) : m.tipoMatch === 'CONTRATO_DP_DQ' ? (
+                                                <Badge className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 flex items-center gap-1 shadow-sm">
+                                                    <FileText className="w-3 h-3 text-white" />
+                                                    Contrato DP/DQ
+                                                </Badge>
+                                            ) : m.tipoMatch === 'NOMBRE_CLIENTE' ? (
+                                                <Badge className="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 flex items-center gap-1 shadow-sm">
+                                                    <User className="w-3 h-3 text-white" />
+                                                    Nombre Cliente
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-800 border-amber-300 font-bold">
+                                                    {m.tipoMatch || 'Sugerencia'}
+                                                </Badge>
+                                            )}
+
                                             <Badge variant="outline" className="text-[10px] font-mono bg-white font-bold border-indigo-200 text-indigo-700">
                                                 Ticket #{m.ticket.id}
                                             </Badge>
-                                            <span className="font-mono text-xs font-bold text-gray-800">
+                                            <span className="font-mono text-xs font-bold text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded">
                                                 {m.ticket.contrato}
                                             </span>
                                             {m.ticket.tienePago ? (
@@ -1251,9 +1275,9 @@ export default function ConciliadorPage() {
                                             {m.ticket.nombre}
                                         </p>
                                         <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                                            <span className="font-semibold text-gray-500">Clave SPEI:</span>
+                                            <span className="font-semibold text-gray-500">Rastreo SPEI:</span>
                                             <span className="font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 break-all">
-                                                {m.ticket.claveRastreo}
+                                                {m.ticket.claveRastreo || 'N/A'}
                                             </span>
                                         </div>
                                     </div>
@@ -1271,7 +1295,7 @@ export default function ConciliadorPage() {
                                                 <Badge variant="outline" className="text-[10px] font-bold bg-slate-100 text-slate-800 border-slate-300">
                                                     {m.banco}
                                                 </Badge>
-                                                <span className="text-[10px] font-mono text-gray-500">
+                                                <span className="text-[10px] font-mono text-gray-500 font-semibold">
                                                     Cta: {m.cuentaDestino}
                                                 </span>
                                             </div>
@@ -1284,8 +1308,8 @@ export default function ConciliadorPage() {
                                             {m.movimiento.concepto || "Sin concepto"}
                                         </p>
                                         <div className="mt-1 flex items-center justify-between text-xs">
-                                            <span className="text-[10px] text-emerald-700 font-medium">
-                                                {m.razon}
+                                            <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                                ✓ {m.razon}
                                             </span>
                                             <span className="font-mono font-bold text-gray-900">
                                                 Abono: {formatCurrency(m.movimiento.abono)}
