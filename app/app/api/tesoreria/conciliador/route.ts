@@ -277,6 +277,179 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, message: 'Ticket descartado exitosamente' });
         }
 
+        // --- ACCIÓN: AUTO CONCILIACIÓN INTELIGENTE MEDIANTE SPEI (CLAVE DE RASTREO) ---
+        if (action === 'auto_spei' || action === 'conciliar_spei') {
+            const ticketsPendientes = await prisma.ticket.findMany({
+                where: {
+                    conciliado: false,
+                    OR: [
+                        { claveRastreo: { not: null } },
+                        { referencia: { not: null } },
+                        { folio: { not: null } }
+                    ]
+                },
+                include: { cliente: true, pagos: true }
+            });
+
+            const [m1, m2, m3] = await Promise.all([
+                prisma.movimientoSantander22001022837.findMany({
+                    where: { ticketId: null, abono: { gt: 0 } }
+                }),
+                prisma.movimientoSantander65505732541.findMany({
+                    where: { ticketId: null, abono: { gt: 0 } }
+                }),
+                prisma.movimientoBanorte0330253963.findMany({
+                    where: { ticketId: null, abono: { gt: 0 } }
+                })
+            ]);
+
+            const movimientosPool = [
+                ...m1.map(m => ({ ...m, tabla: 'movimientoSantander22001022837', banco: 'SANTANDER' })),
+                ...m2.map(m => ({ ...m, tabla: 'movimientoSantander65505732541', banco: 'SANTANDER' })),
+                ...m3.map(m => ({ ...m, tabla: 'movimientoBanorte0330253963', banco: 'BANORTE' }))
+            ];
+
+            const conciliados: any[] = [];
+            const usadosMovIds = new Set<string>();
+
+            const normalizar = (s: string) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+
+            for (const ticket of ticketsPendientes) {
+                const rawRastreo = (ticket.claveRastreo || '').trim().toUpperCase();
+                const normRastreo = normalizar(rawRastreo);
+                
+                const rawRef = (ticket.referencia || '').trim().toUpperCase();
+                const normRef = normalizar(rawRef);
+
+                const rawFolio = (ticket.folio || '').trim().toUpperCase();
+                const normFolio = normalizar(rawFolio);
+
+                const candidateKeys = [
+                    rawRastreo,
+                    normRastreo,
+                    rawRef.length >= 6 ? rawRef : null,
+                    normRef.length >= 6 ? normRef : null,
+                    rawFolio.length >= 6 ? rawFolio : null,
+                    normFolio.length >= 6 ? normFolio : null
+                ].filter(Boolean) as string[];
+
+                const validKeys = candidateKeys.filter(k => k.length >= 5);
+                if (validKeys.length === 0) continue;
+
+                let matchMov: any = null;
+
+                for (const mov of movimientosPool) {
+                    const movKey = `${mov.tabla}__${mov.id}`;
+                    if (usadosMovIds.has(movKey)) continue;
+
+                    const movRawText = `${mov.claveRastreo || ''} ${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''} ${mov.referencia || ''}`.toUpperCase();
+                    const movNormText = normalizar(movRawText);
+
+                    const isMatched = validKeys.some(k => {
+                        return movRawText.includes(k) || movNormText.includes(normalizar(k));
+                    });
+
+                    if (isMatched) {
+                        matchMov = mov;
+                        usadosMovIds.add(movKey);
+                        break;
+                    }
+                }
+
+                if (matchMov) {
+                    const operations: any[] = [
+                        prisma.ticket.update({
+                            where: { id: ticket.id },
+                            data: { conciliado: true }
+                        })
+                    ];
+
+                    const updateMovData: any = {
+                        ticketId: ticket.id,
+                        clienteId: ticket.clienteId || null,
+                        fechaIdentificado: new Date()
+                    };
+
+                    if (matchMov.tabla === 'movimientoSantander22001022837') {
+                        operations.push(prisma.movimientoSantander22001022837.update({
+                            where: { id: matchMov.id },
+                            data: updateMovData
+                        }));
+                    } else if (matchMov.tabla === 'movimientoSantander65505732541') {
+                        operations.push(prisma.movimientoSantander65505732541.update({
+                            where: { id: matchMov.id },
+                            data: updateMovData
+                        }));
+                    } else if (matchMov.tabla === 'movimientoBanorte0330253963') {
+                        operations.push(prisma.movimientoBanorte0330253963.update({
+                            where: { id: matchMov.id },
+                            data: updateMovData
+                        }));
+                    }
+
+                    if ((!ticket.pagos || ticket.pagos.length === 0) && ticket.clienteId && ticket.cliente) {
+                        const saldoAnterior = parseFloat(ticket.cliente.saldoActual.toString());
+                        const montoPago = parseFloat(ticket.monto.toString());
+                        const saldoNuevo = Math.max(0, saldoAnterior - montoPago);
+
+                        const userId = (session.user as any)?.id;
+                        const cobradorId = userId || ticket.cliente.cobradorAsignadoId || 'system';
+                        const fechaPagoFinal = parseValidDate(ticket.fecha || matchMov.fechaOperacion);
+
+                        operations.push(prisma.pago.create({
+                            data: {
+                                clienteId: ticket.cliente.id,
+                                cobradorId: cobradorId,
+                                ticketId: ticket.id,
+                                monto: montoPago,
+                                concepto: ticket.concepto || `TKT: ${ticket.id} / Auto Conciliación SPEI`,
+                                tipoPago: 'regular',
+                                fechaPago: fechaPagoFinal,
+                                metodoPago: 'SPEI AUTO CONCILIADO',
+                                saldoAnterior,
+                                saldoNuevo,
+                                sincronizado: true,
+                                banco: matchMov.banco
+                            }
+                        }));
+
+                        operations.push(prisma.cliente.update({
+                            where: { id: ticket.cliente.id },
+                            data: { saldoActual: saldoNuevo }
+                        }));
+                    } else if (ticket.pagos && ticket.pagos.length > 0) {
+                        operations.push(prisma.pago.updateMany({
+                            where: { ticketId: ticket.id },
+                            data: { banco: matchMov.banco, sincronizado: true }
+                        }));
+                    }
+
+                    await prisma.$transaction(operations);
+
+                    conciliados.push({
+                        ticketId: ticket.id,
+                        contrato: ticket.cliente?.codigoCliente || 'N/A',
+                        nombre: ticket.cliente?.nombreCompleto || 'Desconocido',
+                        monto: ticket.monto,
+                        claveRastreo: ticket.claveRastreo || ticket.referencia || ticket.folio,
+                        banco: matchMov.banco,
+                        movimientoId: matchMov.id,
+                        conceptoBancario: matchMov.concepto || matchMov.descripcionGeneral
+                    });
+                }
+            }
+
+            return NextResponse.json({
+                success: true,
+                message: conciliados.length > 0 
+                    ? `¡${conciliados.length} ticket(s) conciliado(s) exitosamente mediante SPEI!`
+                    : 'No se encontraron tickets pendientes con clave de rastreo SPEI coincidentes.',
+                totalRevisados: ticketsPendientes.length,
+                conciliadosCount: conciliados.length,
+                conciliados
+            });
+        }
+
         const ticket: any = await prisma.ticket.findUnique({ 
             where: { id: ticketId },
             include: { cliente: true, pagos: true }

@@ -21,7 +21,10 @@ import {
     RotateCcw,
     Maximize2,
     Calendar,
-    Filter
+    Filter,
+    Zap,
+    Sparkles,
+    CheckCheck
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -211,6 +214,10 @@ export default function ConciliadorPage() {
     const [imageLoading, setImageLoading] = useState(false);
     const [zoomScale, setZoomScale] = useState<number>(1);
 
+    // Estado para Auto-Conciliación Inteligente SPEI
+    const [autoSpeiLoading, setAutoSpeiLoading] = useState(false);
+    const [autoSpeiResult, setAutoSpeiResult] = useState<any | null>(null);
+
     useEffect(() => {
         fetchData();
     }, [estadoFiltro]);
@@ -283,6 +290,38 @@ export default function ConciliadorPage() {
         setDesde(week.desde);
         setHasta(week.hasta);
         fetchData(week.desde, week.hasta, estadoFiltro);
+    };
+
+    // Función de Auto-Conciliación Inteligente por Clave de Rastreo SPEI
+    const handleAutoConciliarSpei = async () => {
+        setAutoSpeiLoading(true);
+        try {
+            const res = await fetch("/api/tesoreria/conciliador", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "auto_spei"
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                if (data.conciliadosCount > 0) {
+                    toast.success(`🎉 ¡${data.conciliadosCount} ticket(s) conciliado(s) exitosamente mediante Clave de Rastreo SPEI!`);
+                    setAutoSpeiResult(data);
+                    fetchData(desde, hasta, estadoFiltro);
+                } else {
+                    toast.info("No se encontraron tickets pendientes con Clave de Rastreo SPEI coincidente en los movimientos bancarios actuales.");
+                }
+            } else {
+                toast.error(data.error || "Error al ejecutar auto-conciliación SPEI");
+            }
+        } catch (error) {
+            console.error("Error en auto-conciliación SPEI:", error);
+            toast.error("Error de conexión al ejecutar auto-conciliación SPEI");
+        } finally {
+            setAutoSpeiLoading(false);
+        }
     };
 
     const handleConciliarPago = async (ticket: any) => {
@@ -503,6 +542,22 @@ export default function ConciliadorPage() {
 
                     {/* Accesos Rápidos de Rango Semanal y Exportar */}
                     <div className="flex flex-wrap items-center justify-center gap-2">
+                        <Button
+                            type="button"
+                            size="sm"
+                            onClick={handleAutoConciliarSpei}
+                            disabled={autoSpeiLoading || loading}
+                            className="h-7 text-[11px] font-bold px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded shadow-sm flex items-center gap-1.5 transition-all"
+                            title="Conciliar automáticamente todos los tickets con Clave de Rastreo SPEI en bancos"
+                        >
+                            {autoSpeiLoading ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                                <Zap className="w-3 h-3 text-amber-300 fill-amber-300" />
+                            )}
+                            Auto-Conciliar SPEI
+                        </Button>
+
                         <Button
                             type="button"
                             variant="outline"
@@ -998,6 +1053,95 @@ export default function ConciliadorPage() {
                             </div>
                         )}
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Resumen de Auto-Conciliación SPEI */}
+            <Dialog open={!!autoSpeiResult} onOpenChange={(open) => !open && setAutoSpeiResult(null)}>
+                <DialogContent className="max-w-2xl p-6">
+                    <DialogHeader>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-full">
+                                <Zap className="h-6 w-6 fill-emerald-600 text-emerald-600" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-bold text-gray-900">
+                                    Resultado de Auto-Conciliación SPEI
+                                </DialogTitle>
+                                <DialogDescription className="text-xs text-gray-500 mt-0.5">
+                                    {autoSpeiResult?.message}
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    {autoSpeiResult && (
+                        <div className="space-y-4 my-2">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+                                    <span className="text-[11px] font-semibold text-emerald-800 uppercase block">Conciliados Exitosamente</span>
+                                    <span className="text-2xl font-black text-emerald-700 font-mono">
+                                        {autoSpeiResult.conciliadosCount || 0}
+                                    </span>
+                                </div>
+                                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                                    <span className="text-[11px] font-semibold text-gray-600 uppercase block">Tickets Revisados</span>
+                                    <span className="text-2xl font-black text-gray-800 font-mono">
+                                        {autoSpeiResult.totalRevisados || 0}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {autoSpeiResult.conciliados && autoSpeiResult.conciliados.length > 0 && (
+                                <div className="border border-gray-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                                    <table className="w-full text-xs text-left text-gray-600">
+                                        <thead className="bg-gray-50 border-b font-semibold text-gray-700">
+                                            <tr>
+                                                <th className="px-3 py-2">Ticket ID</th>
+                                                <th className="px-3 py-2">Cliente</th>
+                                                <th className="px-3 py-2">Clave de Rastreo</th>
+                                                <th className="px-3 py-2 text-right">Monto</th>
+                                                <th className="px-3 py-2 text-center">Banco</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {autoSpeiResult.conciliados.map((item: any, idx: number) => (
+                                                <tr key={idx} className="hover:bg-emerald-50/40">
+                                                    <td className="px-3 py-2 font-mono font-bold text-gray-900">
+                                                        #{item.ticketId}
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <span className="font-semibold text-gray-900">{item.nombre}</span>
+                                                        <span className="text-gray-400 block font-mono text-[10px]">{item.contrato}</span>
+                                                    </td>
+                                                    <td className="px-3 py-2 font-mono text-[11px] text-blue-700 break-all">
+                                                        {item.claveRastreo}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-right font-mono font-bold text-gray-900">
+                                                        {formatCurrency(item.monto || 0)}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center">
+                                                        <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                            {item.banco}
+                                                        </Badge>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end pt-2">
+                                <Button
+                                    onClick={() => setAutoSpeiResult(null)}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs px-5"
+                                >
+                                    Cerrar y Actualizar
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
         </DashboardLayout>
