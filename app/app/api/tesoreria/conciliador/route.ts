@@ -277,6 +277,102 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, message: 'Ticket descartado exitosamente' });
         }
 
+        // --- ACCIÓN: DESCONCILIAR MOVIMIENTO BANCARIO DEL TICKET ---
+        if (action === 'desconciliar' || action === 'desvincular') {
+            const targetMovId = movimientoId || body.id;
+            if (!targetMovId) return NextResponse.json({ error: 'ID de movimiento bancario requerido' }, { status: 400 });
+
+            let movimiento: any = null;
+            let tablaOrigen = tabla;
+
+            if (tablaOrigen === 'movimientoSantander22001022837') {
+                movimiento = await prisma.movimientoSantander22001022837.findUnique({ where: { id: targetMovId } });
+            } else if (tablaOrigen === 'movimientoSantander65505732541') {
+                movimiento = await prisma.movimientoSantander65505732541.findUnique({ where: { id: targetMovId } });
+            } else if (tablaOrigen === 'movimientoBanorte0330253963') {
+                movimiento = await prisma.movimientoBanorte0330253963.findUnique({ where: { id: targetMovId } });
+            } else {
+                movimiento = await prisma.movimientoSantander22001022837.findUnique({ where: { id: targetMovId } });
+                if (movimiento) tablaOrigen = 'movimientoSantander22001022837';
+                else {
+                    movimiento = await prisma.movimientoSantander65505732541.findUnique({ where: { id: targetMovId } });
+                    if (movimiento) tablaOrigen = 'movimientoSantander65505732541';
+                    else {
+                        movimiento = await prisma.movimientoBanorte0330253963.findUnique({ where: { id: targetMovId } });
+                        if (movimiento) tablaOrigen = 'movimientoBanorte0330253963';
+                    }
+                }
+            }
+
+            if (!movimiento) return NextResponse.json({ error: 'Movimiento bancario no encontrado' }, { status: 404 });
+
+            const targetTicketId = movimiento.ticketId || ticketId;
+            const operations: any[] = [];
+
+            // 1. Desvincular el movimiento bancario
+            const clearMovData = {
+                ticketId: null,
+                clienteId: null,
+                fechaIdentificado: null
+            };
+
+            if (tablaOrigen === 'movimientoSantander22001022837') {
+                operations.push(prisma.movimientoSantander22001022837.update({
+                    where: { id: targetMovId },
+                    data: clearMovData
+                }));
+            } else if (tablaOrigen === 'movimientoSantander65505732541') {
+                operations.push(prisma.movimientoSantander65505732541.update({
+                    where: { id: targetMovId },
+                    data: clearMovData
+                }));
+            } else if (tablaOrigen === 'movimientoBanorte0330253963') {
+                operations.push(prisma.movimientoBanorte0330253963.update({
+                    where: { id: targetMovId },
+                    data: clearMovData
+                }));
+            }
+
+            // 2. Si hay ticket asociado, desmarcarlo como no conciliado
+            if (targetTicketId) {
+                operations.push(prisma.ticket.update({
+                    where: { id: targetTicketId },
+                    data: { conciliado: false }
+                }));
+
+                // 3. Revisar si hay un pago generado únicamente por el conciliador para revertir el saldo
+                const pagoConciliado = await prisma.pago.findFirst({
+                    where: {
+                        ticketId: targetTicketId,
+                        metodoPago: { in: ['TESORERIA CONCILIADOR', 'SPEI AUTO CONCILIADO'] }
+                    },
+                    include: { cliente: true }
+                });
+
+                if (pagoConciliado && pagoConciliado.cliente) {
+                    const saldoActual = parseFloat(pagoConciliado.cliente.saldoActual.toString());
+                    const montoPago = parseFloat(pagoConciliado.monto.toString());
+                    const saldoRevertido = saldoActual + montoPago;
+
+                    operations.push(prisma.cliente.update({
+                        where: { id: pagoConciliado.clienteId },
+                        data: { saldoActual: saldoRevertido }
+                    }));
+
+                    operations.push(prisma.pago.delete({
+                        where: { id: pagoConciliado.id }
+                    }));
+                }
+            }
+
+            await prisma.$transaction(operations);
+
+            return NextResponse.json({
+                success: true,
+                message: `Movimiento bancario desconciliado exitosamente${targetTicketId ? ` del ticket #${targetTicketId}` : ''}`
+            });
+        }
+
         // --- ACCIÓN: PREVISUALIZAR O AUTO-CONCILIAR SPEI (CLAVE DE RASTREO) ---
         if (action === 'preview_spei' || action === 'auto_spei' || action === 'confirm_spei' || action === 'conciliar_spei') {
             const isPreview = action === 'preview_spei';

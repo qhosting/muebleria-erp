@@ -28,7 +28,8 @@ import {
     FileText,
     Trash2,
     Calendar,
-    Clock
+    Clock,
+    Unlink
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
@@ -362,6 +363,42 @@ export default function BancosPage() {
             toast.error("Error de conexión al conciliar");
         } finally {
             setConciliando(false);
+        }
+    };
+
+    const [desconciliandoId, setDesconciliandoId] = useState<string | null>(null);
+
+    // ── Desconciliar movimiento de ticket ──
+    const desconciliar = async (mov: Movimiento) => {
+        const confirm = window.confirm("¿Estás seguro de desconciliar este movimiento bancario? El ticket volverá a estado pendiente y el movimiento quedará libre para asignarse nuevamente.");
+        if (!confirm) return;
+
+        setDesconciliandoId(mov.id);
+        try {
+            const tabla = mov.tabla || inferirTabla(mov.cuentaDestino);
+            const res = await fetch("/api/tesoreria/conciliador", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "desconciliar", movimientoId: mov.id, tabla }),
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                toast.success(data.message || "Movimiento desconciliado exitosamente");
+                setMovimientos((prev) =>
+                    prev.map((m) => (m.id === mov.id ? { ...m, ticketId: null } : m))
+                );
+                if (panelMov?.id === mov.id) {
+                    cerrarPanel();
+                }
+            } else {
+                const err = await res.json();
+                toast.error(err.error || "Error al desconciliar");
+            }
+        } catch {
+            toast.error("Error de conexión al desconciliar");
+        } finally {
+            setDesconciliandoId(null);
         }
     };
 
@@ -729,7 +766,29 @@ export default function BancosPage() {
                                                         </td>
                                                         <td className="px-4 py-3 text-center">
                                                             {esConciliado ? (
-                                                                <Badge className="bg-emerald-100 text-emerald-800 border-none text-xs font-bold">Conciliado</Badge>
+                                                                <div className="flex items-center justify-center gap-1.5">
+                                                                    <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold">
+                                                                        ✓ Conciliado
+                                                                    </Badge>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            desconciliar(mov);
+                                                                        }}
+                                                                        disabled={desconciliandoId === mov.id}
+                                                                        className="h-6 px-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 text-[10px] font-semibold flex items-center gap-1 rounded border border-transparent hover:border-red-200"
+                                                                        title="Desconciliar movimiento del ticket"
+                                                                    >
+                                                                        {desconciliandoId === mov.id ? (
+                                                                            <Loader2 className="h-3 w-3 animate-spin text-red-600" />
+                                                                        ) : (
+                                                                            <Unlink className="h-3 w-3 text-red-500" />
+                                                                        )}
+                                                                        <span className="hidden xl:inline">Desconciliar</span>
+                                                                    </Button>
+                                                                </div>
                                                             ) : esAbono ? (
                                                                 <Badge className="bg-amber-100 text-amber-800 border-none text-xs font-bold hover:bg-amber-200 transition-colors">
                                                                     <Link2 className="h-3 w-3 mr-1" /> Conciliar
