@@ -1,20 +1,19 @@
 @echo off
 chcp 65001 >nul
+
+:: Auto-elevación a Administrador si no se ejecutó como admin
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Solicitando permisos de administrador...
+    powershell -Command "Start-Process '%~f0' -Verb RunAs"
+    exit /b
+)
+
+title REINICIAR CONTPAQI API Y SUBIR PAGOS (29/08 - 04/09)
 echo ======================================================
 echo    REINICIAR CONTPAQI API Y SUBIR PAGOS (29/08 - 04/09)
 echo ======================================================
 echo.
-
-:: Verificar permisos de Administrador
-net session >nul 2>&1
-if %errorLevel% neq 0 (
-    echo [ERROR] Este script debe ejecutarse como Administrador.
-    echo Por favor haz clic derecho sobre el archivo y selecciona:
-    echo "Ejecutar como administrador"
-    echo.
-    pause
-    exit /b 1
-)
 
 echo [1/3] Reiniciando servicio de Windows ContpaqiApi...
 powershell -Command "Restart-Service ContpaqiApi -Force"
