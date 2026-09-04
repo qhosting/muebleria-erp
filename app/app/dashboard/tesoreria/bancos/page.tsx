@@ -191,6 +191,7 @@ interface Movimiento {
         referencia?: string;
         monto: number;
         fecha?: string;
+        creadoEn?: string;
         conciliado: boolean;
         cliente?: { id: string; codigoCliente: string; nombreCompleto: string; telefono?: string } | null;
         gestor?: { name: string; codigoGestor?: string } | null;
@@ -784,7 +785,7 @@ export default function BancosPage() {
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left align-middle text-gray-600">
                                     {(() => {
-                                        const colSpan = activeTab === "todas" ? 14 : 13;
+                                        const colSpan = activeTab === "todas" ? 15 : 14;
                                         return (
                                             <>
                                                 <thead className="bg-gray-50/75 border-b border-gray-100 font-medium text-gray-700">
@@ -801,7 +802,8 @@ export default function BancosPage() {
                                                         <th className="px-3 py-3 text-right text-green-700 whitespace-nowrap">Abono</th>
                                                         <th className="px-3 py-3 text-right text-red-700 whitespace-nowrap">Cargo</th>
                                                         <th className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">Saldo</th>
-                                                        <th className="px-3 py-3 text-center whitespace-nowrap">Estatus / Ticket</th>
+                                                        <th className="px-3 py-3 text-center whitespace-nowrap min-w-[150px]">Ticket Conciliado</th>
+                                                        <th className="px-3 py-3 text-center whitespace-nowrap">Estatus</th>
                                                         <th className="px-3 py-3 text-center w-16">Ficha</th>
                                                     </tr>
                                                 </thead>
@@ -825,6 +827,8 @@ export default function BancosPage() {
                                                             const horaStr = formatHoraOperacion(mov.horaOperacion);
                                                             const contratoCliente = mov.ticket?.cliente?.codigoCliente || mov.cliente?.codigoCliente;
                                                             const ticketIdVinculado = mov.ticket?.id || mov.ticketId;
+                                                            const fechaTicketRaw = mov.ticket?.fecha || mov.ticket?.creadoEn;
+                                                            const fechaTicketStr = fechaTicketRaw ? formatDate(fechaTicketRaw).split(" ")[0] : null;
 
                                                             return (
                                                                 <tr
@@ -967,7 +971,49 @@ export default function BancosPage() {
                                                                         {mov.saldo != null ? formatCurrency(mov.saldo) : <span className="text-gray-400">—</span>}
                                                                     </td>
 
-                                                                    {/* Estatus / Ticket */}
+                                                                    {/* Ticket Conciliado (ID y Fecha) */}
+                                                                    <td className="px-3 py-3 whitespace-nowrap text-center">
+                                                                        {ticketIdVinculado ? (
+                                                                            <div className="flex flex-col items-center gap-1">
+                                                                                <div className="flex items-center justify-center gap-1">
+                                                                                    <a
+                                                                                        href={`/public/recibo/${ticketIdVinculado}`}
+                                                                                        target="_blank"
+                                                                                        rel="noreferrer"
+                                                                                        onClick={(e) => e.stopPropagation()}
+                                                                                        className="font-mono text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded flex items-center gap-1 transition-colors"
+                                                                                        title="Ver Recibo Oficial del Ticket"
+                                                                                    >
+                                                                                        <FileText className="h-3 w-3 text-blue-600" />
+                                                                                        <span>#{ticketIdVinculado}</span>
+                                                                                        <ExternalLink className="h-2.5 w-2.5" />
+                                                                                    </a>
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            copiarAlPortapapeles(ticketIdVinculado, "ID de Ticket");
+                                                                                        }}
+                                                                                        className="text-gray-400 hover:text-blue-600 p-0.5"
+                                                                                        title="Copiar ID de Ticket"
+                                                                                    >
+                                                                                        <Copy className="h-3 w-3" />
+                                                                                    </button>
+                                                                                </div>
+                                                                                {fechaTicketStr ? (
+                                                                                    <span className="flex items-center gap-1 text-[11px] text-gray-600 font-medium">
+                                                                                        <Calendar className="h-3 w-3 text-gray-400" />
+                                                                                        {fechaTicketStr}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-[10px] text-gray-400">Sin fecha</span>
+                                                                                )}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="text-gray-400 text-xs">—</span>
+                                                                        )}
+                                                                    </td>
+
+                                                                    {/* Estatus */}
                                                                     <td className="px-3 py-3 text-center">
                                                                         {esConciliado ? (
                                                                             <div className="flex flex-col items-center gap-1">
@@ -975,17 +1021,9 @@ export default function BancosPage() {
                                                                                     ✓ Conciliado
                                                                                 </Badge>
                                                                                 {contratoCliente && (
-                                                                                    <a
-                                                                                        href={`/public/recibo/${ticketIdVinculado}`}
-                                                                                        target="_blank"
-                                                                                        rel="noreferrer"
-                                                                                        onClick={(e) => e.stopPropagation()}
-                                                                                        className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors"
-                                                                                        title="Abrir Recibo Oficial en nueva pestaña"
-                                                                                    >
+                                                                                    <span className="text-[10px] font-mono font-bold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded" title="Contrato del cliente">
                                                                                         #{contratoCliente}
-                                                                                        <ExternalLink className="h-2.5 w-2.5" />
-                                                                                    </a>
+                                                                                    </span>
                                                                                 )}
                                                                                 <Button
                                                                                     size="sm"
@@ -1545,7 +1583,7 @@ export default function BancosPage() {
                                                 <ExternalLink className="h-3 w-3" />
                                             </a>
                                         </div>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs bg-white/80 p-3 rounded-lg border border-emerald-100">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-white/80 p-3 rounded-lg border border-emerald-100">
                                             <div>
                                                 <span className="text-slate-400 text-[10px] uppercase block font-semibold">Contrato</span>
                                                 <span className="font-mono font-bold text-blue-900">
@@ -1566,7 +1604,7 @@ export default function BancosPage() {
                                             </div>
                                             <div>
                                                 <span className="text-slate-400 text-[10px] uppercase block font-semibold">Cobrador / Gestor</span>
-                                                <span className="text-slate-700">
+                                                <span className="text-slate-700 truncate block">
                                                     {detalleModalMov.ticket?.gestor?.name || "No asignado"}
                                                 </span>
                                             </div>
@@ -1578,8 +1616,14 @@ export default function BancosPage() {
                                             </div>
                                             <div>
                                                 <span className="text-slate-400 text-[10px] uppercase block font-semibold">Ticket ID</span>
-                                                <span className="font-mono text-[10px] text-slate-500 truncate block">
-                                                    {detalleModalMov.ticket?.id || detalleModalMov.ticketId}
+                                                <span className="font-mono text-xs font-bold text-blue-700 truncate block">
+                                                    #{detalleModalMov.ticket?.id || detalleModalMov.ticketId}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 text-[10px] uppercase block font-semibold">Fecha del Ticket</span>
+                                                <span className="font-medium text-xs text-slate-700 block">
+                                                    {detalleModalMov.ticket?.fecha || detalleModalMov.ticket?.creadoEn ? formatDate(detalleModalMov.ticket.fecha || detalleModalMov.ticket.creadoEn).split(" ")[0] : "—"}
                                                 </span>
                                             </div>
                                         </div>

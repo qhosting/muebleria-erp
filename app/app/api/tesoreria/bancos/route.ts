@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
                     referencia: true,
                     monto: true,
                     fecha: true,
+                    creadoEn: true,
                     conciliado: true,
                     cliente: {
                         select: {
