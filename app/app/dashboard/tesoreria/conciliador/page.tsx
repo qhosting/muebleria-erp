@@ -267,21 +267,24 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
         let prioridad = 999;
         let etiquetaPrioridad = "";
 
-        if (rastreoNorm && rastreoNorm.length >= 6 && movNorm.includes(rastreoNorm)) {
-            prioridad = 1;
-            etiquetaPrioridad = "⚡ SPEI Exacto";
-        } else if (contratoNorm && contratoNorm.length >= 5 && movNorm.includes(contratoNorm)) {
-            prioridad = 2;
-            etiquetaPrioridad = "🟢 Contrato";
-        } else if ((folioNorm && folioNorm.length >= 6 && movNorm.includes(folioNorm)) || (refNorm && refNorm.length >= 6 && movNorm.includes(refNorm))) {
-            prioridad = 3;
-            etiquetaPrioridad = "🔵 Folio/Ref";
-        } else if (palabrasNombre.length > 0 && palabrasNombre.filter((p: string) => movRaw.includes(p)).length >= 2) {
-            prioridad = 4;
-            etiquetaPrioridad = "🟣 Nombre";
-        } else if (isMontoExact) {
-            prioridad = 5;
-            etiquetaPrioridad = "🔴 Monto Exacto";
+        // 🛡️ Regla estricta de auditoría: Solo se clasifica como sugerencia si el monto coincide exactamente
+        if (isMontoExact) {
+            if (rastreoNorm && rastreoNorm.length >= 6 && movNorm.includes(rastreoNorm)) {
+                prioridad = 1;
+                etiquetaPrioridad = "⚡ SPEI Exacto";
+            } else if (contratoNorm && contratoNorm.length >= 5 && movNorm.includes(contratoNorm)) {
+                prioridad = 2;
+                etiquetaPrioridad = "🟢 Contrato";
+            } else if ((folioNorm && folioNorm.length >= 6 && movNorm.includes(folioNorm)) || (refNorm && refNorm.length >= 6 && movNorm.includes(refNorm))) {
+                prioridad = 3;
+                etiquetaPrioridad = "🔵 Folio/Ref";
+            } else if (palabrasNombre.length > 0 && palabrasNombre.filter((p: string) => movRaw.includes(p)).length >= 2) {
+                prioridad = 4;
+                etiquetaPrioridad = "🟣 Nombre";
+            } else {
+                prioridad = 5;
+                etiquetaPrioridad = "🔴 Monto Exacto";
+            }
         }
 
         const descFull = (mov.descripcionDetallada || mov.concepto || mov.descripcionGeneral || "ABONO").trim();
@@ -289,7 +292,8 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
         const rastreoTxt = mov.claveRastreo ? ` | Rastreo: ${mov.claveRastreo}` : "";
         const refTxt = mov.referencia ? ` | Ref: ${mov.referencia}` : "";
 
-        const label = `ID: ${movIdx} | [${bancoNombre} ${ctaDestino}] | ${fechaStr}${horaDisplay} | $${movAbono.toFixed(2)} | ${descCorta}${refTxt}${rastreoTxt}${etiquetaPrioridad ? ` (${etiquetaPrioridad})` : ""}`;
+        const statusMontoTag = isMontoExact ? "[✅ MONTO COINCIDE]" : `[⚠️ DIFIERE: $${movAbono.toFixed(2)} vs $${montoTicket.toFixed(2)}]`;
+        const label = `ID: ${movIdx} | ${statusMontoTag} | [${bancoNombre} ${ctaDestino}] | ${fechaStr}${horaDisplay} | $${movAbono.toFixed(2)} | ${descCorta}${refTxt}${rastreoTxt}${etiquetaPrioridad ? ` (${etiquetaPrioridad})` : ""}`;
 
         const item = {
             valKey,
@@ -297,6 +301,7 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
             mov,
             prioridad,
             etiquetaPrioridad,
+            isMontoExact,
             label
         };
 
@@ -393,9 +398,9 @@ export default function ConciliadorPage() {
                     const montoTicket = parseFloat(t.monto?.toString() || "0");
                     initialAmountFilter[t.id] = montoTicket.toFixed(2);
 
-                    // Buscar si hay sugerencia o match exacto de monto
+                    // Buscar si hay sugerencia o match exacto de monto coincidente
                     const sugerencia = (data.sugerencias || []).find((s: any) => s.ticket?.id === t.id);
-                    if (sugerencia?.movimiento) {
+                    if (sugerencia?.movimiento && Math.abs(parseFloat(sugerencia.movimiento.abono?.toString() || "0") - montoTicket) < 0.01) {
                         initialSelected[t.id] = `${sugerencia.movimiento.tabla}__${sugerencia.movimiento.id}`;
                     } else {
                         const matchingMov = (data.movimientos || []).find((m: any) => Math.abs(parseFloat(m.abono?.toString() || "0") - montoTicket) < 0.01);
@@ -456,10 +461,14 @@ export default function ConciliadorPage() {
                     setSpeiSearchText("");
                     setSpeiCodigoFilter("TODOS");
                     setSpeiTipoFilter("TODOS");
-                    // Por defecto, marcar todas las coincidencias como aprobadas/seleccionadas
+                    // Por defecto, marcar como aprobadas SOLO las coincidencias con montos exactos
                     const initialSelection: Record<string, boolean> = {};
                     data.matches.forEach((m: any) => {
-                        initialSelection[m.matchKey] = true;
+                        const movAbono = parseFloat(m.movimiento?.abono?.toString() || "0");
+                        const tktMonto = parseFloat(m.ticket?.monto?.toString() || "0");
+                        if (Math.abs(movAbono - tktMonto) < 0.01) {
+                            initialSelection[m.matchKey] = true;
+                        }
                     });
                     setSelectedMatches(initialSelection);
                 } else {
@@ -611,9 +620,14 @@ export default function ConciliadorPage() {
     const handleConfirmApprovedSpei = async () => {
         if (!previewMatches) return;
 
-        const approvedList = previewMatches.filter(m => selectedMatches[m.matchKey]);
+        const approvedList = previewMatches.filter(m => {
+            if (!selectedMatches[m.matchKey]) return false;
+            const movAbono = parseFloat(m.movimiento?.abono?.toString() || "0");
+            const tktMonto = parseFloat(m.ticket?.monto?.toString() || "0");
+            return Math.abs(movAbono - tktMonto) < 0.01;
+        });
         if (approvedList.length === 0) {
-            toast.warning("Debes seleccionar al menos una cuenta para conciliar");
+            toast.warning("Debes seleccionar al menos una coincidencia donde los montos coincidan exactamente");
             return;
         }
 
@@ -1156,34 +1170,71 @@ export default function ConciliadorPage() {
                                                             )}
                                                         </div>
                                                     ) : (
-                                                        <select
-                                                            value={selectedMovValue || ""}
-                                                            onChange={(e) => {
-                                                                const val = e.target.value;
-                                                                setSelectedMovByTicket(prev => ({ ...prev, [ticket.id]: val }));
-                                                            }}
-                                                            className="w-full h-8 bg-white border border-gray-300 rounded px-2 text-[11px] font-mono text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
-                                                        >
-                                                            <option value="">-- Seleccionar Movimiento Bancario --</option>
-                                                            {movimientos
-                                                                .filter(m => Math.abs(parseFloat(m.abono?.toString() || "0") - montoTicketNum) < 0.01)
-                                                                .concat(movimientos.filter(m => Math.abs(parseFloat(m.abono?.toString() || "0") - montoTicketNum) >= 0.01))
-                                                                .map((mov, idx) => {
-                                                                    const valKey = `${mov.tabla}__${mov.id}`;
-                                                                    const movIndex = globalMovIndexMap.get(valKey) ?? idx;
-                                                                    const fechaOperacionStr = mov.fechaOperacion ? mov.fechaOperacion.toString().slice(0, 10) : "N/A";
-                                                                    const horaOperacionStr = extractHoraOperacion(mov);
-                                                                    const horaLabel = horaOperacionStr ? ` ${horaOperacionStr}` : "";
-                                                                    const montoMov = parseFloat(mov.abono?.toString() || "0").toFixed(2);
-                                                                    const bancoLabel = mov.bancoDestino || (mov.cuentaDestino ? `CTA ${mov.cuentaDestino}` : "BANCO");
-                                                                    const label = `ID:${movIndex} | ${fechaOperacionStr}${horaLabel} | $${montoMov} | [${bancoLabel}]`;
+                                                        <div>
+                                                            <select
+                                                                value={selectedMovValue || ""}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    setSelectedMovByTicket(prev => ({ ...prev, [ticket.id]: val }));
+                                                                }}
+                                                                className={`w-full h-8 bg-white border rounded px-2 text-[11px] font-mono text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 truncate ${
+                                                                    selectedMovValue && (!selectedMovObj || Math.abs(parseFloat(selectedMovObj.abono?.toString() || "0") - montoTicketNum) >= 0.01)
+                                                                        ? "border-red-500 bg-red-50/40"
+                                                                        : "border-gray-300"
+                                                                }`}
+                                                            >
+                                                                <option value="">-- Seleccionar Movimiento Bancario --</option>
+                                                                {(() => {
+                                                                    const coincidentes = movimientos.filter(m => Math.abs(parseFloat(m.abono?.toString() || "0") - montoTicketNum) < 0.01);
+                                                                    const diferentes = movimientos.filter(m => Math.abs(parseFloat(m.abono?.toString() || "0") - montoTicketNum) >= 0.01);
                                                                     return (
-                                                                        <option key={valKey} value={valKey}>
-                                                                            {label}
-                                                                        </option>
+                                                                        <>
+                                                                            {coincidentes.length > 0 && (
+                                                                                <optgroup label={`⭐ Monto Coincide ($${montoTicketNum.toFixed(2)}) - ${coincidentes.length}`}>
+                                                                                    {coincidentes.map((mov, idx) => {
+                                                                                        const valKey = `${mov.tabla}__${mov.id}`;
+                                                                                        const movIndex = globalMovIndexMap.get(valKey) ?? idx;
+                                                                                        const fechaOperacionStr = mov.fechaOperacion ? mov.fechaOperacion.toString().slice(0, 10) : "N/A";
+                                                                                        const horaOperacionStr = extractHoraOperacion(mov);
+                                                                                        const horaLabel = horaOperacionStr ? ` ${horaOperacionStr}` : "";
+                                                                                        const montoMov = parseFloat(mov.abono?.toString() || "0").toFixed(2);
+                                                                                        const bancoLabel = mov.bancoDestino || (mov.cuentaDestino ? `CTA ${mov.cuentaDestino}` : "BANCO");
+                                                                                        return (
+                                                                                            <option key={valKey} value={valKey}>
+                                                                                                ID:{movIndex} | {fechaOperacionStr}{horaLabel} | ${montoMov} | [{bancoLabel}]
+                                                                                            </option>
+                                                                                        );
+                                                                                    })}
+                                                                                </optgroup>
+                                                                            )}
+                                                                            {diferentes.length > 0 && (
+                                                                                <optgroup label={`⚠️ Montos Diferentes (Bloqueados) - ${diferentes.length}`}>
+                                                                                    {diferentes.map((mov, idx) => {
+                                                                                        const valKey = `${mov.tabla}__${mov.id}`;
+                                                                                        const movIndex = globalMovIndexMap.get(valKey) ?? idx;
+                                                                                        const fechaOperacionStr = mov.fechaOperacion ? mov.fechaOperacion.toString().slice(0, 10) : "N/A";
+                                                                                        const horaOperacionStr = extractHoraOperacion(mov);
+                                                                                        const horaLabel = horaOperacionStr ? ` ${horaOperacionStr}` : "";
+                                                                                        const montoMov = parseFloat(mov.abono?.toString() || "0").toFixed(2);
+                                                                                        const bancoLabel = mov.bancoDestino || (mov.cuentaDestino ? `CTA ${mov.cuentaDestino}` : "BANCO");
+                                                                                        return (
+                                                                                            <option key={valKey} value={valKey}>
+                                                                                                [⚠️ NO COINCIDE] ID:{movIndex} | ${montoMov} vs ${montoTicketNum.toFixed(2)} | [{bancoLabel}]
+                                                                                            </option>
+                                                                                        );
+                                                                                    })}
+                                                                                </optgroup>
+                                                                            )}
+                                                                        </>
                                                                     );
-                                                                })}
-                                                        </select>
+                                                                })()}
+                                                            </select>
+                                                            {selectedMovObj && Math.abs(parseFloat(selectedMovObj.abono?.toString() || "0") - montoTicketNum) >= 0.01 && (
+                                                                <span className="text-[10px] text-red-600 font-bold block mt-0.5">
+                                                                    ⛔ Monto no coincide: Banco (${parseFloat(selectedMovObj.abono?.toString() || "0").toFixed(2)}) ≠ Ticket (${montoTicketNum.toFixed(2)})
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </td>
 
@@ -1216,22 +1267,25 @@ export default function ConciliadorPage() {
                                                             <Eye className="w-3.5 h-3.5" />
                                                             Comprobante
                                                         </Button>
-                                                        {!estaConciliado && (
-                                                            <Button
-                                                                type="button"
-                                                                size="sm"
-                                                                disabled={actionLoading[ticket.id] || !selectedMovValue}
-                                                                onClick={() => handleConciliarPago(ticket)}
-                                                                className="h-7 text-[11px] px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded shadow-none disabled:bg-gray-200 disabled:text-gray-400"
-                                                                title="Conciliar ticket con el movimiento bancario seleccionado"
-                                                            >
-                                                                {actionLoading[ticket.id] ? (
-                                                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                                                ) : (
-                                                                    "Conciliar"
-                                                                )}
-                                                            </Button>
-                                                        )}
+                                                        {!estaConciliado && (() => {
+                                                            const isExactMatch = selectedMovObj ? Math.abs(parseFloat(selectedMovObj.abono?.toString() || "0") - montoTicketNum) < 0.01 : false;
+                                                            return (
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    disabled={actionLoading[ticket.id] || !selectedMovValue || !isExactMatch}
+                                                                    onClick={() => handleConciliarPago(ticket)}
+                                                                    className="h-7 text-[11px] px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded shadow-none disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+                                                                    title={!isExactMatch && selectedMovValue ? "No se puede conciliar: El depósito bancario no coincide con el ticket" : "Conciliar ticket con el movimiento bancario seleccionado"}
+                                                                >
+                                                                    {actionLoading[ticket.id] ? (
+                                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                                    ) : (
+                                                                        "Conciliar"
+                                                                    )}
+                                                                </Button>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1565,6 +1619,32 @@ export default function ConciliadorPage() {
                                                         </div>
                                                     </div>
 
+                                                    {/* Validación Estricta de Coincidencia de Montos */}
+                                                    {Math.abs(montoMovNum - montoTicketNum) < 0.01 ? (
+                                                        <div className="bg-emerald-50 border border-emerald-300 rounded-md p-2.5 flex items-center justify-between text-xs text-emerald-900 font-semibold shadow-2xs">
+                                                            <div className="flex items-center gap-2">
+                                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                                                <span>Los montos coinciden exactamente: Depósito bancario de <strong>{formatCurrency(montoMovNum)}</strong> = Ticket <strong>{formatCurrency(montoTicketNum)}</strong></span>
+                                                            </div>
+                                                            <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-mono font-bold shrink-0">✓ Coincidencia 100%</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="bg-red-50 border border-red-300 rounded-md p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-red-900 font-bold shadow-2xs">
+                                                            <div className="flex items-center gap-2">
+                                                                <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+                                                                <div>
+                                                                    <span className="block text-red-800">⛔ Montos NO coinciden: Depósito Bancario ({formatCurrency(montoMovNum)}) ≠ Ticket ({formatCurrency(montoTicketNum)})</span>
+                                                                    <span className="text-[11px] text-red-700 font-normal">
+                                                                        Diferencia de <strong>{formatCurrency(Math.abs(montoMovNum - montoTicketNum))}</strong>. La auditoría exige que los montos sean idénticos para poder conciliar.
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <span className="text-[10px] bg-red-200 text-red-900 px-2.5 py-1 rounded font-mono font-black uppercase tracking-wider shrink-0">
+                                                                BLOQUEADO
+                                                            </span>
+                                                        </div>
+                                                    )}
+
                                                     {/* Grid 1: Fechas, Horas e Identificadores */}
                                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                                         <div className="bg-white border border-gray-200 rounded-lg p-2">
@@ -1644,21 +1724,32 @@ export default function ConciliadorPage() {
                                                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                                                 Ticket Conciliado en Banco
                                             </div>
-                                        ) : (
-                                            <Button
-                                                type="button"
-                                                onClick={() => handleConciliarPago(ticket)}
-                                                disabled={actionLoading[ticket.id] || !selectedMovObj}
-                                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg text-sm transition-all shadow-sm flex items-center justify-center gap-2 mt-4 disabled:bg-gray-200 disabled:text-gray-400"
-                                            >
-                                                {actionLoading[ticket.id] ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                ) : (
-                                                    <Check className="w-4 h-4 stroke-[3]" />
-                                                )}
-                                                ✓ Conciliar Ticket
-                                            </Button>
-                                        )}
+                                        ) : (() => {
+                                            const isCardMontoExact = selectedMovObj ? Math.abs(parseFloat(selectedMovObj.abono?.toString() || "0") - montoTicketNum) < 0.01 : false;
+                                            return (
+                                                <Button
+                                                    type="button"
+                                                    onClick={() => handleConciliarPago(ticket)}
+                                                    disabled={actionLoading[ticket.id] || !selectedMovObj || !isCardMontoExact}
+                                                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg text-sm transition-all shadow-sm flex items-center justify-center gap-2 mt-4 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+                                                    title={!isCardMontoExact && selectedMovObj ? "No se puede conciliar: El depósito bancario no coincide con el ticket" : "Conciliar ticket con el movimiento bancario seleccionado"}
+                                                >
+                                                    {actionLoading[ticket.id] ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                    ) : !isCardMontoExact && selectedMovObj ? (
+                                                        <>
+                                                            <AlertCircle className="w-4 h-4 text-red-500" />
+                                                            <span>Montos no coinciden (Imposible conciliar)</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Check className="w-4 h-4 stroke-[3]" />
+                                                            <span>✓ Conciliar Ticket</span>
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             );
@@ -2146,27 +2237,44 @@ export default function ConciliadorPage() {
                             </div>
                         ) : (
                             filteredPreviewMatches.map((m) => {
-                                const isSelected = !!selectedMatches[m.matchKey];
+                                const movAbono = parseFloat(m.movimiento?.abono?.toString() || "0");
+                                const tktMonto = parseFloat(m.ticket?.monto?.toString() || "0");
+                                const isMontoExact = Math.abs(movAbono - tktMonto) < 0.01;
+                                const isSelected = !!selectedMatches[m.matchKey] && isMontoExact;
                                 return (
                                     <div
                                         key={m.matchKey}
-                                        onClick={() => toggleMatchSelection(m.matchKey)}
-                                        className={`p-4 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
-                                            isSelected
-                                                ? "bg-emerald-50/50 border-emerald-400 shadow-sm"
-                                                : "bg-gray-50/70 border-gray-200 opacity-60 hover:opacity-100"
+                                        onClick={() => {
+                                            if (!isMontoExact) {
+                                                toast.error(`No se puede conciliar: El depósito bancario (${formatCurrency(movAbono)}) no coincide con el ticket (${formatCurrency(tktMonto)}).`);
+                                                return;
+                                            }
+                                            toggleMatchSelection(m.matchKey);
+                                        }}
+                                        className={`p-4 rounded-xl border-2 transition-all select-none flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+                                            !isMontoExact
+                                                ? "bg-red-50/40 border-red-200 opacity-75 cursor-not-allowed"
+                                                : isSelected
+                                                ? "bg-emerald-50/50 border-emerald-400 shadow-sm cursor-pointer"
+                                                : "bg-gray-50/70 border-gray-200 opacity-60 hover:opacity-100 cursor-pointer"
                                         }`}
                                     >
                                         {/* Botón de Check / Toggle */}
                                         <div className="flex items-center gap-3">
                                             <div
                                                 className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${
-                                                    isSelected
+                                                    !isMontoExact
+                                                        ? "border border-red-300 bg-red-100 text-red-600"
+                                                        : isSelected
                                                         ? "bg-emerald-600 text-white shadow"
                                                         : "border-2 border-gray-300 bg-white text-transparent"
                                                 }`}
                                             >
-                                                <Check className="w-4 h-4 stroke-[3]" />
+                                                {!isMontoExact ? (
+                                                    <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                                                ) : (
+                                                    <Check className="w-4 h-4 stroke-[3]" />
+                                                )}
                                             </div>
                                         </div>
 
@@ -2287,8 +2395,12 @@ export default function ConciliadorPage() {
                                             </div>
 
                                             <div>
-                                                {isSelected ? (
-                                                    <Badge className="bg-emerald-600 text-white text-[10px] px-2 py-0.5">
+                                                {!isMontoExact ? (
+                                                    <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 text-[10px] font-bold">
+                                                        ⛔ Montos Difieren
+                                                    </Badge>
+                                                ) : isSelected ? (
+                                                    <Badge className="bg-emerald-600 text-white text-[10px] px-2 py-0.5 font-bold">
                                                         ✓ Aprobado
                                                     </Badge>
                                                 ) : (

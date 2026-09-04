@@ -151,7 +151,17 @@ flowchart TD
 * **Botón Principal de Conciliación:** Botón verde prominente `[ ✓ Conciliar Ticket ]` que valida y asocia el pago en banco en un solo paso.
 * **Soporte de API para Eliminación (`action: 'eliminar'`):** Se agregó soporte en el backend `/api/tesoreria/conciliador` para eliminar tickets huérfanos o inválidos de forma limpia en la base de datos.
 
-### ⚡ Filtros y Selección Selectiva en Modal de Coincidencias SPEI
+* **Validación Estricta de Coincidencia de Montos antes de Conciliar (Auditoría Cero Discrepancias):**
+  - **Sugerencias Seguras (`getSugerenciasParaTicket`):** Se exige `isMontoExact` para clasificar cualquier movimiento como sugerencia (Prioridades 1 a 5). Si el monto no coincide exactamente con el ticket, nunca se ofrece como sugerencia automática.
+  - **Etiquetado de Advertencia en Manuales:** En el listado manual, los movimientos con monto discordante se marcan con `[⚠️ DIFIERE: $abono vs $montoTicket]`.
+  - **Banner de Estado en Vista de Tarjetas:** Al seleccionar un movimiento, se muestra una caja comparativa:
+    - ✅ **Verde Esmeralda:** `"Los montos coinciden exactamente: Depósito bancario de $X = Ticket $Y"` (100% Coincidencia).
+    - ⛔ **Rojo Alerta:** `"⛔ Montos NO coinciden: Depósito Bancario ($X) ≠ Ticket ($Y). Diferencia de $Z. La auditoría exige que los montos sean idénticos para poder conciliar."` (BLOQUEADO).
+  - **Inhabilitación de Botón de Conciliación:** El botón `[ ✓ Conciliar Ticket ]` se bloquea (`disabled` con cursor no permitido) tanto en la vista de tarjetas como en la vista de tabla si el monto no es idéntico.
+  - **Blindaje en Previsualización SPEI:** En el modal de coincidencias masivas SPEI, cualquier tarjeta con monto discordante se bloquea visualmente (`⛔ Montos Difieren`), impidiendo su selección y excluyéndola de la lista aprobada.
+  - **Backend Inviolable (`/api/tesoreria/conciliador`):** Triple validación en `confirm_spei`, `conciliar_spei` y `action: 'conciliar'` rechazando con HTTP 400 cualquier discrepancia superior a $0.01.
+
+---
 * **Buscador Dinámico en Modal de Coincidencias SPEI:** Filtrado en tiempo real por Nombre del Cliente, Contrato DP/DQ, Folio o Clave de Rastreo SPEI.
 * **Filtros Rápidos por Prefijo de Contrato:** Botones interactivos `[Todos (N)]`, `[Solo DP (N)]`, `[Solo DQ (N)]`.
 * **Filtros Interactivos por Etiqueta / Método de Coincidencia:** Píldoras con conteo en vivo para ver y aislar:

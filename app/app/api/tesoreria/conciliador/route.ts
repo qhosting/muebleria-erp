@@ -625,9 +625,15 @@ export async function POST(request: NextRequest) {
                 if (specificApproved) {
                     matchMov = movimientosPool.find(m => m.tabla === specificApproved.tabla && String(m.id) === String(specificApproved.movimientoId));
                     if (matchMov) {
-                        razonMatch = 'Aprobado por el usuario';
-                        tipoMatch = 'APROBADO';
-                        scoreMatch = 0;
+                        const movAbono = parseFloat(matchMov.abono?.toString() || '0');
+                        if (Math.abs(montoTicket - movAbono) < 0.01) {
+                            razonMatch = 'Aprobado por el usuario (Monto verificado)';
+                            tipoMatch = 'APROBADO';
+                            scoreMatch = 0;
+                        } else {
+                            console.warn(`[AUDITORIA] Bloqueado match en confirm_spei: Monto ticket $${montoTicket} != Depósito $${movAbono}`);
+                            matchMov = null;
+                        }
                     }
                 } else {
                     for (const mov of movimientosPool) {
@@ -789,6 +795,12 @@ export async function POST(request: NextRequest) {
 
                     // Si no es previsualización, ejecutar la conciliación inmediatamente
                     if (!isPreview) {
+                        const movAbono = parseFloat(matchMov.abono?.toString() || '0');
+                        if (Math.abs(montoTicket - movAbono) > 0.01) {
+                            console.error(`[AUDITORIA ERROR] Intento de conciliación con montos distintos bloqueado: Ticket ${ticket.id} ($${montoTicket}) vs Movimiento ($${movAbono})`);
+                            continue;
+                        }
+
                         const operations: any[] = [
                             prisma.ticket.update({
                                 where: { id: ticket.id },
