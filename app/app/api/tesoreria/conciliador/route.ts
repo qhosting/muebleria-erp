@@ -6,6 +6,36 @@ import { parseValidDate } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
+const BANCOS_CLABE: Record<string, string> = {
+    '002': 'BANAMEX',
+    '012': 'BBVA MEXICO',
+    '014': 'SANTANDER',
+    '021': 'HSBC',
+    '030': 'BANCO DEL BAJIO',
+    '036': 'INBURSA',
+    '042': 'MIFEL',
+    '044': 'SCOTIABANK',
+    '058': 'BANREGIO',
+    '062': 'AFIRME',
+    '072': 'BANORTE',
+    '127': 'BANCO AZTECA',
+    '137': 'BANCOPPEL',
+    '138': 'NU MEXICO',
+    '638': 'NU MEXICO',
+    '140': 'CONSUBANCO',
+    '143': 'CIBANCO',
+    '646': 'STP',
+    '722': 'SPIN BY OXXO',
+    '728': 'SPIN BY OXXO'
+};
+
+const CUENTAS_EMPRESA_EXCLUIDAS = new Set([
+    '22001022837',
+    '65505732541',
+    '0330253963',
+    '072197003302539638'
+]);
+
 function extractDatosOrdenante(mov: any, ticket: any) {
     let clabe: string | null = null;
     let cuenta: string | null = null;
@@ -19,11 +49,27 @@ function extractDatosOrdenante(mov: any, ticket: any) {
     const clabeMatch = (dataPool.match(/\b\d{18}\b/) || [])[0] || null;
     clabe = clabeDirect || clabeMatch;
 
+    if (clabe && CUENTAS_EMPRESA_EXCLUIDAS.has(clabe)) {
+        clabe = null;
+    }
+
     // Cuenta de 10-16 dígitos
     const cuentaDirect = mov?.cuentaEmisor && String(mov.cuentaEmisor).trim().length >= 10 ? String(mov.cuentaEmisor).trim() : null;
     const cuentaMatch = (dataPool.match(/(?:CLABE\/Cta|Cta|Cuenta|CLABE):\s*(\d{10,18})/i) || [])[1] || (dataPool.match(/\b\d{10,16}\b/) || [])[0] || null;
     cuenta = cuentaDirect || cuentaMatch;
     if (cuenta === clabe) cuenta = null;
+
+    if (cuenta && CUENTAS_EMPRESA_EXCLUIDAS.has(cuenta)) {
+        cuenta = null;
+    }
+
+    // Identificar banco por CLABE si no viene
+    if (clabe && clabe.length === 18) {
+        const prefijo = clabe.slice(0, 3);
+        if (BANCOS_CLABE[prefijo]) {
+            banco = BANCOS_CLABE[prefijo];
+        }
+    }
 
     // Nombre titular / ordenante
     if (mov?.descripcionDetallada) {
@@ -37,9 +83,27 @@ function extractDatosOrdenante(mov: any, ticket: any) {
             if (mTitular && mTitular[1].trim()) nombreTitular = mTitular[1].trim();
         }
     }
-    if (!nombreTitular && ticket?.remitente) {
-        nombreTitular = ticket.remitente.trim();
+
+    // Limpiar 'DEL CLIENTE' o prefijos similares
+    if (nombreTitular) {
+        nombreTitular = nombreTitular.replace(/^DEL CLIENTE\s+/i, '').trim();
     }
+
+    // Validar si nombreTitular contiene la empresa
+    if (nombreTitular && (nombreTitular.toUpperCase().includes('DASO') || nombreTitular.toUpperCase().includes('MUEBLERO'))) {
+        nombreTitular = null;
+    }
+
+    // Validar ticket.remitente (rechazar LIDs de whatsapp como 12345@lid o números telefónicos)
+    if (!nombreTitular && ticket?.remitente) {
+        const rem = ticket.remitente.trim();
+        const esLidOPhone = rem.includes('@') || /^\+?\d{10,15}$/.test(rem);
+        if (!esLidOPhone && rem.length >= 3) {
+            nombreTitular = rem;
+        }
+    }
+
+    // Si aún no hay titular, usar el nombre del cliente
     if (!nombreTitular && ticket?.cliente?.nombreCompleto) {
         nombreTitular = ticket.cliente.nombreCompleto.trim();
     }
@@ -631,6 +695,82 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
                 success: true,
                 message: `Movimiento bancario desconciliado exitosamente${targetTicketId ? ` del ticket #${targetTicketId}` : ''}`
+            });
+        }
+
+        // --- ACCIÓN: REGENERAR CUENTAS HABITUALES DE BANCOS ---
+        if (action === 'regenerar_cuentas') {
+            const [m1, m2, m3] = await Promise.all([
+                prisma.movimientoSantander22001022837.findMany({
+                    where: { OR: [{ ticketId: { not: null } }, { clienteId: { not: null } }] },
+                    include: { ticket: { include: { cliente: true } }, cliente: true }
+                }),
+                prisma.movimientoSantander65505732541.findMany({
+                    where: { OR: [{ ticketId: { not: null } }, { clienteId: { not: null } }] },
+                    include: { ticket: { include: { cliente: true } }, cliente: true }
+                }),
+                prisma.movimientoBanorte0330253963.findMany({
+                    where: { OR: [{ ticketId: { not: null } }, { clienteId: { not: null } }] },
+                    include: { ticket: { include: { cliente: true } }, cliente: true }
+                })
+            ]);
+
+            const allReconciled = [
+                ...m1.map(m => ({ ...m, tabla: 'movimientoSantander22001022837' })),
+                ...m2.map(m => ({ ...m, tabla: 'movimientoSantander65505732541' })),
+                ...m3.map(m => ({ ...m, tabla: 'movimientoBanorte0330253963' }))
+            ];
+
+            const cuentasMap = new Map<string, any>();
+
+            for (const mov of allReconciled) {
+                const cliente = mov.ticket?.cliente || mov.cliente;
+                const clienteId = cliente?.id;
+                if (!clienteId) continue;
+
+                const ticket = mov.ticket || { cliente };
+                const datos = extractDatosOrdenante(mov, ticket);
+
+                if (!datos.clabe && !datos.cuenta) continue;
+
+                const key = datos.clabe ? `CLABE__${datos.clabe}` : `CTA__${clienteId}__${datos.cuenta}`;
+
+                if (!cuentasMap.has(key)) {
+                    cuentasMap.set(key, {
+                        clienteId,
+                        clabe: datos.clabe,
+                        cuenta: datos.cuenta,
+                        banco: datos.banco,
+                        nombreTitular: datos.nombreTitular
+                    });
+                } else {
+                    const existing = cuentasMap.get(key);
+                    if (!existing.nombreTitular && datos.nombreTitular) existing.nombreTitular = datos.nombreTitular;
+                    if (!existing.banco && datos.banco) existing.banco = datos.banco;
+                    if (datos.cuenta && !existing.cuenta) existing.cuenta = datos.cuenta;
+                }
+            }
+
+            // Transacción: limpiar y repoblar con cuentas limpias y validadas
+            const records = Array.from(cuentasMap.values()).map((c: any) => ({
+                clienteId: c.clienteId,
+                clabe: c.clabe || null,
+                cuenta: c.cuenta || null,
+                banco: c.banco || null,
+                nombreTitular: c.nombreTitular || null
+            }));
+
+            await prisma.$transaction([
+                (prisma as any).cuentaBancariaCliente.deleteMany({}),
+                (prisma as any).cuentaBancariaCliente.createMany({
+                    data: records
+                })
+            ]);
+
+            return NextResponse.json({
+                success: true,
+                message: `Se regeneraron exitosamente ${cuentasMap.size} cuentas bancarias habituales de clientes.`,
+                totalCuentas: cuentasMap.size
             });
         }
 
