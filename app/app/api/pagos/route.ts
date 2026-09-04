@@ -272,8 +272,21 @@ export async function POST(request: NextRequest) {
       saldoNuevo = Math.max(0, saldoAnterior - montoNumerico);
     }
 
-    // Crear el pago en una transacción
-    const resultado = await prisma.$transaction(async (prisma: any) => {
+    // Crear el pago en una transacción atómica para prevenir condiciones de carrera (Lost Update)
+    const resultado = await prisma.$transaction(async (tx: any) => {
+      // 1. Obtener saldo fresco dentro de la transacción
+      const clienteFresco = await tx.cliente.findUnique({
+        where: { id: clienteId },
+        select: { saldoActual: true }
+      });
+
+      const saldoAnteriorReal = parseFloat((clienteFresco?.saldoActual ?? cliente.saldoActual).toString());
+      let saldoNuevoReal = saldoAnteriorReal;
+
+      if (['regular', 'abono', 'liquidacion'].includes(tipoPago)) {
+        saldoNuevoReal = Math.max(0, saldoAnteriorReal - montoNumerico);
+      }
+
       let finalFechaPago = fechaPago ? new Date(fechaPago) : new Date();
 
       // --- LÓGICA DE ROLLOVER (CIERRE SEMANAL) ---
@@ -284,7 +297,7 @@ export async function POST(request: NextRequest) {
         finalFechaPago.setHours(8, 0, 0, 0); // Inicio del sábado
       }
 
-      const pago = await prisma.pago.create({
+      const pago = await tx.pago.create({
         data: {
           clienteId,
           cobradorId: userRole === 'cobrador' ? userId : (body.cobradorId || userId),
@@ -297,8 +310,8 @@ export async function POST(request: NextRequest) {
           metodoPago: metodoPago || 'efectivo',
           numeroRecibo: numeroRecibo || null,
           localId: localId || null,
-          saldoAnterior,
-          saldoNuevo,
+          saldoAnterior: saldoAnteriorReal,
+          saldoNuevo: saldoNuevoReal,
           sincronizado: true,
           latitud: latitud?.toString(),
           longitud: longitud?.toString(),
@@ -320,9 +333,9 @@ export async function POST(request: NextRequest) {
 
       // Actualizar saldo del cliente si es pago que afecta capital
       if (['regular', 'abono', 'liquidacion'].includes(tipoPago)) {
-        await prisma.cliente.update({
+        await tx.cliente.update({
           where: { id: clienteId },
-          data: { saldoActual: saldoNuevo },
+          data: { saldoActual: saldoNuevoReal },
         });
       }
 

@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
-const dbUrl = 'postgres://postgres:d0a4221856f4ba5ea1ec@212.56.42.193:1080/dasoplus-db?sslmode=disable';
+const dbUrl = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
 
 const prisma = new PrismaClient({
   datasources: {

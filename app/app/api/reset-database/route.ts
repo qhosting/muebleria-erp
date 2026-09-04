@@ -7,6 +7,14 @@ import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
   try {
+    // 🛡️ Blindaje de producción: Prohibido estrictamente en producción
+    if (process.env.NODE_ENV === 'production' || process.env.ALLOW_DATABASE_RESET !== 'true') {
+      return NextResponse.json(
+        { error: 'Acción bloqueada: El reinicio de base de datos está estrictamente desactivado por seguridad.' },
+        { status: 403 }
+      );
+    }
+
     const session = await getServerSession(authOptions);
 
     if (!session || (session.user as any)?.role !== 'admin') {

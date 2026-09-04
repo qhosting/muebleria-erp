@@ -356,6 +356,14 @@ model Ticket {
   movimientosSantander65505732541 MovimientoSantander65505732541[]
   pagos                 Pago[]
 
+  @@index([clienteId])
+  @@index([gestorId])
+  @@index([conciliado])
+  @@index([creadoEn])
+  @@index([fecha])
+  @@index([monto])
+  @@index([folio])
+  @@index([claveRastreo])
   @@map("tickets")
 }
 
@@ -384,6 +392,11 @@ model MovimientoBancario {
   ticket                Ticket?   @relation(fields: [ticketId], references: [id])
   cliente               Cliente?  @relation(fields: [clienteId], references: [id])
 
+  @@index([ticketId])
+  @@index([clienteId])
+  @@index([fechaOperacion])
+  @@index([abono])
+  @@index([claveRastreo])
   @@map("movimientos_bancarios")
 }
 
@@ -411,6 +424,11 @@ model MovimientoBanorte0330253963 {
   ticket                Ticket?   @relation(fields: [ticketId], references: [id])
   cliente               Cliente?  @relation(fields: [clienteId], references: [id])
 
+  @@index([ticketId])
+  @@index([clienteId])
+  @@index([fechaOperacion])
+  @@index([abono])
+  @@index([claveRastreo])
   @@map("movimientos_banorte_0330253963")
 }
 
@@ -438,6 +456,11 @@ model MovimientoSantander22001022837 {
   ticket                Ticket?   @relation(fields: [ticketId], references: [id])
   cliente               Cliente?  @relation(fields: [clienteId], references: [id])
 
+  @@index([ticketId])
+  @@index([clienteId])
+  @@index([fechaOperacion])
+  @@index([abono])
+  @@index([claveRastreo])
   @@map("movimientos_santander_22001022837")
 }
 
@@ -465,6 +488,11 @@ model MovimientoSantander65505732541 {
   ticket                Ticket?   @relation(fields: [ticketId], references: [id])
   cliente               Cliente?  @relation(fields: [clienteId], references: [id])
 
+  @@index([ticketId])
+  @@index([clienteId])
+  @@index([fechaOperacion])
+  @@index([abono])
+  @@index([claveRastreo])
   @@map("movimientos_santander_65505732541")
 }
 

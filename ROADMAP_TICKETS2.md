@@ -179,6 +179,19 @@ Fase 1: Estabilización Operativa (COMPLETADA - Sep 2026)
   └── ✅ Pausa de cron EnvioDeSaldos
 
 Fase 2: Robustez y Auditoría (En Curso)
+  ├── [x] Auditoría completa de vulnerabilidades y seguridad (Zero Vulnerabilities)
+  │   ├── Eliminación de autoregistro público anónimo en /api/signup (restringido a admin)
+  │   ├── Eliminación de credencial en texto plano hardcodeada en lib/auth.ts
+  │   ├── Bloqueo estricto de /api/reset-database en producción (NODE_ENV)
+  │   ├── Blindaje de /api/upload: autenticación requerida, prevención de Path Traversal, whitelist de tipos MIME y límite de 10 MB
+  │   ├── Verificación de seguridad y autenticación en webhook n8n (/api/webhooks/n8n)
+  │   ├── Control de Acceso Basado en Roles (RBAC) en /api/tesoreria/conciliador y /api/sms/campaign
+  │   ├── Prevención de condiciones de carrera (Lost Updates) en cálculo de saldo concurrente en /api/pagos
+  │   ├── Sanitización de 11 scripts eliminando cadenas de conexión con contraseñas hardcodeadas
+  │   ├── Generación criptográfica segura de OTP (crypto.randomInt) con Rate Limiting en Redis
+  │   ├── Índices de alto rendimiento en modelo Ticket y movimientos bancarios (schema.prisma)
+  │   ├── Cabeceras de seguridad HTTP globales (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy)
+  │   └── Protección perimetral de rutas sensibles de API en middleware.ts
   ├── [ ] Reintentos automáticos estructurados con Backoff en caso de caída temporal de WAHA
   ├── [ ] Detección anti-fraude: Hash MD5/SHA256 de imagen para rechazar capturas idénticas
   └── [ ] Sincronización automática de estado de tickets entre Cola de Tesorería y Dashboard

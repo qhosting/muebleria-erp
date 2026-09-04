@@ -51,18 +51,16 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: "/api/:path*",
+        source: "/:path*",
         headers: [
-          { key: "Access-Control-Allow-Credentials", value: "true" },
-          { key: "Access-Control-Allow-Origin", value: "*" }, // En producción idealmente limitar a dominios específicos, pero * funciona para pruebas si credentials no es true (pero credentials SI es true, ojo)
-          // CON CREDENTIALS TRUE, ORIGIN NO PUEDE SER *
-          // Debemos reflejar el origen o listar los permitidos.
-          // Para simplificar en Next.js, a veces se usa middleware, pero aquí intentaremos ser permisivos.
-          { key: "Access-Control-Allow-Methods", value: "GET,OPTIONS,PATCH,DELETE,POST,PUT" },
-          { key: "Access-Control-Allow-Headers", value: "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
         ]
       }
-    ]
+    ];
   },
 };
 

@@ -2,20 +2,24 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user || (session.user as any)?.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'No autorizado. Solo los administradores pueden registrar usuarios.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     let { email, password, name, role = 'cobrador' } = body;
-
-    // Caso especial para test automático - permitir cualquier rol y auto-corregir a cobrador
-    if (email === 'test@example.com' || email === 'testuser@example.com') {
-      role = 'cobrador'; // Forzar rol válido para tests
-      name = name || 'Test User';
-      password = password || 'testpass123';
-    }
 
     if (!email || !password || !name) {
       return NextResponse.json(
@@ -36,13 +40,12 @@ export async function POST(request: NextRequest) {
     // Validar rol y auto-corregir si es inválido
     const validRoles = ['admin', 'gestor_cobranza', 'reporte_cobranza', 'cobrador', 'vendedor', 'jefe_ventas', 'direccion'];
     if (!validRoles.includes(role)) {
-      // Auto-corregir a cobrador si es un rol inválido
       role = 'cobrador';
     }
 
     // Verificar si el usuario ya existe
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: email.trim().toLowerCase() },
     });
 
     if (existingUser) {
@@ -58,7 +61,7 @@ export async function POST(request: NextRequest) {
     // Crear usuario
     const user = await prisma.user.create({
       data: {
-        email,
+        email: email.trim().toLowerCase(),
         name,
         password: hashedPassword,
         role: role as any,

@@ -61,7 +61,15 @@ export default async function middleware(req: NextRequest, event: any) {
     path.startsWith('/dashboard') || 
     path.startsWith('/mobile') || 
     path.startsWith('/api/sync') || 
-    path.startsWith('/api/dashboard');
+    path.startsWith('/api/dashboard') ||
+    path.startsWith('/api/tesoreria') ||
+    path.startsWith('/api/reportes') ||
+    path.startsWith('/api/users') ||
+    path.startsWith('/api/admin') ||
+    path.startsWith('/api/reset-database') ||
+    path.startsWith('/api/saldos') ||
+    path.startsWith('/api/bancos') ||
+    path.startsWith('/api/contpaqi');
 
   if (isAuthRoute) {
     // Ejecutar lógica de autenticación

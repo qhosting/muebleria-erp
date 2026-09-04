@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { sendWahaMessage, getWahaConfig } from '@/lib/whatsapp';
 import { redis } from '@/lib/redis';
+import { randomInt } from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +15,19 @@ export async function POST(request: NextRequest) {
     // Limpiar número
     const cleanPhone = phone.replace(/\D/g, "");
     
+    // 🛡️ Rate Limiting: Máximo 4 solicitudes de código por número cada 10 minutos
+    const rateLimitKey = `rate:otp:${cleanPhone}`;
+    const attempts = await redis.incr(rateLimitKey);
+    if (attempts === 1) {
+      await redis.expire(rateLimitKey, 600);
+    }
+    if (attempts > 4) {
+      return NextResponse.json(
+        { error: 'Demasiados intentos. Por favor espera 10 minutos antes de solicitar otro código.' },
+        { status: 429 }
+      );
+    }
+
     // Verificar si existe como Cliente o como Usuario
     const cliente = await prisma.cliente.findFirst({
       where: { telefono: { contains: cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone } }
@@ -27,8 +41,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Número no registrado en el sistema' }, { status: 404 });
     }
 
-    // Generar código de 6 dígitos
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generar código de 6 dígitos criptográficamente seguro
+    const code = randomInt(100000, 1000000).toString();
 
     // Guardar en REDIS con expiración de 10 minutos (600 segundos)
     const redisKey = `otp:${cleanPhone}`;

@@ -108,6 +108,12 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
         }
 
+        const userRole = (session.user as any)?.role;
+        const allowedRoles = ['admin', 'gestor_cobranza', 'direccion', 'reporte_cobranza'];
+        if (!allowedRoles.includes(userRole)) {
+            return NextResponse.json({ error: 'Permisos insuficientes para acceder al conciliador de tesorería' }, { status: 403 });
+        }
+
         const { searchParams } = new URL(request.url);
         const desde = searchParams.get('desde');
         const hasta = searchParams.get('hasta');
@@ -394,6 +400,12 @@ export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+        const userRole = (session.user as any)?.role;
+        const allowedPostRoles = ['admin', 'gestor_cobranza', 'direccion'];
+        if (!allowedPostRoles.includes(userRole)) {
+            return NextResponse.json({ error: 'Permisos insuficientes para realizar operaciones de tesorería' }, { status: 403 });
+        }
 
         const body = await request.json();
         const { ticketId, movimientoId, tabla, action } = body;

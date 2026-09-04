@@ -15,14 +15,27 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
     try {
-        // 1. Validar Token de Seguridad (Opcional pero recomendado)
-        // const authHeader = req.headers.get("authorization");
-        // if (authHeader !== `Bearer ${process.env.N8N_WEBHOOK_SECRET}`) {
-        //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        // }
+        // 1. Validar Token de Seguridad si está configurado en el entorno
+        const webhookSecret = process.env.N8N_WEBHOOK_SECRET;
+        const authHeader = req.headers.get("authorization");
+        const xApiKey = req.headers.get("x-api-key") || req.headers.get("x-webhook-secret");
+        
+        const providedToken = authHeader?.startsWith("Bearer ") 
+            ? authHeader.slice(7).trim() 
+            : (xApiKey?.trim() || null);
+
+        if (webhookSecret && providedToken !== webhookSecret) {
+            console.warn("⚠️ [Webhook n8n] Intento de acceso no autorizado:", { ip: req.headers.get("x-forwarded-for") });
+            return NextResponse.json({ error: "Unauthorized: Token inválido o ausente" }, { status: 401 });
+        }
 
         const body = await req.json();
         let action = body.action;
+
+        // Para acciones críticas (eliminación de tickets), requerir autenticación obligatoria
+        if (action === "eliminar_ticket" && webhookSecret && providedToken !== webhookSecret) {
+            return NextResponse.json({ error: "Unauthorized: Acción administrativa denegada" }, { status: 403 });
+        }
         let contrato = body.contrato || body.codigoCliente || body.cliente || body.contractId || body.metadata?.contrato;
         let monto = body.monto || body.montoTotal || body.amount || body.metadata?.monto;
         let referencia = body.referencia || body.ref || body.concept || body.metadata?.referencia;

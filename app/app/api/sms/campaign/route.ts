@@ -14,6 +14,11 @@ export async function POST(req: NextRequest) {
   const userRole = (session?.user as any)?.role;
   const userId = (session?.user as any)?.id;
 
+  const allowedRoles = ['admin', 'gestor_cobranza', 'direccion'];
+  if (!allowedRoles.includes(userRole)) {
+    return NextResponse.json({ error: 'Permisos insuficientes para lanzar campañas SMS' }, { status: 403 });
+  }
+
   try {
     const { campaignKey, clients: selectedClients, templateText } = await req.json();
 
