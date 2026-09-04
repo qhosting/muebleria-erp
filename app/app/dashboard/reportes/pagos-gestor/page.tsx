@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +18,7 @@ import * as XLSX from "xlsx";
 interface User {
     id: string;
     name: string;
+    codigoGestor?: string;
 }
 
 interface AgentSummary {
@@ -445,6 +446,18 @@ export default function PagosGestorPage() {
         return Object.values(map).sort((a, b) => a.agenteName.localeCompare(b.agenteName));
     };
 
+    const summaryDQ = useMemo(() => getSummaryByPrefix('DQ'), [detallado]);
+    const summaryDP = useMemo(() => getSummaryByPrefix('DP'), [detallado]);
+    const totalsDQ = useMemo(() => calculateTotals(summaryDQ), [summaryDQ]);
+    const totalsDP = useMemo(() => calculateTotals(summaryDP), [summaryDP]);
+
+    // Totales calculados sumando estrictamente montos + moratorios
+    const totalCobradoDQ = (totalsDQ.totalMonto + totalsDQ.totalMoratorio) || Number(resumen.totalDQ || 0);
+    const totalCobradoDP = (totalsDP.totalMonto + totalsDP.totalMoratorio) || Number(resumen.totalDP || 0);
+    const totalCobradoGlobal = (totalCobradoDQ + totalCobradoDP) || Number(resumen.totalMonto || 0);
+    const totalMoratoriosGlobal = (totalsDQ.totalMoratorio + totalsDP.totalMoratorio) || Number(resumen.totalMoratorio || 0);
+    const totalAbonosGlobal = (totalsDQ.totalMonto + totalsDP.totalMonto) || Number(resumen.montoPuroTotal || 0);
+
     return (
         <DashboardLayout>
             <div className="space-y-6">
@@ -470,23 +483,21 @@ export default function PagosGestorPage() {
                         <CardTitle className="text-sm flex items-center gap-2"><Filter className="h-4 w-4" /> Filtros de Búsqueda</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            {(userRole === "admin" || userRole === "gestor_cobranza" || userRole === "direccion") && (
-                                <div className="space-y-2">
-                                    <Label>Cobrador / Gestor</Label>
-                                    <Select value={selectedCobrador} onValueChange={setSelectedCobrador}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Seleccionar..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todos los cobradores</SelectItem>
-                                            {cobradores.map((c) => (
-                                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="space-y-2">
+                                <Label>Cobrador / Gestor</Label>
+                                <Select value={selectedCobrador} onValueChange={setSelectedCobrador}>
+                                    <SelectTrigger><SelectValue placeholder="Todos los gestores" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos los gestores</SelectItem>
+                                        {cobradores.map((c) => (
+                                            <SelectItem key={c.id} value={c.id}>
+                                                {c.codigoGestor ? `${c.codigoGestor} - ${c.name}` : c.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                             <div className="space-y-2">
                                 <Label>Rubro (Categoría)</Label>
                                 <Select value={tipoFiltro} onValueChange={setTipoFiltro}>
@@ -518,8 +529,13 @@ export default function PagosGestorPage() {
                             <Users className="h-4 w-4 text-gray-400" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-3xl font-bold">{formatCurrency(resumen.totalMonto)}</div>
-                            <div className="text-xs mt-1 text-gray-400">En {resumen.totalCantidad} recibos/pagos capturados</div>
+                            <div className="text-3xl font-bold">{formatCurrency(totalCobradoGlobal)}</div>
+                            <div className="text-xs mt-1 text-gray-400 flex flex-wrap items-center justify-between gap-1">
+                                <span>En {resumen.totalCantidad || (totalsDQ.cuentas + totalsDP.cuentas)} recibos/pagos capturados</span>
+                                {totalMoratoriosGlobal > 0 && (
+                                    <span className="text-amber-400 font-medium">({formatCurrency(totalAbonosGlobal)} abonos + {formatCurrency(totalMoratoriosGlobal)} mora)</span>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -529,8 +545,13 @@ export default function PagosGestorPage() {
                             <Banknote className="h-4 w-4 text-green-600" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-green-700">{formatCurrency(resumen.totalDQ)}</div>
-                            <div className="text-xs mt-1 text-green-600/80">{resumen.cantidadDQ} cobros registrados</div>
+                            <div className="text-2xl font-bold text-green-700">{formatCurrency(totalCobradoDQ)}</div>
+                            <div className="text-xs mt-1 text-green-600/80 flex flex-wrap items-center justify-between gap-1">
+                                <span>{totalsDQ.cuentas || resumen.cantidadDQ} cobros registrados</span>
+                                {totalsDQ.totalMoratorio > 0 && (
+                                    <span className="text-amber-700 font-semibold">(+{formatCurrency(totalsDQ.totalMoratorio)} mora)</span>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -540,8 +561,13 @@ export default function PagosGestorPage() {
                             <Building2 className="h-4 w-4 text-blue-600" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-blue-700">{formatCurrency(resumen.totalDP)}</div>
-                            <div className="text-xs mt-1 text-blue-600/80">{resumen.cantidadDP} cobros registrados</div>
+                            <div className="text-2xl font-bold text-blue-700">{formatCurrency(totalCobradoDP)}</div>
+                            <div className="text-xs mt-1 text-blue-600/80 flex flex-wrap items-center justify-between gap-1">
+                                <span>{totalsDP.cuentas || resumen.cantidadDP} cobros registrados</span>
+                                {totalsDP.totalMoratorio > 0 && (
+                                    <span className="text-amber-700 font-semibold">(+{formatCurrency(totalsDP.totalMoratorio)} mora)</span>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
@@ -578,7 +604,7 @@ export default function PagosGestorPage() {
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="p-0">
-                                        <ResumenAgenteTable data={getSummaryByPrefix('DQ')} />
+                                        <ResumenAgenteTable data={summaryDQ} />
                                     </CardContent>
                                 </Card>
                             )}
@@ -593,7 +619,7 @@ export default function PagosGestorPage() {
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="p-0">
-                                        <ResumenAgenteTable data={getSummaryByPrefix('DP')} />
+                                        <ResumenAgenteTable data={summaryDP} />
                                     </CardContent>
                                 </Card>
                             )}

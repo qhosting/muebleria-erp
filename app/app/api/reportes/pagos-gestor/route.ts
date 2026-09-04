@@ -71,29 +71,47 @@ export async function GET(request: NextRequest) {
             totalDP: 0,
             totalDQ: 0,
             totalMonto: 0,
+            totalMoratorio: 0,
+            totalMoratorioDP: 0,
+            totalMoratorioDQ: 0,
+            montoPuroDP: 0,
+            montoPuroDQ: 0,
+            montoPuroTotal: 0,
             cantidadDP: 0,
             cantidadDQ: 0,
             totalCantidad: pagos.length
         };
 
         const detallado = pagos.map(p => {
-            const monto = parseFloat(p.monto.toString());
-            const interesMoratorio = p.interesMoratorio ? parseFloat(p.interesMoratorio.toString()) : 0;
+            const monto = parseFloat(p.monto?.toString() || '0');
+            let interesMoratorio = p.interesMoratorio ? parseFloat(p.interesMoratorio.toString()) : 0;
+            if ((!interesMoratorio || isNaN(interesMoratorio) || interesMoratorio <= 0) && p.tipoPago === 'moratorio') {
+                interesMoratorio = monto;
+            }
+            if (isNaN(interesMoratorio)) interesMoratorio = 0;
             const gastosCobranza = p.gastosCobranza ? parseFloat(p.gastosCobranza.toString()) : 0;
             const isDP = p.cliente?.codigoCliente?.startsWith('DP');
             const isDQ = p.cliente?.codigoCliente?.startsWith('DQ');
 
+            const totalPago = monto + interesMoratorio;
+
             if (isDP) {
-                resumen.totalDP += monto;
+                resumen.totalDP += totalPago;
+                resumen.totalMoratorioDP += interesMoratorio;
+                resumen.montoPuroDP += monto;
                 resumen.cantidadDP++;
             } else if (isDQ) {
-                resumen.totalDQ += monto;
+                resumen.totalDQ += totalPago;
+                resumen.totalMoratorioDQ += interesMoratorio;
+                resumen.montoPuroDQ += monto;
                 resumen.cantidadDQ++;
             }
 
-            resumen.totalMonto += monto;
+            resumen.totalMonto += totalPago;
+            resumen.totalMoratorio += interesMoratorio;
+            resumen.montoPuroTotal += monto;
 
-            return { ...p, monto, interesMoratorio, gastosCobranza };
+            return { ...p, monto, interesMoratorio, gastosCobranza, totalPago };
         });
 
         return NextResponse.json({
