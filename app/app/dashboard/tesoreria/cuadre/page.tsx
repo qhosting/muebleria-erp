@@ -156,14 +156,35 @@ export default function CuadrePage() {
             XLSX.utils.book_append_sheet(wb, wsGestores, 'Desglose Gestores');
 
             // Hoja 2: Resumen Bancos DQ y DP
-            const resumenRows = [
+            const resumenRows: any[] = [
                 { 'Concepto': 'Caja Consolidada Total', 'Monto': data.totalGeneral || 0, 'Cuentas': '-' },
                 { 'Concepto': 'Abonos sin Asignar (Bancos)', 'Monto': data.otrasDiscrepancias?.abonosSinAsignar?.monto || 0, 'Cuentas': data.otrasDiscrepancias?.abonosSinAsignar?.ctas || 0 },
+                { 'Concepto': '--- RESUMEN DQ ---', 'Monto': '', 'Cuentas': '' },
                 { 'Concepto': 'Total DQ Bancos', 'Monto': data.resumenDQ?.total?.monto || 0, 'Cuentas': data.resumenDQ?.total?.ctas || 0 },
-                { 'Concepto': 'Discrepancia DQ', 'Monto': data.resumenDQ?.discrepancia?.monto || 0, 'Cuentas': data.resumenDQ?.discrepancia?.ctas || 0 },
-                { 'Concepto': 'Total DP Bancos', 'Monto': data.resumenDP?.total?.monto || 0, 'Cuentas': data.resumenDP?.total?.ctas || 0 },
-                { 'Concepto': 'Discrepancia DP', 'Monto': data.resumenDP?.discrepancia?.monto || 0, 'Cuentas': data.resumenDP?.discrepancia?.ctas || 0 },
             ];
+
+            Object.entries(data.resumenDQ?.actual?.bancos || {}).forEach(([banco, info]: [string, any]) => {
+                if (info.ctas > 0 || info.monto > 0) {
+                    resumenRows.push({ 'Concepto': `  » DQ: ${banco}`, 'Monto': info.monto, 'Cuentas': info.ctas });
+                }
+            });
+
+            resumenRows.push(
+                { 'Concepto': 'Discrepancia DQ', 'Monto': data.resumenDQ?.discrepancia?.monto || 0, 'Cuentas': data.resumenDQ?.discrepancia?.ctas || 0 },
+                { 'Concepto': '--- RESUMEN DP ---', 'Monto': '', 'Cuentas': '' },
+                { 'Concepto': 'Total DP Bancos', 'Monto': data.resumenDP?.total?.monto || 0, 'Cuentas': data.resumenDP?.total?.ctas || 0 }
+            );
+
+            Object.entries(data.resumenDP?.actual?.bancos || {}).forEach(([banco, info]: [string, any]) => {
+                if (info.ctas > 0 || info.monto > 0) {
+                    resumenRows.push({ 'Concepto': `  » DP: ${banco}`, 'Monto': info.monto, 'Cuentas': info.ctas });
+                }
+            });
+
+            resumenRows.push(
+                { 'Concepto': 'Discrepancia DP', 'Monto': data.resumenDP?.discrepancia?.monto || 0, 'Cuentas': data.resumenDP?.discrepancia?.ctas || 0 }
+            );
+
             const wsResumen = XLSX.utils.json_to_sheet(resumenRows);
             XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen Bancario');
 
@@ -178,6 +199,39 @@ export default function CuadrePage() {
 
     const SummaryCard = ({ title, resumen }: { title: string, resumen: any }) => {
         if (!resumen) return null;
+
+        const getBancoParam = (bancoKey: string) => {
+            if (bancoKey.includes('22001022837')) return '22001022837';
+            if (bancoKey.includes('65505732541')) return '65505732541';
+            if (bancoKey.includes('0330253963')) return '0330253963';
+            return '';
+        };
+
+        const renderBancos = (bancos: any) => {
+            const list = Object.entries(bancos || {}).filter(([_, info]: [string, any]) => (info.ctas ?? 0) > 0 || (info.monto ?? 0) > 0);
+            if (list.length === 0) return null;
+
+            return list.map(([banco, info]: [string, any]) => {
+                const bancoParam = getBancoParam(banco);
+                return (
+                    <div key={banco} className="flex justify-between items-center text-xs text-gray-500 pl-4 py-0.5">
+                        <a 
+                            href={`/dashboard/tesoreria/bancos${bancoParam ? `?banco=${bancoParam}` : ''}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                            title="Ver movimientos en Tesorería / Bancos"
+                        >
+                            <span>» {banco}:</span>
+                        </a>
+                        <span className="font-mono">
+                            <span className="mr-2 text-gray-400">CTAS {info.ctas}</span>
+                            <span>{formatCurrency(info.monto)}</span>
+                        </span>
+                    </div>
+                );
+            });
+        };
 
         return (
             <Card className="shadow-md border-gray-100 dark:border-slate-800 h-full">
@@ -197,15 +251,7 @@ export default function CuadrePage() {
                                 <span className="text-emerald-600 font-bold">{formatCurrency(resumen.actual?.monto ?? 0)}</span>
                             </span>
                         </div>
-                        {Object.entries(resumen.actual?.bancos || {}).map(([banco, info]: [string, any]) => (
-                            <div key={banco} className="flex justify-between items-center text-xs text-gray-500 pl-4 py-0.5">
-                                <span>» {banco}:</span>
-                                <span className="font-mono">
-                                    <span className="mr-2 text-gray-400">CTAS {info.ctas}</span>
-                                    <span>{formatCurrency(info.monto)}</span>
-                                </span>
-                            </div>
-                        ))}
+                        {renderBancos(resumen.actual?.bancos)}
                     </div>
 
                     <Separator className="opacity-50" />
@@ -219,15 +265,7 @@ export default function CuadrePage() {
                                 <span className="text-emerald-600 font-bold">{formatCurrency(resumen.anterior?.monto ?? 0)}</span>
                             </span>
                         </div>
-                        {Object.entries(resumen.anterior?.bancos || {}).map(([banco, info]: [string, any]) => (
-                            <div key={banco} className="flex justify-between items-center text-xs text-gray-500 pl-4 py-0.5">
-                                <span>» {banco}:</span>
-                                <span className="font-mono">
-                                    <span className="mr-2 text-gray-400">CTAS {info.ctas}</span>
-                                    <span>{formatCurrency(info.monto)}</span>
-                                </span>
-                            </div>
-                        ))}
+                        {renderBancos(resumen.anterior?.bancos)}
                     </div>
 
                     <Separator className="h-0.5 bg-gray-900 dark:bg-slate-700" />

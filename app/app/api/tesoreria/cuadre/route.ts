@@ -55,7 +55,15 @@ export async function GET(request: NextRequest) {
                     select: { id: true, name: true, codigoGestor: true }
                 },
                 cliente: {
-                    select: { id: true, codigoCliente: true, nombreCompleto: true }
+                    select: { 
+                        id: true, 
+                        codigoCliente: true, 
+                        nombreCompleto: true,
+                        cuentasBancarias: true,
+                        movimientosSantander22001022837: { where: { fechaOperacion: { gte: startDate, lte: endDate } } },
+                        movimientosSantander65505732541: { where: { fechaOperacion: { gte: startDate, lte: endDate } } },
+                        movimientosBanorte0330253963: { where: { fechaOperacion: { gte: startDate, lte: endDate } } },
+                    }
                 },
                 ticket: {
                     include: {
@@ -124,16 +132,22 @@ export async function GET(request: NextRequest) {
 
         // --- PROCESAMIENTO ---
 
+        const initBancosMap = () => ({
+            'SANTANDER · 22001022837': { ctas: 0, monto: 0 },
+            'SANTANDER · 65505732541': { ctas: 0, monto: 0 },
+            'BANORTE · 0330253963': { ctas: 0, monto: 0 }
+        });
+
         const resumenPrefijos: Record<string, any> = {
             'DQ': { 
-                actual: { ctas: 0, monto: 0, bancos: {} }, 
-                anterior: { ctas: 0, monto: 0, bancos: {} }, 
+                actual: { ctas: 0, monto: 0, bancos: initBancosMap() }, 
+                anterior: { ctas: 0, monto: 0, bancos: initBancosMap() }, 
                 ticketsSinConciliar: { ctas: 0, monto: 0 },
                 conciliados: { ctas: 0, monto: 0 }
             },
             'DP': { 
-                actual: { ctas: 0, monto: 0, bancos: {} }, 
-                anterior: { ctas: 0, monto: 0, bancos: {} }, 
+                actual: { ctas: 0, monto: 0, bancos: initBancosMap() }, 
+                anterior: { ctas: 0, monto: 0, bancos: initBancosMap() }, 
                 ticketsSinConciliar: { ctas: 0, monto: 0 },
                 conciliados: { ctas: 0, monto: 0 }
             }
@@ -149,6 +163,53 @@ export async function GET(request: NextRequest) {
                    m.includes('depo') || 
                    Boolean(banco) || 
                    Boolean(ticketId);
+        };
+
+        // Resolver cuenta bancaria de la empresa (dashboard/tesoreria/bancos) para cada pago
+        const resolveCuentaEmpresa = (pago: any): string => {
+            const t = pago.ticket;
+            // 1. Vinculación directa con movimientos bancarios del ticket
+            if (t) {
+                if ((t.movimientosSantander22001022837 || []).length > 0) return 'SANTANDER · 22001022837';
+                if ((t.movimientosSantander65505732541 || []).length > 0) return 'SANTANDER · 65505732541';
+                if ((t.movimientosBanorte0330253963 || []).length > 0) return 'BANORTE · 0330253963';
+
+                // 2. Cuenta destino especificada en el ticket
+                const cd = (t.cuentaDestino || '').toUpperCase();
+                if (cd.includes('22001022837') || cd.includes('22837')) return 'SANTANDER · 22001022837';
+                if (cd.includes('65505732541') || cd.includes('5732541') || cd.includes('541')) return 'SANTANDER · 65505732541';
+                if (cd.includes('0330253963') || cd.includes('253963') || cd.includes('5396') || cd.includes('BANORTE')) return 'BANORTE · 0330253963';
+            }
+
+            // 3. Movimientos bancarios del cliente en el rango
+            const c = pago.cliente;
+            if (c) {
+                const m1 = (c.movimientosSantander22001022837 || []).length;
+                const m2 = (c.movimientosSantander65505732541 || []).length;
+                const m3 = (c.movimientosBanorte0330253963 || []).length;
+                if (m1 > 0 && m2 === 0 && m3 === 0) return 'SANTANDER · 22001022837';
+                if (m2 > 0 && m1 === 0 && m3 === 0) return 'SANTANDER · 65505732541';
+                if (m3 > 0 && m1 === 0 && m2 === 0) return 'BANORTE · 0330253963';
+
+                // 4. Cuenta bancaria habitual del cliente
+                const ctas = c.cuentasBancarias || [];
+                const ctaHabitual = ctas.find((cb: any) => cb.esHabitual) || ctas[0];
+                if (ctaHabitual) {
+                    const ctaNum = ((ctaHabitual.cuentaEmpresa || '') + ' ' + (ctaHabitual.bancoEmpresa || '')).toUpperCase();
+                    if (ctaNum.includes('22001022837') || ctaNum.includes('22837')) return 'SANTANDER · 22001022837';
+                    if (ctaNum.includes('65505732541') || ctaNum.includes('541')) return 'SANTANDER · 65505732541';
+                    if (ctaNum.includes('0330253963') || ctaNum.includes('5396') || ctaNum.includes('BANORTE')) return 'BANORTE · 0330253963';
+                }
+            }
+
+            // 5. Especificación en pago.banco
+            const b = (pago.banco || '').toUpperCase();
+            if (b.includes('BANORTE') || b.includes('0330253963')) return 'BANORTE · 0330253963';
+            if (b.includes('65505732541')) return 'SANTANDER · 65505732541';
+            if (b.includes('SANTANDER') || b.includes('22001022837')) return 'SANTANDER · 22001022837';
+
+            // 6. Cuenta bancaria principal por defecto de la empresa (Santander 22001022837)
+            return 'SANTANDER · 22001022837';
         };
 
         // 4. Procesar todos los pagos para gestores y para resumen bancario
@@ -185,16 +246,7 @@ export async function GET(request: NextRequest) {
                     const isActual = new Date(pago.fechaPago) >= startDate;
                     const cat = isActual ? 'actual' : 'anterior';
                     
-                    let bancoNombre = (pago.banco || '').trim().toUpperCase();
-                    if (!bancoNombre) {
-                        if (pago.ticket?.cuentaDestino?.includes('0330253963')) {
-                            bancoNombre = 'BANORTE';
-                        } else if (pago.ticket?.cuentaDestino?.includes('22001022837') || pago.ticket?.cuentaDestino?.includes('65505732541')) {
-                            bancoNombre = 'SANTANDER';
-                        } else {
-                            bancoNombre = 'SANTANDER';
-                        }
-                    }
+                    const bancoNombre = resolveCuentaEmpresa(pago);
 
                     resumenPrefijos[pref][cat].ctas++;
                     resumenPrefijos[pref][cat].monto += totalPago;
