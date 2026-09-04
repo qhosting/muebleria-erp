@@ -38,7 +38,9 @@ import {
     Copy,
     LayoutList,
     LayoutGrid,
-    Trash2
+    Trash2,
+    ArrowUpDown,
+    Clock
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -338,6 +340,7 @@ export default function ConciliadorPage() {
     const [hasta, setHasta] = useState(initialWeek.hasta);
     const [estadoFiltro, setEstadoFiltro] = useState<string>("PENDIENTE"); // PENDIENTE, CONCILIADO, TODOS
     const [cobradorFiltro, setCobradorFiltro] = useState<string>("TODOS"); // ID del cobrador o TODOS
+    const [orden, setOrden] = useState<"asc" | "desc">("asc"); // asc: antiguos primero, desc: recientes primero
     const [cobradores, setCobradores] = useState<any[]>([]);
 
     // Estado por cada ticket para el movimiento seleccionado y el filtro de monto
@@ -365,26 +368,34 @@ export default function ConciliadorPage() {
 
     useEffect(() => {
         fetchData();
-    }, [estadoFiltro, cobradorFiltro]);
+    }, [estadoFiltro, cobradorFiltro, orden]);
 
-    const fetchData = async (customDesde?: string, customHasta?: string, customEstado?: string, customCobrador?: string) => {
+    const fetchData = async (customDesde?: string, customHasta?: string, customEstado?: string, customCobrador?: string, customOrden?: "asc" | "desc") => {
         setLoading(true);
         try {
             const d = customDesde !== undefined ? customDesde : desde;
             const h = customHasta !== undefined ? customHasta : hasta;
             const est = customEstado !== undefined ? customEstado : estadoFiltro;
             const cob = customCobrador !== undefined ? customCobrador : cobradorFiltro;
+            const ord = customOrden !== undefined ? customOrden : orden;
 
             const params = new URLSearchParams();
             if (d) params.append("desde", d);
             if (h) params.append("hasta", h);
             if (est) params.append("estado", est);
             if (cob && cob !== "TODOS") params.append("cobradorId", cob);
+            params.append("orden", ord);
 
             const res = await fetch(`/api/tesoreria/conciliador?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
-                setTickets(data.tickets || []);
+                const rawTickets: any[] = data.tickets || [];
+                const sortedTickets = [...rawTickets].sort((a: any, b: any) => {
+                    const timeA = new Date(a.fecha || a.creadoEn).getTime();
+                    const timeB = new Date(b.fecha || b.creadoEn).getTime();
+                    return ord === "desc" ? timeB - timeA : timeA - timeB;
+                });
+                setTickets(sortedTickets);
                 setMovimientos(data.movimientos || []);
                 if (data.cobradores && Array.isArray(data.cobradores)) {
                     setCobradores(data.cobradores);
@@ -1033,6 +1044,27 @@ export default function ConciliadorPage() {
                         >
                             <Download className="w-3 h-3" />
                             Exportar a Excel
+                        </Button>
+
+                        {/* Selector de Orden: Antiguos primero vs Recientes primero */}
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                                const nuevoOrden = orden === "asc" ? "desc" : "asc";
+                                setOrden(nuevoOrden);
+                                setTickets(prev => [...prev].sort((a: any, b: any) => {
+                                    const timeA = new Date(a.fecha || a.creadoEn).getTime();
+                                    const timeB = new Date(b.fecha || b.creadoEn).getTime();
+                                    return nuevoOrden === "desc" ? timeB - timeA : timeA - timeB;
+                                }));
+                            }}
+                            className={`h-7 text-[11px] px-2.5 font-semibold rounded flex items-center gap-1.5 transition-all ${orden === "asc" ? "border-amber-300 text-amber-900 bg-amber-50/90 hover:bg-amber-100" : "border-gray-200 text-gray-700 hover:bg-gray-100"}`}
+                            title={orden === "asc" ? "Ordenando: Más antiguos primero (clic para cambiar a recientes)" : "Ordenando: Más recientes primero (clic para cambiar a antiguos)"}
+                        >
+                            <ArrowUpDown className="w-3.5 h-3.5 text-amber-600" />
+                            <span>{orden === "asc" ? "Antiguos primero" : "Recientes primero"}</span>
                         </Button>
 
                         {/* Selector de Modo de Visualización: Tabla o Tarjetas */}

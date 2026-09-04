@@ -119,6 +119,8 @@ export async function GET(request: NextRequest) {
         const hasta = searchParams.get('hasta');
         const estado = (searchParams.get('estado') || 'PENDIENTE').toUpperCase();
         const cobradorId = searchParams.get('cobradorId') || searchParams.get('cobrador');
+        const ordenParam = (searchParams.get('orden') || 'asc').toLowerCase();
+        const sortDirection = ordenParam === 'desc' ? 'desc' : 'asc';
 
         // Filtro de estado de conciliación
         const FECHA_MINIMA_OPERATIVA = new Date('2026-07-29T00:00:00.000Z');
@@ -165,7 +167,7 @@ export async function GET(request: NextRequest) {
 
         ticketWhere.AND = andConditions;
 
-        // 1. Obtener Tickets no conciliados
+        // 1. Obtener Tickets ordenados por más antiguos primero (asc)
         const ticketsPendientes = await prisma.ticket.findMany({
             where: ticketWhere,
             include: {
@@ -199,8 +201,18 @@ export async function GET(request: NextRequest) {
                     }
                 }
             },
-            orderBy: { creadoEn: 'desc' },
+            orderBy: [
+                { fecha: sortDirection },
+                { creadoEn: sortDirection }
+            ],
             take: 200
+        });
+
+        // Asegurar ordenamiento estricto por fecha más antigua primero (o más reciente si desc)
+        ticketsPendientes.sort((a, b) => {
+            const timeA = new Date(a.fecha || a.creadoEn).getTime();
+            const timeB = new Date(b.fecha || b.creadoEn).getTime();
+            return sortDirection === 'desc' ? timeB - timeA : timeA - timeB;
         });
 
         // 2. Obtener Movimientos Bancarios no conciliados de las 3 tablas
