@@ -535,7 +535,26 @@ export async function POST(request: NextRequest) {
       } else if (codigoCliente) {
         pagosPendientes = await prisma.pago.findMany({
           where: {
-            cliente: { codigoCliente: { equals: codigoCliente, mode: 'insensitive' } }
+            cliente: { codigoCliente: { equals: codigoCliente, mode: 'insensitive' } },
+            sincronizado: false
+          },
+          include: {
+            cliente: true,
+            cobrador: true,
+            ticket: true
+          },
+          orderBy: { fechaPago: 'asc' }
+        });
+      } else if (body.fechaInicio && body.fechaFin) {
+        const fechaInicio = new Date(`${body.fechaInicio}T00:00:00.000`);
+        const fechaFin = new Date(`${body.fechaFin}T23:59:59.999`);
+        pagosPendientes = await prisma.pago.findMany({
+          where: {
+            fechaPago: {
+              gte: fechaInicio,
+              lte: fechaFin
+            },
+            sincronizado: false
           },
           include: {
             cliente: true,
