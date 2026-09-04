@@ -53,6 +53,8 @@ export async function GET(request: NextRequest) {
                         id: true,
                         name: true,
                         codigoGestor: true,
+                        conciliado: true,
+                        horaCierre: true,
                     },
                 },
             } as any,
@@ -75,6 +77,7 @@ export async function GET(request: NextRequest) {
                     bancario: 0,
                     gestorMonto: 0,
                     conciliado: pago.cobrador?.conciliado || false,
+                    horaCierre: pago.cobrador?.horaCierre || null,
                 };
             }
 
@@ -128,14 +131,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session?.user || !await checkPermission((session.user as any).role, 'tesoreria')) {
+        if (!session?.user) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+        }
+
+        const userRole = (session.user as any).role;
+        const hasPermission = await checkPermission(userRole, 'tesoreria') || await checkPermission(userRole, 'cobranza') || userRole === 'admin';
+        if (!hasPermission) {
+            return NextResponse.json({ error: 'No tienes permisos para realizar esta acción' }, { status: 403 });
         }
 
         const { cobradorId, action } = await request.json();
 
+        if (!cobradorId) {
+            return NextResponse.json({ error: 'ID de cobrador requerido' }, { status: 400 });
+        }
+
         if (action === 'cerrar_caja') {
-            await (prisma.user as any).update({
+            await prisma.user.update({
                 where: { id: cobradorId },
                 data: {
                     conciliado: true,
@@ -146,7 +159,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (action === 'abrir_caja') {
-            await (prisma.user as any).update({
+            await prisma.user.update({
                 where: { id: cobradorId },
                 data: {
                     conciliado: false,
@@ -158,8 +171,8 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ error: 'Acción no válida' }, { status: 400 });
 
-    } catch (error) {
-        console.error('Error al cerrar caja gestor:', error);
-        return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+    } catch (error: any) {
+        console.error('Error al actualizar cierre de gestor:', error);
+        return NextResponse.json({ error: error.message || 'Error interno' }, { status: 500 });
     }
 }

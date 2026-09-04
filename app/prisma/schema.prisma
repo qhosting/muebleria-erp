@@ -115,6 +115,8 @@ model User {
   role             UserRole  @default(cobrador)
   codigoGestor     String?
   isActive         Boolean   @default(true)
+  conciliado       Boolean   @default(false)
+  horaCierre       DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   

@@ -113,7 +113,8 @@ export default function PagosGestorPage() {
                 toast.success(currentStatus ? 'Caja abierta' : 'Caja cerrada');
                 fetchResumen();
             } else {
-                toast.error('Error al procesar acción');
+                const data = await res.json().catch(() => ({}));
+                toast.error(data.error || 'Error al procesar acción');
             }
         } catch (error) {
             toast.error('Error de conexión');
