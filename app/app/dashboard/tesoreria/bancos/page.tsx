@@ -234,6 +234,8 @@ function encontrarSugerenciaParaMovimiento(mov: Movimiento, tickets: Ticket[]): 
     for (const ticket of tickets) {
         const montoTicket = ticket.monto || 0;
         const isMontoExact = Math.abs(montoTicket - montoMov) < 0.01;
+        // 🛡️ Regla estricta de auditoría: El depósito bancario debe coincidir exactamente con el ticket
+        if (!isMontoExact) continue;
         
         // 1. Clave de Rastreo SPEI exacta (Prioridad 0)
         const rastreo = (ticket.claveRastreo || '').trim().toUpperCase();
@@ -1294,22 +1296,34 @@ export default function BancosPage() {
                                             </div>
                                         </div>
                                         <div className="text-right flex-shrink-0">
-                                            <p className="font-black text-green-700 text-base">{formatCurrency(ticketSeleccionado.monto)}</p>
-                                            {ticketSeleccionado.monto !== panelMov.abono && (
-                                                <p className="text-[10px] text-amber-600 font-bold">
+                                            <p className={`font-black text-base ${Math.abs(ticketSeleccionado.monto - (panelMov.abono || 0)) < 0.01 ? "text-green-700" : "text-red-600"}`}>
+                                                {formatCurrency(ticketSeleccionado.monto)}
+                                            </p>
+                                            {Math.abs(ticketSeleccionado.monto - (panelMov.abono || 0)) < 0.01 ? (
+                                                <span className="text-[10px] text-green-700 font-bold bg-green-100/80 px-1.5 py-0.5 rounded">✓ Coincide</span>
+                                            ) : (
+                                                <p className="text-[10px] text-red-600 font-bold">
                                                     Dif: {formatCurrency(Math.abs(ticketSeleccionado.monto - (panelMov.abono || 0)))}
                                                 </p>
                                             )}
                                         </div>
                                     </div>
+
+                                    {/* Alerta de bloqueo si los montos no coinciden */}
+                                    {Math.abs(ticketSeleccionado.monto - (panelMov.abono || 0)) >= 0.01 && (
+                                        <div className="mt-2.5 p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 font-semibold flex items-center gap-2">
+                                            <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                                            <span>No se puede conciliar: El depósito bancario ({formatCurrency(panelMov.abono || 0)}) no coincide con el ticket ({formatCurrency(ticketSeleccionado.monto)}). Ambos montos deben ser exactamente iguales.</span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             <div className="flex gap-2">
                                 <Button variant="outline" onClick={cerrarPanel} className="flex-1">Cancelar</Button>
                                 <Button
                                     onClick={() => ticketSeleccionado && conciliar(ticketSeleccionado)}
-                                    disabled={!ticketSeleccionado || conciliando}
-                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                                    disabled={!ticketSeleccionado || Math.abs((ticketSeleccionado.monto || 0) - (panelMov.abono || 0)) >= 0.01 || conciliando}
+                                    className={`flex-1 ${!ticketSeleccionado || Math.abs((ticketSeleccionado.monto || 0) - (panelMov.abono || 0)) >= 0.01 ? "bg-gray-300 text-gray-500 cursor-not-allowed hover:bg-gray-300" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
                                 >
                                     {conciliando
                                         ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Conciliando...</>

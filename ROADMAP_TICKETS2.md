@@ -192,6 +192,11 @@ Fase 2: Robustez y Auditoría (En Curso)
   │   ├── Índices de alto rendimiento en modelo Ticket y movimientos bancarios (schema.prisma)
   │   ├── Cabeceras de seguridad HTTP globales (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy)
   │   └── Protección perimetral de rutas sensibles de API en middleware.ts
+  ├── [x] Auditoría de Coincidencia de Montos Bancarios vs Tickets y Pagos (/dashboard/tesoreria/bancos)
+  │   ├── Detección de 62 discrepancias históricas en base de datos donde abono banco !== monto ticket
+  │   ├── Regla estricta en backend (/api/tesoreria/conciliador): prohibición absoluta de conciliar si Math.abs(abono - monto) > 0.01 (Error 400)
+  │   ├── Filtrado estricto en algoritmo SPEI y sugerencias: solo se evalúan movimientos con monto idéntico
+  │   └── Blindaje en frontend (/dashboard/tesoreria/bancos y /conciliador): botón de conciliar deshabilitado y alerta roja ante discrepancia de montos
   ├── [ ] Reintentos automáticos estructurados con Backoff en caso de caída temporal de WAHA
   ├── [ ] Detección anti-fraude: Hash MD5/SHA256 de imagen para rechazar capturas idénticas
   └── [ ] Sincronización automática de estado de tickets entre Cola de Tesorería y Dashboard

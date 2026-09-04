@@ -269,12 +269,14 @@ export async function GET(request: NextRequest) {
                 const dataPool = `${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''}`.toUpperCase();
 
                 const isMontoExact = Math.abs(monto - abono) < 0.01;
+                // 🛡️ Regla estricta de auditoría: El monto del depósito bancario debe coincidir exactamente con el ticket
+                if (!isMontoExact) continue;
                 
-                // Prioridad 1: Clave de Rastreo SPEI exacta
+                // Prioridad 1: Clave de Rastreo SPEI exacta (con monto exacto garantizado)
                 if (rastreoTicket && rastreoTicket.length > 5 && dataPool.includes(rastreoTicket)) {
                     bestMatch = mov;
                     bestPriority = 1;
-                    razon = `Coincidencia exacta por Clave de Rastreo (${rastreoTicket})`;
+                    razon = `Coincidencia exacta por Clave de Rastreo (${rastreoTicket}) y Monto ($${monto.toFixed(2)})`;
                     break;
                 }
 
@@ -634,6 +636,8 @@ export async function POST(request: NextRequest) {
 
                         const movAbono = parseFloat(mov.abono?.toString() || '0');
                         const isMontoExact = Math.abs(montoTicket - movAbono) < 0.01;
+                        // 🛡️ Regla estricta de auditoría: El depósito bancario debe coincidir exactamente con el monto del ticket
+                        if (!isMontoExact) continue;
 
                         const movClaveRastreo = (mov.claveRastreo || '').trim().toUpperCase();
                         const movRawText = `${mov.claveRastreo || ''} ${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''} ${mov.referencia || ''} ${mov.cuentaEmisor || ''}`.toUpperCase();
@@ -930,6 +934,15 @@ export async function POST(request: NextRequest) {
         }
 
         if (!ticket || !movimiento) return NextResponse.json({ error: 'Datos no encontrados' }, { status: 404 });
+
+        // 🛡️ Regla estricta de auditoría: El abono bancario debe coincidir exactamente con el monto del ticket
+        const movAbono = parseFloat(movimiento.abono?.toString() || '0');
+        const ticketMonto = parseFloat(ticket.monto?.toString() || '0');
+        if (Math.abs(movAbono - ticketMonto) > 0.01) {
+            return NextResponse.json({
+                error: `No se puede conciliar: El depósito bancario ($${movAbono.toFixed(2)}) no coincide con el ticket ($${ticketMonto.toFixed(2)}). Los montos deben ser exactamente iguales.`
+            }, { status: 400 });
+        }
 
         // Intentar extraer CLABE/Cuenta del movimiento para el "Catálogo Inteligente"
         const dataPool = `${movimiento.concepto || ''} ${movimiento.descripcionDetallada || ''} ${movimiento.descripcionGeneral || ''}`.toUpperCase();

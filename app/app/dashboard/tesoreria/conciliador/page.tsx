@@ -662,6 +662,16 @@ export default function ConciliadorPage() {
             return;
         }
 
+        const movTarget = movimientos.find(m => m.tabla === tabla && String(m.id) === String(movimientoId));
+        if (movTarget) {
+            const movAbono = parseFloat(movTarget.abono?.toString() || "0");
+            const tktMonto = parseFloat(ticket.monto?.toString() || "0");
+            if (Math.abs(movAbono - tktMonto) > 0.01) {
+                toast.error(`No se puede conciliar: El depósito bancario ($${movAbono.toFixed(2)}) no coincide con el monto del ticket ($${tktMonto.toFixed(2)}).`);
+                return;
+            }
+        }
+
         setActionLoading(prev => ({ ...prev, [ticket.id]: true }));
         try {
             const res = await fetch("/api/tesoreria/conciliador", {
