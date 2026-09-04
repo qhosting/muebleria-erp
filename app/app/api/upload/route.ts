@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     const fileName = `${uuidv4()}.${fileExtension}`;
     const filePath = join(uploadDir, fileName);
 
-    await writeFile(filePath, buffer);
+    await writeFile(filePath, buffer as any);
 
     const publicUrl = `/uploads/${folder}/${fileName}`;
 
