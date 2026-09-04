@@ -121,6 +121,7 @@ export async function GET(request: NextRequest) {
         const cobradorId = searchParams.get('cobradorId') || searchParams.get('cobrador');
 
         // Filtro de estado de conciliación
+        const FECHA_MINIMA_OPERATIVA = new Date('2026-07-29T00:00:00.000Z');
         const ticketWhere: any = {};
         const movWhere: any = { abono: { gt: 0 } };
 
@@ -132,11 +133,21 @@ export async function GET(request: NextRequest) {
             movWhere.ticketId = { not: null };
         } // Si es TODOS no agregamos restricción en conciliado / ticketId
 
+        // 🛡️ Regla de migración: Tickets anteriores al 29/07/2026 provienen de migración y no se consideran pendientes ni operativos
+        const baseMigracionFilter = [
+            { fecha: { gte: FECHA_MINIMA_OPERATIVA } },
+            { AND: [{ fecha: null }, { creadoEn: { gte: FECHA_MINIMA_OPERATIVA } }] }
+        ];
+
+        const andConditions: any[] = [{ OR: baseMigracionFilter }];
+
         if (cobradorId && cobradorId !== 'TODOS') {
-            ticketWhere.OR = [
-                { gestorId: cobradorId },
-                { cliente: { cobradorAsignadoId: cobradorId } }
-            ];
+            andConditions.push({
+                OR: [
+                    { gestorId: cobradorId },
+                    { cliente: { cobradorAsignadoId: cobradorId } }
+                ]
+            });
         }
 
         if (desde && hasta) {
@@ -148,18 +159,11 @@ export async function GET(request: NextRequest) {
                 { creadoEn: { gte: dStart, lte: dEnd } }
             ];
 
-            if (ticketWhere.OR) {
-                ticketWhere.AND = [
-                    { OR: ticketWhere.OR },
-                    { OR: dateFilter }
-                ];
-                delete ticketWhere.OR;
-            } else {
-                ticketWhere.OR = dateFilter;
-            }
-
+            andConditions.push({ OR: dateFilter });
             movWhere.fechaOperacion = { gte: dStart, lte: dEnd };
         }
+
+        ticketWhere.AND = andConditions;
 
         // 1. Obtener Tickets no conciliados
         const ticketsPendientes = await prisma.ticket.findMany({
@@ -547,14 +551,24 @@ export async function POST(request: NextRequest) {
             const isPreview = action === 'preview_spei';
             const approvedMatches = Array.isArray(body.matches) ? body.matches : null;
 
-            // 1. Obtener tickets pendientes
+            const FECHA_MINIMA_OPERATIVA = new Date('2026-07-29T00:00:00.000Z');
+
+            // 1. Obtener tickets pendientes (solo operativos a partir del 29/07/2026)
             let ticketsPendientes = await prisma.ticket.findMany({
                 where: {
                     conciliado: false,
                     OR: [
-                        { claveRastreo: { not: null } },
-                        { referencia: { not: null } },
-                        { folio: { not: null } }
+                        { fecha: { gte: FECHA_MINIMA_OPERATIVA } },
+                        { AND: [{ fecha: null }, { creadoEn: { gte: FECHA_MINIMA_OPERATIVA } }] }
+                    ],
+                    AND: [
+                        {
+                            OR: [
+                                { claveRastreo: { not: null } },
+                                { referencia: { not: null } },
+                                { folio: { not: null } }
+                            ]
+                        }
                     ]
                 },
                 include: { 

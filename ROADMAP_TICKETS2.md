@@ -176,6 +176,22 @@ flowchart TD
   - **Backend Inviolable (`/api/tesoreria/conciliador`):** Triple validación en `confirm_spei`, `conciliar_spei` y `action: 'conciliar'` rechazando con HTTP 400 cualquier discrepancia superior a $0.01.
 
 ---
+
+### 🛡️ Fix 7: Exclusión de Tickets y Pagos de Migración Anteriores al 29/07/2026
+* **Requerimiento Operativo:** Todos los tickets o pagos anteriores al `29/07/2026` provienen de una migración de datos histórica y **NO deben considerarse como pendientes**. A partir del `29/07/2026`, los tickets son operativos activos y se consideran pendientes hasta conciliarse con movimientos bancarios (incluyendo los de la semana del `29/08/2026` en adelante).
+* **Acciones Ejecutadas:**
+  1. **Migración en Base de Datos (PostgreSQL):**
+     - Se actualizaron **2,455 tickets** anteriores al 29/07/2026 que figuraban como `conciliado: false`, marcándolos a `conciliado: true`.
+     - Se actualizaron **2,355 pagos** de migración anteriores al 29/07/2026 sustituyendo `PENDIENTE` por `MIGRACION` en su concepto.
+     - Quedan exactamente **0 tickets pendientes anteriores al 29/07/2026** en toda la base de datos.
+  2. **Blindaje en API Conciliador (`/api/tesoreria/conciliador`):**
+     - En el endpoint `GET`: Se incorporó `FECHA_MINIMA_OPERATIVA = new Date('2026-07-29T00:00:00.000Z')` para que las consultas de pendientes ignoren cualquier registro anterior al corte.
+     - En las acciones `POST` (`preview_spei`, `auto_spei`, `confirm_spei`): Se condicionó `ticketsPendientes` con `fecha >= 2026-07-29` (o `creadoEn >= 2026-07-29`), previniendo coincidencias automáticas de registros históricos.
+  3. **Corrección de Cliente `DP2607080`:**
+     - Se desenlazó el movimiento de Bancoppel (`cmtlr826u003kqq01xzuloivi` de $270 del 01/09/2026) que erróneamente se había vinculado al ticket `2D4Z2Q1I` (19/08) por coincidencia de prefijo `50119094`.
+     - Se reasignó y concilió con su ticket legítimo `VD4K0FB0` del 01/09/2026.
+
+---
 * **Buscador Dinámico en Modal de Coincidencias SPEI:** Filtrado en tiempo real por Nombre del Cliente, Contrato DP/DQ, Folio o Clave de Rastreo SPEI.
 * **Filtros Rápidos por Prefijo de Contrato:** Botones interactivos `[Todos (N)]`, `[Solo DP (N)]`, `[Solo DQ (N)]`.
 * **Filtros Interactivos por Etiqueta / Método de Coincidencia:** Píldoras con conteo en vivo para ver y aislar:
