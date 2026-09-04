@@ -521,6 +521,17 @@ export async function POST(request: NextRequest) {
                         where: { id: pagoConciliado.id }
                     }));
                 }
+
+                // 4. Si el ticket tenía pagos previos (ej. registrados por el bot), actualizar concepto a PENDIENTE
+                operations.push(prisma.pago.updateMany({
+                    where: {
+                        ticketId: targetTicketId,
+                        NOT: { metodoPago: { in: ['TESORERIA CONCILIADOR', 'SPEI AUTO CONCILIADO'] } }
+                    },
+                    data: {
+                        concepto: `TKT: ${targetTicketId} / PENDIENTE`
+                    }
+                }));
             }
 
             await prisma.$transaction(operations);
@@ -721,8 +732,19 @@ export async function POST(request: NextRequest) {
 
                         // 4. PRIORIDAD 4: Folio o Referencia del Ticket
                         if (isMontoExact && scoreMatch > 4) {
-                            if ((normFolio && normFolio.length >= 6 && movNormText.includes(normFolio)) ||
-                                (normRef && normRef.length >= 6 && movNormText.includes(normRef))) {
+                            // Validar que el folio no coincida erróneamente con el prefijo genérico de la clave de rastreo (ej. 50119094 en transferencias Bancoppel)
+                            const isFolioMatch = (normFolio && normFolio.length >= 6) && (
+                                normalizar(mov.referencia || '').includes(normFolio) ||
+                                normalizar(mov.concepto || '').includes(normFolio) ||
+                                (movNormText.includes(normFolio) && !movClaveRastreo.includes(normFolio))
+                            );
+                            const isRefMatch = (normRef && normRef.length >= 6) && (
+                                normalizar(mov.referencia || '').includes(normRef) ||
+                                normalizar(mov.concepto || '').includes(normRef) ||
+                                movNormText.includes(normRef)
+                            );
+
+                            if (isFolioMatch || isRefMatch) {
                                 matchMov = mov;
                                 razonMatch = `Folio/Referencia (${rawFolio || rawRef}) encontrado en banco con monto exacto`;
                                 tipoMatch = 'FOLIO_REFERENCIA';
@@ -864,7 +886,11 @@ export async function POST(request: NextRequest) {
                         } else if (ticket.pagos && ticket.pagos.length > 0) {
                             operations.push(prisma.pago.updateMany({
                                 where: { ticketId: ticket.id },
-                                data: { banco: matchMov.banco, sincronizado: true }
+                                data: {
+                                    concepto: `TKT: ${ticket.id} / CONCILIADO`,
+                                    banco: matchMov.banco,
+                                    sincronizado: true
+                                }
                             }));
                         }
 
@@ -1007,6 +1033,15 @@ export async function POST(request: NextRequest) {
             operations.push(prisma.cliente.update({
                 where: { id: ticket.cliente.id },
                 data: { saldoActual: saldoNuevo }
+            }));
+        } else if (ticket.pagos && ticket.pagos.length > 0) {
+            operations.push(prisma.pago.updateMany({
+                where: { ticketId: ticket.id },
+                data: {
+                    concepto: `TKT: ${ticket.id} / CONCILIADO`,
+                    banco: movimiento.bancoOrigen || 'CONCILIACION',
+                    sincronizado: true
+                }
             }));
         }
 

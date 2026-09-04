@@ -110,6 +110,20 @@ flowchart TD
 
 ---
 
+### 🔧 Fix 6: Corrección de Asignación Cruzada de Ticket `DP2607080` y Sincronización de Conceptos de Pagos
+* **Síntoma:** El cliente `DP2607080` tenía un depósito bancario de `$270.00` del `01/09/2026`, pero su ticket reciente (`VD4K0FB0`) seguía apareciendo como **PENDIENTE** en el Conciliador. Además, en el historial de pagos del cliente y app móvil, los abonos seguían rotulados como `"TKT: ... / PENDIENTE"`.
+* **Causa Raíz:**
+  1. **Falso Positivo por Prefijo Bancoppel:** El movimiento bancario del `01/09/2026` (`cmtlr826u003kqq01xzuloivi`, abono $270) tiene clave de rastreo `50119094TRANSBPI00096138`. El ticket antiguo del 19 de agosto (`2D4Z2Q1I`) tenía guardado en su campo folio el prefijo genérico `"50119094"`. El algoritmo de coincidencia evaluó el folio del ticket de agosto como subcadena de la clave de rastreo de septiembre, asignando erróneamente el depósito del 01/09 al ticket del 19/08 (`2D4Z2Q1I`), dejando el ticket legítimo del 01/09 (`VD4K0FB0`) huérfano y como `conciliado: false` (PENDIENTE).
+  2. **Concepto de Pago Congelado:** Al recibir un ticket por WhatsApp, n8n crea el registro de pago con `concepto: "TKT: {id} / PENDIENTE"`. Al conciliar el ticket con bancos, el conciliador marcaba `ticket.conciliado = true`, pero **nunca actualizaba el texto del concepto del pago en la tabla `pagos`**, por lo que 428 pagos conciliados seguían diciendo `"PENDIENTE"` en el estado de cuenta y dashboard.
+* **Solución Aplicada:**
+  1. **Reasignación Correcta:** Se reasignó el movimiento bancario `cmtlr826u003kqq01xzuloivi` a su ticket auténtico `VD4K0FB0`, marcando `VD4K0FB0.conciliado = true` y actualizando su pago a `"TKT: VD4K0FB0 / CONCILIADO"`.
+  2. **Desconciliación de Ticket de Agosto:** Se desmarcó `2D4Z2Q1I` a `conciliado: false` (pendiente de que se cargue en banco el estado de cuenta correspondiente al 19 de agosto).
+  3. **Blindaje de Búsqueda de Folios (`/api/tesoreria/conciliador`):** Se restringió la coincidencia de folios para que **no tome** como match prefijos parciales dentro de la clave de rastreo SPEI (ej. `50119094`), reservando la prioridad 1 exclusivamente a claves de rastreo íntegras.
+  4. **Actualización Masiva de Pagos:** Se ejecutó una migración que actualizó los **427 pagos** cuyos tickets ya estaban conciliados en banco para que su concepto refleje `"TKT: {id} / CONCILIADO"`.
+  5. **Actualización Continua en Backend:** Se programó en `/api/tesoreria/conciliador` (tanto en `confirm_spei`, conciliación manual y `desconciliar`) la actualización inmediata del campo `pago.concepto` para mantener concordancia perfecta entre ticket, banco y estado de cuenta.
+
+---
+
 ### 📊 Historial de Tickets Críticos Recuperados y Regularizados (03/09/2026)
 
 | Contrato | Remitente | Banco / Tipo | Monto | Ticket ERP | Estado |
