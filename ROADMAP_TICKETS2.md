@@ -194,6 +194,9 @@ Fase 2: Robustez y Auditoría (En Curso)
   │   └── Protección perimetral de rutas sensibles de API en middleware.ts
   ├── [x] Auditoría de Coincidencia de Montos Bancarios vs Tickets y Pagos (/dashboard/tesoreria/bancos)
   │   ├── Detección de 62 discrepancias históricas en base de datos donde abono banco !== monto ticket
+  │   ├── Desconciliación y liberación segura de los 62 movimientos bancarios y tickets devueltos a PENDIENTE
+  │   ├── Reversión de 2 pagos automáticos y restauración de saldos de clientes afectados
+  │   ├── Base de datos auditada al 100% (269 movimientos conciliados con coincidencia exacta de monto)
   │   ├── Regla estricta en backend (/api/tesoreria/conciliador): prohibición absoluta de conciliar si Math.abs(abono - monto) > 0.01 (Error 400)
   │   ├── Filtrado estricto en algoritmo SPEI y sugerencias: solo se evalúan movimientos con monto idéntico
   │   └── Blindaje en frontend (/dashboard/tesoreria/bancos y /conciliador): botón de conciliar deshabilitado y alerta roja ante discrepancia de montos
