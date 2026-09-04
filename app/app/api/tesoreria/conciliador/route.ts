@@ -648,15 +648,6 @@ export async function POST(request: NextRequest) {
                     OR: [
                         { fecha: { gte: FECHA_MINIMA_OPERATIVA } },
                         { AND: [{ fecha: null }, { creadoEn: { gte: FECHA_MINIMA_OPERATIVA } }] }
-                    ],
-                    AND: [
-                        {
-                            OR: [
-                                { claveRastreo: { not: null } },
-                                { referencia: { not: null } },
-                                { folio: { not: null } }
-                            ]
-                        }
                     ]
                 },
                 include: { 
@@ -708,172 +699,208 @@ export async function POST(request: NextRequest) {
 
             const normalizar = (s: string) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
 
-            for (const ticket of ticketsPendientes) {
-                const montoTicket = parseFloat(ticket.monto.toString());
-                const rawRastreo = (ticket.claveRastreo || '').trim().toUpperCase();
-                const normRastreo = normalizar(rawRastreo);
-                
-                const contrato = (ticket.cliente?.codigoCliente || '').trim().toUpperCase();
-                const normContrato = normalizar(contrato);
+            // Lista negra de referencias genéricas bancarias (no usar para match por folio/ref)
+            const REFERENCIAS_GENERICAS = new Set([
+                '1408260', '0000000', '000000', '123456', '1234567', '0000123', '0000001', '9999999',
+                '00000', '11111', '0121800', '0126800', '0126850', '0123200', '0026809', '7229690'
+            ]);
 
-                const nombreCompleto = (ticket.cliente?.nombreCompleto || '').trim().toUpperCase();
-                const palabrasNombre = nombreCompleto
-                    .split(/\s+/)
-                    .filter(w => w.length >= 4 && !['DE', 'DEL', 'LOS', 'LAS', 'SAN', 'SANTA', 'MARIA', 'JOSE'].includes(w));
+            const matchedPairs: { ticket: any; matchMov: any; tipoMatch: string; razonMatch: string }[] = [];
 
-                const rawRef = (ticket.referencia || '').trim().toUpperCase();
-                const normRef = normalizar(rawRef);
+            if (action === 'confirm_spei' && approvedMatches) {
+                // Modo confirmación: procesar solo los matches explícitamente aprobados
+                for (const ticket of ticketsPendientes) {
+                    const specificApproved = approvedMatches.find((m: any) => m.ticketId === ticket.id);
+                    if (!specificApproved) continue;
 
-                const rawFolio = (ticket.folio || '').trim().toUpperCase();
-                const normFolio = normalizar(rawFolio);
-
-                let matchMov: any = null;
-                let razonMatch = '';
-                let tipoMatch = 'SUGERENCIA';
-                let scoreMatch = 999; // Menor es más prioritario
-
-                // Si viene confirm_spei con un movimiento específico aprobado
-                const specificApproved = approvedMatches?.find((m: any) => m.ticketId === ticket.id);
-
-                if (specificApproved) {
-                    matchMov = movimientosPool.find(m => m.tabla === specificApproved.tabla && String(m.id) === String(specificApproved.movimientoId));
+                    const matchMov = movimientosPool.find(m => m.tabla === specificApproved.tabla && String(m.id) === String(specificApproved.movimientoId));
                     if (matchMov) {
+                        const montoTicket = parseFloat(ticket.monto.toString());
                         const movAbono = parseFloat(matchMov.abono?.toString() || '0');
                         if (Math.abs(montoTicket - movAbono) < 0.01) {
-                            razonMatch = 'Aprobado por el usuario (Monto verificado)';
-                            tipoMatch = 'APROBADO';
-                            scoreMatch = 0;
+                            matchedPairs.push({
+                                ticket,
+                                matchMov,
+                                tipoMatch: specificApproved.tipoMatch || 'APROBADO',
+                                razonMatch: 'Aprobado por el usuario (Monto verificado)'
+                            });
                         } else {
                             console.warn(`[AUDITORIA] Bloqueado match en confirm_spei: Monto ticket $${montoTicket} != Depósito $${movAbono}`);
-                            matchMov = null;
                         }
                     }
-                } else {
+                }
+            } else {
+                // Modo escaneo / preview: Matching Multi-Tier con Prioridad Global
+                const matchedTicketIds = new Set<string>();
+
+                const registrarMatch = (ticket: any, mov: any, tipoMatch: string, razonMatch: string) => {
+                    matchedTicketIds.add(ticket.id);
+                    usadosMovIds.add(`${mov.tabla}__${mov.id}`);
+                    matchedPairs.push({ ticket, matchMov: mov, tipoMatch, razonMatch });
+                };
+
+                // --- TIER 1: Clave de Rastreo SPEI Exacta ---
+                for (const ticket of ticketsPendientes) {
+                    if (matchedTicketIds.has(ticket.id)) continue;
+                    const rawRastreo = (ticket.claveRastreo || '').trim().toUpperCase();
+                    const normRastreo = normalizar(rawRastreo);
+                    if (!normRastreo || normRastreo.length < 6) continue;
+                    const montoTicket = parseFloat(ticket.monto.toString());
+
                     for (const mov of movimientosPool) {
                         const movKey = `${mov.tabla}__${mov.id}`;
                         if (usadosMovIds.has(movKey)) continue;
-
                         const movAbono = parseFloat(mov.abono?.toString() || '0');
-                        const isMontoExact = Math.abs(montoTicket - movAbono) < 0.01;
-                        // 🛡️ Regla estricta de auditoría: El depósito bancario debe coincidir exactamente con el monto del ticket
-                        if (!isMontoExact) continue;
+                        if (Math.abs(montoTicket - movAbono) >= 0.01) continue;
 
                         const movClaveRastreo = (mov.claveRastreo || '').trim().toUpperCase();
                         const movRawText = `${mov.claveRastreo || ''} ${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''} ${mov.referencia || ''} ${mov.cuentaEmisor || ''}`.toUpperCase();
                         const movNormText = normalizar(movRawText);
 
-                        // 1. PRIORIDAD 1: Clave de Rastreo SPEI Exacta
-                        if (normRastreo && normRastreo.length >= 6) {
-                            const isSpeiMatch = 
-                                (movClaveRastreo && (movClaveRastreo === rawRastreo || normalizar(movClaveRastreo) === normRastreo)) ||
-                                movRawText.includes(rawRastreo) ||
-                                movNormText.includes(normRastreo);
-
-                            if (isSpeiMatch) {
-                                matchMov = mov;
-                                razonMatch = `Clave SPEI exacta: ${rawRastreo}`;
-                                tipoMatch = 'SPEI_EXACTO';
-                                scoreMatch = 1;
-                                break; // SPEI exacto es match definitivo
-                            }
-                        }
-
-                        // 2. PRIORIDAD 2: Código de Cliente / Contrato DP o DQ en banco
-                        if (normContrato && normContrato.length >= 6 && scoreMatch > 2) {
-                            const isContratoMatch = movRawText.includes(contrato) || movNormText.includes(normContrato);
-                            if (isContratoMatch) {
-                                matchMov = mov;
-                                razonMatch = `Contrato ${contrato} detectado en la leyenda bancaria${isMontoExact ? ' (Monto exacto)' : ''}`;
-                                tipoMatch = 'CONTRATO_DP_DQ';
-                                scoreMatch = isMontoExact ? 2 : 2.5;
-                                if (isMontoExact) break;
-                            }
-                        }
-
-                        // 2.5 PRIORIDAD 2.5: Cuenta Bancaria o CLABE Habitual del Cliente
-                        const cuentasCliente = (ticket.cliente as any)?.cuentasBancarias || [];
-                        if (cuentasCliente.length > 0 && scoreMatch > 2.5) {
-                            const clabesCliente = cuentasCliente.map((c: any) => c.clabe).filter(Boolean);
-                            const cuentasNumCliente = cuentasCliente.map((c: any) => c.cuenta).filter(Boolean);
-                            const titularesCliente = cuentasCliente.map((c: any) => normalizar(c.nombreTitular || '')).filter((t: string) => t.length >= 4);
-
-                            const movClabe = mov.clabeEmisor || (movRawText.match(/\b\d{18}\b/) || [])[0];
-                            const movCta = mov.cuentaEmisor || (movRawText.match(/\b\d{10,16}\b/) || [])[0];
-
-                            const matchClabe = movClabe && clabesCliente.includes(movClabe);
-                            const matchCta = movCta && cuentasNumCliente.includes(movCta);
-                            const matchTitular = titularesCliente.some((t: string) => movNormText.includes(t));
-
-                            if (matchClabe || matchCta) {
-                                matchMov = mov;
-                                razonMatch = `Cuenta/CLABE habitual (${movClabe || movCta}) del cliente detectada${isMontoExact ? ' (Monto exacto)' : ''}`;
-                                tipoMatch = 'CUENTA_HABITUAL_CLIENTE';
-                                scoreMatch = isMontoExact ? 2.2 : 2.7;
-                                if (isMontoExact) break;
-                            } else if (isMontoExact && matchTitular && scoreMatch > 3.1) {
-                                matchMov = mov;
-                                razonMatch = `Titular/remitente habitual del cliente detectado en banco con monto exacto`;
-                                tipoMatch = 'REMITENTE_HABITUAL';
-                                scoreMatch = 3.1;
-                                continue;
-                            }
-                        }
-
-                        // 3. PRIORIDAD 3: Nombre del Cliente en concepto bancario
-                        if (isMontoExact && palabrasNombre.length > 0 && scoreMatch > 3) {
-                            // Coincidencia con nombre completo o al menos 2 palabras clave del cliente
-                            const palabrasCoincidentes = palabrasNombre.filter(p => movRawText.includes(p));
-                            if (movRawText.includes(nombreCompleto) || palabrasCoincidentes.length >= 2) {
-                                matchMov = mov;
-                                razonMatch = `Nombre "${palabrasCoincidentes.join(' ')}" detectado en banco con monto exacto`;
-                                tipoMatch = 'NOMBRE_CLIENTE';
-                                scoreMatch = 3;
-                                continue;
-                            }
-                        }
-
-                        // 4. PRIORIDAD 4: Folio o Referencia del Ticket
-                        if (isMontoExact && scoreMatch > 4) {
-                            // Validar que el folio no coincida erróneamente con el prefijo genérico de la clave de rastreo (ej. 50119094 en transferencias Bancoppel)
-                            const isFolioMatch = (normFolio && normFolio.length >= 6) && (
-                                normalizar(mov.referencia || '').includes(normFolio) ||
-                                normalizar(mov.concepto || '').includes(normFolio) ||
-                                (movNormText.includes(normFolio) && !movClaveRastreo.includes(normFolio))
-                            );
-                            const isRefMatch = (normRef && normRef.length >= 6) && (
-                                normalizar(mov.referencia || '').includes(normRef) ||
-                                normalizar(mov.concepto || '').includes(normRef) ||
-                                movNormText.includes(normRef)
-                            );
-
-                            if (isFolioMatch || isRefMatch) {
-                                matchMov = mov;
-                                razonMatch = `Folio/Referencia (${rawFolio || rawRef}) encontrado en banco con monto exacto`;
-                                tipoMatch = 'FOLIO_REFERENCIA';
-                                scoreMatch = 4;
-                                continue;
-                            }
-                        }
-
-                        // 5. PRIORIDAD 5: Mismo monto exacto y fecha cercana (±48 horas)
-                        if (isMontoExact && scoreMatch > 5) {
-                            const ticketDate = ticket.fecha || ticket.creadoEn;
-                            if (ticketDate && mov.fechaOperacion) {
-                                const tDate = new Date(ticketDate);
-                                const mDate = new Date(mov.fechaOperacion);
-                                const diffHours = Math.abs(tDate.getTime() - mDate.getTime()) / (1000 * 60 * 60);
-                                if (diffHours <= 48) {
-                                    matchMov = mov;
-                                    razonMatch = `Monto exacto ($${montoTicket.toFixed(2)}) y fecha cercana (${tDate.toISOString().slice(0, 10)})`;
-                                    tipoMatch = 'MONTO_FECHA';
-                                    scoreMatch = 5;
-                                    continue;
-                                }
-                            }
+                        if ((movClaveRastreo && (movClaveRastreo === rawRastreo || normalizar(movClaveRastreo) === normRastreo)) ||
+                            movRawText.includes(rawRastreo) || movNormText.includes(normRastreo)) {
+                            registrarMatch(ticket, mov, 'SPEI_EXACTO', `Clave SPEI exacta: ${rawRastreo}`);
+                            break;
                         }
                     }
                 }
 
+                // --- TIER 2: Código de Cliente / Contrato DP o DQ en la leyenda bancaria ---
+                for (const ticket of ticketsPendientes) {
+                    if (matchedTicketIds.has(ticket.id)) continue;
+                    const contrato = (ticket.cliente?.codigoCliente || '').trim().toUpperCase();
+                    const normContrato = normalizar(contrato);
+                    if (!normContrato || normContrato.length < 5) continue;
+                    const montoTicket = parseFloat(ticket.monto.toString());
+
+                    for (const mov of movimientosPool) {
+                        const movKey = `${mov.tabla}__${mov.id}`;
+                        if (usadosMovIds.has(movKey)) continue;
+                        const movAbono = parseFloat(mov.abono?.toString() || '0');
+                        if (Math.abs(montoTicket - movAbono) >= 0.01) continue;
+
+                        const movRawText = `${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''} ${mov.referencia || ''}`.toUpperCase();
+                        const movNormText = normalizar(movRawText);
+
+                        if (movRawText.includes(contrato) || movNormText.includes(normContrato)) {
+                            registrarMatch(ticket, mov, 'CONTRATO_DP_DQ', `Código de cliente ${contrato} detectado en concepto bancario`);
+                            break;
+                        }
+                    }
+                }
+
+                // --- TIER 3: Cuenta Bancaria o CLABE Habitual del Cliente ---
+                for (const ticket of ticketsPendientes) {
+                    if (matchedTicketIds.has(ticket.id)) continue;
+                    const cuentasCliente = (ticket.cliente as any)?.cuentasBancarias || [];
+                    if (cuentasCliente.length === 0) continue;
+                    const montoTicket = parseFloat(ticket.monto.toString());
+
+                    const clabesCliente = cuentasCliente.map((c: any) => c.clabe).filter(Boolean);
+                    const cuentasNumCliente = cuentasCliente.map((c: any) => c.cuenta).filter(Boolean);
+
+                    for (const mov of movimientosPool) {
+                        const movKey = `${mov.tabla}__${mov.id}`;
+                        if (usadosMovIds.has(movKey)) continue;
+                        const movAbono = parseFloat(mov.abono?.toString() || '0');
+                        if (Math.abs(montoTicket - movAbono) >= 0.01) continue;
+
+                        const movRawText = `${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''} ${mov.referencia || ''} ${mov.cuentaEmisor || ''} ${mov.clabeEmisor || ''}`.toUpperCase();
+                        const movClabe = mov.clabeEmisor || (movRawText.match(/\b\d{18}\b/) || [])[0];
+                        const movCta = mov.cuentaEmisor || (movRawText.match(/\b\d{10,16}\b/) || [])[0];
+
+                        if ((movClabe && clabesCliente.includes(movClabe)) || (movCta && cuentasNumCliente.includes(movCta))) {
+                            registrarMatch(ticket, mov, 'CUENTA_HABITUAL_CLIENTE', `Cuenta/CLABE habitual (${movClabe || movCta}) del cliente detectada`);
+                            break;
+                        }
+                    }
+                }
+
+                // --- TIER 4: Nombre del Cliente en concepto bancario ---
+                for (const ticket of ticketsPendientes) {
+                    if (matchedTicketIds.has(ticket.id)) continue;
+                    const nombreCompleto = (ticket.cliente?.nombreCompleto || '').trim().toUpperCase();
+                    const palabrasNombre = nombreCompleto
+                        .split(/\s+/)
+                        .filter((w: string) => w.length >= 4 && !['DE', 'DEL', 'LOS', 'LAS', 'SAN', 'SANTA', 'MARIA', 'JOSE'].includes(w));
+                    if (palabrasNombre.length === 0) continue;
+                    const montoTicket = parseFloat(ticket.monto.toString());
+
+                    for (const mov of movimientosPool) {
+                        const movKey = `${mov.tabla}__${mov.id}`;
+                        if (usadosMovIds.has(movKey)) continue;
+                        const movAbono = parseFloat(mov.abono?.toString() || '0');
+                        if (Math.abs(montoTicket - movAbono) >= 0.01) continue;
+
+                        const movRawText = `${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''}`.toUpperCase();
+                        const palabrasCoincidentes = palabrasNombre.filter((p: string) => movRawText.includes(p));
+
+                        if (movRawText.includes(nombreCompleto) || palabrasCoincidentes.length >= 2) {
+                            registrarMatch(ticket, mov, 'NOMBRE_CLIENTE', `Nombre "${palabrasCoincidentes.join(' ')}" detectado en banco`);
+                            break;
+                        }
+                    }
+                }
+
+                // --- TIER 5: Folio o Referencia del Ticket (filtrando números genéricos) ---
+                for (const ticket of ticketsPendientes) {
+                    if (matchedTicketIds.has(ticket.id)) continue;
+                    const rawRef = (ticket.referencia || '').trim().toUpperCase();
+                    const normRef = normalizar(rawRef);
+                    const rawFolio = (ticket.folio || '').trim().toUpperCase();
+                    const normFolio = normalizar(rawFolio);
+
+                    const refValida = normRef && normRef.length >= 6 && !REFERENCIAS_GENERICAS.has(normRef);
+                    const folioValido = normFolio && normFolio.length >= 6 && !REFERENCIAS_GENERICAS.has(normFolio);
+                    if (!refValida && !folioValido) continue;
+
+                    const montoTicket = parseFloat(ticket.monto.toString());
+
+                    for (const mov of movimientosPool) {
+                        const movKey = `${mov.tabla}__${mov.id}`;
+                        if (usadosMovIds.has(movKey)) continue;
+                        const movAbono = parseFloat(mov.abono?.toString() || '0');
+                        if (Math.abs(montoTicket - movAbono) >= 0.01) continue;
+
+                        const movRawText = `${mov.referencia || ''} ${mov.concepto || ''} ${mov.descripcionDetallada || ''}`.toUpperCase();
+                        const movNormText = normalizar(movRawText);
+
+                        if ((refValida && movNormText.includes(normRef)) || (folioValido && movNormText.includes(normFolio))) {
+                            registrarMatch(ticket, mov, 'FOLIO_REFERENCIA', `Folio/Referencia coincidente (${rawFolio || rawRef})`);
+                            break;
+                        }
+                    }
+                }
+
+                // --- TIER 6: Monto Exacto + Fecha Cercana (<= 3 días) ---
+                for (const ticket of ticketsPendientes) {
+                    if (matchedTicketIds.has(ticket.id)) continue;
+                    const montoTicket = parseFloat(ticket.monto.toString());
+                    const fechaTktDate = ticket.fecha || ticket.creadoEn;
+                    if (!fechaTktDate) continue;
+                    const fechaTkt = new Date(fechaTktDate).getTime();
+
+                    for (const mov of movimientosPool) {
+                        const movKey = `${mov.tabla}__${mov.id}`;
+                        if (usadosMovIds.has(movKey)) continue;
+                        const movAbono = parseFloat(mov.abono?.toString() || '0');
+                        if (Math.abs(montoTicket - movAbono) >= 0.01) continue;
+                        if (!mov.fechaOperacion) continue;
+
+                        const fechaMov = new Date(mov.fechaOperacion).getTime();
+                        const diffDias = Math.abs(fechaMov - fechaTkt) / (1000 * 60 * 60 * 24);
+
+                        if (diffDias <= 3) {
+                            const fStr = new Date(mov.fechaOperacion).toISOString().slice(0, 10);
+                            registrarMatch(ticket, mov, 'MONTO_FECHA', `Monto exacto ($${montoTicket.toFixed(2)}) y fecha cercana (${fStr})`);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            for (const { ticket, matchMov, tipoMatch, razonMatch } of matchedPairs) {
+                const montoTicket = parseFloat(ticket.monto.toString());
                 if (matchMov) {
                     usadosMovIds.add(`${matchMov.tabla}__${matchMov.id}`);
 

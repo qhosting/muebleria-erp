@@ -2255,6 +2255,20 @@ export default function ConciliadorPage() {
                                         </Button>
 
                                         {/* Botones directos de 1 clic para seleccionar por Etiqueta / Método */}
+                                        {(speiStats.byTipo['CONTRATO_DP_DQ'] || 0) > 0 && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => selectOnlyByTipo("CONTRATO_DP_DQ", "Contrato / Cód. Cliente")}
+                                                className="h-7 text-[10px] px-2 text-blue-800 bg-blue-50 hover:bg-blue-100 font-semibold border border-blue-200"
+                                                title="Marcar todas las coincidencias encontradas por Código de Cliente o Contrato"
+                                            >
+                                                <FileText className="w-3 h-3 mr-0.5 text-blue-600" />
+                                                Por Contrato ({speiStats.byTipo['CONTRATO_DP_DQ']})
+                                            </Button>
+                                        )}
+
                                         {(speiStats.byTipo['NOMBRE_CLIENTE'] || 0) > 0 && (
                                             <Button
                                                 type="button"
