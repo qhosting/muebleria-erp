@@ -6,6 +6,18 @@ import { checkPermission } from '@/lib/permissions';
 
 export const dynamic = 'force-dynamic';
 
+function toCdmxDateString(date: any): string {
+    if (!date) return '';
+    const d = typeof date === 'string' ? new Date(date) : date;
+    if (isNaN(d.getTime())) return '';
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Mexico_City',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(d);
+}
+
 export async function GET(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
@@ -243,7 +255,18 @@ export async function GET(request: NextRequest) {
                 const esBancario = isBankMethod(pago.metodoPago, pago.banco, pago.ticketId);
                 
                 if (esBancario) {
-                    const isActual = new Date(pago.fechaPago) >= startDate;
+                    const t = pago.ticket;
+                    const movBancario = t?.movimientosSantander22001022837?.[0] 
+                                     || t?.movimientosSantander65505732541?.[0] 
+                                     || t?.movimientosBanorte0330253963?.[0];
+
+                    const fechaDepositoBanco = movBancario?.fechaOperacion 
+                        ? movBancario.fechaOperacion 
+                        : (t?.fecha ? t.fecha : pago.fechaPago);
+
+                    const startDateStr = dateStartParam || toCdmxDateString(startDate);
+                    const fechaDepositoStr = toCdmxDateString(fechaDepositoBanco);
+                    const isActual = fechaDepositoStr >= startDateStr;
                     const cat = isActual ? 'actual' : 'anterior';
                     
                     const bancoNombre = resolveCuentaEmpresa(pago);
