@@ -266,30 +266,22 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // --- CASO B: NO EXISTE EN CONTPAQI -> CREAR DOCUMENTO ---
+        // --- CASO B: NO EXISTE EN CONTPAQI -> CREAR PAGO VÍA API ---
         const conceptoAbono = empresa === 'DQ' ? '102' : '101';
 
-        const nuevoDoc = await srv.createDocumento({
-          codigoConcepto: conceptoAbono,
+        const nuevoPago = await srv.registrarPago({
           codigoCliente: cod,
-          fecha: fechaStr,
-          total: abonoMonto,
+          monto: abonoMonto,
+          fecha: `${fechaStr}T00:00:00`,
+          folioTicket: referencia,
           referencia: referencia,
           observaciones: `Registrado desde Mueblería ERP por ${cobradorNombre}`,
-          empresa
-        });
+          codigoConceptoAbono: conceptoAbono,
+          codigoConceptoCargo: '1'
+        }, empresa);
 
-        const newDocId = nuevoDoc?.id || nuevoDoc?.cIdDocumento || nuevoDoc?.CIDDOCUMENTO;
-        const newDocFolio = nuevoDoc?.folio || (nuevoDoc?.serie ? `${nuevoDoc.serie}-${nuevoDoc.folio}` : null);
-
-        // Afectar documento en ContPAQi
-        if (newDocId) {
-          try {
-            await srv.afectarDocumento(Number(newDocId));
-          } catch (afErr: any) {
-            console.warn(`[SyncContPAQi] Advertencia al afectar documento ${newDocId} de ${cod}:`, afErr.message);
-          }
-        }
+        const newDocId = nuevoPago?.idPago || nuevoPago?.id;
+        const newDocFolio = nuevoPago?.folioDocumento || (nuevoPago?.serie ? `${nuevoPago.serie}-${nuevoPago.folio}` : null);
 
         // Marcar pago como sincronizado en PostgreSQL
         await prisma.pago.update({
