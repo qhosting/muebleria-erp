@@ -439,6 +439,82 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, message: 'Ticket descartado exitosamente' });
         }
 
+        // --- ACCIÓN: CONCILIAR MANUALMENTE COMO MIGRACIÓN (SIN MOVIMIENTO BANCARIO) ---
+        if (action === 'conciliar_migracion' || action === 'migracion') {
+            if (!ticketId) return NextResponse.json({ error: 'ID de ticket requerido' }, { status: 400 });
+
+            const ticket: any = await prisma.ticket.findUnique({
+                where: { id: ticketId },
+                include: { cliente: true, pagos: true }
+            });
+
+            if (!ticket) return NextResponse.json({ error: 'Ticket no encontrado' }, { status: 404 });
+
+            const operations: any[] = [
+                prisma.ticket.update({
+                    where: { id: ticketId },
+                    data: {
+                        conciliado: true,
+                        concepto: ticket.concepto ? `${ticket.concepto} (MIGRACIÓN MANUAL)` : 'TICKET CONCILIADO MIGRACIÓN MANUAL'
+                    }
+                })
+            ];
+
+            // 1. Si el ticket ya tenía pagos registrados (ej. por el bot con 'PENDIENTE')
+            if (ticket.pagos && ticket.pagos.length > 0) {
+                for (const p of ticket.pagos) {
+                    const nuevoConcepto = p.concepto 
+                        ? p.concepto.replace(/PENDIENTE/gi, 'MIGRACION') 
+                        : `TKT: ${ticketId} / MIGRACION`;
+                    operations.push(prisma.pago.update({
+                        where: { id: p.id },
+                        data: {
+                            concepto: nuevoConcepto.includes('MIGRACION') ? nuevoConcepto : `TKT: ${ticketId} / MIGRACION`,
+                            sincronizado: true
+                        }
+                    }));
+                }
+            } else if (ticket.clienteId && ticket.cliente) {
+                // 2. Si el ticket no tenía pago previo, creamos el pago de migración y aplicamos al saldo
+                const saldoAnterior = parseFloat(ticket.cliente.saldoActual.toString());
+                const montoPago = parseFloat(ticket.monto.toString());
+                const saldoNuevo = Math.max(0, saldoAnterior - montoPago);
+
+                const userId = (session.user as any)?.id;
+                const cobradorId = userId || ticket.cliente.cobradorAsignadoId || 'system';
+                const fechaPagoFinal = parseValidDate(ticket.fecha || ticket.creadoEn || new Date());
+
+                operations.push(prisma.pago.create({
+                    data: {
+                        clienteId: ticket.cliente.id,
+                        cobradorId: cobradorId,
+                        ticketId: ticket.id,
+                        monto: montoPago,
+                        concepto: `TKT: ${ticket.id} / MIGRACION`,
+                        tipoPago: 'regular',
+                        fechaPago: fechaPagoFinal,
+                        metodoPago: 'MIGRACION MANUAL',
+                        saldoAnterior,
+                        saldoNuevo,
+                        sincronizado: true,
+                        banco: 'MIGRACION'
+                    }
+                }));
+
+                operations.push(prisma.cliente.update({
+                    where: { id: ticket.cliente.id },
+                    data: { saldoActual: saldoNuevo }
+                }));
+            }
+
+            await prisma.$transaction(operations);
+
+            return NextResponse.json({
+                success: true,
+                message: `Ticket #${ticketId} conciliado exitosamente como MIGRACIÓN`
+            });
+        }
+
         // --- ACCIÓN: DESCONCILIAR MOVIMIENTO BANCARIO DEL TICKET ---
         if (action === 'desconciliar' || action === 'desvincular') {
             const targetMovId = movimientoId || body.id;
@@ -506,7 +582,7 @@ export async function POST(request: NextRequest) {
                 const pagoConciliado = await prisma.pago.findFirst({
                     where: {
                         ticketId: targetTicketId,
-                        metodoPago: { in: ['TESORERIA CONCILIADOR', 'SPEI AUTO CONCILIADO'] }
+                        metodoPago: { in: ['TESORERIA CONCILIADOR', 'SPEI AUTO CONCILIADO', 'MIGRACION MANUAL'] }
                     },
                     include: { cliente: true }
                 });
@@ -530,7 +606,7 @@ export async function POST(request: NextRequest) {
                 operations.push(prisma.pago.updateMany({
                     where: {
                         ticketId: targetTicketId,
-                        NOT: { metodoPago: { in: ['TESORERIA CONCILIADOR', 'SPEI AUTO CONCILIADO'] } }
+                        NOT: { metodoPago: { in: ['TESORERIA CONCILIADOR', 'SPEI AUTO CONCILIADO', 'MIGRACION MANUAL'] } }
                     },
                     data: {
                         concepto: `TKT: ${targetTicketId} / PENDIENTE`

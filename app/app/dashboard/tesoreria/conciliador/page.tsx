@@ -751,6 +751,47 @@ export default function ConciliadorPage() {
         }
     };
 
+    const handleConciliarMigracion = async (ticket: any) => {
+        const montoStr = formatCurrency(parseFloat(ticket.monto?.toString() || "0"));
+        const clienteStr = ticket.cliente?.nombreCompleto || ticket.cliente?.codigoCliente || "N/A";
+        const confirm = window.confirm(
+            `¿Autorizar y conciliar ticket #${ticket.id} como MIGRACIÓN?\n\n` +
+            `• Monto: ${montoStr}\n` +
+            `• Cliente: ${clienteStr}\n\n` +
+            `Esta acción marcará el ticket como CONCILIADO y sus pagos pasarán de PENDIENTE a MIGRACIÓN sin vincularse a ningún movimiento bancario.`
+        );
+        if (!confirm) return;
+
+        setActionLoading(prev => ({ ...prev, [ticket.id]: true }));
+        try {
+            const res = await fetch("/api/tesoreria/conciliador", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "conciliar_migracion",
+                    ticketId: ticket.id
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(data.message || `Ticket #${ticket.id} conciliado como MIGRACIÓN`);
+                if (estadoFiltro === "PENDIENTE") {
+                    setTickets(prev => prev.filter(t => t.id !== ticket.id));
+                } else {
+                    setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, conciliado: true, concepto: "MIGRACIÓN MANUAL" } : t));
+                }
+            } else {
+                toast.error(data.error || "Error al conciliar como migración");
+            }
+        } catch (error) {
+            console.error("Error conciliando como migración:", error);
+            toast.error("Error de conexión con el servidor");
+        } finally {
+            setActionLoading(prev => ({ ...prev, [ticket.id]: false }));
+        }
+    };
+
     const handleEliminarTicket = async (ticketId: string) => {
         const confirm = window.confirm("¿Eliminar ticket? Esta acción no se puede deshacer.");
         if (!confirm) return;
@@ -1270,20 +1311,37 @@ export default function ConciliadorPage() {
                                                         {!estaConciliado && (() => {
                                                             const isExactMatch = selectedMovObj ? Math.abs(parseFloat(selectedMovObj.abono?.toString() || "0") - montoTicketNum) < 0.01 : false;
                                                             return (
-                                                                <Button
-                                                                    type="button"
-                                                                    size="sm"
-                                                                    disabled={actionLoading[ticket.id] || !selectedMovValue || !isExactMatch}
-                                                                    onClick={() => handleConciliarPago(ticket)}
-                                                                    className="h-7 text-[11px] px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded shadow-none disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
-                                                                    title={!isExactMatch && selectedMovValue ? "No se puede conciliar: El depósito bancario no coincide con el ticket" : "Conciliar ticket con el movimiento bancario seleccionado"}
-                                                                >
-                                                                    {actionLoading[ticket.id] ? (
-                                                                        <Loader2 className="w-3 h-3 animate-spin" />
-                                                                    ) : (
-                                                                        "Conciliar"
-                                                                    )}
-                                                                </Button>
+                                                                <>
+                                                                    <Button
+                                                                        type="button"
+                                                                        size="sm"
+                                                                        disabled={actionLoading[ticket.id] || !selectedMovValue || !isExactMatch}
+                                                                        onClick={() => handleConciliarPago(ticket)}
+                                                                        className="h-7 text-[11px] px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded shadow-none disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+                                                                        title={!isExactMatch && selectedMovValue ? "No se puede conciliar: El depósito bancario no coincide con el ticket" : "Conciliar ticket con el movimiento bancario seleccionado"}
+                                                                    >
+                                                                        {actionLoading[ticket.id] ? (
+                                                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                                                        ) : (
+                                                                            "Conciliar"
+                                                                        )}
+                                                                    </Button>
+                                                                    <Button
+                                                                        type="button"
+                                                                        size="sm"
+                                                                        disabled={actionLoading[ticket.id]}
+                                                                        onClick={() => handleConciliarMigracion(ticket)}
+                                                                        className="h-7 text-[11px] px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded shadow-none flex items-center gap-1"
+                                                                        title="Autorizar como MIGRACIÓN (conciliar sin movimiento bancario)"
+                                                                    >
+                                                                        {actionLoading[ticket.id] ? (
+                                                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                                                        ) : (
+                                                                            <ShieldCheck className="w-3 h-3" />
+                                                                        )}
+                                                                        Migración
+                                                                    </Button>
+                                                                </>
                                                             );
                                                         })()}
                                                     </div>
@@ -1368,6 +1426,23 @@ export default function ConciliadorPage() {
                                                 <Eye className="w-3.5 h-3.5" />
                                                 Ver Comprobante
                                             </Button>
+                                            {!estaConciliado && (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    disabled={actionLoading[ticket.id]}
+                                                    onClick={() => handleConciliarMigracion(ticket)}
+                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 h-8 rounded text-xs flex items-center gap-1.5 shadow-none transition-colors"
+                                                    title="Autorizar este ticket como MIGRACIÓN (conciliar sin vincular a banco)"
+                                                >
+                                                    {actionLoading[ticket.id] ? (
+                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    ) : (
+                                                        <ShieldCheck className="w-3.5 h-3.5" />
+                                                    )}
+                                                    Migración
+                                                </Button>
+                                            )}
                                             <Button
                                                 type="button"
                                                 size="sm"
@@ -1718,36 +1793,54 @@ export default function ConciliadorPage() {
                                             );
                                         })()}
 
-                                        {/* Botón Grande de Conciliar */}
+                                        {/* Botones de Conciliación */}
                                         {estaConciliado ? (
                                             <div className="w-full bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold py-3 rounded-lg text-sm text-center flex items-center justify-center gap-2 mt-4">
                                                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                                                Ticket Conciliado en Banco
+                                                {ticket.concepto?.includes("MIGRACION") ? "Ticket Conciliado como MIGRACIÓN" : "Ticket Conciliado en Banco"}
                                             </div>
                                         ) : (() => {
                                             const isCardMontoExact = selectedMovObj ? Math.abs(parseFloat(selectedMovObj.abono?.toString() || "0") - montoTicketNum) < 0.01 : false;
                                             return (
-                                                <Button
-                                                    type="button"
-                                                    onClick={() => handleConciliarPago(ticket)}
-                                                    disabled={actionLoading[ticket.id] || !selectedMovObj || !isCardMontoExact}
-                                                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg text-sm transition-all shadow-sm flex items-center justify-center gap-2 mt-4 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
-                                                    title={!isCardMontoExact && selectedMovObj ? "No se puede conciliar: El depósito bancario no coincide con el ticket" : "Conciliar ticket con el movimiento bancario seleccionado"}
-                                                >
-                                                    {actionLoading[ticket.id] ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                    ) : !isCardMontoExact && selectedMovObj ? (
-                                                        <>
-                                                            <AlertCircle className="w-4 h-4 text-red-500" />
-                                                            <span>Montos no coinciden (Imposible conciliar)</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Check className="w-4 h-4 stroke-[3]" />
-                                                            <span>✓ Conciliar Ticket</span>
-                                                        </>
-                                                    )}
-                                                </Button>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                                                    <Button
+                                                        type="button"
+                                                        onClick={() => handleConciliarPago(ticket)}
+                                                        disabled={actionLoading[ticket.id] || !selectedMovObj || !isCardMontoExact}
+                                                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg text-sm transition-all shadow-sm flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+                                                        title={!isCardMontoExact && selectedMovObj ? "No se puede conciliar: El depósito bancario no coincide con el ticket" : "Conciliar ticket con el movimiento bancario seleccionado"}
+                                                    >
+                                                        {actionLoading[ticket.id] ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : !isCardMontoExact && selectedMovObj ? (
+                                                            <>
+                                                                <AlertCircle className="w-4 h-4 text-red-500" />
+                                                                <span>Montos no coinciden</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Check className="w-4 h-4 stroke-[3]" />
+                                                                <span>✓ Conciliar con Banco</span>
+                                                            </>
+                                                        )}
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        onClick={() => handleConciliarMigracion(ticket)}
+                                                        disabled={actionLoading[ticket.id]}
+                                                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg text-sm transition-all shadow-sm flex items-center justify-center gap-2"
+                                                        title="Autorizar como MIGRACIÓN histórica (conciliar sin vincular a movimiento bancario)"
+                                                    >
+                                                        {actionLoading[ticket.id] ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <>
+                                                                <ShieldCheck className="w-4 h-4" />
+                                                                <span>Conciliar como MIGRACIÓN</span>
+                                                            </>
+                                                        )}
+                                                    </Button>
+                                                </div>
                                             );
                                         })()}
                                     </div>
