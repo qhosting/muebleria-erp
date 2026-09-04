@@ -240,6 +240,16 @@ Fase 2: Robustez y Auditoría (En Curso)
   │   ├── Regla estricta en backend (/api/tesoreria/conciliador): prohibición absoluta de conciliar si Math.abs(abono - monto) > 0.01 (Error 400)
   │   ├── Filtrado estricto en algoritmo SPEI y sugerencias: solo se evalúan movimientos con monto idéntico
   │   └── Blindaje en frontend (/dashboard/tesoreria/bancos y /conciliador): botón de conciliar deshabilitado y alerta roja ante discrepancia de montos
+  ├── [x] Conciliación Manual de Tickets como MIGRACIÓN (Sin Vinculación Bancaria)
+  │   ├── Acción de backend action: 'conciliar_migracion' en /api/tesoreria/conciliador
+  │   ├── Actualización de conceptos a TKT: <ID> / MIGRACION y abono a saldo del cliente
+  │   ├── Botones de autorización directa en Vista de Tabla y Vista de Tarjetas del Conciliador
+  │   └── Desconciliación segura compatible con pagos de migración
+  ├── [x] Auditoría y Saneamiento de Movimientos Vinculados a Tickets Históricos (< 29/07/2026)
+  │   ├── Detección de 128 movimientos bancarios recientes vinculados indebidamente a tickets de mayo/junio/julio
+  │   ├── Respaldo íntegro en JSON de los 128 enlaces (scratch/backup_128_movimientos_desvinculados.json)
+  │   ├── Liberación masiva de los 128 movimientos bancarios (ticketId = null) para su conciliación legítima
+  │   └── Aseguramiento de 100% de tickets históricos como conciliados/migración (0 pendientes previos al 29/07/2026)
   ├── [ ] Reintentos automáticos estructurados con Backoff en caso de caída temporal de WAHA
   ├── [ ] Detección anti-fraude: Hash MD5/SHA256 de imagen para rechazar capturas idénticas
   └── [ ] Sincronización automática de estado de tickets entre Cola de Tesorería y Dashboard
