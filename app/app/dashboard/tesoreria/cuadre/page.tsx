@@ -158,31 +158,50 @@ export default function CuadrePage() {
             // Hoja 2: Resumen Bancos DQ y DP
             const resumenRows: any[] = [
                 { 'Concepto': 'Caja Consolidada Total', 'Monto': data.totalGeneral || 0, 'Cuentas': '-' },
-                { 'Concepto': 'Abonos sin Asignar (Bancos)', 'Monto': data.otrasDiscrepancias?.abonosSinAsignar?.monto || 0, 'Cuentas': data.otrasDiscrepancias?.abonosSinAsignar?.ctas || 0 },
-                { 'Concepto': '--- RESUMEN DQ ---', 'Monto': '', 'Cuentas': '' },
-                { 'Concepto': 'Total DQ Bancos', 'Monto': data.resumenDQ?.total?.monto || 0, 'Cuentas': data.resumenDQ?.total?.ctas || 0 },
+                { 'Concepto': 'Abonos sin Asignar (Total Bancos)', 'Monto': data.otrasDiscrepancias?.abonosSinAsignar?.monto || 0, 'Cuentas': data.otrasDiscrepancias?.abonosSinAsignar?.ctas || 0 },
             ];
 
-            Object.entries(data.resumenDQ?.actual?.bancos || {}).forEach(([banco, info]: [string, any]) => {
-                if (info.ctas > 0 || info.monto > 0) {
-                    resumenRows.push({ 'Concepto': `  » DQ: ${banco}`, 'Monto': info.monto, 'Cuentas': info.ctas });
-                }
+            // Desglose abonos sin asignar por banco
+            Object.entries(data.otrasDiscrepancias?.abonosSinAsignar?.bancos || {}).forEach(([banco, info]: [string, any]) => {
+                resumenRows.push({ 'Concepto': `  » Sin Asignar: ${banco}`, 'Monto': info.monto, 'Cuentas': info.ctas });
             });
 
+            // Resumen DQ
             resumenRows.push(
-                { 'Concepto': 'Discrepancia DQ', 'Monto': data.resumenDQ?.discrepancia?.monto || 0, 'Cuentas': data.resumenDQ?.discrepancia?.ctas || 0 },
-                { 'Concepto': '--- RESUMEN DP ---', 'Monto': '', 'Cuentas': '' },
-                { 'Concepto': 'Total DP Bancos', 'Monto': data.resumenDP?.total?.monto || 0, 'Cuentas': data.resumenDP?.total?.ctas || 0 }
+                { 'Concepto': '--- RESUMEN DQ ---', 'Monto': '', 'Cuentas': '' },
+                { 'Concepto': 'Total DQ Bancos (Actual + Anterior)', 'Monto': data.resumenDQ?.total?.monto || 0, 'Cuentas': data.resumenDQ?.total?.ctas || 0 },
+                { 'Concepto': '  [DQ ACTUAL]', 'Monto': data.resumenDQ?.actual?.monto || 0, 'Cuentas': data.resumenDQ?.actual?.ctas || 0 }
             );
-
-            Object.entries(data.resumenDP?.actual?.bancos || {}).forEach(([banco, info]: [string, any]) => {
-                if (info.ctas > 0 || info.monto > 0) {
-                    resumenRows.push({ 'Concepto': `  » DP: ${banco}`, 'Monto': info.monto, 'Cuentas': info.ctas });
-                }
+            Object.entries(data.resumenDQ?.actual?.bancos || {}).forEach(([banco, info]: [string, any]) => {
+                resumenRows.push({ 'Concepto': `    » DQ Actual: ${banco}`, 'Monto': info.monto, 'Cuentas': info.ctas });
             });
 
             resumenRows.push(
-                { 'Concepto': 'Discrepancia DP', 'Monto': data.resumenDP?.discrepancia?.monto || 0, 'Cuentas': data.resumenDP?.discrepancia?.ctas || 0 }
+                { 'Concepto': '  [DQ ANTERIOR]', 'Monto': data.resumenDQ?.anterior?.monto || 0, 'Cuentas': data.resumenDQ?.anterior?.ctas || 0 }
+            );
+            Object.entries(data.resumenDQ?.anterior?.bancos || {}).forEach(([banco, info]: [string, any]) => {
+                resumenRows.push({ 'Concepto': `    » DQ Anterior: ${banco}`, 'Monto': info.monto, 'Cuentas': info.ctas });
+            });
+
+            resumenRows.push(
+                { 'Concepto': 'Discrepancia DQ (Tickets sin conciliar)', 'Monto': data.resumenDQ?.discrepancia?.monto || 0, 'Cuentas': data.resumenDQ?.discrepancia?.ctas || 0 },
+                { 'Concepto': '--- RESUMEN DP ---', 'Monto': '', 'Cuentas': '' },
+                { 'Concepto': 'Total DP Bancos (Actual + Anterior)', 'Monto': data.resumenDP?.total?.monto || 0, 'Cuentas': data.resumenDP?.total?.ctas || 0 },
+                { 'Concepto': '  [DP ACTUAL]', 'Monto': data.resumenDP?.actual?.monto || 0, 'Cuentas': data.resumenDP?.actual?.ctas || 0 }
+            );
+            Object.entries(data.resumenDP?.actual?.bancos || {}).forEach(([banco, info]: [string, any]) => {
+                resumenRows.push({ 'Concepto': `    » DP Actual: ${banco}`, 'Monto': info.monto, 'Cuentas': info.ctas });
+            });
+
+            resumenRows.push(
+                { 'Concepto': '  [DP ANTERIOR]', 'Monto': data.resumenDP?.anterior?.monto || 0, 'Cuentas': data.resumenDP?.anterior?.ctas || 0 }
+            );
+            Object.entries(data.resumenDP?.anterior?.bancos || {}).forEach(([banco, info]: [string, any]) => {
+                resumenRows.push({ 'Concepto': `    » DP Anterior: ${banco}`, 'Monto': info.monto, 'Cuentas': info.ctas });
+            });
+
+            resumenRows.push(
+                { 'Concepto': 'Discrepancia DP (Tickets sin conciliar)', 'Monto': data.resumenDP?.discrepancia?.monto || 0, 'Cuentas': data.resumenDP?.discrepancia?.ctas || 0 }
             );
 
             const wsResumen = XLSX.utils.json_to_sheet(resumenRows);
@@ -197,41 +216,57 @@ export default function CuadrePage() {
         }
     };
 
+    const getBancoParam = (bancoKey: string) => {
+        if (bancoKey.includes('22001022837')) return '22001022837';
+        if (bancoKey.includes('65505732541')) return '65505732541';
+        if (bancoKey.includes('0330253963')) return '0330253963';
+        return '';
+    };
+
+    const renderBancos = (bancos: any) => {
+        const baseAccounts = [
+            'SANTANDER · 22001022837',
+            'SANTANDER · 65505732541',
+            'BANORTE · 0330253963'
+        ];
+        
+        const entries: [string, any][] = baseAccounts.map(key => [
+            key, 
+            bancos?.[key] || { ctas: 0, monto: 0 }
+        ]);
+
+        Object.entries(bancos || {}).forEach(([k, v]) => {
+            if (!baseAccounts.includes(k)) {
+                entries.push([k, v]);
+            }
+        });
+
+        return entries.map(([banco, info]: [string, any]) => {
+            const bancoParam = getBancoParam(banco);
+            const ctas = info.ctas ?? 0;
+            const monto = info.monto ?? 0;
+            return (
+                <div key={banco} className="flex justify-between items-center text-xs pl-4 py-0.5">
+                    <a 
+                        href={`/dashboard/tesoreria/bancos${bancoParam ? `?banco=${bancoParam}` : ''}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                        title="Ver movimientos en Tesorería / Bancos"
+                    >
+                        <span className={ctas > 0 ? "font-medium text-gray-700 dark:text-gray-300" : "text-gray-400"}>» {banco}:</span>
+                    </a>
+                    <span className="font-mono">
+                        <span className={`mr-2 ${ctas > 0 ? "text-gray-600 dark:text-gray-400 font-semibold" : "text-gray-400"}`}>CTAS {ctas}</span>
+                        <span className={monto > 0 ? "text-emerald-600 font-bold" : "text-gray-400"}>{formatCurrency(monto)}</span>
+                    </span>
+                </div>
+            );
+        });
+    };
+
     const SummaryCard = ({ title, resumen }: { title: string, resumen: any }) => {
         if (!resumen) return null;
-
-        const getBancoParam = (bancoKey: string) => {
-            if (bancoKey.includes('22001022837')) return '22001022837';
-            if (bancoKey.includes('65505732541')) return '65505732541';
-            if (bancoKey.includes('0330253963')) return '0330253963';
-            return '';
-        };
-
-        const renderBancos = (bancos: any) => {
-            const list = Object.entries(bancos || {}).filter(([_, info]: [string, any]) => (info.ctas ?? 0) > 0 || (info.monto ?? 0) > 0);
-            if (list.length === 0) return null;
-
-            return list.map(([banco, info]: [string, any]) => {
-                const bancoParam = getBancoParam(banco);
-                return (
-                    <div key={banco} className="flex justify-between items-center text-xs text-gray-500 pl-4 py-0.5">
-                        <a 
-                            href={`/dashboard/tesoreria/bancos${bancoParam ? `?banco=${bancoParam}` : ''}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:underline hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
-                            title="Ver movimientos en Tesorería / Bancos"
-                        >
-                            <span>» {banco}:</span>
-                        </a>
-                        <span className="font-mono">
-                            <span className="mr-2 text-gray-400">CTAS {info.ctas}</span>
-                            <span>{formatCurrency(info.monto)}</span>
-                        </span>
-                    </div>
-                );
-            });
-        };
 
         return (
             <Card className="shadow-md border-gray-100 dark:border-slate-800 h-full">
@@ -395,11 +430,18 @@ export default function CuadrePage() {
                             </div>
                         </CardHeader>
                         <CardContent className="pt-4 space-y-4 flex-1">
-                            <div className="flex justify-between items-center text-sm font-medium">
-                                <span className="text-gray-600 dark:text-gray-400">Abonos sin asignar (Banco):</span>
-                                <span className={`font-bold font-mono ${(data?.otrasDiscrepancias?.abonosSinAsignar?.ctas ?? 0) > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                                    {data?.otrasDiscrepancias?.abonosSinAsignar?.ctas ?? 0} (Suma: {formatCurrency(data?.otrasDiscrepancias?.abonosSinAsignar?.monto || 0)})
-                                </span>
+                            <div>
+                                <div className="flex justify-between items-center text-sm font-medium mb-1">
+                                    <span className="text-gray-600 dark:text-gray-400">Abonos sin asignar (Total Bancos):</span>
+                                    <span className={`font-bold font-mono ${(data?.otrasDiscrepancias?.abonosSinAsignar?.ctas ?? 0) > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                        {data?.otrasDiscrepancias?.abonosSinAsignar?.ctas ?? 0} (Suma: {formatCurrency(data?.otrasDiscrepancias?.abonosSinAsignar?.monto || 0)})
+                                    </span>
+                                </div>
+                                {data?.otrasDiscrepancias?.abonosSinAsignar?.bancos && (
+                                    <div className="pt-1">
+                                        {renderBancos(data.otrasDiscrepancias.abonosSinAsignar.bancos)}
+                                    </div>
+                                )}
                             </div>
                             <p className="text-[11px] text-gray-400 italic leading-relaxed border-t pt-2">
                                 * Los abonos sin asignar corresponden a movimientos bancarios en Santander / Banorte no vinculados a ningún ticket de cliente.

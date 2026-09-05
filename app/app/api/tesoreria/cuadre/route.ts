@@ -72,9 +72,9 @@ export async function GET(request: NextRequest) {
                         codigoCliente: true, 
                         nombreCompleto: true,
                         cuentasBancarias: true,
-                        movimientosSantander22001022837: { where: { fechaOperacion: { gte: startDate, lte: endDate } } },
-                        movimientosSantander65505732541: { where: { fechaOperacion: { gte: startDate, lte: endDate } } },
-                        movimientosBanorte0330253963: { where: { fechaOperacion: { gte: startDate, lte: endDate } } },
+                        movimientosSantander22001022837: true,
+                        movimientosSantander65505732541: true,
+                        movimientosBanorte0330253963: true,
                     }
                 },
                 ticket: {
@@ -309,7 +309,21 @@ export async function GET(request: NextRequest) {
         // 6. Abonos bancarios sin asignar a tickets
         const abonosSinAsignar = {
             ctas: movimientosBancos.filter((m: any) => !m.ticketId).length,
-            monto: movimientosBancos.filter((m: any) => !m.ticketId).reduce((acc: number, curr: any) => acc + (curr.abono || 0), 0)
+            monto: movimientosBancos.filter((m: any) => !m.ticketId).reduce((acc: number, curr: any) => acc + (curr.abono || 0), 0),
+            bancos: {
+                'SANTANDER · 22001022837': {
+                    ctas: m1.filter((m: any) => !m.ticketId).length,
+                    monto: m1.filter((m: any) => !m.ticketId).reduce((acc: number, curr: any) => acc + (curr.abono || 0), 0)
+                },
+                'SANTANDER · 65505732541': {
+                    ctas: m2.filter((m: any) => !m.ticketId).length,
+                    monto: m2.filter((m: any) => !m.ticketId).reduce((acc: number, curr: any) => acc + (curr.abono || 0), 0)
+                },
+                'BANORTE · 0330253963': {
+                    ctas: m3.filter((m: any) => !m.ticketId).length,
+                    monto: m3.filter((m: any) => !m.ticketId).reduce((acc: number, curr: any) => acc + (curr.abono || 0), 0)
+                }
+            }
         };
 
         // 7. Formatear resumen para UI
