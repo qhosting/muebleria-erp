@@ -72,7 +72,8 @@ export default function PagosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTipo, setSelectedTipo] = useState('all');
   const [selectedCobrador, setSelectedCobrador] = useState('all');
-  const [selectedFecha, setSelectedFecha] = useState('');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
   const [activeDbSearch, setActiveDbSearch] = useState('');
   const [isDbSearching, setIsDbSearching] = useState(false);
   
@@ -84,6 +85,38 @@ export default function PagosPage() {
   const [ticketModalOpen, setTicketModalOpen] = useState(false);
   const [selectedTicketData, setSelectedTicketData] = useState<TicketData | null>(null);
   const [isPrintingTicket, setIsPrintingTicket] = useState(false);
+
+  // Funciones auxiliares para rangos de fecha rápidos
+  const handleSetRangoHoy = () => {
+    const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+    setFechaDesde(hoy);
+    setFechaHasta(hoy);
+  };
+
+  const handleSetRangoEstaSemana = () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - dayOfWeek);
+    const dStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(monday);
+    const hStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(now);
+    setFechaDesde(dStr);
+    setFechaHasta(hStr);
+  };
+
+  const handleSetRangoEsteMes = () => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const dStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(firstDay);
+    const hStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(now);
+    setFechaDesde(dStr);
+    setFechaHasta(hStr);
+  };
+
+  const handleLimpiarFechas = () => {
+    setFechaDesde('');
+    setFechaHasta('');
+  };
 
   useEffect(() => {
     fetchCobradores();
@@ -103,7 +136,7 @@ export default function PagosPage() {
 
   useEffect(() => {
     fetchPagos();
-  }, [selectedTipo, selectedCobrador, selectedFecha, activeDbSearch]);
+  }, [selectedTipo, selectedCobrador, fechaDesde, fechaHasta, activeDbSearch]);
 
   const fetchPagos = async () => {
     try {
@@ -112,10 +145,8 @@ export default function PagosPage() {
       
       if (selectedTipo !== 'all') params.append('tipoPago', selectedTipo);
       if (selectedCobrador !== 'all') params.append('cobradorId', selectedCobrador);
-      if (selectedFecha) {
-        params.append('fechaDesde', selectedFecha);
-        params.append('fechaHasta', selectedFecha);
-      }
+      if (fechaDesde) params.append('fechaDesde', fechaDesde);
+      if (fechaHasta) params.append('fechaHasta', fechaHasta);
       if (activeDbSearch) params.append('search', activeDbSearch);
 
       const response = await fetch(`/api/pagos?${params.toString()}`);
@@ -454,8 +485,8 @@ export default function PagosPage() {
 
         {/* Filtros */}
         <Card>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <CardContent className="pt-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="flex gap-1.5 items-center">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -499,7 +530,7 @@ export default function PagosPage() {
                 )}
               </div>
               <Select value={selectedTipo} onValueChange={setSelectedTipo}>
-                <SelectTrigger>
+                <SelectTrigger className="h-10">
                   <SelectValue placeholder="Tipo de pago" />
                 </SelectTrigger>
                 <SelectContent>
@@ -509,7 +540,7 @@ export default function PagosPage() {
                 </SelectContent>
               </Select>
               <Select value={selectedCobrador} onValueChange={setSelectedCobrador}>
-                <SelectTrigger>
+                <SelectTrigger className="h-10">
                   <SelectValue placeholder="Cobrador" />
                 </SelectTrigger>
                 <SelectContent>
@@ -521,12 +552,67 @@ export default function PagosPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <Input
-                type="date"
-                value={selectedFecha}
-                onChange={(e) => setSelectedFecha(e.target.value)}
-                placeholder="Filtrar por fecha"
-              />
+            </div>
+
+            {/* Rango de Fechas y Filtros Rápidos */}
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pt-3 border-t border-gray-100">
+              <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Desde:</span>
+                  <Input
+                    type="date"
+                    value={fechaDesde}
+                    onChange={(e) => setFechaDesde(e.target.value)}
+                    className="w-40 h-9 text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Hasta:</span>
+                  <Input
+                    type="date"
+                    value={fechaHasta}
+                    onChange={(e) => setFechaHasta(e.target.value)}
+                    className="w-40 h-9 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSetRangoHoy}
+                  className="text-xs h-8 px-2.5 hover:bg-gray-100"
+                >
+                  Hoy
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSetRangoEstaSemana}
+                  className="text-xs h-8 px-2.5 hover:bg-gray-100"
+                >
+                  Esta Semana
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSetRangoEsteMes}
+                  className="text-xs h-8 px-2.5 hover:bg-gray-100"
+                >
+                  Este Mes
+                </Button>
+                {(fechaDesde || fechaHasta) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleLimpiarFechas}
+                    className="text-xs h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    Limpiar Fechas
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -641,7 +727,7 @@ export default function PagosPage() {
                               <Printer className="h-3.5 w-3.5 text-sky-600" />
                               Reimprimir
                             </Button>
-                            {userRole === 'admin' && (
+                            {(userRole === 'admin' || userRole === 'direccion') && (
                               <Button
                                 size="sm"
                                 variant="outline"

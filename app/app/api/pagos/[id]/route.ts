@@ -173,7 +173,8 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || (session.user as any).role !== 'admin') {
+    const userRole = (session?.user as any)?.role?.toString().toLowerCase();
+    if (!session || !['admin', 'superadmin', 'direccion'].includes(userRole)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
@@ -183,7 +184,7 @@ export async function PUT(
 
     const pagoExistente = await prisma.pago.findUnique({
       where: { id: pagoId },
-      include: { cliente: true }
+      include: { cliente: true, ticket: true }
     });
 
     if (!pagoExistente) {
@@ -224,6 +225,32 @@ export async function PUT(
         }
       }
 
+      // Procesar nueva fecha de pago de forma segura en zona horaria CDMX
+      let nuevaFechaPago = pagoExistente.fechaPago;
+      if (fechaPago !== undefined && fechaPago !== null && fechaPago !== '') {
+        if (typeof fechaPago === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fechaPago.trim())) {
+          const parsed = new Date(`${fechaPago.trim()}T12:00:00.000-06:00`);
+          if (!isNaN(parsed.getTime())) {
+            nuevaFechaPago = parsed;
+          }
+        } else {
+          const parsed = new Date(fechaPago);
+          if (!isNaN(parsed.getTime())) {
+            nuevaFechaPago = parsed;
+          }
+        }
+      }
+
+      // Actualizar fecha en ticket vinculado si existe
+      if (pagoExistente.ticketId) {
+        await tx.ticket.update({
+          where: { id: pagoExistente.ticketId },
+          data: { fecha: nuevaFechaPago }
+        }).catch((err: any) => {
+          console.warn(`[PUT /api/pagos/${pagoId}] No se pudo actualizar fecha en ticket:`, err?.message);
+        });
+      }
+
       return await tx.pago.update({
         where: { id: pagoId },
         data: {
@@ -233,7 +260,7 @@ export async function PUT(
           metodoPago: metodoPago !== undefined ? metodoPago : pagoExistente.metodoPago,
           tipoPago: tipoPagoNuevo,
           cobradorId: cobradorId !== undefined ? cobradorId : pagoExistente.cobradorId,
-          fechaPago: fechaPago !== undefined ? new Date(fechaPago) : pagoExistente.fechaPago,
+          fechaPago: nuevaFechaPago,
           saldoNuevo: saldoNuevo
         },
         include: {

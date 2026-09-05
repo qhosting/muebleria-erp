@@ -26,3 +26,4 @@ root/node_modules
 **/node_modules
 /temporales/
 /app/scratch/
+/scratch/

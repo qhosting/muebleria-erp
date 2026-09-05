@@ -165,16 +165,28 @@ export async function GET(request: NextRequest) {
             }
         };
 
-        // Pagos agrupados por gestor
-        const gestoresMap: Record<string, any> = {};
+        // 4. Categorización y agregación por canales y gestores
+        const gestoresBotMap: Record<string, any> = {};
+        const gestoresCobranzaMap: Record<string, any> = {};
+        const gestoresBancosManualMap: Record<string, any> = {};
+        const gestoresGlobalMap: Record<string, any> = {};
 
-        const isBankMethod = (method: string, banco?: string | null, ticketId?: string | null) => {
-            const m = (method || '').toLowerCase();
-            return m.includes('banc') || 
-                   m.includes('transf') || 
-                   m.includes('depo') || 
-                   Boolean(banco) || 
-                   Boolean(ticketId);
+        const getPaymentCategory = (pago: any): 'BANCOS_BOT' | 'COBRANZA_GESTOR' | 'BANCOS_GESTOR' => {
+            const m = (pago?.metodoPago || '').toUpperCase().trim();
+            // Si tiene ticketId o el método es explícitamente de bot
+            if (pago?.ticketId || m === 'BANCOS BOT' || m === 'BANCARIO_BOT' || m === 'SPEI AUTO CONCILIADO' || m === 'BOT' || m === 'WHATSAPP') {
+                return 'BANCOS_BOT';
+            }
+            // Cobranza física en efectivo en ruta
+            if (m === 'GESTOR' || m === 'EFECTIVO' || m === 'CONTADO') {
+                return 'COBRANZA_GESTOR';
+            }
+            // Captura manual de banco en app móvil
+            if (m === 'BANCARIO' || m === 'GESTOR BANCOS' || m === 'TRANSFERENCIA' || m === 'DEPOSITO') {
+                return 'BANCOS_GESTOR';
+            }
+            // Por defecto si no coincide pero tiene banco asignado -> BANCOS_GESTOR, sino COBRANZA_GESTOR
+            return pago?.banco ? 'BANCOS_GESTOR' : 'COBRANZA_GESTOR';
         };
 
         // Resolver cuenta bancaria de la empresa (dashboard/tesoreria/bancos) para cada pago
@@ -224,37 +236,54 @@ export async function GET(request: NextRequest) {
             return 'SANTANDER · 22001022837';
         };
 
-        // 4. Procesar todos los pagos para gestores y para resumen bancario
+        // Procesar todos los pagos para los 3 canales y el resumen consolidado
         pagosAll.forEach(pago => {
-            const cid = pago.cobradorId;
-            const cobradorNombre = pago.cobrador?.codigoGestor || pago.cobrador?.name || 'Desconocido';
-
-            if (!gestoresMap[cid]) {
-                gestoresMap[cid] = {
-                    id: cid,
-                    nombre: pago.cobrador?.name || 'Desconocido',
-                    codigoGestor: pago.cobrador?.codigoGestor || '-',
-                    cantidadPagos: 0,
-                    totalCobrado: 0
-                };
-            }
+            const cid = pago.cobradorId || 'sin_asignar';
+            const cobradorNombre = pago.cobrador?.name || 'Sin Asignar';
+            const codigoGestor = pago.cobrador?.codigoGestor || '-';
 
             const abono = Number(pago.monto || 0);
             const mora = Number(pago.interesMoratorio || 0);
             const gcob = Number(pago.gastosCobranza || 0);
             const totalPago = abono + mora + gcob;
 
-            gestoresMap[cid].cantidadPagos++;
-            gestoresMap[cid].totalCobrado += totalPago;
+            const category = getPaymentCategory(pago);
 
-            // Clasificar en resumen bancario DQ o DP si es bancario o si se registró en la ruta
-            const codigo = pago.cliente?.codigoCliente || '';
-            const pref = codigo.substring(0, 2).toUpperCase();
+            // Asegurar entrada en el consolidado global
+            if (!gestoresGlobalMap[cid]) {
+                gestoresGlobalMap[cid] = {
+                    id: cid,
+                    nombre: cobradorNombre,
+                    codigoGestor: codigoGestor,
+                    botMonto: 0,
+                    botRecibos: 0,
+                    cobranzaMonto: 0,
+                    cobranzaRecibos: 0,
+                    bancosGestorMonto: 0,
+                    bancosGestorRecibos: 0,
+                    totalMonto: 0,
+                    totalRecibos: 0
+                };
+            }
 
-            if (resumenPrefijos[pref]) {
-                const esBancario = isBankMethod(pago.metodoPago, pago.banco, pago.ticketId);
-                
-                if (esBancario) {
+            gestoresGlobalMap[cid].totalMonto += totalPago;
+            gestoresGlobalMap[cid].totalRecibos += 1;
+
+            if (category === 'BANCOS_BOT') {
+                gestoresGlobalMap[cid].botMonto += totalPago;
+                gestoresGlobalMap[cid].botRecibos += 1;
+
+                if (!gestoresBotMap[cid]) {
+                    gestoresBotMap[cid] = { id: cid, nombre: cobradorNombre, codigoGestor, cantidadPagos: 0, totalCobrado: 0 };
+                }
+                gestoresBotMap[cid].cantidadPagos++;
+                gestoresBotMap[cid].totalCobrado += totalPago;
+
+                // Clasificar en resumen bancario DQ o DP solo si es BANCOS BOT
+                const codigo = pago.cliente?.codigoCliente || '';
+                const pref = codigo.substring(0, 2).toUpperCase();
+
+                if (resumenPrefijos[pref]) {
                     const t = pago.ticket;
                     const movBancario = t?.movimientosSantander22001022837?.[0] 
                                      || t?.movimientosSantander65505732541?.[0] 
@@ -285,10 +314,28 @@ export async function GET(request: NextRequest) {
                         resumenPrefijos[pref].conciliados.monto += totalPago;
                     }
                 }
+            } else if (category === 'COBRANZA_GESTOR') {
+                gestoresGlobalMap[cid].cobranzaMonto += totalPago;
+                gestoresGlobalMap[cid].cobranzaRecibos += 1;
+
+                if (!gestoresCobranzaMap[cid]) {
+                    gestoresCobranzaMap[cid] = { id: cid, nombre: cobradorNombre, codigoGestor, cantidadPagos: 0, totalCobrado: 0 };
+                }
+                gestoresCobranzaMap[cid].cantidadPagos++;
+                gestoresCobranzaMap[cid].totalCobrado += totalPago;
+            } else if (category === 'BANCOS_GESTOR') {
+                gestoresGlobalMap[cid].bancosGestorMonto += totalPago;
+                gestoresGlobalMap[cid].bancosGestorRecibos += 1;
+
+                if (!gestoresBancosManualMap[cid]) {
+                    gestoresBancosManualMap[cid] = { id: cid, nombre: cobradorNombre, codigoGestor, cantidadPagos: 0, totalCobrado: 0 };
+                }
+                gestoresBancosManualMap[cid].cantidadPagos++;
+                gestoresBancosManualMap[cid].totalCobrado += totalPago;
             }
         });
 
-        // 5. Analizar tickets sin conciliar
+        // 5. Analizar tickets sin conciliar (exclusivo BANCOS BOT)
         ticketsAll.forEach((ticket: any) => {
             const codigo = ticket.cliente?.codigoCliente || '';
             const pref = codigo.substring(0, 2).toUpperCase();
@@ -346,12 +393,29 @@ export async function GET(request: NextRequest) {
             };
         };
 
+        const totalBot = Object.values(gestoresBotMap).reduce((acc: number, curr: any) => acc + curr.totalCobrado, 0);
+        const totalCobranza = Object.values(gestoresCobranzaMap).reduce((acc: number, curr: any) => acc + curr.totalCobrado, 0);
+        const totalBancosGestor = Object.values(gestoresBancosManualMap).reduce((acc: number, curr: any) => acc + curr.totalCobrado, 0);
+        const totalGeneral = totalBot + totalCobranza + totalBancosGestor;
+
         return NextResponse.json({
             resumenDQ: calcResumen('DQ'),
             resumenDP: calcResumen('DP'),
             otrasDiscrepancias: { abonosSinAsignar },
-            gestores: Object.values(gestoresMap),
-            totalGeneral: Object.values(gestoresMap).reduce((acc: any, curr: any) => acc + curr.totalCobrado, 0)
+            totales: {
+                totalBot,
+                totalCobranza,
+                totalBancosGestor,
+                totalGeneral
+            },
+            tablas: {
+                bancosBot: Object.values(gestoresBotMap).sort((a: any, b: any) => b.totalCobrado - a.totalCobrado),
+                cobranzaGestor: Object.values(gestoresCobranzaMap).sort((a: any, b: any) => b.totalCobrado - a.totalCobrado),
+                bancosGestor: Object.values(gestoresBancosManualMap).sort((a: any, b: any) => b.totalCobrado - a.totalCobrado),
+                global: Object.values(gestoresGlobalMap).sort((a: any, b: any) => b.totalMonto - a.totalMonto)
+            },
+            gestores: Object.values(gestoresBotMap).sort((a: any, b: any) => b.totalCobrado - a.totalCobrado),
+            totalGeneral
         });
 
     } catch (error: any) {

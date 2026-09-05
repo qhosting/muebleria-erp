@@ -40,12 +40,25 @@ export function EditPagoModal({
 
   useEffect(() => {
     if (pago) {
+      let fPago = '';
+      if (pago.fechaPago) {
+        if (typeof pago.fechaPago === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(pago.fechaPago.trim())) {
+          fPago = pago.fechaPago.trim();
+        } else {
+          try {
+            fPago = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date(pago.fechaPago));
+          } catch {
+            fPago = String(pago.fechaPago).slice(0, 10);
+          }
+        }
+      }
+
       setFormData({
         concepto: pago.concepto || '',
         metodoPago: (pago.metodoPago || 'GESTOR').toUpperCase(),
         tipoPago: pago.tipoPago || 'regular',
         cobradorId: pago.cobradorId || '',
-        fechaPago: pago.fechaPago ? new Date(pago.fechaPago).toISOString().split('T')[0] : '',
+        fechaPago: fPago,
         monto: pago.monto || 0,
         interesMoratorio: pago.interesMoratorio || 0
       });
