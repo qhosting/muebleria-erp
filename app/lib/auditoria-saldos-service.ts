@@ -168,15 +168,18 @@ export async function auditarSaldosCliente(
     saldoContpaqiApi = Math.max(0, parseFloat(totalPendientePagares.toFixed(2)));
   }
 
+  // Definir referencias genéricas de cuentas bancarias y conceptos comunes que no son identificadores únicos
+  const genericRefs = new Set([
+    '1858', '2837', '5396', '0330', '0228', '6550',
+    'SEMANA', 'PAGO', 'ABONO', 'BANCO', 'BOT', 'TRANSFERENCIA', 'SPEI', 'DEPOSITO',
+    'SANTANDER', 'BANORTE', 'BBVA', 'AZTECA', 'OXXO'
+  ]);
+
   // Indexar documentos de ContPAQi por folio y referencia
   const contpaqiFechaMontoList: any[] = [];
-  const contpaqiRefSet = new Map<string, any>();
 
   for (const d of abonosContpaqi) {
     const ref = (d.referencia || '').trim().toUpperCase();
-    if (ref && ref !== 'SEMANA' && ref !== 'PAGO' && ref !== 'ABONO') {
-      contpaqiRefSet.set(ref, d);
-    }
     const dFechaStr = d.fecha ? toCdmxDateString(d.fecha) : '';
     const dTime = d.fecha ? new Date(d.fecha).getTime() : 0;
 
@@ -263,13 +266,24 @@ export async function auditarSaldosCliente(
 
   for (const p of listaPagosUnificados) {
     const refUpper = (p.referencia || '').trim().toUpperCase();
+    const isGenericRef = !refUpper || refUpper.length < 4 || genericRefs.has(refUpper);
 
-    let docEncontrado = refUpper && contpaqiRefSet.has(refUpper) ? contpaqiRefSet.get(refUpper) : null;
+    let docEncontrado: any = null;
     
-    // 1. Búsqueda por referencia o ticket dentro del texto de referencia ContPAQi
-    if (!docEncontrado && refUpper && refUpper.length >= 4) {
+    // 1. Búsqueda por referencia exacta si no es genérica y el doc no ha sido usado
+    if (refUpper && !isGenericRef) {
       const matchPorRef = contpaqiFechaMontoList.find(
-        (d) => !d.usado && d.ref && d.ref.includes(refUpper)
+        (d) => !d.usado && d.ref === refUpper
+      );
+      if (matchPorRef) {
+        docEncontrado = matchPorRef.raw;
+      }
+    }
+
+    // 1.1 Búsqueda por referencia parcial si no es genérica
+    if (!docEncontrado && refUpper && !isGenericRef) {
+      const matchPorRef = contpaqiFechaMontoList.find(
+        (d) => !d.usado && d.ref && d.ref.length >= 4 && !genericRefs.has(d.ref) && d.ref.includes(refUpper)
       );
       if (matchPorRef) {
         docEncontrado = matchPorRef.raw;
@@ -279,7 +293,7 @@ export async function auditarSaldosCliente(
     // 2. Búsqueda por fecha exacta y monto
     if (!docEncontrado && p.fecha && p.monto > 0) {
       docEncontrado = contpaqiFechaMontoList.find(
-        (d) => d.fecha === p.fecha && Math.abs(d.total - p.monto) < 0.01 && !d.usado
+        (d) => !d.usado && d.fecha === p.fecha && Math.abs(d.total - p.monto) < 0.01
       )?.raw;
     }
 
@@ -671,4 +685,133 @@ export async function insertarPagosPendientesMasivoContpaqi(
     detalles: resumenClientes
   };
 }
+
+/**
+ * Permite a un superadministrador editar manualmente el saldo de un cliente
+ * y reconstruir automáticamente la cascada de saldos (saldoAnterior y saldoNuevo)
+ * de todos los pagos históricos a partir del nuevo saldo.
+ */
+export async function ajustarSaldoManualYCascada(
+  codigoCliente: string,
+  nuevoSaldoManual: number,
+  prismaClient?: any
+) {
+  const db = prismaClient || prisma;
+  const cod = codigoCliente.trim().toUpperCase();
+
+  const saldoNumerico = parseFloat(Number(nuevoSaldoManual).toFixed(2));
+  if (isNaN(saldoNumerico) || saldoNumerico < 0) {
+    throw new Error('El nuevo saldo debe ser un número válido mayor o igual a 0');
+  }
+
+  // 1. Obtener cliente y sus pagos
+  const cliente = await db.cliente.findFirst({
+    where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
+    include: {
+      pagos: {
+        include: { ticket: true }
+      }
+    }
+  });
+
+  if (!cliente) {
+    throw new Error(`Cliente con código ${cod} no encontrado`);
+  }
+
+  // 2. Actualizar saldo actual del cliente en PostgreSQL
+  await db.cliente.updateMany({
+    where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
+    data: { saldoActual: saldoNumerico }
+  });
+
+  // 3. Preparar lista de pagos con fecha efectiva
+  const listaPagosRaw: any[] = [];
+  for (const p of (cliente.pagos || [])) {
+    const abonoMonto = parseFloat(p.monto?.toString() || '0') || 0;
+    const effectiveDate = p.fechaPago ? new Date(p.fechaPago) : (p.ticket?.fecha ? new Date(p.ticket.fecha) : new Date(p.createdAt));
+
+    listaPagosRaw.push({
+      id: p.id,
+      ticketId: p.ticketId,
+      effectiveTime: effectiveDate.getTime(),
+      monto: abonoMonto
+    });
+  }
+
+  // Deduplicación inteligente
+  listaPagosRaw.sort((a, b) => a.effectiveTime - b.effectiveTime);
+  const pagosValidosTemp: any[] = [];
+  const idsDuplicados = new Set<string>();
+
+  for (const p of listaPagosRaw) {
+    const matchPrevio = pagosValidosTemp.find(pv => {
+      const diffDays = Math.abs(pv.effectiveTime - p.effectiveTime) / (1000 * 60 * 60 * 24);
+      return Math.abs(pv.monto - p.monto) < 1 && diffDays <= 2.5;
+    });
+
+    if (matchPrevio) {
+      if (p.ticketId && !matchPrevio.ticketId) {
+        const idx = pagosValidosTemp.indexOf(matchPrevio);
+        pagosValidosTemp[idx] = p;
+        idsDuplicados.add(matchPrevio.id);
+      } else {
+        idsDuplicados.add(p.id);
+      }
+    } else {
+      pagosValidosTemp.push(p);
+    }
+  }
+
+  // Eliminar pagos duplicados si son de sincronización automática
+  for (const dupId of idsDuplicados) {
+    try {
+      await db.pago.delete({ where: { id: dupId } });
+    } catch (e: any) {
+      console.warn(`No se pudo eliminar pago duplicado ${dupId}:`, e?.message);
+    }
+  }
+
+  // 4. Con los pagos válidos ordenados de forma DESCENDENTE (del más reciente al más antiguo):
+  // El pago más reciente deja el saldo en saldoNumerico.
+  // Su saldoAnterior = saldoNumerico + monto.
+  // El pago anterior deja el saldo en el saldoAnterior del siguiente, etc.
+  const pagosValidos = pagosValidosTemp.filter(p => !idsDuplicados.has(p.id));
+  pagosValidos.sort((a, b) => b.effectiveTime - a.effectiveTime);
+
+  let runningSaldo = saldoNumerico;
+  let pagosActualizados = 0;
+
+  for (const p of pagosValidos) {
+    const saldoNuevo = parseFloat(runningSaldo.toFixed(2));
+    const saldoAnterior = parseFloat((runningSaldo + p.monto).toFixed(2));
+
+    try {
+      await db.pago.update({
+        where: { id: p.id },
+        data: {
+          saldoAnterior,
+          saldoNuevo
+        }
+      });
+      pagosActualizados++;
+    } catch (err: any) {
+      console.error(`Error actualizando pago ${p.id}:`, err?.message);
+    }
+
+    runningSaldo = saldoAnterior;
+  }
+
+  // 5. Retornar el diagnóstico fresco
+  const diagnosticoActualizado = await auditarSaldosCliente(cod, db);
+
+  return {
+    success: true,
+    mensaje: `Saldo de ${cod} ajustado manualmente a $${saldoNumerico.toFixed(2)} y ${pagosActualizados} pagos recalculados en cascada.`,
+    codigo: cod,
+    nuevoSaldo: saldoNumerico,
+    pagosActualizados,
+    diagnostico: diagnosticoActualizado
+  };
+}
+
 

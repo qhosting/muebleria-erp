@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ import {
   Building2,
   Receipt,
   UploadCloud,
+  Pencil,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -91,12 +93,22 @@ interface ClienteAuditado {
 }
 
 export default function AuditoriaSaldosPage() {
+  const { data: session } = useSession();
+  const userRole = (session?.user as any)?.role;
+  const isSuperAdmin = ['admin', 'direccion', 'superadmin', 'super_admin'].includes(userRole);
+
   const [loading, setLoading] = useState(true);
   const [updatingIndividual, setUpdatingIndividual] = useState<string | null>(null);
   const [updatingMassive, setUpdatingMassive] = useState(false);
   const [insertingContpaqiIndividual, setInsertingContpaqiIndividual] = useState<string | null>(null);
   const [insertingContpaqiMassive, setInsertingContpaqiMassive] = useState(false);
   const [insertingPagoSingleId, setInsertingPagoSingleId] = useState<string | null>(null);
+
+  // Modal Edición Manual de Saldo (Super Administrador)
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [clienteAEditar, setClienteAEditar] = useState<ClienteAuditado | null>(null);
+  const [nuevoSaldoInput, setNuevoSaldoInput] = useState<string>('');
+  const [savingManualSaldo, setSavingManualSaldo] = useState(false);
 
   // Filtros
   const [empresaFiltro, setEmpresaFiltro] = useState<string>('all');
@@ -199,6 +211,55 @@ export default function AuditoriaSaldosPage() {
       setSelectedCodigos(new Set());
     } else {
       setSelectedCodigos(new Set(clientes.map((c) => c.codigo)));
+    }
+  };
+
+  // Abrir modal de edición manual de saldo
+  const handleAbrirModalEditarSaldo = (cliente: ClienteAuditado) => {
+    setClienteAEditar(cliente);
+    setNuevoSaldoInput(
+      cliente.saldoRealCalculado !== undefined
+        ? cliente.saldoRealCalculado.toString()
+        : cliente.saldoErpActual.toString()
+    );
+    setEditModalOpen(true);
+  };
+
+  // Guardar saldo manual y recalcular cascada histórica
+  const handleGuardarSaldoManual = async () => {
+    if (!clienteAEditar) return;
+    const val = parseFloat(nuevoSaldoInput);
+    if (isNaN(val) || val < 0) {
+      toast.error('Por favor ingresa un saldo válido mayor o igual a 0');
+      return;
+    }
+
+    setSavingManualSaldo(true);
+    try {
+      const res = await fetch(`/api/tesoreria/auditoria-saldos/${clienteAEditar.codigo}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accion: 'editar_saldo_manual',
+          nuevoSaldo: val
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.mensaje || `Saldo de ${clienteAEditar.codigo} actualizado a ${formatCurrency(val)}`);
+        setEditModalOpen(false);
+        fetchAuditData();
+        if (modalCliente && modalCliente.codigo === clienteAEditar.codigo) {
+          setModalCliente(data.diagnostico || modalCliente);
+        }
+      } else {
+        toast.error(data.error || 'Error al ajustar saldo manualmente');
+      }
+    } catch (err) {
+      console.error('Error ajustando saldo:', err);
+      toast.error('Error de red al ajustar saldo manual');
+    } finally {
+      setSavingManualSaldo(false);
     }
   };
 
@@ -813,6 +874,20 @@ export default function AuditoriaSaldosPage() {
                                 )}
                                 Corregir
                               </Button>
+
+                              {/* Botón Editar Saldo Manual (Solo Super Administrador) */}
+                              {isSuperAdmin && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleAbrirModalEditarSaldo(c)}
+                                  className="h-8 px-2 text-xs gap-1 border-amber-300 text-amber-800 hover:bg-amber-50"
+                                  title="Editar saldo manualmente y ajustar cascada histórica"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  Editar
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -962,6 +1037,20 @@ export default function AuditoriaSaldosPage() {
                         )}
                         Alinear Saldo ERP
                       </Button>
+
+                      {/* Botón Editar Saldo Manual (Solo Super Administrador) */}
+                      {isSuperAdmin && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAbrirModalEditarSaldo(modalCliente)}
+                          className="gap-1.5 border-amber-300 text-amber-800 hover:bg-amber-50 text-xs"
+                          title="Editar saldo manualmente y ajustar cascada histórica"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Editar Saldo
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </DialogHeader>
@@ -1101,6 +1190,86 @@ export default function AuditoriaSaldosPage() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal para Editar Saldo Manualmente (Super Administrador) */}
+        <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                <Pencil className="h-5 w-5 text-amber-600" />
+                <span>Ajuste Manual de Saldo (Super Admin)</span>
+              </DialogTitle>
+              <DialogDescription className="text-xs text-gray-500">
+                Establece un saldo definitivo para el cliente y recalcula toda la cadena histórica de pagos.
+              </DialogDescription>
+            </DialogHeader>
+
+            {clienteAEditar && (
+              <div className="space-y-4 pt-2">
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Cliente:</span>
+                    <span className="font-bold text-gray-900">{clienteAEditar.codigo} - {clienteAEditar.nombre}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Saldo Actual ERP:</span>
+                    <span className="font-mono font-semibold text-gray-800">{formatCurrency(clienteAEditar.saldoErpActual)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Saldo en ContPAQi API:</span>
+                    <span className="font-mono font-semibold text-blue-700">{formatCurrency(clienteAEditar.saldoContpaqiApi)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">Saldo Sugerido (Deduciendo hoy):</span>
+                    <span className="font-mono font-bold text-indigo-700">{formatCurrency(clienteAEditar.saldoRealCalculado)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-700">
+                    Nuevo Saldo en Mueblería-ERP ($):
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={nuevoSaldoInput}
+                    onChange={(e) => setNuevoSaldoInput(e.target.value)}
+                    className="font-mono font-bold text-base"
+                    placeholder="0.00"
+                  />
+                  <p className="text-[11px] text-amber-800 bg-amber-50 p-2.5 rounded border border-amber-200 leading-relaxed">
+                    ⚠️ <strong>Atención:</strong> Al guardar, el saldo actual del cliente se fijará en este valor exacto y se recalcularán automáticamente los saldos anteriores y nuevos de todos sus pagos en cascada cronológica inversa.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditModalOpen(false)}
+                    disabled={savingManualSaldo}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleGuardarSaldoManual}
+                    disabled={savingManualSaldo || !nuevoSaldoInput}
+                    className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
+                  >
+                    {savingManualSaldo ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
+                    Guardar y Recalcular Cascada
+                  </Button>
                 </div>
               </div>
             )}

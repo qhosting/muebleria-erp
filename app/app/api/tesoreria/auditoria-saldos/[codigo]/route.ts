@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import {
   auditarSaldosCliente,
   actualizarSaldosCliente,
+  ajustarSaldoManualYCascada,
   insertarPagoContpaqi,
   insertarPagosPendientesClienteContpaqi
 } from '@/lib/auditoria-saldos-service';
@@ -70,6 +71,22 @@ export async function POST(
 
     const accion = body?.accion || 'actualizar_saldo';
     const pagoId = body?.pagoId;
+
+    // ACCIÓN: Edición manual de saldo por Super Administrador y recalcular cascada histórica
+    if (accion === 'editar_saldo_manual' || accion === 'ajustar_saldo_manual') {
+      const isSuperAdmin = ['admin', 'direccion', 'superadmin', 'super_admin'].includes(userRole);
+      if (!isSuperAdmin) {
+        return NextResponse.json({ error: 'Acción restringida. Solo Super Administradores pueden editar el saldo manualmente.' }, { status: 403 });
+      }
+
+      const nuevoSaldo = parseFloat(body?.nuevoSaldo?.toString() || '');
+      if (isNaN(nuevoSaldo) || nuevoSaldo < 0) {
+        return NextResponse.json({ error: 'El nuevo saldo debe ser un número mayor o igual a 0.' }, { status: 400 });
+      }
+
+      const resultado = await ajustarSaldoManualYCascada(codigo, nuevoSaldo, prisma);
+      return NextResponse.json(resultado);
+    }
 
     // ACCIÓN: Insertar un pago específico o todos los pagos pendientes en ContPAQi
     if (accion === 'insertar_pago_contpaqi' || accion === 'insertar_pagos_contpaqi') {
