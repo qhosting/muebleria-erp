@@ -302,36 +302,30 @@ export async function POST(request: NextRequest) {
         // --- CASO B: NO EXISTE EN CONTPAQI -> CREAR PAGO VÍA API ---
         const conceptoAbono = empresa === 'DQ' ? '102' : '101';
 
-        // Usar createDocumento y auto-afectar (compatible con cualquier tipo de documento de cargo: facturas, pagarés, etc.)
-        const nuevoDoc = await srv.createDocumento({
-          codigoConcepto: conceptoAbono,
+        // Usar registrarPago (crea el documento de abono y concilia FIFO en ContPAQi)
+        const resPago = await srv.registrarPago({
           codigoCliente: cod,
-          fecha: fechaStr,
-          total: abonoMonto,
+          monto: abonoMonto,
+          fecha: effectiveDate,
+          folioTicket: referencia,
           referencia: referencia,
           observaciones: `Registrado desde Mueblería ERP por ${cobradorNombre}`,
-          empresa
-        });
+          codigoConceptoAbono: conceptoAbono
+        }, empresa);
 
-        const newDocId = nuevoDoc?.id || nuevoDoc?.cIdDocumento || nuevoDoc?.CIDDOCUMENTO;
-        const newDocFolio = nuevoDoc?.folio || (nuevoDoc?.serie ? `${nuevoDoc.serie}-${nuevoDoc.folio}` : null);
-
-        if (newDocId) {
-          try {
-            await srv.afectarDocumento(Number(newDocId));
-          } catch (afErr: any) {
-            console.warn(`[SyncContPAQi] No se pudo auto-afectar doc ${newDocId}:`, afErr?.message);
-          }
-        }
+        const newDocId = resPago?.idPago || resPago?.id || resPago?.cIdDocumento;
+        const newDocFolio = resPago?.folioDocumento || resPago?.folio;
 
         // Marcar pago como sincronizado en PostgreSQL
+        const docIdStr = newDocId ? `#${newDocId}` : (newDocFolio ? `Folio ${newDocFolio}` : '#OK');
+        const baseConcepto = (p.concepto || 'ABONO').replace(/\s*\(ContPAQi Doc #\d+\)/gi, '').trim();
+        const nuevoConcepto = `${baseConcepto} (ContPAQi Doc ${docIdStr})`;
+
         await prisma.pago.update({
           where: { id: p.id },
           data: {
             sincronizado: true,
-            concepto: newDocId
-              ? (p.concepto ? `${p.concepto} (ContPAQi Doc #${newDocId})` : `ContPAQi Doc #${newDocId}`)
-              : p.concepto
+            concepto: nuevoConcepto
           }
         });
 
