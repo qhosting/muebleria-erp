@@ -302,19 +302,27 @@ export async function POST(request: NextRequest) {
         // --- CASO B: NO EXISTE EN CONTPAQI -> CREAR PAGO VÍA API ---
         const conceptoAbono = empresa === 'DQ' ? '102' : '101';
 
-        const nuevoPago = await srv.registrarPago({
+        // Usar createDocumento y auto-afectar (compatible con cualquier tipo de documento de cargo: facturas, pagarés, etc.)
+        const nuevoDoc = await srv.createDocumento({
+          codigoConcepto: conceptoAbono,
           codigoCliente: cod,
-          monto: abonoMonto,
-          fecha: `${fechaStr}T00:00:00`,
-          folioTicket: referencia,
+          fecha: fechaStr,
+          total: abonoMonto,
           referencia: referencia,
           observaciones: `Registrado desde Mueblería ERP por ${cobradorNombre}`,
-          codigoConceptoAbono: conceptoAbono,
-          codigoConceptoCargo: '1'
-        }, empresa);
+          empresa
+        });
 
-        const newDocId = nuevoPago?.idPago || nuevoPago?.id;
-        const newDocFolio = nuevoPago?.folioDocumento || (nuevoPago?.serie ? `${nuevoPago.serie}-${nuevoPago.folio}` : null);
+        const newDocId = nuevoDoc?.id || nuevoDoc?.cIdDocumento || nuevoDoc?.CIDDOCUMENTO;
+        const newDocFolio = nuevoDoc?.folio || (nuevoDoc?.serie ? `${nuevoDoc.serie}-${nuevoDoc.folio}` : null);
+
+        if (newDocId) {
+          try {
+            await srv.afectarDocumento(Number(newDocId));
+          } catch (afErr: any) {
+            console.warn(`[SyncContPAQi] No se pudo auto-afectar doc ${newDocId}:`, afErr?.message);
+          }
+        }
 
         // Marcar pago como sincronizado en PostgreSQL
         await prisma.pago.update({
