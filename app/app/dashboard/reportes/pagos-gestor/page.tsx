@@ -112,6 +112,8 @@ export default function PagosGestorPage() {
         detalles?: any[];
     } | null>(null);
 
+    const [validatingContpaqi, setValidatingContpaqi] = useState(false);
+
     const userRole = (session?.user as any)?.role;
 
     useEffect(() => {
@@ -222,6 +224,37 @@ export default function PagosGestorPage() {
             toast.error('Error de red al conectar con ContPAQi');
         } finally {
             setSyncingGlobal(false);
+        }
+    };
+
+    // Validación de pagos contra ContPAQi API (sin crear duplicados)
+    const handleValidarContpaqi = async () => {
+        setValidatingContpaqi(true);
+        toast.info(`Validando pagos contra ContPAQi API (${fechaDesde} al ${fechaHasta})...`);
+        try {
+            const res = await fetch('/api/reportes/pagos-gestor/sync-contpaqi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fechaDesde,
+                    fechaHasta,
+                    tipo: tipoFiltro,
+                    cobradorId: selectedCobrador,
+                    soloValidar: true
+                })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toast.success(data.mensaje || 'Validación con ContPAQi completada');
+                fetchReporte();
+            } else {
+                toast.error(data.error || 'Error al validar con ContPAQi');
+            }
+        } catch (error: any) {
+            console.error('Error al validar con ContPAQi:', error);
+            toast.error('Error de red al conectar con ContPAQi');
+        } finally {
+            setValidatingContpaqi(false);
         }
     };
 
@@ -566,8 +599,18 @@ export default function PagosGestorPage() {
                     </div>
                     <div className="flex items-center gap-2">
                         <Button 
+                            onClick={handleValidarContpaqi} 
+                            disabled={loading || detallado.length === 0 || validatingContpaqi || syncingGlobal}
+                            variant="outline"
+                            className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-semibold text-xs shadow-sm flex items-center gap-1.5"
+                            title={`Consultar ContPAQi API para validar cuáles pagos del ${fechaDesde} al ${fechaHasta} ya fueron aplicados y vincular sus Doc IDs sin subir duplicados`}
+                        >
+                            <CheckCircle2 className={`h-4 w-4 ${validatingContpaqi ? 'animate-spin' : ''}`} />
+                            {validatingContpaqi ? 'Validando ContPAQi...' : 'Validar con ContPAQi'}
+                        </Button>
+                        <Button 
                             onClick={() => setShowConfirmModal(true)} 
-                            disabled={loading || detallado.length === 0 || syncingGlobal}
+                            disabled={loading || detallado.length === 0 || syncingGlobal || validatingContpaqi}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm flex items-center gap-1.5"
                             title={`Subir y verificar pagos del ${fechaDesde} al ${fechaHasta} en ContPAQi (evita duplicidades)`}
                         >
@@ -850,8 +893,8 @@ export default function PagosGestorPage() {
                                         // Fecha y Hora formateada en Horario de México (CDMX)
                                         const fechaCompleta = formatDateTime(pago.fechaPago);
 
-                                        const estaEnContpaqi = pago.concepto?.includes('ContPAQi Doc #') || pago.concepto?.includes('Afectado en ContPAQi');
                                         const docIdMatch = pago.concepto?.match(/ContPAQi Doc #(\d+)/i)?.[1];
+                                        const estaEnContpaqi = !!docIdMatch || pago.concepto?.includes('ContPAQi Doc #') || pago.concepto?.includes('Afectado en ContPAQi') || pago.sincronizado === true;
 
                                         return (
                                             <tr key={pago.id} className="hover:bg-gray-50 transition-colors text-[11px]">
@@ -894,7 +937,7 @@ export default function PagosGestorPage() {
                                                             {docIdMatch ? `Doc #${docIdMatch}` : 'ContPAQi OK'}
                                                         </Badge>
                                                     ) : (
-                                                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] mx-auto w-fit">
+                                                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] mx-auto w-fit font-medium">
                                                             Pendiente
                                                         </Badge>
                                                     )}
@@ -904,10 +947,14 @@ export default function PagosGestorPage() {
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
-                                                        disabled={syncingIndividualId === pago.id || syncingGlobal}
+                                                        disabled={syncingIndividualId === pago.id || syncingGlobal || validatingContpaqi}
                                                         onClick={() => handleSyncIndividual(pago.id)}
-                                                        className="h-6 text-[10px] px-2 text-emerald-700 hover:bg-emerald-50 border-emerald-300 flex items-center gap-1 mx-auto shadow-none"
-                                                        title="Validar y subir este abono a ContPAQi Comercial API (evita duplicados)"
+                                                        className={`h-6 text-[10px] px-2 flex items-center gap-1 mx-auto shadow-none ${
+                                                            estaEnContpaqi
+                                                                ? 'text-gray-600 hover:bg-gray-100 border-gray-300'
+                                                                : 'text-emerald-700 hover:bg-emerald-50 border-emerald-300 font-semibold'
+                                                        }`}
+                                                        title={estaEnContpaqi ? "Revalidar este abono en ContPAQi Comercial API" : "Validar y subir este abono a ContPAQi Comercial API (evita duplicados)"}
                                                     >
                                                         <CloudUpload className={`w-3 h-3 ${syncingIndividualId === pago.id ? 'animate-spin' : ''}`} />
                                                         {syncingIndividualId === pago.id ? '...' : (estaEnContpaqi ? 'Revalidar' : 'Subir')}

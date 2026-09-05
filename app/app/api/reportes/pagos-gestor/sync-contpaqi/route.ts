@@ -41,7 +41,8 @@ export async function POST(request: NextRequest) {
       fechaDesde,
       fechaHasta,
       tipo = 'todos',
-      cobradorId = 'all'
+      cobradorId = 'all',
+      soloValidar = false
     } = body;
 
     // 1. Construir filtros Prisma para los pagos
@@ -108,6 +109,7 @@ export async function POST(request: NextRequest) {
         total: 0,
         creados: 0,
         yaExistentes: 0,
+        pendientes: 0,
         errores: 0,
         detalles: []
       });
@@ -213,18 +215,33 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Check 3.2: ¿Hay un documento en ContPAQi con la misma referencia (recibo o folio)?
-        if (!docExistente && referencia && referencia.trim().length >= 4) {
-          const refBuscada = referencia.trim().toUpperCase();
-          docExistente = abonosContpaqi.find((d: any) => {
-            const dRef = String(d.referencia || d.cReferencia || '').trim().toUpperCase();
-            return dRef && (dRef.includes(refBuscada) || refBuscada.includes(dRef));
-          });
+        // Check 3.2: ¿Hay un documento en ContPAQi con la misma referencia (recibo o folios de ticket)?
+        if (!docExistente) {
+          const refsCandidatas = [
+            p.ticket?.folio,
+            p.ticket?.referencia,
+            p.numeroRecibo,
+            p.ticket?.claveRastreo,
+            p.ticket?.id
+          ]
+            .map((r: any) => String(r || '').trim().toUpperCase())
+            .filter((r: string) => r.length >= 4);
+
+          for (const refItem of refsCandidatas) {
+            if (!docExistente) {
+              docExistente = abonosContpaqi.find((d: any) => {
+                if (d.usado) return false;
+                const dRef = String(d.referencia || d.cReferencia || '').trim().toUpperCase();
+                return dRef && (dRef.includes(refItem) || refItem.includes(dRef));
+              });
+            }
+          }
         }
 
         // Check 3.3: ¿Hay un abono en ContPAQi en la misma fecha (YYYY-MM-DD) y con el mismo monto exacto?
         if (!docExistente) {
           docExistente = abonosContpaqi.find((d: any) => {
+            if (d.usado) return false;
             const dFecha = d.fecha ? (typeof d.fecha === 'string' ? d.fecha.slice(0, 10) : toCdmxDateString(d.fecha)) : '';
             const dTotal = parseFloat(d.total || d.cTotal || d.CTOTAL || '0') || 0;
             return dFecha === fechaStr && Math.abs(dTotal - abonoMonto) < 0.01;
@@ -233,13 +250,15 @@ export async function POST(request: NextRequest) {
 
         // --- CASO A: YA EXISTE EN CONTPAQI (EVITAR DUPLICIDAD) ---
         if (docExistente) {
+          docExistente.usado = true;
           const existingId = docExistente.id || docExistente.cIdDocumento || docExistente.CIDDOCUMENTO;
           const existingFolio = docExistente.folio || (docExistente.serie ? `${docExistente.serie}-${docExistente.folio}` : null);
 
           // Si el pago en ERP no tenía marcado el doc ID o sincronizado, actualizarlo
           if (!p.sincronizado || !p.concepto?.includes('ContPAQi Doc #')) {
+            const baseConcepto = (p.concepto || 'ABONO').replace(/\s*\(ContPAQi Doc #\d+\)/gi, '').trim();
             const nuevoConcepto = existingId
-              ? (p.concepto ? `${p.concepto} (ContPAQi Doc #${existingId})` : `ContPAQi Doc #${existingId}`)
+              ? `${baseConcepto} (ContPAQi Doc #${existingId})`
               : p.concepto;
 
             await prisma.pago.update({
@@ -262,6 +281,20 @@ export async function POST(request: NextRequest) {
             docId: existingId,
             docFolio: existingFolio,
             mensaje: `Ya existía en ContPAQi (Doc #${existingId || 'OK'}) en fecha ${fechaStr} por $${abonoMonto.toFixed(2)}. Vinculado sin duplicar.`
+          });
+          continue;
+        }
+
+        // Si solo estamos validando, no crear documento nuevo
+        if (soloValidar) {
+          resultados.push({
+            pagoId: p.id,
+            codigoCliente: cod,
+            clienteNombre: nombreCliente,
+            monto: abonoMonto,
+            fecha: fechaStr,
+            status: 'ERROR',
+            mensaje: `Pendiente en ContPAQi en fecha ${fechaStr} por $${abonoMonto.toFixed(2)}.`
           });
           continue;
         }
@@ -336,7 +369,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const mensajeFinal = `Proceso completado: ${creadosCount} abonos creados en ContPAQi, ${yaExistentesCount} ya existentes (vinculados sin duplicar)${erroresCount > 0 ? `, ${erroresCount} con error` : ''}.`;
+    const mensajeFinal = soloValidar
+      ? `Validación finalizada: ${yaExistentesCount} pagos confirmados y vinculados con ContPAQi Doc ID, ${pagos.length - yaExistentesCount} pendientes de aplicar.`
+      : `Proceso completado: ${creadosCount} abonos creados en ContPAQi, ${yaExistentesCount} ya existentes (vinculados sin duplicar)${erroresCount > 0 ? `, ${erroresCount} con error` : ''}.`;
 
     return NextResponse.json({
       success: true,
@@ -344,6 +379,7 @@ export async function POST(request: NextRequest) {
       total: pagos.length,
       creados: creadosCount,
       yaExistentes: yaExistentesCount,
+      pendientes: pagos.length - yaExistentesCount,
       errores: erroresCount,
       detalles: resultados
     });
