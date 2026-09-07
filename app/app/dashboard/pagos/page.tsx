@@ -20,7 +20,8 @@ import {
   FileText,
   Trash2,
   Edit,
-  Printer
+  Printer,
+  Copy
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -361,7 +362,7 @@ export default function PagosPage() {
   };
 
   const getFolioPago = (pago: Pago) => {
-    return pago.numeroRecibo || pago.ticket?.folio || (pago as any).localId || `REC-${pago.id.slice(-6).toUpperCase()}`;
+    return pago.id;
   };
 
   const exportarPagos = () => {
@@ -369,9 +370,11 @@ export default function PagosPage() {
       toast.error('No hay pagos para exportar');
       return;
     }
-    const headers = ['Folio', 'Fecha', 'Código Cliente', 'Cliente', 'Concepto', 'Tipo', 'Monto', 'Moratorio', 'Cobrador', 'Método'];
+    const headers = ['Folio ID', 'No. Recibo', 'Ticket', 'Fecha', 'Código Cliente', 'Cliente', 'Concepto', 'Tipo', 'Monto', 'Moratorio', 'Cobrador', 'Método'];
     const rows = filteredPagos.map(p => [
-      `"${getFolioPago(p)}"`,
+      `"${p.id}"`,
+      `"${p.numeroRecibo || ''}"`,
+      `"${p.ticket?.folio || ''}"`,
       p.fechaPago ? p.fechaPago.slice(0, 10) : '',
       `"${p.cliente?.codigoCliente || ''}"`,
       `"${(p.cliente?.nombreCompleto || '').replace(/"/g, '""')}"`,
@@ -431,14 +434,18 @@ export default function PagosPage() {
   const filteredPagos = pagos.filter(pago => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
-    const folioStr = getFolioPago(pago).toLowerCase();
+    const idStr = (pago.id || '').toLowerCase();
+    const reciboStr = (pago.numeroRecibo || '').toLowerCase();
+    const ticketStr = (pago.ticket?.folio || '').toLowerCase();
+    const localIdStr = ((pago as any).localId || '').toLowerCase();
     return (
       (pago.cliente?.nombreCompleto || '').toLowerCase().includes(term) ||
       (pago.cliente?.codigoCliente || '').toLowerCase().includes(term) ||
       (pago.concepto || '').toLowerCase().includes(term) ||
-      folioStr.includes(term) ||
-      ((pago as any).localId || '').toLowerCase().includes(term) ||
-      (pago.id || '').toLowerCase().includes(term)
+      idStr.includes(term) ||
+      reciboStr.includes(term) ||
+      ticketStr.includes(term) ||
+      localIdStr.includes(term)
     );
   });
 
@@ -684,7 +691,7 @@ export default function PagosPage() {
                   <thead>
                     <tr className="border-b bg-gray-50">
                       <th className="text-left p-3 font-medium text-gray-900">Fecha</th>
-                      <th className="text-left p-3 font-medium text-gray-900">Folio</th>
+                      <th className="text-left p-3 font-medium text-gray-900">Folio / ID</th>
                       <th className="text-left p-3 font-medium text-gray-900">Cliente</th>
                       <th className="text-left p-3 font-medium text-gray-900">Concepto</th>
                       <th className="text-left p-3 font-medium text-gray-900">Tipo</th>
@@ -710,15 +717,47 @@ export default function PagosPage() {
                           ) : null}
                         </td>
                         <td className="p-3 whitespace-nowrap">
-                          <div className="flex flex-col items-start gap-0.5">
-                            <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-1 rounded border border-slate-200">
-                              {getFolioPago(pago)}
-                            </span>
-                            {pago.metodoPago && pago.metodoPago.toLowerCase() !== 'gestor' && (
-                              <span className="text-[10px] text-gray-500 uppercase font-medium">
-                                {pago.metodoPago}
+                          <div className="flex flex-col items-start gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className="font-mono text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded border border-slate-200 cursor-pointer select-all transition-colors"
+                                title="Clic para copiar ID completo"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(pago.id);
+                                  toast.success(`Folio copiado: ${pago.id}`);
+                                }}
+                              >
+                                {pago.id}
                               </span>
-                            )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(pago.id);
+                                  toast.success(`Folio copiado: ${pago.id}`);
+                                }}
+                                className="text-gray-400 hover:text-gray-600 p-0.5 rounded transition-colors"
+                                title="Copiar Folio / ID"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1">
+                              {pago.numeroRecibo && (
+                                <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded border border-blue-200 font-mono">
+                                  Rec: {pago.numeroRecibo}
+                                </span>
+                              )}
+                              {pago.ticket?.folio && (
+                                <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.2 rounded border border-amber-200 font-mono">
+                                  Tkt: {pago.ticket.folio}
+                                </span>
+                              )}
+                              {pago.metodoPago && pago.metodoPago.toLowerCase() !== 'gestor' && (
+                                <span className="text-[10px] text-gray-500 uppercase font-medium bg-gray-50 px-1 py-0.2 rounded border border-gray-200">
+                                  {pago.metodoPago}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="p-3">

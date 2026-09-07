@@ -98,8 +98,11 @@ export function EditPagoModal({
           <div className="flex items-center justify-between pr-6">
             <DialogTitle>Editar Pago</DialogTitle>
             {pago && (
-              <span className="font-mono text-xs font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border">
-                {pago.numeroRecibo || pago.ticket?.folio || (pago as any).localId || `REC-${pago.id?.slice(-6).toUpperCase()}`}
+              <span 
+                className="font-mono text-xs font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border select-all"
+                title={`ID de Pago: ${pago.id}`}
+              >
+                {pago.id}
               </span>
             )}
           </div>
