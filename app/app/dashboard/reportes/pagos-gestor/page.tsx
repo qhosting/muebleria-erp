@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import { calcularSemanaCobranzaSabadoViernes, calcularRangoSemanaSabadoViernes, formatearFechaCortaMX } from "@/lib/calendario-cobranza-utils";
 
 interface User {
     id: string;
@@ -85,11 +86,49 @@ export default function PagosGestorPage() {
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [resumenTab, setResumenTab] = useState<string>("general"); // 'general', 'pordia'
 
-    const [fechaDesde, setFechaDesde] = useState(() => {
-        const d = new Date(); d.setDate(d.getDate() - 30);
-        return d.toISOString().split("T")[0];
+    const [semanaCobranza, setSemanaCobranza] = useState<string>(() => {
+        return calcularSemanaCobranzaSabadoViernes(new Date()).semana.toString();
     });
-    const [fechaHasta, setFechaHasta] = useState(() => new Date().toISOString().split("T")[0]);
+    const [anioCobranza, setAnioCobranza] = useState<string>(() => {
+        return calcularSemanaCobranzaSabadoViernes(new Date()).anio.toString();
+    });
+
+    const [fechaDesde, setFechaDesde] = useState(() => {
+        const semActual = calcularSemanaCobranzaSabadoViernes(new Date());
+        const rango = calcularRangoSemanaSabadoViernes(semActual.semana, semActual.anio);
+        return rango.inicioStr;
+    });
+    const [fechaHasta, setFechaHasta] = useState(() => {
+        const semActual = calcularSemanaCobranzaSabadoViernes(new Date());
+        const rango = calcularRangoSemanaSabadoViernes(semActual.semana, semActual.anio);
+        return rango.finStr;
+    });
+
+    const handleSeleccionarSemana = (semNum: number, anioNum: number) => {
+        setSemanaCobranza(semNum.toString());
+        setAnioCobranza(anioNum.toString());
+        const rango = calcularRangoSemanaSabadoViernes(semNum, anioNum);
+        setFechaDesde(rango.inicioStr);
+        setFechaHasta(rango.finStr);
+    };
+
+    const handleSetEstaSemana = () => {
+        const semActual = calcularSemanaCobranzaSabadoViernes(new Date());
+        handleSeleccionarSemana(semActual.semana, semActual.anio);
+    };
+
+    const handleSetSemanaAnterior = () => {
+        const semActual = calcularSemanaCobranzaSabadoViernes(new Date());
+        const prevSem = semActual.semana > 1 ? semActual.semana - 1 : 52;
+        const prevAnio = semActual.semana > 1 ? semActual.anio : semActual.anio - 1;
+        handleSeleccionarSemana(prevSem, prevAnio);
+    };
+
+    const handleSetHoy = () => {
+        const hoy = new Date().toISOString().split("T")[0];
+        setFechaDesde(hoy);
+        setFechaHasta(hoy);
+    };
 
     // Data
     const [detallado, setDetallado] = useState<any[]>([]);
@@ -625,10 +664,17 @@ export default function PagosGestorPage() {
 
                 {/* Filtros */}
                 <Card>
-                    <CardHeader className="py-4">
-                        <CardTitle className="text-sm flex items-center gap-2"><Filter className="h-4 w-4" /> Filtros de Búsqueda</CardTitle>
+                    <CardHeader className="py-4 pb-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <CardTitle className="text-sm flex items-center gap-2"><Filter className="h-4 w-4" /> Filtros de Búsqueda</CardTitle>
+                            <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg font-medium">
+                                <CalendarDays className="h-3.5 w-3.5" />
+                                <span>Período: <strong>{formatearFechaCortaMX(fechaDesde)} al {formatearFechaCortaMX(fechaHasta)}</strong></span>
+                                {semanaCobranza && <Badge variant="secondary" className="text-[10px] ml-1 bg-blue-100 text-blue-800 border-none font-bold">Semana {semanaCobranza}</Badge>}
+                            </div>
+                        </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                             <div className="space-y-2">
                                 <Label>Cobrador / Gestor</Label>
@@ -662,6 +708,55 @@ export default function PagosGestorPage() {
                             <div className="space-y-2">
                                 <Label>Hasta</Label>
                                 <Input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
+                            </div>
+                        </div>
+
+                        {/* Filtros Rápidos de Semana y Días */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Semana de Cobranza:</span>
+                                <Select 
+                                    value={semanaCobranza} 
+                                    onValueChange={(val) => handleSeleccionarSemana(parseInt(val), parseInt(anioCobranza))}
+                                >
+                                    <SelectTrigger className="w-36 h-8 text-xs font-semibold">
+                                        <SelectValue placeholder="Seleccionar semana" />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-60">
+                                        {Array.from({ length: 52 }, (_, i) => i + 1).map((s) => (
+                                            <SelectItem key={s} value={s.toString()} className="text-xs">
+                                                Semana {s} ({parseInt(anioCobranza)})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={handleSetEstaSemana} 
+                                    className="h-8 text-xs font-semibold border-blue-300 text-blue-700 bg-blue-50/50 hover:bg-blue-100"
+                                >
+                                    Esta Semana ({calcularSemanaCobranzaSabadoViernes(new Date()).semana})
+                                </Button>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={handleSetSemanaAnterior} 
+                                    className="h-8 text-xs hover:bg-gray-100"
+                                >
+                                    Semana Anterior
+                                </Button>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={handleSetHoy} 
+                                    className="h-8 text-xs hover:bg-gray-100"
+                                >
+                                    Hoy
+                                </Button>
                             </div>
                         </div>
                     </CardContent>
