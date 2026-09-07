@@ -36,6 +36,13 @@ interface Pago {
   tipoPago: 'regular' | 'moratorio';
   metodoPago?: string;
   numeroRecibo?: string;
+  localId?: string;
+  ticketId?: string;
+  ticket?: {
+    id?: string;
+    folio?: string;
+    referencia?: string;
+  } | null;
   fechaPago: string;
   saldoAnterior: number;
   saldoNuevo: number;
@@ -210,7 +217,7 @@ export default function PagosPage() {
       const esDQ = codCli.startsWith('DQ');
 
       const tData: TicketData = {
-        numeroRecibo: pago.numeroRecibo || `REC-${pago.id.slice(-6)}`,
+        numeroRecibo: pago.numeroRecibo || pago.ticket?.folio || `REC-${pago.id.slice(-6)}`,
         cliente: {
           nombreCompleto: pago.cliente.nombreCompleto,
           codigoCliente: pago.cliente.codigoCliente,
@@ -353,9 +360,39 @@ export default function PagosPage() {
     }
   };
 
+  const getFolioPago = (pago: Pago) => {
+    return pago.numeroRecibo || pago.ticket?.folio || (pago as any).localId || `REC-${pago.id.slice(-6).toUpperCase()}`;
+  };
+
   const exportarPagos = () => {
-    // Implementar exportación de pagos
-    toast.success('Exportando pagos...');
+    if (filteredPagos.length === 0) {
+      toast.error('No hay pagos para exportar');
+      return;
+    }
+    const headers = ['Folio', 'Fecha', 'Código Cliente', 'Cliente', 'Concepto', 'Tipo', 'Monto', 'Moratorio', 'Cobrador', 'Método'];
+    const rows = filteredPagos.map(p => [
+      `"${getFolioPago(p)}"`,
+      p.fechaPago ? p.fechaPago.slice(0, 10) : '',
+      `"${p.cliente?.codigoCliente || ''}"`,
+      `"${(p.cliente?.nombreCompleto || '').replace(/"/g, '""')}"`,
+      `"${(p.concepto || '').replace(/"/g, '""')}"`,
+      p.tipoPago,
+      p.monto,
+      p.interesMoratorio || 0,
+      `"${(p.cobrador?.name || '').replace(/"/g, '""')}"`,
+      `"${p.metodoPago || 'gestor'}"`
+    ]);
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `pagos_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success('Archivo CSV exportado exitosamente');
   };
 
   const eliminarPago = async (pagoId: string) => {
@@ -394,10 +431,12 @@ export default function PagosPage() {
   const filteredPagos = pagos.filter(pago => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
+    const folioStr = getFolioPago(pago).toLowerCase();
     return (
       (pago.cliente?.nombreCompleto || '').toLowerCase().includes(term) ||
       (pago.cliente?.codigoCliente || '').toLowerCase().includes(term) ||
       (pago.concepto || '').toLowerCase().includes(term) ||
+      folioStr.includes(term) ||
       ((pago as any).localId || '').toLowerCase().includes(term) ||
       (pago.id || '').toLowerCase().includes(term)
     );
@@ -645,6 +684,7 @@ export default function PagosPage() {
                   <thead>
                     <tr className="border-b bg-gray-50">
                       <th className="text-left p-3 font-medium text-gray-900">Fecha</th>
+                      <th className="text-left p-3 font-medium text-gray-900">Folio</th>
                       <th className="text-left p-3 font-medium text-gray-900">Cliente</th>
                       <th className="text-left p-3 font-medium text-gray-900">Concepto</th>
                       <th className="text-left p-3 font-medium text-gray-900">Tipo</th>
@@ -668,6 +708,18 @@ export default function PagosPage() {
                               </span>
                             </div>
                           ) : null}
+                        </td>
+                        <td className="p-3 whitespace-nowrap">
+                          <div className="flex flex-col items-start gap-0.5">
+                            <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                              {getFolioPago(pago)}
+                            </span>
+                            {pago.metodoPago && pago.metodoPago.toLowerCase() !== 'gestor' && (
+                              <span className="text-[10px] text-gray-500 uppercase font-medium">
+                                {pago.metodoPago}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-3">
                           <div>

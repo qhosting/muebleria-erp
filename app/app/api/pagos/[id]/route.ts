@@ -34,6 +34,13 @@ export async function GET(
             id: true,
             name: true
           }
+        },
+        ticket: {
+          select: {
+            id: true,
+            folio: true,
+            referencia: true
+          }
         }
       }
     });

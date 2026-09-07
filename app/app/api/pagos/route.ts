@@ -47,6 +47,8 @@ export async function GET(request: NextRequest) {
         { localId: { contains: cleanSearch, mode: 'insensitive' } },
         { id: { contains: cleanSearch, mode: 'insensitive' } },
         { clienteId: { contains: cleanSearch, mode: 'insensitive' } },
+        { ticket: { folio: { contains: cleanSearch, mode: 'insensitive' } } },
+        { ticket: { referencia: { contains: cleanSearch, mode: 'insensitive' } } },
       ];
     }
 
@@ -72,6 +74,13 @@ export async function GET(request: NextRequest) {
           cobrador: {
             select: {
               name: true,
+            },
+          },
+          ticket: {
+            select: {
+              id: true,
+              folio: true,
+              referencia: true,
             },
           },
         },

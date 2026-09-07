@@ -95,7 +95,14 @@ export function EditPagoModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Editar Pago</DialogTitle>
+          <div className="flex items-center justify-between pr-6">
+            <DialogTitle>Editar Pago</DialogTitle>
+            {pago && (
+              <span className="font-mono text-xs font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border">
+                {pago.numeroRecibo || pago.ticket?.folio || (pago as any).localId || `REC-${pago.id?.slice(-6).toUpperCase()}`}
+              </span>
+            )}
+          </div>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
