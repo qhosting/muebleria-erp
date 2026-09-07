@@ -668,6 +668,7 @@ export function ImportarClientesModal({
             importe4: row.importe4 ? parseFloat(row.importe4) : null,
             diaPago: row.diaPago?.toString() || "1",
             codigoGestor: row.codigoGestor?.toString().trim() || null,
+            clasificacionCobranza: isWelcomeMode ? 'VD' : (row.clasificacionCobranza || undefined),
           });
         }
       }
@@ -680,7 +681,8 @@ export function ImportarClientesModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           clientes: validRows,
-          enableCleanup: cleanupEnabled
+          enableCleanup: cleanupEnabled,
+          isWelcomeMode: !!isWelcomeMode
         }),
       });
 
@@ -707,7 +709,7 @@ export function ImportarClientesModal({
         onSuccess();
 
         if (isWelcomeMode && backendResult.created > 0) {
-           toast.info(`Se han importado ${backendResult.created} clientes.`);
+           toast.info(`Se han importado ${backendResult.created} clientes marcados como VD para verificación.`);
         }
       }
 

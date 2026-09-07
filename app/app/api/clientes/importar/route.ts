@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { StatusCuenta, Periodicidad } from '@prisma/client';
+import { StatusCuenta, Periodicidad, ClasificacionCobranza } from '@prisma/client';
 import { RecomprasService } from '@/lib/recompras-service';
 
 export async function POST(req: Request) {
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { clientes, enableCleanup = false } = body;
+        const { clientes, enableCleanup = false, isWelcomeMode = false } = body;
 
         let createdCount = 0;
         let failedCount = 0;
@@ -67,6 +67,11 @@ export async function POST(req: Request) {
                     codigosImportados.add(codigoCliente);
                 }
 
+                // Si es modo bienvenida o viene marcado como VD, clasificar como VD (Verificación Domiciliaria)
+                const clasificacion = (isWelcomeMode || c.clasificacionCobranza === 'VD')
+                    ? ClasificacionCobranza.VD
+                    : (c.clasificacionCobranza ? (c.clasificacionCobranza as ClasificacionCobranza) : undefined);
+
                 const data = {
                     nombreCompleto: c.nombreCompleto,
                     direccionCompleta: c.direccionCompleta,
@@ -89,6 +94,7 @@ export async function POST(req: Request) {
                     cobradorAsignadoId: c.codigoGestor ? (gestorMap.get(c.codigoGestor.toString().trim()) || null) : null,
                     // Al reimportar un cliente activo, limpiar fecha de inactivación si existía
                     fechaInactivacion: null,
+                    ...(clasificacion ? { clasificacionCobranza: clasificacion } : {}),
                 };
 
                 await prisma.cliente.upsert({
@@ -97,6 +103,7 @@ export async function POST(req: Request) {
                     create: {
                         ...data,
                         codigoCliente,
+                        clasificacionCobranza: clasificacion || ClasificacionCobranza.RUTA,
                     }
                 });
                 createdCount++;

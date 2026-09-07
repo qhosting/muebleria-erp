@@ -19,7 +19,11 @@ import {
     ExternalLink, 
     Image as ImageIcon,
     FileText,
-    Printer
+    Printer,
+    Clock,
+    AlertCircle,
+    CheckCircle2,
+    Users
 } from "lucide-react";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
@@ -43,6 +47,9 @@ export default function VerificacionesReportPage() {
     });
     const [fechaHasta, setFechaHasta] = useState(() => new Date().toISOString().split("T")[0]);
 
+    const [estatusFiltro, setEstatusFiltro] = useState<"todos" | "efectuadas" | "pendientes">("todos");
+    const [counts, setCounts] = useState({ total: 0, efectuadas: 0, pendientes: 0 });
+
     const [pagination, setPagination] = useState({
         total: 0,
         pages: 0,
@@ -56,7 +63,7 @@ export default function VerificacionesReportPage() {
 
     useEffect(() => {
         fetchVerificaciones();
-    }, [currentPage, searchTerm, fechaDesde, fechaHasta]);
+    }, [currentPage, searchTerm, fechaDesde, fechaHasta, estatusFiltro]);
 
     const fetchVerificaciones = async () => {
         setLoading(true);
@@ -65,6 +72,7 @@ export default function VerificacionesReportPage() {
                 page: currentPage.toString(),
                 limit: "50",
                 search: searchTerm,
+                estatus: estatusFiltro,
                 fechaDesde: fechaDesde ? `${fechaDesde}T00:00:00.000Z` : "",
                 fechaHasta: fechaHasta ? `${fechaHasta}T23:59:59.999Z` : "",
             });
@@ -72,8 +80,11 @@ export default function VerificacionesReportPage() {
             const res = await fetch(`/api/reportes/verificaciones?${params}`);
             if (res.ok) {
                 const data = await res.json();
-                setVerificaciones(data.verificaciones);
-                setPagination(data.pagination);
+                setVerificaciones(data.verificaciones || []);
+                setPagination(data.pagination || { total: 0, pages: 1, currentPage: 1, perPage: 50 });
+                if (data.counts) {
+                    setCounts(data.counts);
+                }
             }
         } catch (error) {
             console.error("Error al obtener verificaciones", error);
@@ -97,7 +108,7 @@ export default function VerificacionesReportPage() {
         if (verificaciones.length === 0) return;
 
         const headers = [
-            "ID", "Fecha Creacion", "Codigo Cliente", "Nombre Cliente", "Gestor", "Contrato",
+            "ID", "Estatus", "Fecha Registro", "Codigo Cliente", "Nombre Cliente", "Gestor", "Contrato",
             "Calles de Referencia", "Municipio", "Direccion Detalle",
             "Tipo Casa", "Casa 2 Plantas", "Condominio Abierto", "Condominio Cerrado",
             "Gas", "Luz", "Agua", "Telefono", "Terraceria", "Zona Cobertura",
@@ -113,8 +124,9 @@ export default function VerificacionesReportPage() {
                 const d = v.detallesExtra || {};
                 return [
                     v.id,
-                    v.fecha.split("T")[0],
-                    v.cliente?.codigoCliente || "-",
+                    v.estatus || "EFECTUADA",
+                    v.fecha ? v.fecha.split("T")[0] : "-",
+                    v.cliente?.codigoCliente || d.codigoCliente || "-",
                     v.cliente?.nombreCompleto || d.nombreCliente || "-",
                     v.gestor?.name || "-",
                     d.contrato || "-",
@@ -284,7 +296,7 @@ export default function VerificacionesReportPage() {
                                     </td>
                                     <td>${d.direccion || v.cliente?.direccionCompleta || "Sin dirección"}</td>
                                     <td>${v.gestor?.name || "-"}</td>
-                                    <td><span class="badge">EFECTUADA</span></td>
+                                    <td><span class="badge" style="background: ${v.estatus === 'PENDIENTE' ? '#fef3c7; color: #92400e' : '#dcfce7; color: #15803d'}">${v.estatus || 'EFECTUADA'}</span></td>
                                 </tr>
                             `;
                         }).join("")}
@@ -641,11 +653,92 @@ export default function VerificacionesReportPage() {
                     </div>
                 </div>
 
+                {/* Métricas Resumen */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Card 
+                        className={`border shadow-sm bg-white overflow-hidden cursor-pointer transition-all ${estatusFiltro === 'todos' ? 'ring-2 ring-blue-500 border-blue-200' : 'hover:border-slate-300'}`}
+                        onClick={() => setEstatusFiltro('todos')}
+                    >
+                        <CardContent className="p-4 flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total de Cuentas</p>
+                                <h3 className="text-2xl font-black text-slate-800 mt-1">{counts.total}</h3>
+                                <p className="text-[11px] text-slate-500 mt-0.5">Visitas y cuentas para VD</p>
+                            </div>
+                            <div className="h-12 w-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                                <Users className="h-6 w-6" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card 
+                        className={`border shadow-sm bg-white overflow-hidden cursor-pointer transition-all ${estatusFiltro === 'efectuadas' ? 'ring-2 ring-emerald-500 border-emerald-200' : 'hover:border-emerald-300'}`}
+                        onClick={() => setEstatusFiltro('efectuadas')}
+                    >
+                        <CardContent className="p-4 flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">VD Efectuadas</p>
+                                <h3 className="text-2xl font-black text-emerald-700 mt-1">{counts.efectuadas}</h3>
+                                <p className="text-[11px] text-slate-500 mt-0.5">Visitas realizadas con expediente</p>
+                            </div>
+                            <div className="h-12 w-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                                <CheckCircle2 className="h-6 w-6" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card 
+                        className={`border shadow-sm bg-white overflow-hidden cursor-pointer transition-all ${estatusFiltro === 'pendientes' ? 'ring-2 ring-amber-500 border-amber-200' : 'hover:border-amber-300'}`}
+                        onClick={() => setEstatusFiltro('pendientes')}
+                    >
+                        <CardContent className="p-4 flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-amber-600 uppercase tracking-wider">Pendientes de Visita (VD)</p>
+                                <h3 className="text-2xl font-black text-amber-700 mt-1">{counts.pendientes}</h3>
+                                <p className="text-[11px] text-slate-500 mt-0.5">Cuentas nuevas VD por verificar</p>
+                            </div>
+                            <div className="h-12 w-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                                <Clock className="h-6 w-6" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
                 {/* Filtros */}
                 <Card className="border-none shadow-md overflow-hidden">
                     <CardHeader className="bg-gray-50/50 border-b">
-                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                            <Search className="h-4 w-4 text-blue-500" /> Filtros de Búsqueda
+                        <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Search className="h-4 w-4 text-blue-500" /> Filtros de Búsqueda
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <Button
+                                    size="sm"
+                                    variant={estatusFiltro === 'todos' ? 'default' : 'outline'}
+                                    className={`h-7 text-xs font-bold ${estatusFiltro === 'todos' ? 'bg-blue-600' : ''}`}
+                                    onClick={() => setEstatusFiltro('todos')}
+                                >
+                                    Todos ({counts.total})
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant={estatusFiltro === 'efectuadas' ? 'default' : 'outline'}
+                                    className={`h-7 text-xs font-bold ${estatusFiltro === 'efectuadas' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'text-emerald-700'}`}
+                                    onClick={() => setEstatusFiltro('efectuadas')}
+                                >
+                                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                                    Efectuadas ({counts.efectuadas})
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant={estatusFiltro === 'pendientes' ? 'default' : 'outline'}
+                                    className={`h-7 text-xs font-bold ${estatusFiltro === 'pendientes' ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'text-amber-700'}`}
+                                    onClick={() => setEstatusFiltro('pendientes')}
+                                >
+                                    <Clock className="w-3 h-3 mr-1" />
+                                    Pendientes ({counts.pendientes})
+                                </Button>
+                            </div>
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-6">
@@ -736,23 +829,44 @@ export default function VerificacionesReportPage() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-center">
-                                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 transition-colors px-3 py-1 font-bold">
-                                                        EFECTUADA
-                                                    </Badge>
+                                                    {v.estatus === 'PENDIENTE' ? (
+                                                        <Badge className="bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 transition-colors px-2.5 py-1 font-black text-[10px] tracking-wide">
+                                                            PENDIENTE VD
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 transition-colors px-3 py-1 font-bold">
+                                                            EFECTUADA
+                                                        </Badge>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4 text-center">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className="h-8 text-[11px] font-bold uppercase tracking-tight border-blue-200 text-blue-600 hover:bg-blue-50"
-                                                        onClick={() => {
-                                                            setSelectedVerificacion(v);
-                                                            setIsModalOpen(true);
-                                                        }}
-                                                    >
-                                                        <Eye className="w-3.5 h-3.5 mr-1" />
-                                                        Ver
-                                                    </Button>
+                                                    {v.estatus === 'PENDIENTE' ? (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-8 text-[11px] font-bold uppercase tracking-tight border-amber-300 text-amber-700 hover:bg-amber-50"
+                                                            onClick={() => {
+                                                                setSelectedVerificacion(v);
+                                                                setIsModalOpen(true);
+                                                            }}
+                                                        >
+                                                            <Info className="w-3.5 h-3.5 mr-1 text-amber-600" />
+                                                            Ficha VD
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-8 text-[11px] font-bold uppercase tracking-tight border-blue-200 text-blue-600 hover:bg-blue-50"
+                                                            onClick={() => {
+                                                                setSelectedVerificacion(v);
+                                                                setIsModalOpen(true);
+                                                            }}
+                                                        >
+                                                            <Eye className="w-3.5 h-3.5 mr-1" />
+                                                            Ver
+                                                        </Button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))
@@ -821,33 +935,102 @@ export default function VerificacionesReportPage() {
                     <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 border-none rounded-2xl overflow-hidden shadow-2xl bg-white text-slate-800">
                             {/* Header */}
-                            <div className="bg-slate-900 p-6 text-white sticky top-0 z-10 shadow-md">
+                            <div className={`${v.estatus === 'PENDIENTE' ? 'bg-amber-950' : 'bg-slate-900'} p-6 text-white sticky top-0 z-10 shadow-md`}>
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="flex gap-2">
-                                        <Badge className="bg-blue-600 text-white font-bold tracking-widest text-[9px] uppercase border-none px-2 py-0.5">
-                                            EXPEDIENTE DIGITAL DE AUDITORÍA
+                                        <Badge className={`${v.estatus === 'PENDIENTE' ? 'bg-amber-600' : 'bg-blue-600'} text-white font-bold tracking-widest text-[9px] uppercase border-none px-2 py-0.5`}>
+                                            {v.estatus === 'PENDIENTE' ? 'FICHA VD - PENDIENTE DE VISITA' : 'EXPEDIENTE DIGITAL DE AUDITORÍA'}
                                         </Badge>
-                                        <Button
-                                            onClick={() => handlePrint(v)}
-                                            size="sm"
-                                            className="h-6 bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase px-2 py-0 border-none rounded flex items-center gap-1 shadow-sm"
-                                        >
-                                            <Printer className="w-3 h-3" /> Imprimir PDF
-                                        </Button>
+                                        {v.estatus !== 'PENDIENTE' && (
+                                            <Button
+                                                onClick={() => handlePrint(v)}
+                                                size="sm"
+                                                className="h-6 bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] uppercase px-2 py-0 border-none rounded flex items-center gap-1 shadow-sm"
+                                            >
+                                                <Printer className="w-3 h-3" /> Imprimir PDF
+                                            </Button>
+                                        )}
                                     </div>
                                     <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
                                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                                        Capturado: {formatDate(v.fecha)}
+                                        {v.estatus === 'PENDIENTE' ? 'Registrado / Asignado:' : 'Capturado:'} {formatDate(v.fecha)}
                                     </span>
                                 </div>
                                 <DialogTitle className="text-2xl font-black tracking-tight flex items-center gap-2">
-                                    <UserCheck className="h-6 w-6 text-blue-500" /> {v.cliente?.nombreCompleto || d.nombreCliente || "Cliente Desconocido"}
+                                    <UserCheck className={`h-6 w-6 ${v.estatus === 'PENDIENTE' ? 'text-amber-500' : 'text-blue-500'}`} /> 
+                                    {v.cliente?.nombreCompleto || d.nombreCliente || "Cliente Desconocido"}
                                 </DialogTitle>
-                                <DialogDescription className="text-slate-400 font-semibold text-xs mt-1">
-                                    Código: {v.cliente?.codigoCliente || d.codigoCliente || "-"} • Contrato: {d.contrato || "Sin Contrato"} • Gestor: {v.gestor?.name || "-"}
+                                <DialogDescription className="text-slate-300 font-semibold text-xs mt-1">
+                                    Código: {v.cliente?.codigoCliente || d.codigoCliente || "-"} • Contrato: {d.contrato || "Sin Contrato"} • Gestor Asignado: {v.gestor?.name || "Sin asignar"}
                                 </DialogDescription>
                             </div>
 
+                            {v.estatus === 'PENDIENTE' ? (
+                                <div className="p-6 space-y-6">
+                                    <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl">
+                                        <div className="flex items-start gap-3">
+                                            <div className="p-2 bg-amber-100 rounded-xl text-amber-700">
+                                                <Clock className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-amber-900 text-sm uppercase tracking-wide">
+                                                    Verificación Domiciliaria en Espera de Visita
+                                                </h4>
+                                                <p className="text-amber-800 text-xs mt-1 leading-relaxed">
+                                                    Esta cuenta ingresó mediante <strong>Importación con Bienvenida</strong> y se clasificó automáticamente como <strong>VD (Verificación Domiciliaria)</strong>.
+                                                </p>
+                                                <p className="text-amber-800 text-xs mt-1 leading-relaxed">
+                                                    El gestor asignado <strong>{v.gestor?.name || "Sin gestor asignado"}</strong> {v.gestor?.codigoGestor ? `(${v.gestor.codigoGestor})` : ""} debe realizar la visita física al domicilio del cliente y capturar el cuestionario de auditoría de 35 campos con fotografía de fachada en su aplicación móvil.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <Card className="border border-slate-200 shadow-sm rounded-xl">
+                                            <CardHeader className="bg-slate-50 py-3 px-4 border-b border-slate-100">
+                                                <CardTitle className="text-xs uppercase font-bold text-slate-700 flex items-center gap-2">
+                                                    <MapPin className="w-4 h-4 text-blue-600" /> Domicilio a Visitar
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="p-4 space-y-2.5 text-xs">
+                                                <div>
+                                                    <span className="text-slate-400 font-bold uppercase text-[9px] block">Dirección Completa</span>
+                                                    <span className="font-semibold text-slate-800 text-sm">{v.cliente?.direccionCompleta || d.direccion || "Sin dirección"}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-400 font-bold uppercase text-[9px] block">Teléfono de Contacto</span>
+                                                    <span className="font-semibold text-slate-800 text-sm">{v.cliente?.telefono || d.telefono || "Sin teléfono"}</span>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+
+                                        <Card className="border border-slate-200 shadow-sm rounded-xl">
+                                            <CardHeader className="bg-slate-50 py-3 px-4 border-b border-slate-100">
+                                                <CardTitle className="text-xs uppercase font-bold text-slate-700 flex items-center gap-2">
+                                                    <FileText className="w-4 h-4 text-emerald-600" /> Condiciones de la Cuenta
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="p-4 space-y-2.5 text-xs">
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <span className="text-slate-400 font-bold uppercase text-[9px] block">Saldo Inicial / Actual</span>
+                                                        <span className="font-bold text-emerald-600 text-sm">{formatCurrency(d.saldoActual || 0)}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-400 font-bold uppercase text-[9px] block">Cuota Sugerida</span>
+                                                        <span className="font-bold text-slate-800 text-sm">{formatCurrency(d.montoPago || 0)}</span>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-400 font-bold uppercase text-[9px] block">Gestor de Cobranza</span>
+                                                    <span className="font-semibold text-slate-800">{v.gestor?.name || "Sin asignar"} {v.gestor?.codigoGestor ? `(${v.gestor.codigoGestor})` : ""}</span>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    </div>
+                                </div>
+                            ) : (
                             <div className="p-6 space-y-6">
                                 {/* Grid Principal */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1117,6 +1300,7 @@ export default function VerificacionesReportPage() {
                                     </Card>
                                 )}
                             </div>
+                            )}
                         </DialogContent>
                     </Dialog>
                 );

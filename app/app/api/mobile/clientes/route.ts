@@ -102,7 +102,8 @@ export async function GET(req: NextRequest) {
           telefono: c.telefono,
           estatus: c.saldoVencido.toNumber() > 0 ? 'atrasado' : 'aldia',
           yaPagoEstaSemana: c.pagos.length > 0,
-          vdStatus: c.verificaciones.length === 0 ? 'PENDIENTE' : 'REALIZADA',
+          clasificacionCobranza: c.clasificacionCobranza,
+          vdStatus: c.verificaciones.length > 0 ? 'REALIZADA' : (c.clasificacionCobranza === 'VD' ? 'PENDIENTE' : null),
           diasVencidos: c.diasVencidos,
           // Datos extendidos para el perfil
           descripcionProducto: c.descripcionProducto,

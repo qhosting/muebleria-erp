@@ -42,7 +42,8 @@ export interface OfflineCliente {
   
   // Estatus de verificación y número de contrato
   numContrato?: string;
-  vdStatus?: 'PENDIENTE' | 'REALIZADA';
+  clasificacionCobranza?: string;
+  vdStatus?: 'PENDIENTE' | 'REALIZADA' | null;
 }
 
 export interface OfflineVerificacion {

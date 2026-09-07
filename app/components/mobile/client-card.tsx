@@ -195,11 +195,11 @@ export function ClientCard({
                 <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white font-bold border-none text-[9px] py-0.5 px-1.5">
                   VD Realizada
                 </Badge>
-              ) : (
+              ) : (cliente.vdStatus === 'PENDIENTE' || cliente.clasificacionCobranza === 'VD') ? (
                 <Badge variant="outline" className="border-orange-500 text-orange-600 font-bold text-[9px] py-0.5 px-1.5">
                   VD Pendiente
                 </Badge>
-              )}
+              ) : null}
 
               {getStatusBadge()}
             </div>

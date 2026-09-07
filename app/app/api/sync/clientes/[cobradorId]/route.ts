@@ -66,6 +66,7 @@ export async function GET(
         montoPago: true,
         saldoActual: true,
         statusCuenta: true,
+        clasificacionCobranza: true,
         cobradorAsignadoId: true,
         updatedAt: true,
         descripcionProducto: true,
@@ -159,7 +160,10 @@ export async function GET(
         },
         numContrato: cliente.numContrato || '',
         codigoCliente: cliente.codigoCliente || '',
-        vdStatus: cliente.verificaciones && cliente.verificaciones.length > 0 ? 'REALIZADA' : 'PENDIENTE'
+        clasificacionCobranza: cliente.clasificacionCobranza || 'RUTA',
+        vdStatus: (cliente.verificaciones && cliente.verificaciones.length > 0)
+          ? 'REALIZADA'
+          : (cliente.clasificacionCobranza === 'VD' ? 'PENDIENTE' : null)
       };
     });
 
