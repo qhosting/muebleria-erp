@@ -11,7 +11,7 @@ import { CalendarDays, Save, CheckCircle2, FileUp, FileSpreadsheet } from "lucid
 import { toast } from "sonner";
 import { ImportarCalendarioModal } from "@/components/ventas/ImportarCalendarioModal";
 import * as XLSX from "xlsx";
-import { calcularRangoSemanaSabadoViernes, formatearFechaCortaMX } from "@/lib/calendario-cobranza-utils";
+import { calcularRangoSemanaSabadoViernes, calcularSemanaCobranzaSabadoViernes, formatearFechaCortaMX } from "@/lib/calendario-cobranza-utils";
 
 const PERIODICIDADES = [
   { id: "diario", label: "Diario" },
@@ -28,7 +28,9 @@ export function CobranzaCalendarioTab() {
   const [loading, setLoading] = useState(true);
 
   // Form
-  const [semanaEdit, setSemanaEdit] = useState("37");
+  const [semanaEdit, setSemanaEdit] = useState(() => {
+    return calcularSemanaCobranzaSabadoViernes(new Date()).semana.toString();
+  });
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
   const [selectedPeriodicidades, setSelectedPeriodicidades] = useState<string[]>(["diario", "semanal", "catorcenal", "quincenal", "mensual"]);

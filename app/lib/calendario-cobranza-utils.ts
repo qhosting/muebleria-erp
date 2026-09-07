@@ -21,19 +21,19 @@ export interface RangoSemanaCobranza {
  * Calcula el rango de fechas (Sábado a Viernes) para una semana y año dados.
  */
 export function calcularRangoSemanaSabadoViernes(semana: number, anio: number): RangoSemanaCobranza {
-  // Encontrar el primer viernes del año (concluye la semana 1 del año)
-  let primerViernes = new Date(Date.UTC(anio, 0, 1, 12, 0, 0));
-  while (primerViernes.getUTCDay() !== 5) {
-    primerViernes.setUTCDate(primerViernes.getUTCDate() + 1);
+  // Primer sábado operativo del año
+  let primerSabado = new Date(Date.UTC(anio, 0, 1, 12, 0, 0));
+  while (primerSabado.getUTCDay() !== 6) {
+    primerSabado.setUTCDate(primerSabado.getUTCDate() + 1);
   }
 
-  // Viernes de cierre de la semana solicitada
-  const viernesFin = new Date(primerViernes);
-  viernesFin.setUTCDate(primerViernes.getUTCDate() + (semana - 1) * 7);
+  // Sábado de inicio de la semana solicitada
+  const sabadoInicio = new Date(primerSabado);
+  sabadoInicio.setUTCDate(primerSabado.getUTCDate() + (semana - 1) * 7);
 
-  // Sábado de inicio (6 días antes)
-  const sabadoInicio = new Date(viernesFin);
-  sabadoInicio.setUTCDate(viernesFin.getUTCDate() - 6);
+  // Viernes de cierre (6 días después)
+  const viernesFin = new Date(sabadoInicio);
+  viernesFin.setUTCDate(sabadoInicio.getUTCDate() + 6);
 
   const inicioDate = new Date(Date.UTC(
     sabadoInicio.getUTCFullYear(),
@@ -65,7 +65,7 @@ export function calcularRangoSemanaSabadoViernes(semana: number, anio: number): 
 
 /**
  * Dada una fecha (ej. fecha de pago), calcula la semana y el año de cobranza
- * basándose en el ciclo Sábado a Viernes.
+ * basándose en el ciclo Sábado a Viernes operativo.
  */
 export function calcularSemanaCobranzaSabadoViernes(fechaInput: Date | string): { semana: number; anio: number } {
   let anioInput: number;
@@ -73,7 +73,6 @@ export function calcularSemanaCobranzaSabadoViernes(fechaInput: Date | string): 
   let diaInput: number;
 
   if (typeof fechaInput === 'string') {
-    // Si viene como '2026-09-05' o con hora '2026-09-05T...'
     const match = fechaInput.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (match) {
       anioInput = parseInt(match[1], 10);
@@ -86,7 +85,6 @@ export function calcularSemanaCobranzaSabadoViernes(fechaInput: Date | string): 
       diaInput = d.getDate();
     }
   } else {
-    // Es un objeto Date
     anioInput = fechaInput.getFullYear();
     mesInput = fechaInput.getMonth();
     diaInput = fechaInput.getDate();
@@ -96,31 +94,40 @@ export function calcularSemanaCobranzaSabadoViernes(fechaInput: Date | string): 
   const fecha = new Date(Date.UTC(anioInput, mesInput, diaInput, 12, 0, 0));
   const dayOfWeek = fecha.getUTCDay(); // 0: Dom, 1: Lun, ..., 5: Vie, 6: Sab
 
-  // Días faltantes para llegar al Viernes de cierre de este ciclo semanal:
-  // Sab (6) -> +6 días (el viernes de la semana siguiente)
-  // Dom (0) -> +5 días
-  // Lun (1) -> +4 días
-  // Mar (2) -> +3 días
-  // Mie (3) -> +2 días
-  // Jue (4) -> +1 día
-  // Vie (5) -> +0 días (hoy mismo es el cierre)
-  const diasHastaViernes = (5 - dayOfWeek + 7) % 7;
-  const viernesCierre = new Date(fecha);
-  viernesCierre.setUTCDate(fecha.getUTCDate() + diasHastaViernes);
+  // Sábado de inicio de este ciclo de cobranza:
+  // Sab (6) -> -0 días
+  // Dom (0) -> -1 día
+  // Lun (1) -> -2 días
+  // Mar (2) -> -3 días
+  // Mie (3) -> -4 días
+  // Jue (4) -> -5 días
+  // Vie (5) -> -6 días
+  const diasDesdeSabado = (dayOfWeek + 1) % 7;
+  const sabadoCiclo = new Date(fecha);
+  sabadoCiclo.setUTCDate(fecha.getUTCDate() - diasDesdeSabado);
 
-  const anio = viernesCierre.getUTCFullYear();
+  const anio = sabadoCiclo.getUTCFullYear();
 
-  // Primer viernes del año al que pertenece el cierre
-  let primerViernes = new Date(Date.UTC(anio, 0, 1, 12, 0, 0));
-  while (primerViernes.getUTCDay() !== 5) {
-    primerViernes.setUTCDate(primerViernes.getUTCDate() + 1);
+  // Primer sábado del año
+  let primerSabado = new Date(Date.UTC(anio, 0, 1, 12, 0, 0));
+  while (primerSabado.getUTCDay() !== 6) {
+    primerSabado.setUTCDate(primerSabado.getUTCDate() + 1);
   }
 
-  const diffMs = viernesCierre.getTime() - primerViernes.getTime();
+  const diffMs = sabadoCiclo.getTime() - primerSabado.getTime();
   const diffSemanas = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
-  const semana = 1 + diffSemanas;
 
-  return { semana, anio };
+  if (diffSemanas < 0) {
+    const anioAnt = anio - 1;
+    let primerSabadoAnt = new Date(Date.UTC(anioAnt, 0, 1, 12, 0, 0));
+    while (primerSabadoAnt.getUTCDay() !== 6) {
+      primerSabadoAnt.setUTCDate(primerSabadoAnt.getUTCDate() + 1);
+    }
+    const diffAnt = Math.round((sabadoCiclo.getTime() - primerSabadoAnt.getTime()) / (7 * 24 * 60 * 60 * 1000));
+    return { semana: 1 + diffAnt, anio: anioAnt };
+  }
+
+  return { semana: 1 + diffSemanas, anio };
 }
 
 /**

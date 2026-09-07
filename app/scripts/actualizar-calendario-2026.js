@@ -1,18 +1,18 @@
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require('c:/Users/AurumArch/Documents/PROYECTOS/muebleria-erp/app/node_modules/@prisma/client');
 const dbUrl = process.env.DIRECT_DATABASE_URL || 'postgres://postgres:d0a4221856f4ba5ea1ec@212.56.42.193:1080/dasoplus-db?sslmode=disable';
 const prisma = new PrismaClient({ datasources: { db: { url: dbUrl } } });
 
 function calcularRangoSemanaSabadoViernes(semana, anio) {
-  let primerViernes = new Date(Date.UTC(anio, 0, 1, 12, 0, 0));
-  while (primerViernes.getUTCDay() !== 5) {
-    primerViernes.setUTCDate(primerViernes.getUTCDate() + 1);
+  let primerSabado = new Date(Date.UTC(anio, 0, 1, 12, 0, 0));
+  while (primerSabado.getUTCDay() !== 6) {
+    primerSabado.setUTCDate(primerSabado.getUTCDate() + 1);
   }
 
-  const viernesFin = new Date(primerViernes);
-  viernesFin.setUTCDate(primerViernes.getUTCDate() + (semana - 1) * 7);
+  const sabadoInicio = new Date(primerSabado);
+  sabadoInicio.setUTCDate(primerSabado.getUTCDate() + (semana - 1) * 7);
 
-  const sabadoInicio = new Date(viernesFin);
-  sabadoInicio.setUTCDate(viernesFin.getUTCDate() - 6);
+  const viernesFin = new Date(sabadoInicio);
+  viernesFin.setUTCDate(sabadoInicio.getUTCDate() + 6);
 
   const inicioDate = new Date(Date.UTC(
     sabadoInicio.getUTCFullYear(),
@@ -36,7 +36,7 @@ function calcularRangoSemanaSabadoViernes(semana, anio) {
 }
 
 async function main() {
-  console.log('=== ACTUALIZANDO CALENDARIO ANUAL DE COBRANZA 2026 A CICLO SÁBADO - VIERNES ===');
+  console.log('=== ACTUALIZANDO CALENDARIO ANUAL 2026 (Semana 35: 29/08 - 04/09, Semana 36: 05/09 - 11/09) ===');
   const anio = 2026;
 
   for (let sem = 1; sem <= 52; sem++) {
@@ -73,19 +73,16 @@ async function main() {
       }
     });
 
-    if (sem === 36 || sem === 37 || sem === 38 || sem === 1 || sem === 52) {
+    if (sem === 34 || sem === 35 || sem === 36 || sem === 37 || sem === 1) {
       console.log(`Semana ${sem}: ${rango.inicioStr} (Sáb) al ${rango.finStr} (Vie)`);
     }
   }
 
-  console.log('✅ Calendario 2026 actualizado exitosamente.');
+  console.log('✅ Calendario 2026 actualizado con éxito.');
 }
 
 main()
-  .catch((e) => {
-    console.error('Error al actualizar calendario:', e);
-    process.exit(1);
-  })
+  .catch(console.error)
   .finally(async () => {
     await prisma.$disconnect();
   });
