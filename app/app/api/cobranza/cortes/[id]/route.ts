@@ -90,10 +90,27 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Acción 1: Cambiar clasificación de problema de un cliente en el corte
     if (action === "actualizarProblema" && detalleId && nuevoProblema) {
-      await prisma.corteCobranzaDetalle.update({
+      const probSanitized = nuevoProblema.toUpperCase().trim();
+      const detalleActualizado = await prisma.corteCobranzaDetalle.update({
         where: { id: detalleId },
-        data: { problema: nuevoProblema.toUpperCase().trim() }
+        data: { problema: probSanitized }
       });
+
+      // Sincronizar también con la clasificación del cliente si existe en la base de datos
+      if (detalleActualizado.clienteId || detalleActualizado.codigoCliente) {
+        try {
+          await prisma.cliente.updateMany({
+            where: detalleActualizado.clienteId 
+              ? { id: detalleActualizado.clienteId } 
+              : { codigoCliente: detalleActualizado.codigoCliente },
+            data: {
+              clasificacionCobranza: probSanitized as any
+            }
+          });
+        } catch (err) {
+          console.warn("No se pudo sincronizar clasificación en cliente:", err);
+        }
+      }
 
       // Recalcular métricas de problemas para la cabecera
       const detallesActualizados = await prisma.corteCobranzaDetalle.findMany({
@@ -135,7 +152,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         }
       });
 
-      return NextResponse.json({ success: true, message: "Problema actualizado y métricas recalculadas" });
+      return NextResponse.json({ 
+        success: true, 
+        message: "Problema actualizado y métricas recalculadas",
+        resumenCEJ: resumen
+      });
     }
 
     // Acción 2: Actualizar estatus u observaciones

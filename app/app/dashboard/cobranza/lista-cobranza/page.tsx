@@ -83,6 +83,20 @@ interface ClienteCEJ {
   tipCob?: string;
 }
 
+const OPCIONES_PROBLEMA = [
+  { value: "RUTA", label: "RUTA (En Ruta)", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300" },
+  { value: "VD", label: "VD (Verificación Domiciliaria)", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300" },
+  { value: "NC", label: "NC (Nuevo Cliente / No Contacto)", color: "bg-orange-100 text-orange-800 dark:bg-orange-900/60 dark:text-orange-300" },
+  { value: "FD", label: "FD (Fuera de Domicilio)", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300" },
+  { value: "PA", label: "PA (Promesa de Abono)", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/60 dark:text-cyan-300" },
+  { value: "PE", label: "PE (Problema Especial / Periodo)", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/60 dark:text-yellow-300" },
+  { value: "AD", label: "AD (Adelantado)", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300" },
+  { value: "PS", label: "PS (Pago Semanal)", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300" },
+  { value: "IT", label: "IT (Intervención)", color: "bg-pink-100 text-pink-800 dark:bg-pink-900/60 dark:text-pink-300" },
+  { value: "DL", label: "DL (Dictamen Legal)", color: "bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300" },
+  { value: "K", label: "K (Cancelado)", color: "bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-300" }
+];
+
 interface CorteGuardadoItem {
   id: string;
   anio: number;
@@ -106,6 +120,7 @@ export default function ListaCobranzaPage() {
   const [loading, setLoading] = useState(false);
   const [loadingCobradores, setLoadingCobradores] = useState(true);
   const [savingCorte, setSavingCorte] = useState(false);
+  const [updatingProblemaId, setUpdatingProblemaId] = useState<string | null>(null);
 
   // Parámetros de consulta
   const [selectedCobrador, setSelectedCobrador] = useState<string>("TODOS");
@@ -353,6 +368,48 @@ export default function ListaCobranzaPage() {
     }, 100);
   };
 
+  // Actualizar únicamente la columna PROBLEMA en el corte guardado oficial
+  const handleCambiarProblema = async (detalleId: string, nuevoProblema: string, nombreCliente?: string) => {
+    if (!corteIdActivo) {
+      toast.error("Solo se permite editar el problema en un corte de cobranza guardado.");
+      return;
+    }
+
+    setUpdatingProblemaId(detalleId);
+    try {
+      const res = await fetch(`/api/cobranza/cortes/${corteIdActivo}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "actualizarProblema",
+          detalleId,
+          nuevoProblema
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Actualizar reactivamente la fila en la tabla
+        setClientes((prev) =>
+          prev.map((cli) => (cli.id === detalleId ? { ...cli, problema: nuevoProblema } : cli))
+        );
+        // Actualizar las métricas de resumen si el servidor devolvió el nuevo cálculo
+        if (data.resumenCEJ) {
+          setResumenCEJ(data.resumenCEJ);
+        }
+        toast.success(`Problema de ${nombreCliente ? nombreCliente.split(' ')[0] : 'cuenta'} actualizado a ${nuevoProblema}`);
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Error al actualizar problema");
+      }
+    } catch (error) {
+      console.error("Error al actualizar problema en corte:", error);
+      toast.error("Error de conexión al actualizar");
+    } finally {
+      setUpdatingProblemaId(null);
+    }
+  };
+
   // Exportar Excel Oficial CEJ
   const handleExportarExcelCEJ = () => {
     if (clientes.length === 0) {
@@ -455,9 +512,14 @@ export default function ListaCobranzaPage() {
                   Plantilla Lista Cobranza (Por Cobrador)
                 </h1>
                 {esCorteGuardado ? (
-                  <Badge className="bg-emerald-600 text-white font-bold text-xs uppercase px-2.5 py-0.5 gap-1 shadow-sm">
-                    <Lock className="w-3 h-3" /> Corte Guardado Oficial
-                  </Badge>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Badge className="bg-emerald-600 text-white font-bold text-xs uppercase px-2.5 py-0.5 gap-1 shadow-sm">
+                      <Lock className="w-3 h-3" /> Corte Guardado Oficial
+                    </Badge>
+                    <Badge variant="outline" className="text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 text-xs font-bold px-2 py-0.5">
+                      ✎ Columna PROBLEMA editable
+                    </Badge>
+                  </div>
                 ) : searched && (
                   <Badge variant="outline" className="text-blue-600 border-blue-300 font-bold text-xs uppercase px-2.5 py-0.5 gap-1">
                     <RefreshCw className="w-3 h-3 animate-spin" /> Cálculo En Vivo
@@ -813,7 +875,11 @@ export default function ListaCobranzaPage() {
                           <th className="px-3 py-2.5 text-right border border-slate-700">SALDO ACT.</th>
                           <th className="px-3 py-2.5 text-center border border-slate-700">GESTOR</th>
                           <th className="px-3 py-2.5 text-center border border-slate-700">SUP</th>
-                          <th className="px-3 py-2.5 text-center border border-slate-700">PROBLEMA</th>
+                          <th className={`px-3 py-2.5 text-center border border-slate-700 ${esCorteGuardado ? "bg-indigo-950/90 text-indigo-200" : ""}`}>
+                            <div className="flex items-center justify-center gap-1">
+                              PROBLEMA {esCorteGuardado && <span className="text-[8px] bg-indigo-500/40 text-indigo-100 px-1 py-0.5 rounded font-bold tracking-tight">EDITABLE</span>}
+                            </div>
+                          </th>
                           <th className="px-3 py-2.5 text-right border border-slate-700 bg-emerald-950/70 text-emerald-300">PAGO REAL</th>
                           <th className="px-3 py-2.5 text-right border border-slate-700">P. DOBLE</th>
                           <th className="px-3 py-2.5 text-right border border-slate-700">RECU PV</th>
@@ -862,13 +928,45 @@ export default function ListaCobranzaPage() {
                             <td className="px-3 py-2 text-center font-mono text-slate-600 border border-gray-100 dark:border-slate-800">
                               {c.sup}
                             </td>
-                            <td className="px-3 py-2 text-center border border-gray-100 dark:border-slate-800">
-                              <Badge
-                                variant={c.problema === "RUTA" ? "secondary" : "destructive"}
-                                className={`text-[10px] font-black uppercase ${c.problema === "RUTA" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300" : ""}`}
-                              >
-                                {c.problema}
-                              </Badge>
+                            <td className="px-2 py-1 text-center border border-gray-100 dark:border-slate-800">
+                              {esCorteGuardado && corteIdActivo && c.id ? (
+                                <div className="inline-flex items-center justify-center">
+                                  <Select
+                                    value={c.problema || "RUTA"}
+                                    onValueChange={(val) => handleCambiarProblema(c.id!, val, c.nombreCompleto)}
+                                    disabled={updatingProblemaId === c.id}
+                                  >
+                                    <SelectTrigger 
+                                      className={`h-7 text-[10px] font-black uppercase px-2 py-0 border border-slate-300 dark:border-slate-700 rounded shadow-none focus:ring-1 focus:ring-indigo-500 cursor-pointer min-w-[84px] justify-between ${
+                                        OPCIONES_PROBLEMA.find((o) => o.value === (c.problema || "").toUpperCase().trim())?.color || "bg-slate-100 text-slate-800"
+                                      }`}
+                                    >
+                                      {updatingProblemaId === c.id ? (
+                                        <RefreshCw className="w-3 h-3 animate-spin mx-auto text-indigo-600" />
+                                      ) : (
+                                        <SelectValue>{c.problema || "RUTA"}</SelectValue>
+                                      )}
+                                    </SelectTrigger>
+                                    <SelectContent className="text-xs font-bold bg-white dark:bg-slate-900 z-50">
+                                      {OPCIONES_PROBLEMA.map((opt) => (
+                                        <SelectItem key={opt.value} value={opt.value} className="text-[11px] font-bold cursor-pointer">
+                                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] mr-1.5 font-black ${opt.color}`}>
+                                            {opt.value}
+                                          </span>
+                                          {opt.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              ) : (
+                                <Badge
+                                  variant={c.problema === "RUTA" ? "secondary" : "destructive"}
+                                  className={`text-[10px] font-black uppercase ${c.problema === "RUTA" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300" : ""}`}
+                                >
+                                  {c.problema}
+                                </Badge>
+                              )}
                             </td>
                             <td className="px-3 py-2 text-right font-mono font-black border border-gray-100 dark:border-slate-800 bg-emerald-50/40 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300">
                               {formatCurrency(c.pagoReal || 0)}
