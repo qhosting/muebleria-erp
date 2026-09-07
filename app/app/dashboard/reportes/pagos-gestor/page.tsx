@@ -989,7 +989,7 @@ export default function PagosGestorPage() {
                                         const fechaCompleta = formatDateTime(pago.fechaPago);
 
                                         const docIdMatch = pago.concepto?.match(/ContPAQi Doc #(\d+)/i)?.[1];
-                                        const estaEnContpaqi = !!docIdMatch || pago.concepto?.includes('ContPAQi Doc #') || pago.concepto?.includes('Afectado en ContPAQi') || pago.sincronizado === true;
+                                        const estaEnContpaqi = Boolean(docIdMatch || pago.concepto?.includes('ContPAQi Doc #') || pago.concepto?.includes('Afectado en ContPAQi'));
 
                                         return (
                                             <tr key={pago.id} className="hover:bg-gray-50 transition-colors text-[11px]">

@@ -200,7 +200,7 @@ export async function GET(request: NextRequest) {
       item.montoGcob += gcob;
       item.montoTotal += total;
 
-      const sincronizadoContpaqi = Boolean(p.sincronizado) || (p.concepto || '').includes('ContPAQi');
+      const sincronizadoContpaqi = Boolean((p.concepto || '').includes('ContPAQi') || (p.concepto || '').includes('Afectado en ContPAQi'));
 
       item.pagos.push({
         id: p.id,
@@ -394,7 +394,7 @@ export async function GET(request: NextRequest) {
         totalCuadrados++;
       }
 
-      if (erpData.pagos.some(p => !p.sincronizadoContpaqi) && cpData.pagos.length < erpData.pagos.length) {
+      if (erpData.pagos.length > 0 && (erpData.pagos.some(p => !p.sincronizadoContpaqi) || cpData.pagos.length < erpData.pagos.length)) {
         estadoContpaqi = 'PENDIENTE';
       }
 
