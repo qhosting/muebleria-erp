@@ -604,6 +604,79 @@ model CalendarioCobranza {
   @@map("calendarios_cobranza")
 }
 
+model CorteCobranza {
+  id               String                 @id @default(cuid())
+  anio             Int
+  semana           Int
+  fechaInicio      DateTime
+  fechaFin         DateTime
+  cobradorId       String                 @default("TODOS") // ID de User o "TODOS"
+  nombreGestor     String                 @default("GENERAL - TODOS")
+  estatus          String                 @default("abierto") // "abierto", "cerrado"
+  totalCuentas     Int                    @default(0)
+  totalSugerido    Decimal                @default(0) @db.Decimal(10, 2)
+  totalCobrado     Decimal                @default(0) @db.Decimal(10, 2)
+  totalVencido     Decimal                @default(0) @db.Decimal(10, 2)
+  totalCartera     Decimal                @default(0) @db.Decimal(10, 2)
+  porcentajeCobro  Decimal                @default(0) @db.Decimal(5, 2)
+  resumenProblemas Json?                  // Desglose de cuentas y montos por clasificación de problemas
+  resumenPeriodos  Json?                  // Matriz de presupuesto vs cobro por periodicidad
+  resumenCanales   Json?                  // Efectivo vs Bancos
+  resumenDiario    Json?                  // Presupuesto y avance de Sábado a Viernes
+  observaciones    String?
+  creadoPorId      String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  detalles         CorteCobranzaDetalle[]
+
+  @@unique([anio, semana, cobradorId])
+  @@map("cortes_cobranza")
+}
+
+model CorteCobranzaDetalle {
+  id               String        @id @default(cuid())
+  corteId          String
+  clienteId        String?
+  codigoCliente    String
+  numContrato      String?
+  periodoInicial   DateTime?
+  nombreCliente    String
+  periodicidad     String
+  pagoSugerido     Decimal       @default(0) @db.Decimal(10, 2)
+  saldoVencido     Decimal       @default(0) @db.Decimal(10, 2)
+  pv               Int           @default(0)
+  saldoActual      Decimal       @default(0) @db.Decimal(10, 2)
+  gestor           String?
+  sup              Int           @default(0)
+  moratorio        Decimal       @default(0) @db.Decimal(10, 2)
+  pvr              Decimal?      @db.Decimal(10, 2)
+  pagoReal         Decimal       @default(0) @db.Decimal(10, 2)
+  diaPago          String?
+  tipoCobro        String?
+  telefono         String?
+  telefono2        String?
+  c                Int           @default(1)
+  pagoAnalista     String?
+  problema         String        @default("RUTA")
+  pagoDoble        Decimal       @default(0) @db.Decimal(10, 2)
+  numPagosDobles   Int           @default(0)
+  recuperadoPv     Decimal       @default(0) @db.Decimal(10, 2)
+  numPagosDobles2  Int           @default(0)
+  comisionAnalista Decimal       @default(0) @db.Decimal(10, 2)
+  fechaPago        DateTime?
+  serie            String?
+  tipCob           String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  corte            CorteCobranza @relation(fields: [corteId], references: [id], onDelete: Cascade)
+
+  @@index([corteId])
+  @@index([codigoCliente])
+  @@map("cortes_cobranza_detalles")
+}
+
 model SesionCaja {
   id            String    @id @default(cuid())
   userId        String
