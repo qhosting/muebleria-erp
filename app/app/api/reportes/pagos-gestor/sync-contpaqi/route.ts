@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { getCdmxDateRange } from '@/lib/utils';
 import { ContpaqiService } from '@/lib/contpaqi-service';
 import { toCdmxDateString, obtenerEmpresaPorCodigo } from '@/lib/auditoria-saldos-service';
+import { calcularSemanaCobranzaSabadoViernes } from '@/lib/calendario-cobranza-utils';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -187,7 +188,13 @@ export async function POST(request: NextRequest) {
 
       const effectiveDate = p.fechaPago ? new Date(p.fechaPago) : (p.ticket?.fecha ? new Date(p.ticket.fecha) : new Date(p.createdAt));
       const fechaStr = toCdmxDateString(effectiveDate) || new Date().toISOString().slice(0, 10);
-      const referencia = p.ticket?.folio || p.ticket?.referencia || p.numeroRecibo || p.ticket?.id || `PAGO ERP #${p.id.slice(0, 8)}`;
+      
+      const folioTicket = (p.ticket?.folio || p.ticket?.referencia || '')?.toString().trim();
+      let numSemana = (p as any).semanaCobranza;
+      if (!numSemana || isNaN(Number(numSemana))) {
+        numSemana = calcularSemanaCobranzaSabadoViernes(effectiveDate).semana;
+      }
+      const referencia = folioTicket || `semana${numSemana}`;
       const cobradorNombre = p.cobrador?.name || 'Cobrador';
 
       try {
@@ -218,6 +225,7 @@ export async function POST(request: NextRequest) {
         // Check 3.2: ¿Hay un documento en ContPAQi con la misma referencia (recibo o folios de ticket)?
         if (!docExistente) {
           const refsCandidatas = [
+            referencia,
             p.ticket?.folio,
             p.ticket?.referencia,
             p.numeroRecibo,

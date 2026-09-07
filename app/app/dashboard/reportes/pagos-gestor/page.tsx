@@ -309,6 +309,20 @@ export default function PagosGestorPage() {
         return 0;
     };
 
+    const getReferenciaPagoGestor = (p: any): string => {
+        if (!p) return "";
+        const folioTicket = (p.ticket?.folio || p.ticket?.referencia || "")?.toString().trim();
+        if (folioTicket) {
+            return folioTicket;
+        }
+        let numSemana = p.semanaCobranza;
+        if (!numSemana || isNaN(Number(numSemana))) {
+            const fecha = p.fechaPago ? new Date(p.fechaPago) : (p.createdAt ? new Date(p.createdAt) : new Date());
+            numSemana = calcularSemanaCobranzaSabadoViernes(fecha).semana;
+        }
+        return `semana${numSemana}`;
+    };
+
     const getDayKeyFromDate = (dateInput: Date | string): 'sabado' | 'domingo' | 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | null => {
         if (!dateInput) return null;
 
@@ -486,7 +500,7 @@ export default function PagosGestorPage() {
             const fechaPagoSolo = formatDate(p.fechaPago);
             const fechaYHora = formatDateTime(p.fechaPago);
 
-            const referencia = p.numeroRecibo || p.ticket?.referencia || p.ticket?.folio || "PENDIENTE";
+            const referencia = getReferenciaPagoGestor(p);
             const moratorioVal = getMoratorioVal(p);
 
             return {
@@ -961,7 +975,7 @@ export default function PagosGestorPage() {
                                         const q = searchTerm.toLowerCase().trim();
                                         const cod = (pago.cliente?.codigoCliente || '').toLowerCase();
                                         const nom = (pago.cliente?.nombreCompleto || '').toLowerCase();
-                                        const ref = (pago.numeroRecibo || pago.ticket?.referencia || pago.ticket?.folio || pago.ticket?.id || pago.ticket?.claveRastreo || '').toLowerCase();
+                                        const ref = getReferenciaPagoGestor(pago).toLowerCase();
                                         const id = (pago.id || '').toLowerCase();
                                         return cod.includes(q) || nom.includes(q) || ref.includes(q) || id.includes(q);
                                     }).length === 0 ? (
@@ -975,15 +989,15 @@ export default function PagosGestorPage() {
                                         const q = searchTerm.toLowerCase().trim();
                                         const cod = (pago.cliente?.codigoCliente || '').toLowerCase();
                                         const nom = (pago.cliente?.nombreCompleto || '').toLowerCase();
-                                        const ref = (pago.numeroRecibo || pago.ticket?.referencia || pago.ticket?.folio || pago.ticket?.id || pago.ticket?.claveRastreo || '').toLowerCase();
+                                        const ref = getReferenciaPagoGestor(pago).toLowerCase();
                                         const id = (pago.id || '').toLowerCase();
                                         return cod.includes(q) || nom.includes(q) || ref.includes(q) || id.includes(q);
                                     }).map((pago: any) => {
                                         const isDQ = pago.cliente?.codigoCliente?.startsWith('DQ');
                                         const isDP = pago.cliente?.codigoCliente?.startsWith('DP');
 
-                                        // Formatear referencia similar al export
-                                        const referencia = pago.numeroRecibo || pago.ticket?.referencia || pago.ticket?.folio || pago.ticket?.id || pago.ticket?.claveRastreo || "PENDIENTE";
+                                        // Formatear referencia: folio de ticket si proviene de ticket, sino semanaX
+                                        const referencia = getReferenciaPagoGestor(pago);
 
                                         // Fecha y Hora formateada en Horario de México (CDMX)
                                         const fechaCompleta = formatDateTime(pago.fechaPago);

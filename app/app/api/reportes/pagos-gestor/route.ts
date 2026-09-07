@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { getCdmxDateRange } from '@/lib/utils';
+import { calcularSemanaCobranzaSabadoViernes } from '@/lib/calendario-cobranza-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,7 +112,15 @@ export async function GET(request: NextRequest) {
             resumen.totalMoratorio += interesMoratorio;
             resumen.montoPuroTotal += monto;
 
-            return { ...p, monto, interesMoratorio, gastosCobranza, totalPago };
+            const folioTicket = (p.ticket?.folio || p.ticket?.referencia || '')?.toString().trim();
+            let numSemana = p.semanaCobranza;
+            if (!numSemana || isNaN(Number(numSemana))) {
+                const fecha = p.fechaPago ? new Date(p.fechaPago) : (p.createdAt ? new Date(p.createdAt) : new Date());
+                numSemana = calcularSemanaCobranzaSabadoViernes(fecha).semana;
+            }
+            const referencia = folioTicket || `semana${numSemana}`;
+
+            return { ...p, monto, interesMoratorio, gastosCobranza, totalPago, referencia };
         });
 
         return NextResponse.json({
