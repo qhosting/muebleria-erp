@@ -11,8 +11,9 @@ import {
     Calculator, Users as UsersIcon, Calendar as CalendarIcon, 
     DollarSign, Search, AlertCircle, CheckCircle2, 
     FileSpreadsheet, RefreshCw, Layers, Building2, Receipt,
-    Bot, Banknote, Smartphone, Globe
+    Bot, Banknote, Smartphone, Globe, Eye, Filter
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
@@ -41,12 +42,20 @@ export default function CuadrePage() {
     const [loading, setLoading] = useState(true);
     const [finalizing, setFinalizing] = useState(false);
 
+    // Estado para Auditoría General ContPAQi vs ERP
+    const [auditoriaData, setAuditoriaData] = useState<any>(null);
+    const [loadingAuditoria, setLoadingAuditoria] = useState(false);
+    const [filtroAuditoria, setFiltroAuditoria] = useState<'todos' | 'diferencias'>('todos');
+    const [searchGestorAuditoria, setSearchGestorAuditoria] = useState('');
+    const [selectedFilaDetalle, setSelectedFilaDetalle] = useState<any>(null);
+
     useEffect(() => {
         fetchCobradores();
     }, []);
 
     useEffect(() => {
         fetchCuadre();
+        fetchAuditoria();
     }, [dateStart, dateEnd, selectedGestor]);
 
     const setSemanaActual = () => {
@@ -114,6 +123,24 @@ export default function CuadrePage() {
             toast.error("Error de conexión al cargar cuadre");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchAuditoria = async (start = dateStart, end = dateEnd) => {
+        setLoadingAuditoria(true);
+        try {
+            const params = new URLSearchParams({ desde: start, hasta: end });
+            const res = await fetch(`/api/tesoreria/cuadre/auditoria?${params.toString()}`);
+            if (res.ok) {
+                const result = await res.json();
+                setAuditoriaData(result);
+            } else {
+                console.warn("No se pudo cargar auditoría ContPAQi");
+            }
+        } catch (error) {
+            console.error("Error al cargar auditoría ContPAQi", error);
+        } finally {
+            setLoadingAuditoria(false);
         }
     };
 
@@ -247,6 +274,23 @@ export default function CuadrePage() {
 
             const wsResumen = XLSX.utils.json_to_sheet(resumenRows);
             XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen Bancario');
+
+            // Hoja 6: Auditoría General ContPAQi vs ERP
+            if (auditoriaData?.filas && auditoriaData.filas.length > 0) {
+                const auditoriaRows = auditoriaData.filas.map((f: any) => ({
+                    'Gestor': f.gestor,
+                    'Nombre Gestor': f.nombreGestor,
+                    'Empresa': f.empresa,
+                    'Recibos ERP': f.erpCantidad,
+                    'Total ERP ($)': f.erpTotal,
+                    'Docs ContPAQi': f.contpaqiCantidad,
+                    'Total ContPAQi ($)': f.contpaqiTotal,
+                    'Diferencia ($)': f.diferencia,
+                    'Estado': f.estado
+                }));
+                const wsAuditoria = XLSX.utils.json_to_sheet(auditoriaRows);
+                XLSX.utils.book_append_sheet(wb, wsAuditoria, 'Auditoría ContPAQi');
+            }
 
             const fileName = `Cuadre_Caja_${dateStart}_al_${dateEnd}.xlsx`;
             XLSX.writeFile(wb, fileName);
@@ -531,6 +575,226 @@ export default function CuadrePage() {
         );
     };
 
+    // Render de tabla para Auditoría General ContPAQi vs ERP
+    const renderAuditoriaContpaqiTable = () => {
+        if (loadingAuditoria) {
+            return (
+                <div className="py-16 text-center text-gray-400">
+                    <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-3 text-indigo-600" />
+                    <p className="font-semibold text-sm text-gray-700 dark:text-gray-200">Consultando documentos en ContPAQi Comercial...</p>
+                    <p className="text-xs text-gray-400 mt-1">Comparando pagos de ERP contra Concepto 101 (DP) y 102 (DQ)</p>
+                </div>
+            );
+        }
+
+        if (!auditoriaData || !auditoriaData.filas || auditoriaData.filas.length === 0) {
+            return (
+                <div className="py-16 text-center">
+                    <AlertCircle className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500 font-medium">No se encontraron movimientos para el rango seleccionado</p>
+                    <Button variant="outline" size="sm" onClick={() => fetchAuditoria()} className="mt-3 text-xs">
+                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Reintentar Consulta
+                    </Button>
+                </div>
+            );
+        }
+
+        const res = auditoriaData.resumen;
+        const filasFiltradas = auditoriaData.filas.filter((f: any) => {
+            if (filtroAuditoria === 'diferencias' && f.estado === 'CUADRADO') return false;
+            if (searchGestorAuditoria.trim()) {
+                const q = searchGestorAuditoria.toLowerCase();
+                return f.gestor.toLowerCase().includes(q) || f.nombreGestor.toLowerCase().includes(q) || f.empresa.toLowerCase().includes(q);
+            }
+            return true;
+        });
+
+        return (
+            <div className="space-y-4">
+                {/* Header KPI de Auditoría */}
+                <div className="p-4 rounded-xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-md">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-300">Auditoría General en Vivo</span>
+                                <Badge className={res?.cuadrado ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-rose-500/20 text-rose-300 border-rose-500/30"}>
+                                    {res?.cuadrado ? "✅ 100% CUADRADO" : `❌ ${res?.filasConDiferencia} DISCREPANCIAS`}
+                                </Badge>
+                            </div>
+                            <h3 className="text-lg font-bold">
+                                {formatCurrency(res?.granTotalERP || 0)} <span className="text-xs font-normal text-indigo-200">ERP ({res?.granCantERP} abonos)</span>
+                                <span className="mx-2 text-indigo-400">vs</span>
+                                {formatCurrency(res?.granTotalCP || 0)} <span className="text-xs font-normal text-indigo-200">ContPAQi ({res?.granCantCP} docs)</span>
+                            </h3>
+                            <div className="flex flex-wrap gap-4 text-xs text-indigo-200/90 pt-1">
+                                <span><strong>Empresa DP:</strong> ERP {formatCurrency(res?.porEmpresa?.DP?.erpTotal || 0)} vs CP {formatCurrency(res?.porEmpresa?.DP?.contpaqiTotal || 0)} (Dif: {formatCurrency(res?.porEmpresa?.DP?.diferencia || 0)})</span>
+                                <span><strong>Empresa DQ:</strong> ERP {formatCurrency(res?.porEmpresa?.DQ?.erpTotal || 0)} vs CP {formatCurrency(res?.porEmpresa?.DQ?.contpaqiTotal || 0)} (Dif: {formatCurrency(res?.porEmpresa?.DQ?.diferencia || 0)})</span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-start md:self-auto">
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => fetchAuditoria()}
+                                disabled={loadingAuditoria}
+                                className="h-8 text-xs font-semibold gap-1.5"
+                            >
+                                <RefreshCw className={`w-3.5 h-3.5 ${loadingAuditoria ? 'animate-spin' : ''}`} />
+                                Actualizar ContPAQi
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Nota Contable aclaratoria de Moratorios */}
+                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div>
+                        <span className="font-bold">Regla Contable de Cobranza:</span> Esta auditoría compara los abonos a cuota regular contra los conceptos <strong>101 (DP)</strong> y <strong>102 (DQ)</strong> de ContPAQi Comercial. Los <strong>intereses moratorios</strong> se procesan por separado en ContPAQi mediante su concepto independiente (<code>PC INTERES MORATORIO</code> con Nota de Cargo) y no forman parte de este corte de abonos a capital.
+                    </div>
+                </div>
+
+                {/* Filtros de la Tabla */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                    <div className="flex items-center gap-2">
+                        <div className="relative w-64">
+                            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+                            <Input
+                                placeholder="Filtrar por gestor o código..."
+                                value={searchGestorAuditoria}
+                                onChange={(e) => setSearchGestorAuditoria(e.target.value)}
+                                className="h-8 text-xs pl-8"
+                            />
+                        </div>
+                        {searchGestorAuditoria && (
+                            <Button size="sm" variant="ghost" className="h-8 text-xs px-2" onClick={() => setSearchGestorAuditoria('')}>
+                                Limpiar
+                            </Button>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Button
+                            size="sm"
+                            variant={filtroAuditoria === 'todos' ? 'default' : 'outline'}
+                            onClick={() => setFiltroAuditoria('todos')}
+                            className="h-7 text-xs"
+                        >
+                            Todos ({auditoriaData.filas.length})
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant={filtroAuditoria === 'diferencias' ? 'destructive' : 'outline'}
+                            onClick={() => setFiltroAuditoria('diferencias')}
+                            className="h-7 text-xs"
+                        >
+                            <AlertCircle className="w-3.5 h-3.5 mr-1" />
+                            Solo Diferencias ({res?.filasConDiferencia || 0})
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Tabla */}
+                <div className="overflow-x-auto border rounded-xl">
+                    <table className="w-full text-xs text-left align-middle">
+                        <thead className="bg-gray-100/70 dark:bg-slate-800 font-bold text-gray-600 dark:text-slate-300 uppercase text-[10px] tracking-wider border-b">
+                            <tr>
+                                <th className="px-5 py-3.5">Gestor / Cobrador</th>
+                                <th className="px-3 py-3.5 text-center">Empresa</th>
+                                <th className="px-4 py-3.5 text-right text-indigo-700 dark:text-indigo-400">Recibos ERP</th>
+                                <th className="px-4 py-3.5 text-right text-indigo-700 dark:text-indigo-400">Total ERP</th>
+                                <th className="px-4 py-3.5 text-right text-emerald-700 dark:text-emerald-400">Docs ContPAQi</th>
+                                <th className="px-4 py-3.5 text-right text-emerald-700 dark:text-emerald-400">Total ContPAQi</th>
+                                <th className="px-4 py-3.5 text-right">Diferencia</th>
+                                <th className="px-3 py-3.5 text-center">Estado</th>
+                                <th className="px-3 py-3.5 text-center">Detalle</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+                            {filasFiltradas.map((f: any, idx: number) => {
+                                const isCuadrado = f.estado === 'CUADRADO';
+                                return (
+                                    <tr key={idx} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${!isCuadrado ? 'bg-rose-50/30 dark:bg-rose-950/20' : ''}`}>
+                                        <td className="px-5 py-3 font-bold text-gray-900 dark:text-white flex items-center gap-2.5">
+                                            <div className="h-6 w-6 rounded bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold text-[10px]">
+                                                {f.gestor.substring(0, 2).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <span>{f.gestor}</span>
+                                                {f.nombreGestor && f.nombreGestor !== f.gestor && (
+                                                    <span className="block text-[10px] font-normal text-gray-400">{f.nombreGestor}</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-3 text-center">
+                                            <Badge variant="outline" className={`font-mono text-[10px] py-0 ${f.empresa === 'DP' ? 'border-sky-300 text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/30' : 'border-purple-300 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/30'}`}>
+                                                {f.empresa}
+                                            </Badge>
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono text-gray-700 dark:text-gray-300 font-medium">
+                                            {f.erpCantidad}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono font-bold text-indigo-700 dark:text-indigo-300">
+                                            {formatCurrency(f.erpTotal)}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono text-gray-700 dark:text-gray-300 font-medium">
+                                            {f.contpaqiCantidad}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                                            {formatCurrency(f.contpaqiTotal)}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono font-black">
+                                            <span className={isCuadrado ? 'text-emerald-600' : 'text-rose-600 font-black text-sm'}>
+                                                {formatCurrency(f.diferencia)}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 py-3 text-center">
+                                            <Badge className={`text-[10px] py-0.5 font-bold ${isCuadrado ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-300'}`}>
+                                                {isCuadrado ? '✅ CUADRADO' : `❌ DIF ${formatCurrency(f.diferencia)}`}
+                                            </Badge>
+                                        </td>
+                                        <td className="px-3 py-3 text-center">
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-7 w-7 p-0"
+                                                onClick={() => setSelectedFilaDetalle(f)}
+                                                title="Ver recibos y documentos de este gestor"
+                                            >
+                                                <Eye className="w-3.5 h-3.5 text-gray-500 hover:text-indigo-600" />
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                        <tfoot className="bg-slate-100 dark:bg-slate-800 border-t-2 font-black text-xs">
+                            <tr>
+                                <td colSpan={2} className="px-5 py-3 text-gray-900 dark:text-white">TOTAL CONSOLIDADO</td>
+                                <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-white">{res?.granCantERP || 0}</td>
+                                <td className="px-4 py-3 text-right font-mono text-indigo-700 dark:text-indigo-300 font-black">{formatCurrency(res?.granTotalERP || 0)}</td>
+                                <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-white">{res?.granCantCP || 0}</td>
+                                <td className="px-4 py-3 text-right font-mono text-emerald-700 dark:text-emerald-300 font-black">{formatCurrency(res?.granTotalCP || 0)}</td>
+                                <td className="px-4 py-3 text-right font-mono font-black text-sm">
+                                    <span className={res?.cuadrado ? 'text-emerald-600' : 'text-rose-600'}>
+                                        {formatCurrency(res?.granDiferencia || 0)}
+                                    </span>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                    <Badge className={res?.cuadrado ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}>
+                                        {res?.cuadrado ? '✅ 100% OK' : '❌ DESCUADRE'}
+                                    </Badge>
+                                </td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <DashboardLayout>
             <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6">
@@ -743,12 +1007,12 @@ export default function CuadrePage() {
                             disabled={loading || !data}
                             className="flex items-center gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold self-start sm:self-auto"
                         >
-                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Exportar Excel (5 Hojas)
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Exportar Excel (6 Hojas)
                         </Button>
                     </CardHeader>
                     <CardContent className="p-4 sm:p-6">
                         <Tabs defaultValue="global" className="space-y-4">
-                            <TabsList className="grid grid-cols-2 md:grid-cols-4 h-auto p-1 bg-gray-100 dark:bg-slate-800 rounded-xl">
+                            <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto p-1 bg-gray-100 dark:bg-slate-800 rounded-xl">
                                 <TabsTrigger value="global" className="text-xs font-bold py-2 gap-1.5 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-sm">
                                     <Globe className="w-3.5 h-3.5 text-indigo-600" />
                                     <span>GLOBAL</span>
@@ -764,6 +1028,15 @@ export default function CuadrePage() {
                                 <TabsTrigger value="bancosGestor" className="text-xs font-bold py-2 gap-1.5 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-sm">
                                     <Smartphone className="w-3.5 h-3.5 text-purple-600" />
                                     <span>BANCOS GESTOR</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="auditoriaContpaqi" className="text-xs font-bold py-2 gap-1.5 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-sm">
+                                    <Building2 className="w-3.5 h-3.5 text-sky-600" />
+                                    <span>AUDITORÍA CONTPAQI</span>
+                                    {auditoriaData?.resumen && (
+                                        <Badge variant="outline" className={`text-[9px] py-0 px-1 font-mono ${auditoriaData.resumen.cuadrado ? 'border-emerald-400 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30' : 'border-rose-400 text-rose-600 bg-rose-50 dark:bg-rose-950/30'}`}>
+                                            {auditoriaData.resumen.cuadrado ? '100%' : `${auditoriaData.resumen.filasConDiferencia} dif`}
+                                        </Badge>
+                                    )}
                                 </TabsTrigger>
                             </TabsList>
 
@@ -798,9 +1071,75 @@ export default function CuadrePage() {
                                     "text-purple-700 dark:text-purple-300"
                                 )}
                             </TabsContent>
+
+                            {/* Tab 5: AUDITORÍA GENERAL CONTPAQI VS ERP */}
+                            <TabsContent value="auditoriaContpaqi" className="m-0 border rounded-xl overflow-hidden bg-white dark:bg-slate-900 p-4">
+                                {renderAuditoriaContpaqiTable()}
+                            </TabsContent>
                         </Tabs>
                     </CardContent>
                 </Card>
+
+                {/* Modal de Detalle de Documentos para Gestor Seleccionado */}
+                {selectedFilaDetalle && (
+                    <Dialog open={!!selectedFilaDetalle} onOpenChange={(open) => !open && setSelectedFilaDetalle(null)}>
+                        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2 text-base">
+                                    <span>Detalle de Cobranza: <strong>{selectedFilaDetalle.gestor}</strong> ({selectedFilaDetalle.empresa})</span>
+                                    <Badge className={selectedFilaDetalle.estado === 'CUADRADO' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}>
+                                        {selectedFilaDetalle.estado}
+                                    </Badge>
+                                </DialogTitle>
+                                <DialogDescription className="text-xs">
+                                    {selectedFilaDetalle.erpCantidad} recibos en ERP ({formatCurrency(selectedFilaDetalle.erpTotal)}) vs {selectedFilaDetalle.contpaqiCantidad} documentos en ContPAQi ({formatCurrency(selectedFilaDetalle.contpaqiTotal)})
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                {/* Lista ERP */}
+                                <div className="border rounded-lg p-3 space-y-2">
+                                    <div className="flex justify-between items-center border-b pb-2">
+                                        <span className="font-bold text-xs text-indigo-700 dark:text-indigo-400">Recibos ERP ({selectedFilaDetalle.pagosERP?.length || 0})</span>
+                                        <span className="font-mono text-xs font-bold text-indigo-700">{formatCurrency(selectedFilaDetalle.erpTotal)}</span>
+                                    </div>
+                                    <div className="max-h-72 overflow-y-auto space-y-1.5 text-xs">
+                                        {(selectedFilaDetalle.pagosERP || []).map((p: any) => (
+                                            <div key={p.id} className="flex justify-between items-center p-2 rounded bg-slate-50 dark:bg-slate-800 border">
+                                                <div>
+                                                    <div className="font-mono font-bold text-gray-800 dark:text-gray-200">{p.cliente}</div>
+                                                    <div className="text-[10px] text-gray-500 truncate max-w-[180px]">{p.nombreCliente}</div>
+                                                    <div className="text-[10px] text-gray-400">{p.fecha ? new Date(p.fecha).toISOString().slice(0, 10) : ''} | {p.folioTicket || p.concepto || 'Sin folio'}</div>
+                                                </div>
+                                                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-300">{formatCurrency(p.monto)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Lista ContPAQi */}
+                                <div className="border rounded-lg p-3 space-y-2">
+                                    <div className="flex justify-between items-center border-b pb-2">
+                                        <span className="font-bold text-xs text-emerald-700 dark:text-emerald-400">Documentos ContPAQi ({selectedFilaDetalle.docsContpaqi?.length || 0})</span>
+                                        <span className="font-mono text-xs font-bold text-emerald-700">{formatCurrency(selectedFilaDetalle.contpaqiTotal)}</span>
+                                    </div>
+                                    <div className="max-h-72 overflow-y-auto space-y-1.5 text-xs">
+                                        {(selectedFilaDetalle.docsContpaqi || []).map((d: any) => (
+                                            <div key={d.id} className="flex justify-between items-center p-2 rounded bg-slate-50 dark:bg-slate-800 border">
+                                                <div>
+                                                    <div className="font-mono font-bold text-gray-800 dark:text-gray-200">Folio: {d.folio}</div>
+                                                    <div className="text-[10px] text-gray-500 truncate max-w-[180px]">{d.cliente} - {d.razonSocial}</div>
+                                                    <div className="text-[10px] text-gray-400">{d.fecha ? new Date(d.fecha).toISOString().slice(0, 10) : ''} | Doc #{d.id}</div>
+                                                </div>
+                                                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-300">{formatCurrency(d.total)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                )}
             </div>
         </DashboardLayout>
     );
