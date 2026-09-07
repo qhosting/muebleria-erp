@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { checkPermission } from "@/lib/permissions";
 import { procesarDetallesYResumenCEJ, ClienteCorteRaw, PagoCorteRaw } from "@/lib/corte-cej-utils";
+import { calcularRangoSemanaSabadoViernes } from "@/lib/calendario-cobranza-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
     const forzarEnVivo = searchParams.get("enVivo") === "true";
 
     if (!semanaStr) {
-      return NextResponse.json({ error: "Falta parámetro requerido: semana" }, { status: 400 });
+      return NextResponse.json({ error: "El parámetro semana es requerido" }, { status: 400 });
     }
 
     const semana = parseInt(semanaStr);
@@ -57,10 +58,9 @@ export async function GET(request: NextRequest) {
         "mensual"
       ];
     } else {
-      const simple = new Date(anio, 0, 1 + (semana - 1) * 7);
-      fechaInicio = new Date(simple);
-      fechaFin = new Date(simple);
-      fechaFin.setDate(fechaFin.getDate() + 6);
+      const rango = calcularRangoSemanaSabadoViernes(semana, anio);
+      fechaInicio = rango.inicio;
+      fechaFin = rango.fin;
       periodicidadesPermitidas = ["diario", "semanal", "catorcenal", "quincenal", "mensual"];
     }
 
@@ -196,7 +196,10 @@ export async function GET(request: NextRequest) {
     const pagos = await prisma.pago.findMany({
       where: {
         cliente: { codigoCliente: { in: codigosClientes } },
-        fechaPago: { gte: fInicioBusqueda, lte: fFinBusqueda }
+        OR: [
+          { semanaCobranza: semana, anioCobranza: anio },
+          { fechaPago: { gte: fInicioBusqueda, lte: fFinBusqueda } }
+        ]
       },
       select: {
         monto: true,

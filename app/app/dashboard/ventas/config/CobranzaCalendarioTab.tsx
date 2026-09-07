@@ -11,6 +11,7 @@ import { CalendarDays, Save, CheckCircle2, FileUp, FileSpreadsheet } from "lucid
 import { toast } from "sonner";
 import { ImportarCalendarioModal } from "@/components/ventas/ImportarCalendarioModal";
 import * as XLSX from "xlsx";
+import { calcularRangoSemanaSabadoViernes, formatearFechaCortaMX } from "@/lib/calendario-cobranza-utils";
 
 const PERIODICIDADES = [
   { id: "diario", label: "Diario" },
@@ -27,7 +28,7 @@ export function CobranzaCalendarioTab() {
   const [loading, setLoading] = useState(true);
 
   // Form
-  const [semanaEdit, setSemanaEdit] = useState("1");
+  const [semanaEdit, setSemanaEdit] = useState("37");
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
   const [selectedPeriodicidades, setSelectedPeriodicidades] = useState<string[]>(["diario", "semanal", "catorcenal", "quincenal", "mensual"]);
@@ -35,7 +36,7 @@ export function CobranzaCalendarioTab() {
 
   useEffect(() => {
     fetchCalendarios();
-    calculateDatesForWeek(1, currentYear);
+    calculateDatesForWeek(parseInt(semanaEdit), parseInt(selectedYear));
   }, [selectedYear]);
 
   const fetchCalendarios = async () => {
@@ -53,20 +54,9 @@ export function CobranzaCalendarioTab() {
   };
 
   const calculateDatesForWeek = (week: number, year: number) => {
-    // Simple logic to get start and end dates for a given ISO week
-    const simple = new Date(year, 0, 1 + (week - 1) * 7);
-    const dayOfWeek = simple.getDay();
-    const ISOweekStart = simple;
-    if (dayOfWeek <= 4)
-        ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
-    else
-        ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
-    
-    const ISOweekEnd = new Date(ISOweekStart);
-    ISOweekEnd.setDate(ISOweekStart.getDate() + 6);
-
-    setFechaInicio(ISOweekStart.toISOString().split('T')[0]);
-    setFechaFin(ISOweekEnd.toISOString().split('T')[0]);
+    const rango = calcularRangoSemanaSabadoViernes(week, year);
+    setFechaInicio(rango.inicioStr);
+    setFechaFin(rango.finStr);
   };
 
   const handleSemanaChange = (val: string) => {
@@ -239,8 +229,8 @@ export function CobranzaCalendarioTab() {
                         {calendarios.map((cal, i) => (
                             <TableRow key={i}>
                                 <TableCell className="font-bold">Semana {cal.semana}</TableCell>
-                                <TableCell className="text-xs text-gray-500">
-                                    {new Date(cal.fechaInicio).toLocaleDateString()} - {new Date(cal.fechaFin).toLocaleDateString()}
+                                <TableCell className="text-xs font-semibold text-slate-700">
+                                    {formatearFechaCortaMX(cal.fechaInicio)} - {formatearFechaCortaMX(cal.fechaFin)}
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex flex-wrap gap-1">

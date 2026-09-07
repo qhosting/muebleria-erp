@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { checkPermission } from "@/lib/permissions";
 import { procesarDetallesYResumenCEJ, ClienteCorteRaw, PagoCorteRaw } from "@/lib/corte-cej-utils";
+import { calcularRangoSemanaSabadoViernes } from "@/lib/calendario-cobranza-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -104,11 +105,9 @@ export async function POST(request: NextRequest) {
       fechaFin = new Date(calendario.fechaFin);
       periodicidadesPermitidas = (calendario.periodicidadesActivas as string[]) || ["diario", "semanal", "catorcenal", "quincenal", "mensual"];
     } else {
-      // Fallback: calcular semana ISO estándar si no existe calendario pre-creado
-      const simple = new Date(anioInt, 0, 1 + (semanaInt - 1) * 7);
-      fechaInicio = new Date(simple);
-      fechaFin = new Date(simple);
-      fechaFin.setDate(fechaFin.getDate() + 6);
+      const rango = calcularRangoSemanaSabadoViernes(semanaInt, anioInt);
+      fechaInicio = rango.inicio;
+      fechaFin = rango.fin;
       periodicidadesPermitidas = ["diario", "semanal", "catorcenal", "quincenal", "mensual"];
     }
 
@@ -163,10 +162,10 @@ export async function POST(request: NextRequest) {
         cliente: {
           codigoCliente: { in: codigosClientes }
         },
-        fechaPago: {
-          gte: fInicioBusqueda,
-          lte: fFinBusqueda
-        }
+        OR: [
+          { semanaCobranza: semanaInt, anioCobranza: anioInt },
+          { fechaPago: { gte: fInicioBusqueda, lte: fFinBusqueda } }
+        ]
       },
       select: {
         monto: true,

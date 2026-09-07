@@ -301,6 +301,8 @@ model Pago {
   banco         String?
   latitud       String?
   longitud      String?
+  semanaCobranza Int?
+  anioCobranza   Int?
 
   cliente       Cliente  @relation(fields: [clienteId], references: [id])
   cobrador      User     @relation(fields: [cobradorId], references: [id])
@@ -310,6 +312,7 @@ model Pago {
   @@index([cobradorId])
   @@index([fechaPago])
   @@index([tipoPago])
+  @@index([semanaCobranza, anioCobranza])
   @@map("pagos")
 }
 

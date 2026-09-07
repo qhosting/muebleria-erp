@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { calcularRangoSemanaSabadoViernes } from '@/lib/calendario-cobranza-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,11 +42,18 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { anio, semana, fechaInicio, fechaFin, periodicidadesActivas } = body;
+    const { anio, semana, periodicidadesActivas } = body;
 
-    if (!anio || !semana || !fechaInicio || !fechaFin || !periodicidadesActivas) {
+    if (!anio || !semana || !periodicidadesActivas) {
       return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 });
     }
+
+    const anioNum = parseInt(anio, 10);
+    const semanaNum = parseInt(semana, 10);
+    const rango = calcularRangoSemanaSabadoViernes(semanaNum, anioNum);
+
+    const fInicio = body.fechaInicio ? new Date(body.fechaInicio) : rango.inicio;
+    const fFin = body.fechaFin ? new Date(body.fechaFin) : rango.fin;
 
     const db = prisma as any;
     
@@ -53,20 +61,20 @@ export async function POST(req: NextRequest) {
     const calendario = await db.calendarioCobranza.upsert({
       where: {
         anio_semana: {
-          anio: parseInt(anio),
-          semana: parseInt(semana)
+          anio: anioNum,
+          semana: semanaNum
         }
       },
       update: {
-        fechaInicio: new Date(fechaInicio),
-        fechaFin: new Date(fechaFin),
+        fechaInicio: fInicio,
+        fechaFin: fFin,
         periodicidadesActivas
       },
       create: {
-        anio: parseInt(anio),
-        semana: parseInt(semana),
-        fechaInicio: new Date(fechaInicio),
-        fechaFin: new Date(fechaFin),
+        anio: anioNum,
+        semana: semanaNum,
+        fechaInicio: fInicio,
+        fechaFin: fFin,
         periodicidadesActivas
       }
     });

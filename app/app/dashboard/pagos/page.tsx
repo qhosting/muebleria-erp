@@ -41,6 +41,8 @@ interface Pago {
   saldoNuevo: number;
   ticketImpreso: boolean;
   sincronizado: boolean;
+  semanaCobranza?: number | null;
+  anioCobranza?: number | null;
   cliente: {
     nombreCompleto: string;
     codigoCliente: string;
@@ -657,8 +659,15 @@ export default function PagosPage() {
                         <td className="p-3">
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm">{formatDate(pago.fechaPago)}</span>
+                            <span className="text-sm font-medium">{formatDate(pago.fechaPago)}</span>
                           </div>
+                          {pago.semanaCobranza ? (
+                            <div className="mt-1">
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                Sem {pago.semanaCobranza}
+                              </span>
+                            </div>
+                          ) : null}
                         </td>
                         <td className="p-3">
                           <div>

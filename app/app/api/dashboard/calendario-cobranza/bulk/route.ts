@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { calcularRangoSemanaSabadoViernes } from '@/lib/calendario-cobranza-utils';
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,32 +19,15 @@ export async function POST(req: NextRequest) {
     }
 
     const db = prisma as any;
-    
-    // Función para calcular fechas de la semana (misma lógica que el frontend)
-    const calculateDates = (week: number, year: number) => {
-      const simple = new Date(year, 0, 1 + (week - 1) * 7);
-      const dayOfWeek = simple.getDay();
-      const ISOweekStart = new Date(simple);
-      if (dayOfWeek <= 4)
-          ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
-      else
-          ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
-      
-      const ISOweekEnd = new Date(ISOweekStart);
-      ISOweekEnd.setDate(ISOweekStart.getDate() + 6);
-      
-      return {
-        inicio: ISOweekStart,
-        fin: ISOweekEnd
-      };
-    };
 
     const results = [];
     for (const s of semanas) {
       const semanaNum = parseInt(s.semana);
       if (isNaN(semanaNum) || semanaNum < 1 || semanaNum > 54) continue;
 
-      const { inicio, fin } = calculateDates(semanaNum, parseInt(anio));
+      const rango = calcularRangoSemanaSabadoViernes(semanaNum, parseInt(anio));
+      const inicio = rango.inicio;
+      const fin = rango.fin;
       
       const periodicidades = Array.isArray(s.periodicidades) 
         ? s.periodicidades 

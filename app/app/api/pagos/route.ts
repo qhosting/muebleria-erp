@@ -6,6 +6,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { getCdmxDateRange } from '@/lib/utils';
+import { calcularSemanaCobranzaSabadoViernes } from '@/lib/calendario-cobranza-utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,6 +22,8 @@ export async function GET(request: NextRequest) {
     const fechaDesde = searchParams.get('fechaDesde');
     const fechaHasta = searchParams.get('fechaHasta');
     const tipoPago = searchParams.get('tipoPago');
+    const semanaParam = searchParams.get('semanaCobranza') || searchParams.get('semana');
+    const anioParam = searchParams.get('anioCobranza') || searchParams.get('anio');
     const search = searchParams.get('search') || '';
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
@@ -31,6 +34,8 @@ export async function GET(request: NextRequest) {
     if (clienteId) where.clienteId = clienteId;
     if (cobradorId) where.cobradorId = cobradorId;
     if (tipoPago) where.tipoPago = tipoPago;
+    if (semanaParam) where.semanaCobranza = parseInt(semanaParam, 10);
+    if (anioParam) where.anioCobranza = parseInt(anioParam, 10);
 
     if (search) {
       const cleanSearch = search.trim();
@@ -297,6 +302,15 @@ export async function POST(request: NextRequest) {
         finalFechaPago.setHours(8, 0, 0, 0); // Inicio del sábado
       }
 
+      // Calcular semana y año de cobranza (Sábado a Viernes)
+      const calculoSemana = calcularSemanaCobranzaSabadoViernes(finalFechaPago);
+      const semCobranza = body.semanaCobranza 
+        ? parseInt(body.semanaCobranza.toString(), 10) 
+        : (body.semana ? parseInt(body.semana.toString(), 10) : calculoSemana.semana);
+      const anCobranza = body.anioCobranza 
+        ? parseInt(body.anioCobranza.toString(), 10) 
+        : (body.anio ? parseInt(body.anio.toString(), 10) : calculoSemana.anio);
+
       const pago = await tx.pago.create({
         data: {
           clienteId,
@@ -307,6 +321,8 @@ export async function POST(request: NextRequest) {
           concepto: concepto || 'Pago de cuota',
           tipoPago,
           fechaPago: finalFechaPago,
+          semanaCobranza: semCobranza,
+          anioCobranza: anCobranza,
           metodoPago: metodoPago || 'efectivo',
           numeroRecibo: numeroRecibo || null,
           localId: localId || null,

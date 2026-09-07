@@ -38,6 +38,7 @@ import {
   BarChart3,
   CalendarDays
 } from "lucide-react";
+import { calcularSemanaCobranzaSabadoViernes, formatearFechaCortaMX } from "@/lib/calendario-cobranza-utils";
 import { formatCurrency, getDayName } from "@/lib/utils";
 import { descargarExcelCEJ, imprimirPDFCEJ } from "@/lib/exportar-plantilla-cej";
 import { ResumenCorteCEJ } from "@/lib/corte-cej-utils";
@@ -108,12 +109,13 @@ export default function ListaCobranzaPage() {
 
   // Parámetros de consulta
   const [selectedCobrador, setSelectedCobrador] = useState<string>("TODOS");
-  const [anio, setAnio] = useState<string>(() => new Date().getFullYear().toString());
+  const [anio, setAnio] = useState<string>(() => {
+    const semActual = calcularSemanaCobranzaSabadoViernes(new Date());
+    return semActual.anio.toString();
+  });
   const [semana, setSemana] = useState<string>(() => {
-    const d = new Date();
-    const startOfYear = new Date(d.getFullYear(), 0, 1);
-    const days = Math.floor((d.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-    return Math.ceil((d.getDay() + 1 + days) / 7).toString();
+    const semActual = calcularSemanaCobranzaSabadoViernes(new Date());
+    return semActual.semana.toString();
   });
 
   // Filtro de empresa / tipo de cuenta
@@ -542,9 +544,8 @@ export default function ListaCobranzaPage() {
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               <span className="font-bold">Semana {calendario.semana} ({calendario.anio}):</span>
-              <span>
-                {new Date(calendario.fechaInicio).toLocaleDateString("es-MX")} al{" "}
-                {new Date(calendario.fechaFin).toLocaleDateString("es-MX")}
+              <span className="font-medium text-blue-800 dark:text-blue-200">
+                {formatearFechaCortaMX(calendario.fechaInicio)} al {formatearFechaCortaMX(calendario.fechaFin)}
               </span>
             </div>
 

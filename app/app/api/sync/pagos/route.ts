@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { calcularSemanaCobranzaSabadoViernes } from '@/lib/calendario-cobranza-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -78,6 +79,15 @@ export async function POST(request: NextRequest) {
           saldoNuevo = Math.max(0, saldoAnterior - montoNumerico);
         }
 
+        const fechaPagoObj = new Date(pagoData.fechaPago);
+        const calculoSemana = calcularSemanaCobranzaSabadoViernes(fechaPagoObj);
+        const semCobranza = pagoData.semanaCobranza 
+          ? parseInt(pagoData.semanaCobranza.toString(), 10) 
+          : calculoSemana.semana;
+        const anCobranza = pagoData.anioCobranza 
+          ? parseInt(pagoData.anioCobranza.toString(), 10) 
+          : calculoSemana.anio;
+
         // Crear el pago en una transacción
         await prisma.$transaction(async (prisma: any) => {
           await prisma.pago.create({
@@ -87,7 +97,9 @@ export async function POST(request: NextRequest) {
               monto: montoNumerico,
               concepto: pagoData.concepto || 'Pago de cuota',
               tipoPago: pagoData.tipoPago || 'regular',
-              fechaPago: new Date(pagoData.fechaPago),
+              fechaPago: fechaPagoObj,
+              semanaCobranza: semCobranza,
+              anioCobranza: anCobranza,
               metodoPago: pagoData.metodoPago || 'GESTOR',
               interesMoratorio: parseFloat(pagoData.interesMoratorio?.toString() || '0'),
               gastosCobranza: parseFloat(pagoData.gastosCobranza?.toString() || '0'),
