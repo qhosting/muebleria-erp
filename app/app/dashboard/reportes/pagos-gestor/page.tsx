@@ -512,7 +512,7 @@ export default function PagosGestorPage() {
                 "Referencia de pago": referencia,
                 "Monto": Number(p.monto) || 0,
                 "Agente": (p.cobrador?.name || "SISTEMA").toUpperCase(),
-                "Concepto": p.concepto || "ABONO",
+                "Concepto": "PC QUERETARO",
                 "Periodicidad": (p.cliente?.periodicidad || "-").toUpperCase(),
                 "Día Cobro": (p.cliente?.diaPago || "-").toUpperCase(),
                 "Teléfono": p.cliente?.telefono || "-",
@@ -1002,8 +1002,9 @@ export default function PagosGestorPage() {
                                         // Fecha y Hora formateada en Horario de México (CDMX)
                                         const fechaCompleta = formatDateTime(pago.fechaPago);
 
-                                        const docIdMatch = pago.concepto?.match(/ContPAQi Doc #(\d+)/i)?.[1];
-                                        const estaEnContpaqi = Boolean(docIdMatch || pago.concepto?.includes('ContPAQi Doc #') || pago.concepto?.includes('Afectado en ContPAQi'));
+                                        const conceptoDoc = (pago.conceptoOriginal || pago.concepto || '')?.toString();
+                                        const docIdMatch = conceptoDoc?.match(/ContPAQi Doc #(\d+)/i)?.[1];
+                                        const estaEnContpaqi = Boolean(docIdMatch || conceptoDoc?.includes('ContPAQi Doc #') || conceptoDoc?.includes('Afectado en ContPAQi') || pago.sincronizado);
 
                                         return (
                                             <tr key={pago.id} className="hover:bg-gray-50 transition-colors text-[11px]">
@@ -1024,8 +1025,8 @@ export default function PagosGestorPage() {
                                                     {formatCurrency(pago.monto)}
                                                 </td>
                                                 <td className="px-3 py-2 uppercase text-gray-600">{pago.cobrador?.name || "SISTEMA"}</td>
-                                                <td className="px-3 py-2 truncate max-w-[80px]" title={pago.concepto || "ABONO"}>
-                                                    {pago.concepto || "ABONO"}
+                                                <td className="px-3 py-2 truncate max-w-[120px]" title="PC QUERETARO">
+                                                    PC QUERETARO
                                                 </td>
                                                 <td className="px-3 py-2 uppercase text-[9px]">{pago.cliente?.periodicidad?.substring(0, 3) || "-"}</td>
                                                 <td className="px-3 py-2 uppercase text-[9px]">{pago.cliente?.diaPago?.substring(0, 3) || "-"}</td>
@@ -1041,7 +1042,7 @@ export default function PagosGestorPage() {
                                                 {/* Estatus ContPAQi */}
                                                 <td className="px-3 py-2 text-center whitespace-nowrap">
                                                     {estaEnContpaqi ? (
-                                                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] flex items-center gap-1 mx-auto w-fit font-mono" title={pago.concepto}>
+                                                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] flex items-center gap-1 mx-auto w-fit font-mono" title={conceptoDoc}>
                                                             <Check className="w-3 h-3 text-emerald-600" />
                                                             {docIdMatch ? `Doc #${docIdMatch}` : 'ContPAQi OK'}
                                                         </Badge>

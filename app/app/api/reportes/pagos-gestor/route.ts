@@ -120,7 +120,16 @@ export async function GET(request: NextRequest) {
             }
             const referencia = folioTicket || `semana${numSemana}`;
 
-            return { ...p, monto, interesMoratorio, gastosCobranza, totalPago, referencia };
+            return {
+                ...p,
+                conceptoOriginal: p.concepto,
+                concepto: 'PC QUERETARO',
+                monto,
+                interesMoratorio,
+                gastosCobranza,
+                totalPago,
+                referencia
+            };
         });
 
         return NextResponse.json({
