@@ -4,8 +4,8 @@
  * Los ciclos de cobranza van de SÁBADO a las 00:00:00 al VIERNES a las 23:59:59.
  * 
  * En 2026:
- * Semana 1: Sábado 27/12/2025 al Viernes 02/01/2026
- * Semana 37: Sábado 05/09/2026 al Viernes 11/09/2026
+ * Semana 35: Sábado 29/08/2026 al Viernes 04/09/2026
+ * Semana 36: Sábado 05/09/2026 al Viernes 11/09/2026
  */
 
 export interface RangoSemanaCobranza {

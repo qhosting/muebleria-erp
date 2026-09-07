@@ -38,7 +38,7 @@ import {
   BarChart3,
   CalendarDays
 } from "lucide-react";
-import { calcularSemanaCobranzaSabadoViernes, formatearFechaCortaMX } from "@/lib/calendario-cobranza-utils";
+import { calcularSemanaCobranzaSabadoViernes, calcularRangoSemanaSabadoViernes, formatearFechaCortaMX } from "@/lib/calendario-cobranza-utils";
 import { formatCurrency, getDayName } from "@/lib/utils";
 import { descargarExcelCEJ, imprimirPDFCEJ } from "@/lib/exportar-plantilla-cej";
 import { ResumenCorteCEJ } from "@/lib/corte-cej-utils";
@@ -143,8 +143,48 @@ export default function ListaCobranzaPage() {
   const [guardarCorteModalOpen, setGuardarCorteModalOpen] = useState(false);
   const [observacionesCorte, setObservacionesCorte] = useState("");
 
+  // Semanas del Calendario Anual de Cobranza (Ciclo Sábado a Viernes)
+  const semanasDelAnio = useMemo(() => {
+    const anioNum = parseInt(anio) || 2026;
+    return Array.from({ length: 52 }, (_, i) => {
+      const semNum = i + 1;
+      const rango = calcularRangoSemanaSabadoViernes(semNum, anioNum);
+      return {
+        semana: semNum,
+        inicioStr: formatearFechaCortaMX(rango.inicio),
+        finStr: formatearFechaCortaMX(rango.fin)
+      };
+    });
+  }, [anio]);
+
+  const semanaActualInfo = useMemo(() => {
+    const semActual = calcularSemanaCobranzaSabadoViernes(new Date());
+    const rango = calcularRangoSemanaSabadoViernes(semActual.semana, semActual.anio);
+    return {
+      semana: semActual.semana,
+      anio: semActual.anio,
+      inicioStr: formatearFechaCortaMX(rango.inicio),
+      finStr: formatearFechaCortaMX(rango.fin)
+    };
+  }, []);
+
+  const semanaSeleccionadaInfo = useMemo(() => {
+    const semNum = parseInt(semana) || semanaActualInfo.semana;
+    const anioNum = parseInt(anio) || semanaActualInfo.anio;
+    const rango = calcularRangoSemanaSabadoViernes(semNum, anioNum);
+    return {
+      semana: semNum,
+      anio: anioNum,
+      inicioStr: formatearFechaCortaMX(rango.inicio),
+      finStr: formatearFechaCortaMX(rango.fin)
+    };
+  }, [semana, anio, semanaActualInfo]);
+
   useEffect(() => {
     fetchCobradores();
+    // Carga inicial automática de la semana en curso (Semana 36)
+    const semActual = calcularSemanaCobranzaSabadoViernes(new Date());
+    ejecutarBusqueda("TODOS", semActual.semana.toString(), semActual.anio.toString(), false);
   }, []);
 
   const fetchCobradores = async () => {
@@ -164,9 +204,8 @@ export default function ListaCobranzaPage() {
     }
   };
 
-  const handleBuscar = async (e?: React.FormEvent, forzarEnVivo = false) => {
-    if (e) e.preventDefault();
-    if (!semana) {
+  const ejecutarBusqueda = async (cobrador: string, sem: string, an: string, forzarEnVivo = false) => {
+    if (!sem) {
       toast.error("Por favor ingresa una semana");
       return;
     }
@@ -175,9 +214,9 @@ export default function ListaCobranzaPage() {
     setSearched(true);
     try {
       const params = new URLSearchParams({
-        cobradorId: selectedCobrador,
-        semana: semana,
-        anio: anio,
+        cobradorId: cobrador,
+        semana: sem,
+        anio: an,
         enVivo: forzarEnVivo ? "true" : "false"
       });
 
@@ -226,6 +265,16 @@ export default function ListaCobranzaPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBuscar = async (e?: React.FormEvent, forzarEnVivo = false) => {
+    if (e) e.preventDefault();
+    await ejecutarBusqueda(selectedCobrador, semana, anio, forzarEnVivo);
+  };
+
+  const handleCambiarSemana = (nuevaSemana: string) => {
+    setSemana(nuevaSemana);
+    ejecutarBusqueda(selectedCobrador, nuevaSemana, anio, false);
   };
 
   const getSelectedCobradorName = () => {
@@ -470,14 +519,20 @@ export default function ListaCobranzaPage() {
 
         {/* Formulario de Parámetros del Calendario */}
         <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
-          <CardHeader className="py-3.5 border-b bg-gray-50/50 dark:bg-slate-800/50">
+          <CardHeader className="py-3.5 border-b bg-gray-50/50 dark:bg-slate-800/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-2">
               <Filter className="h-3.5 w-3.5" /> Parámetros del Calendario Anual de Cobranza
             </CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] text-slate-500 font-medium">Ciclo Oficial: Sábado a Viernes</span>
+              <Badge variant="outline" className="text-[11px] font-bold text-blue-700 border-blue-200 bg-blue-50/50 dark:bg-blue-950/40">
+                Semana Actual: Sem {semanaActualInfo.semana} ({semanaActualInfo.inicioStr} al {semanaActualInfo.finStr})
+              </Badge>
+            </div>
           </CardHeader>
-          <CardContent className="pt-4">
-            <form onSubmit={(e) => handleBuscar(e, false)} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
-              <div className="space-y-1.5">
+          <CardContent className="pt-4 space-y-3">
+            <form onSubmit={(e) => handleBuscar(e, false)} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 items-end">
+              <div className="space-y-1.5 md:col-span-4">
                 <Label htmlFor="gestor" className="text-xs font-bold text-slate-600 dark:text-slate-400">
                   Cobrador / Gestor
                 </Label>
@@ -498,9 +553,9 @@ export default function ListaCobranzaPage() {
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 md:col-span-2">
                 <Label htmlFor="anio" className="text-xs font-bold text-slate-600 dark:text-slate-400">
-                  Año de Cobranza
+                  Año
                 </Label>
                 <Input
                   id="anio"
@@ -514,27 +569,66 @@ export default function ListaCobranzaPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="semana" className="text-xs font-bold text-slate-600 dark:text-slate-400">
-                  Semana del Calendario (1 - 52)
-                </Label>
-                <Input
-                  id="semana"
-                  type="number"
-                  min="1"
-                  max="52"
-                  value={semana}
-                  onChange={(e) => setSemana(e.target.value)}
-                  placeholder="Ej. 36"
-                  className="h-9 text-xs font-mono"
-                  required
-                />
+              <div className="space-y-1.5 md:col-span-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="semana" className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                    Semana del Calendario (Rango de Fechas)
+                  </Label>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleCambiarSemana(semanaActualInfo.semana.toString())}
+                      className="text-[10px] font-bold text-blue-600 hover:underline px-1 py-0.5 rounded"
+                    >
+                      Esta Sem ({semanaActualInfo.semana})
+                    </button>
+                    <span className="text-slate-300">•</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCambiarSemana(Math.max(1, semanaActualInfo.semana - 1).toString())}
+                      className="text-[10px] font-bold text-slate-500 hover:underline px-1 py-0.5 rounded"
+                    >
+                      Sem {Math.max(1, semanaActualInfo.semana - 1)}
+                    </button>
+                  </div>
+                </div>
+                <Select value={semana} onValueChange={(val) => handleCambiarSemana(val)}>
+                  <SelectTrigger id="semana" className="h-9 text-xs font-mono">
+                    <SelectValue placeholder="Seleccionar semana..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {semanasDelAnio.map((s) => (
+                      <SelectItem key={s.semana} value={s.semana.toString()}>
+                        <span className="font-bold">Semana {s.semana}</span>
+                        <span className="text-slate-500 font-sans ml-2">({s.inicioStr} al {s.finStr})</span>
+                        {s.semana === semanaActualInfo.semana && (
+                          <span className="ml-2 font-black text-blue-600 dark:text-blue-400">★ ACTUAL</span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              <Button type="submit" className="w-full h-9 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white" disabled={loading}>
-                {loading ? "Consultando ruta..." : "Consultar Corte"}
-              </Button>
+              <div className="md:col-span-2">
+                <Button type="submit" className="w-full h-9 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white" disabled={loading}>
+                  {loading ? "Consultando ruta..." : "Consultar Corte"}
+                </Button>
+              </div>
             </form>
+
+            <div className="flex flex-wrap items-center justify-between text-xs pt-1 px-1 text-slate-500 border-t border-slate-100 dark:border-slate-800 gap-2">
+              <div className="flex items-center gap-1.5">
+                <CalendarDays className="w-3.5 h-3.5 text-blue-600" />
+                <span>Rango seleccionado:</span>
+                <strong className="text-slate-800 dark:text-slate-200">
+                  {semanaSeleccionadaInfo.inicioStr} al {semanaSeleccionadaInfo.finStr} (Semana {semana}, {anio})
+                </strong>
+              </div>
+              <span className="text-[11px] text-slate-400">
+                Abarca de Sábado 00:00:00 a Viernes 23:59:59
+              </span>
+            </div>
           </CardContent>
         </Card>
 
