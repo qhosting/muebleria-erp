@@ -990,6 +990,27 @@ export default function ListaCobranzaPage() {
                             </tr>
                           ))}
                         </tbody>
+                        {(() => {
+                          const totPptoCtas = resumenCEJ.matrizPeriodos.reduce((acc, m) => acc + m.pptoCtas, 0);
+                          const totPptoPesos = resumenCEJ.matrizPeriodos.reduce((acc, m) => acc + m.pptoPesos, 0);
+                          const totCobCtas = resumenCEJ.matrizPeriodos.reduce((acc, m) => acc + m.cobCtas, 0);
+                          const totCobPesos = resumenCEJ.matrizPeriodos.reduce((acc, m) => acc + m.cobPesos, 0);
+                          const totPorcCtas = totPptoCtas > 0 ? Math.round((totCobCtas / totPptoCtas) * 1000) / 10 : 0;
+                          const totPorcPesos = totPptoPesos > 0 ? Math.round((totCobPesos / totPptoPesos) * 1000) / 10 : 0;
+                          return (
+                            <tfoot className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-xs">
+                              <tr>
+                                <td className="px-4 py-2 font-black uppercase border border-slate-200 dark:border-slate-700">TOTALES</td>
+                                <td className="px-4 py-2 text-center font-mono font-bold border border-slate-200 dark:border-slate-700">{totPptoCtas}</td>
+                                <td className="px-4 py-2 text-right font-mono font-bold border border-slate-200 dark:border-slate-700">{formatCurrency(totPptoPesos)}</td>
+                                <td className="px-4 py-2 text-center font-mono font-bold text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700">{totCobCtas}</td>
+                                <td className="px-4 py-2 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700">{formatCurrency(totCobPesos)}</td>
+                                <td className="px-4 py-2 text-center font-bold border border-slate-200 dark:border-slate-700">{totPorcCtas}%</td>
+                                <td className="px-4 py-2 text-center font-bold border border-slate-200 dark:border-slate-700">{totPorcPesos}%</td>
+                              </tr>
+                            </tfoot>
+                          );
+                        })()}
                       </table>
                     </div>
                   </CardContent>
@@ -1027,6 +1048,23 @@ export default function ListaCobranzaPage() {
                             </tr>
                           ))}
                         </tbody>
+                        {(() => {
+                          const totPptoCtas = resumenCEJ.resumenDiario.reduce((acc, d) => acc + d.pptoCuentas, 0);
+                          const totAvanceCtas = resumenCEJ.resumenDiario.reduce((acc, d) => acc + d.avanceCuentas, 0);
+                          const totPptoDinero = resumenCEJ.resumenDiario.reduce((acc, d) => acc + d.pptoDinero, 0);
+                          const totAvanceDinero = resumenCEJ.resumenDiario.reduce((acc, d) => acc + d.avanceDinero, 0);
+                          return (
+                            <tfoot className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-xs">
+                              <tr>
+                                <td className="px-4 py-2 font-black uppercase border border-slate-200 dark:border-slate-700">TOTALES</td>
+                                <td className="px-4 py-2 text-center font-mono font-bold border border-slate-200 dark:border-slate-700">{totPptoCtas}</td>
+                                <td className="px-4 py-2 text-center font-mono font-bold text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700">{totAvanceCtas}</td>
+                                <td className="px-4 py-2 text-right font-mono font-bold border border-slate-200 dark:border-slate-700">{formatCurrency(totPptoDinero)}</td>
+                                <td className="px-4 py-2 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700">{formatCurrency(totAvanceDinero)}</td>
+                              </tr>
+                            </tfoot>
+                          );
+                        })()}
                       </table>
                     </div>
                   </CardContent>

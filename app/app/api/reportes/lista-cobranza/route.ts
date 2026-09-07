@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { checkPermission } from "@/lib/permissions";
-import { procesarDetallesYResumenCEJ, ClienteCorteRaw, PagoCorteRaw } from "@/lib/corte-cej-utils";
+import { procesarDetallesYResumenCEJ, ClienteCorteRaw, PagoCorteRaw, normalizarDiaSemana } from "@/lib/corte-cej-utils";
 import { calcularRangoSemanaSabadoViernes } from "@/lib/calendario-cobranza-utils";
 
 export const dynamic = "force-dynamic";
@@ -99,12 +99,12 @@ export async function GET(request: NextRequest) {
         moratorio: parseFloat(d.moratorio.toString()),
         pvr: d.pvr ? parseFloat(d.pvr.toString()) : 0,
         pagoReal: parseFloat(d.pagoReal.toString()),
-        diaPago: d.diaPago || "-",
+        diaPago: normalizarDiaSemana(d.diaPago || d.pagoAnalista),
         tipoCobro: d.tipoCobro || "0",
         telefono: d.telefono || "-",
         telefonoTrabajo: d.telefono2 || "-",
         c: d.c,
-        pagoAnalista: d.pagoAnalista || "-",
+        pagoAnalista: normalizarDiaSemana(d.diaPago || d.pagoAnalista),
         problema: d.problema,
         pagoDoble: parseFloat(d.pagoDoble.toString()),
         numPagosDobles: d.numPagosDobles,
@@ -115,6 +115,40 @@ export async function GET(request: NextRequest) {
         serie: d.serie || "",
         tipCob: d.tipCob || "0"
       }));
+
+      // Recalcular resumenDiario si no existe o sus cuentas sumaban cero
+      let resumenDiario = corteGuardado.resumenDiario as any[];
+      const totalPptoDiario = Array.isArray(resumenDiario)
+        ? resumenDiario.reduce((acc: number, item: any) => acc + (Number(item.pptoCuentas) || 0), 0)
+        : 0;
+
+      if ((!totalPptoDiario || !Array.isArray(resumenDiario) || resumenDiario.length === 0) && corteGuardado.detalles.length > 0) {
+        const diasDef = ["SABADO", "DOMINGO", "LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES"];
+        const diasMap = new Map<string, { pptoCuentas: number; avanceCuentas: number; pptoDinero: number; avanceDinero: number }>();
+        diasDef.forEach((d) => diasMap.set(d, { pptoCuentas: 0, avanceCuentas: 0, pptoDinero: 0, avanceDinero: 0 }));
+
+        corteGuardado.detalles.forEach((d) => {
+          const prob = (d.problema || "RUTA").toUpperCase().trim();
+          if (prob === "RUTA") {
+            const matchDia = normalizarDiaSemana(d.diaPago || d.pagoAnalista);
+            if (matchDia && diasMap.has(matchDia)) {
+              const item = diasMap.get(matchDia)!;
+              item.pptoCuentas++;
+              item.pptoDinero += parseFloat(d.pagoSugerido.toString()) || 0;
+              const pReal = parseFloat(d.pagoReal.toString()) || 0;
+              if (pReal > 0) {
+                item.avanceCuentas++;
+                item.avanceDinero += pReal;
+              }
+            }
+          }
+        });
+
+        resumenDiario = diasDef.map((d) => ({
+          dia: d,
+          ...diasMap.get(d)!
+        }));
+      }
 
       return NextResponse.json({
         esCorteGuardado: true,
@@ -135,7 +169,7 @@ export async function GET(request: NextRequest) {
           resumenProblemas: corteGuardado.resumenProblemas,
           resumenPeriodos: corteGuardado.resumenPeriodos,
           resumenCanales: corteGuardado.resumenCanales,
-          resumenDiario: corteGuardado.resumenDiario,
+          resumenDiario: resumenDiario,
           observaciones: corteGuardado.observaciones,
           updatedAt: corteGuardado.updatedAt
         },

@@ -115,6 +115,29 @@ export interface ResumenCorteCEJ {
 }
 
 /**
+ * Normaliza cualquier formato de día (números 1-7, nombres en español con o sin tildes)
+ * a los nombres estándar usados en CEJ: SABADO, DOMINGO, LUNES, MARTES, MIERCOLES, JUEVES, VIERNES
+ */
+export function normalizarDiaSemana(val: any): string {
+  if (!val) return "SABADO";
+  const s = String(val).trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  if (s === "1" || s.startsWith("LUN")) return "LUNES";
+  if (s === "2" || s.startsWith("MAR")) return "MARTES";
+  if (s === "3" || s.startsWith("MIE")) return "MIERCOLES";
+  if (s === "4" || s.startsWith("JUE")) return "JUEVES";
+  if (s === "5" || s.startsWith("VIE")) return "VIERNES";
+  if (s === "6" || s.startsWith("SAB")) return "SABADO";
+  if (s === "7" || s === "0" || s.startsWith("DOM")) return "DOMINGO";
+
+  const diasDef = ["SABADO", "DOMINGO", "LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES"];
+  for (const dia of diasDef) {
+    if (s.includes(dia)) return dia;
+  }
+  return "SABADO";
+}
+
+/**
  * Calcula los días supuestos según periodicidad y periodos vencidos (SUP)
  */
 export function calcularSUP(periodicidad: string, pv: number): number {
@@ -208,7 +231,10 @@ export function procesarDetallesYResumenCEJ(
     const sup = calcularSUP(periodicidad, pv);
 
     const problema = (c.clasificacionCobranza || "RUTA").toUpperCase().trim();
-    const pagoAnalista = (c.pagoAnalista || c.diaPago || "SÁBADO").toUpperCase().trim();
+    const diaAsignado = normalizarDiaSemana(c.diaPago || c.pagoAnalista);
+    const pagoAnalista = (c.pagoAnalista && (c.pagoAnalista.toUpperCase().trim() === "SI" || c.pagoAnalista.toUpperCase().trim() === "NO"))
+      ? c.pagoAnalista.toUpperCase().trim()
+      : diaAsignado;
 
     const pagoDoble = calcularPagoDoble(pagoReal, pagoSugerido, saldoVencido);
     const numPagosDobles = pagoDoble > 0 && pagoSugerido > 0 ? Math.floor(pagoDoble / pagoSugerido) : 0;
@@ -247,7 +273,7 @@ export function procesarDetallesYResumenCEJ(
       moratorio: moratorio,
       pvr: pvr,
       pagoReal: pagoReal,
-      diaPago: c.diaPago || "sábado",
+      diaPago: diaAsignado,
       tipoCobro: pagoInfo.tipo !== "0" ? pagoInfo.tipo : "0",
       telefono: c.telefono || c.telefonoTrabajo || "-",
       telefono2: c.telefonoTrabajo || "-",
@@ -353,9 +379,8 @@ export function procesarDetallesYResumenCEJ(
       }
 
       // Desglose Diario Semanal para RUTA
-      const diaClean = d.pagoAnalista.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const matchDia = diasDef.find((dia) => diaClean.includes(dia));
-      if (matchDia) {
+      const matchDia = normalizarDiaSemana(d.diaPago || d.pagoAnalista);
+      if (matchDia && diasMap.has(matchDia)) {
         const item = diasMap.get(matchDia)!;
         item.pptoCuentas++;
         item.pptoDinero += d.pagoSugerido;

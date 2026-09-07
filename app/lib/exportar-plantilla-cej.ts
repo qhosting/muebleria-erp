@@ -214,6 +214,20 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
       setCell(pr, 9, `${p.porcCtas}%`);
       setCell(pr, 10, `${p.porcPesos}%`);
     });
+    const totRow = resumenRowStart + 15 + datos.resumen.matrizPeriodos.length;
+    const totPptoCtas = datos.resumen.matrizPeriodos.reduce((a, b) => a + b.pptoCtas, 0);
+    const totPptoPesos = datos.resumen.matrizPeriodos.reduce((a, b) => a + b.pptoPesos, 0);
+    const totCobCtas = datos.resumen.matrizPeriodos.reduce((a, b) => a + b.cobCtas, 0);
+    const totCobPesos = datos.resumen.matrizPeriodos.reduce((a, b) => a + b.cobPesos, 0);
+    const totPorcCtas = totPptoCtas > 0 ? Math.round((totCobCtas / totPptoCtas) * 1000) / 10 : 0;
+    const totPorcPesos = totPptoPesos > 0 ? Math.round((totCobPesos / totPptoPesos) * 1000) / 10 : 0;
+    setCell(totRow, 4, "TOTAL");
+    setCell(totRow, 5, totPptoCtas, 'n');
+    setCell(totRow, 6, totPptoPesos, 'n');
+    setCell(totRow, 7, totCobCtas, 'n');
+    setCell(totRow, 8, totCobPesos, 'n');
+    setCell(totRow, 9, `${totPorcCtas}%`);
+    setCell(totRow, 10, `${totPorcPesos}%`);
   }
 
   // Presupuesto Diario Semanal
@@ -620,6 +634,17 @@ export function imprimirPDFCEJ(datos: DatosExportacionCEJ) {
                 )
                 .join("")}
             </tbody>
+            <tfoot>
+              <tr style="background: #f1f5f9; font-weight: bold; border-top: 1.5px solid #000;">
+                <td class="font-bold text-center">TOTALES</td>
+                <td class="text-center">${mPeriodos.reduce((a, b) => a + b.pptoCtas, 0)}</td>
+                <td class="text-right font-mono">$${mPeriodos.reduce((a, b) => a + b.pptoPesos, 0).toLocaleString("es-MX")}</td>
+                <td class="text-center font-bold" style="color: #047857;">${mPeriodos.reduce((a, b) => a + b.cobCtas, 0)}</td>
+                <td class="text-right font-mono font-bold" style="color: #047857;">$${mPeriodos.reduce((a, b) => a + b.cobPesos, 0).toLocaleString("es-MX")}</td>
+                <td class="text-center">${mPeriodos.reduce((a, b) => a + b.pptoCtas, 0) > 0 ? Math.round((mPeriodos.reduce((a, b) => a + b.cobCtas, 0) / mPeriodos.reduce((a, b) => a + b.pptoCtas, 0)) * 1000) / 10 : 0}%</td>
+                <td class="text-center">${mPeriodos.reduce((a, b) => a + b.pptoPesos, 0) > 0 ? Math.round((mPeriodos.reduce((a, b) => a + b.cobPesos, 0) / mPeriodos.reduce((a, b) => a + b.pptoPesos, 0)) * 1000) / 10 : 0}%</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
 
@@ -650,6 +675,15 @@ export function imprimirPDFCEJ(datos: DatosExportacionCEJ) {
                 )
                 .join("")}
             </tbody>
+            <tfoot>
+              <tr style="background: #f1f5f9; font-weight: bold; border-top: 1.5px solid #000;">
+                <td class="font-bold text-center">TOTALES</td>
+                <td class="text-center">${rDiario.reduce((a, b) => a + b.pptoCuentas, 0)}</td>
+                <td class="text-center font-bold" style="color: #047857;">${rDiario.reduce((a, b) => a + b.avanceCuentas, 0)}</td>
+                <td class="text-right font-mono">$${rDiario.reduce((a, b) => a + b.pptoDinero, 0).toLocaleString("es-MX")}</td>
+                <td class="text-right font-mono font-bold" style="color: #047857;">$${rDiario.reduce((a, b) => a + b.avanceDinero, 0).toLocaleString("es-MX")}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
