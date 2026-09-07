@@ -51,6 +51,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 interface SidebarProps {
   className?: string;
   session?: any;
+  isCollapsed?: boolean;
+  setIsCollapsed?: (collapsed: boolean) => void;
 }
 
 interface NavItem {
@@ -180,8 +182,10 @@ const navigation: NavItem[] = [
   },
 ];
 
-export function Sidebar({ className, session }: SidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+export function Sidebar({ className, session, isCollapsed: propIsCollapsed, setIsCollapsed: propSetIsCollapsed }: SidebarProps) {
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const isCollapsed = propIsCollapsed !== undefined ? propIsCollapsed : internalCollapsed;
+  const setIsCollapsed = propSetIsCollapsed || setInternalCollapsed;
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({});
   const [companyName, setCompanyName] = useState('');
@@ -301,36 +305,54 @@ export function Sidebar({ className, session }: SidebarProps) {
         className
       )}>
         {/* Header */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-gray-200">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Building2 className="h-5 w-5 text-white" />
-            </div>
-            {!isCollapsed && (
-              <div className="flex flex-col">
-                {configLoading ? (
-                  <Skeleton className="h-4 w-32 mb-1" />
-                ) : (
-                  <h1 className="font-bold text-gray-900 text-sm truncate max-w-[150px] uppercase">
-                    {companyName || 'DASOPLUS'}
-                  </h1>
-                )}
-                <p className="text-[10px] font-medium leading-tight text-blue-600">VertexERP</p>
+        <div className={cn(
+          "flex h-16 items-center border-b border-gray-200 transition-all duration-300",
+          isCollapsed ? "justify-center px-2" : "justify-between px-4"
+        )}>
+          {isCollapsed ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsCollapsed(false)}
+              className="h-10 w-10 hover:bg-blue-50 rounded-xl transition-all"
+              title="Expandir menú lateral"
+            >
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm hover:scale-105 transition-transform">
+                <Menu className="h-4 w-4 text-white" />
               </div>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden lg:flex h-8 w-8"
-          >
-            <Menu className="h-4 w-4" />
-          </Button>
+            </Button>
+          ) : (
+            <>
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
+                  <Building2 className="h-5 w-5 text-white" />
+                </div>
+                <div className="flex flex-col">
+                  {configLoading ? (
+                    <Skeleton className="h-4 w-32 mb-1" />
+                  ) : (
+                    <h1 className="font-bold text-gray-900 text-sm truncate max-w-[150px] uppercase">
+                      {companyName || 'DASOPLUS'}
+                    </h1>
+                  )}
+                  <p className="text-[10px] font-medium leading-tight text-blue-600">VertexERP</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsCollapsed(true)}
+                className="hidden lg:flex h-8 w-8 hover:bg-slate-100 rounded-lg"
+                title="Ocultar menú lateral"
+              >
+                <Menu className="h-4 w-4 text-slate-600" />
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
+        <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
           {filteredNavigation.map((item) => {
             const isActive = pathname === item.href;
             const hasSubMenu = item.subItems && item.subItems.length > 0;
@@ -340,6 +362,7 @@ export function Sidebar({ className, session }: SidebarProps) {
               <div key={item.name} className="flex flex-col">
                 <Link
                   href={hasSubMenu ? '#' : item.href}
+                  title={item.name}
                   onClick={(e) => {
                     if (hasSubMenu) {
                       toggleSubMenu(item.name, e as any);
@@ -348,14 +371,16 @@ export function Sidebar({ className, session }: SidebarProps) {
                     }
                   }}
                   className={cn(
-                    "flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer",
+                    "flex items-center transition-all cursor-pointer",
                     isActive
-                      ? "bg-blue-50 text-blue-700 border-r-2 border-blue-600"
+                      ? "bg-blue-50 text-blue-700 font-bold"
                       : "text-gray-600 hover:text-gray-900 hover:bg-gray-50",
-                    isCollapsed && "justify-center px-2"
+                    isCollapsed
+                      ? "justify-center w-10 h-10 mx-auto rounded-xl"
+                      : "justify-between px-3 py-2 rounded-md text-sm font-medium"
                   )}
                 >
-                  <div className="flex items-center">
+                  <div className="flex items-center justify-center">
                     <item.icon className={cn("h-5 w-5", !isCollapsed && "mr-3")} />
                     {!isCollapsed && <span>{item.name}</span>}
                   </div>
@@ -377,7 +402,7 @@ export function Sidebar({ className, session }: SidebarProps) {
                           className={cn(
                             "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
                             isSubActive
-                              ? "text-blue-700 bg-blue-50"
+                              ? "text-blue-700 bg-blue-50 font-semibold"
                               : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                           )}
                         >
@@ -394,7 +419,7 @@ export function Sidebar({ className, session }: SidebarProps) {
         </nav>
 
         {/* User info and logout */}
-        <div className="border-t border-gray-200 p-4">
+        <div className={cn("border-t border-gray-200", isCollapsed ? "p-2 flex justify-center" : "p-4")}>
           {!isCollapsed && (
             <div className="mb-4">
               <p className="text-sm font-medium text-gray-900">
@@ -415,7 +440,8 @@ export function Sidebar({ className, session }: SidebarProps) {
             variant="outline"
             size={isCollapsed ? "icon" : "sm"}
             onClick={handleSignOut}
-            className="w-full"
+            className={cn(isCollapsed ? "h-10 w-10 rounded-xl" : "w-full")}
+            title={isCollapsed ? "Cerrar Sesión" : undefined}
           >
             <LogOut className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
             {!isCollapsed && "Cerrar Sesión"}
