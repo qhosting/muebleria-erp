@@ -154,7 +154,7 @@ export class SyncService {
   // Subir pagos pendientes al servidor
   private async uploadPagos(cobradorId: string) {
     const pagosPendientes = await db.pagos
-      .where('syncStatus').equals('pending')
+      .where('syncStatus').anyOf(['pending', 'failed'])
       .and(pago => pago.cobradorId === cobradorId)
       .toArray();
  
@@ -222,7 +222,7 @@ export class SyncService {
   private async uploadMotararios(cobradorId: string) {
     // Verificar si hay motararios pendientes
     const motarariosPendientes = await db.motararios
-      .where('syncStatus').equals('pending')
+      .where('syncStatus').anyOf(['pending', 'failed'])
       .and(motarario => motarario.cobradorId === cobradorId)
       .toArray();
  
@@ -279,7 +279,7 @@ export class SyncService {
   // Subir verificaciones domiciliarias pendientes al servidor
   private async uploadVerificaciones(cobradorId: string) {
     const verificacionesPendientes = await db.verificaciones
-      .where('syncStatus').equals('pending')
+      .where('syncStatus').anyOf(['pending', 'failed'])
       .and((v) => v.gestorId === cobradorId)
       .toArray();
 
@@ -433,9 +433,9 @@ export class SyncService {
   public async getSyncStatus(cobradorId: string) {
     const [settings, pendingPagos, pendingMotararios, pendingVerificaciones, failedItems] = await Promise.all([
       db.settings.get(cobradorId),
-      db.pagos.where('syncStatus').equals('pending').and(p => p.cobradorId === cobradorId).count(),
-      db.motararios.where('syncStatus').equals('pending').and(m => m.cobradorId === cobradorId).count(),
-      db.verificaciones.where('syncStatus').equals('pending').and((v) => v.gestorId === cobradorId).count(),
+      db.pagos.where('syncStatus').anyOf(['pending', 'failed']).and(p => p.cobradorId === cobradorId).count(),
+      db.motararios.where('syncStatus').anyOf(['pending', 'failed']).and(m => m.cobradorId === cobradorId).count(),
+      db.verificaciones.where('syncStatus').anyOf(['pending', 'failed']).and((v) => v.gestorId === cobradorId).count(),
       db.syncQueue.where('status').equals('failed').count()
     ]);
 

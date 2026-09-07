@@ -49,6 +49,21 @@ export async function POST(request: NextRequest) {
             },
         });
 
+        // Enriquecer coordenadas GPS del cliente si se capturaron en la visita
+        if (detallesExtra?.latitud && detallesExtra?.longitud) {
+            try {
+                await prisma.cliente.update({
+                    where: { id: clienteId },
+                    data: {
+                        latitud: String(detallesExtra.latitud),
+                        longitud: String(detallesExtra.longitud),
+                    }
+                });
+            } catch (err) {
+                console.warn('No se pudo actualizar coordenadas en cliente:', err);
+            }
+        }
+
         return NextResponse.json(verificacion);
     } catch (error) {
         console.error('Error al crear verificación:', error);

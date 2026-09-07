@@ -38,12 +38,54 @@ interface VerificacionModalProps {
     isOnline: boolean;
 }
 
+// Utilidad para comprimir imágenes de alta resolución a formato ligero JPEG de máx 1200px
+const compressImage = (file: File, maxDimension = 1200, quality = 0.75): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+                if (width > height) {
+                    if (width > maxDimension) {
+                        height = Math.round((height * maxDimension) / width);
+                        width = maxDimension;
+                    }
+                } else {
+                    if (height > maxDimension) {
+                        width = Math.round((width * maxDimension) / height);
+                        height = maxDimension;
+                    }
+                }
+                const canvas = document.createElement("canvas");
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                if (!ctx) {
+                    resolve(e.target?.result as string);
+                    return;
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+                const compressedBase64 = canvas.toDataURL("image/jpeg", quality);
+                resolve(compressedBase64);
+            };
+            img.onerror = () => resolve(e.target?.result as string);
+            img.src = e.target?.result as string;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+};
+
 export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnline }: VerificacionModalProps) {
     const { data: session } = useSession();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
+    const [compressingPhotos, setCompressingPhotos] = useState(false);
     const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
     const [fotos, setFotos] = useState<string[]>([]);
+    const [hasDraft, setHasDraft] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Formulario unificado de 35 campos basados en la ficha de auditoría
@@ -55,8 +97,8 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
         refCalles: "",
         municipio: "",
         
-        // Tipo de Casa (Switches representados por botones/Selectores de alta usabilidad táctil)
-        tipoCasa: "CASA", // CASA, VECINDAD, DEPARTAMENTO
+        // Tipo de Casa
+        tipoCasa: "CASA",
         casa2Plantas: false,
         condominioAbierto: false,
         condominioCerrado: false,
@@ -67,16 +109,16 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
         agua: true,
         telefono: true,
         terraceria: false,
-        zona: "DENTRO DE ZONA", // DENTRO DE ZONA, FUERA DE ZONA
+        zona: "DENTRO DE ZONA",
         
         // Estructura y Vivienda
-        vivienda: "EXCELENTE", // EXCELENTE, BUENO, REGULAR, MALO
+        vivienda: "EXCELENTE",
         material: true,
         madera: false,
         lamina: false,
         
         // Mobiliario y Equipamiento
-        condicionMobiliario: "BUENO", // EXCELENTE, BUENO, REGULAR, MALO
+        condicionMobiliario: "BUENO",
         computadora: false,
         sala: true,
         comedor: true,
@@ -85,7 +127,7 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
         dvd: false,
         
         // Datos de Visita, Recomendación y Auditoría
-        infoVecinos: "LO RECOMIENDA", // LO RECOMIENDA, NO LO RECOMIENDA, NEUTRAL
+        infoVecinos: "LO RECOMIENDA",
         observacion: "crédito sin inconveniente",
         enganche: "",
         plazo: "60",
@@ -95,80 +137,151 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
         fecha: ""
     });
 
-    useEffect(() => {
-        if (isOpen && cliente) {
-            setStep(1);
-            setFotos([]);
-            setForm({
-                contrato: cliente.numContrato || "",
-                codigoCliente: cliente.codigoCliente || cliente.id.slice(-8).toUpperCase(),
-                nombreCliente: cliente.nombreCompleto || "",
-                direccion: cliente.direccionCompleta || cliente.direccion || "",
-                refCalles: "",
-                municipio: cliente.ciudad || "Márquez",
-                
-                tipoCasa: "CASA",
-                casa2Plantas: false,
-                condominioAbierto: false,
-                condominioCerrado: false,
-                
-                gas: true,
-                luz: true,
-                agua: true,
-                telefono: cliente.telefono ? true : false,
-                terraceria: false,
-                zona: "DENTRO DE ZONA",
-                
-                vivienda: "BUENO",
-                material: true,
-                madera: false,
-                lamina: false,
-                
-                condicionMobiliario: "BUENO",
-                computadora: false,
-                sala: true,
-                comedor: true,
-                refrigerador: true,
-                estufa: true,
-                dvd: false,
-                
-                infoVecinos: "LO RECOMIENDA",
-                observacion: "crédito sin inconveniente",
-                enganche: "",
-                plazo: "60",
-                abono: cliente.montoAcordado ? String(cliente.montoAcordado) : "",
-                diaPago: cliente.diaPago || "LUNES",
-                codigoGestor: (session?.user as any)?.codigoGestor || "",
-                fecha: new Date().toISOString().split("T")[0]
-            });
+    const initDefaultForm = () => {
+        return {
+            contrato: cliente?.numContrato || "",
+            codigoCliente: cliente?.codigoCliente || cliente?.id?.slice(-8).toUpperCase() || "",
+            nombreCliente: cliente?.nombreCompleto || cliente?.nombre || "",
+            direccion: cliente?.direccionCompleta || cliente?.direccion || "",
+            refCalles: "",
+            municipio: cliente?.ciudad || "Márquez",
             
-            // Intentar obtener ubicación GPS con alta precisión
+            tipoCasa: "CASA",
+            casa2Plantas: false,
+            condominioAbierto: false,
+            condominioCerrado: false,
+            
+            gas: true,
+            luz: true,
+            agua: true,
+            telefono: cliente?.telefono ? true : false,
+            terraceria: false,
+            zona: "DENTRO DE ZONA",
+            
+            vivienda: "BUENO",
+            material: true,
+            madera: false,
+            lamina: false,
+            
+            condicionMobiliario: "BUENO",
+            computadora: false,
+            sala: true,
+            comedor: true,
+            refrigerador: true,
+            estufa: true,
+            dvd: false,
+            
+            infoVecinos: "LO RECOMIENDA",
+            observacion: "crédito sin inconveniente",
+            enganche: "",
+            plazo: "60",
+            abono: cliente?.montoAcordado ? String(cliente.montoAcordado) : "",
+            diaPago: cliente?.diaPago || "LUNES",
+            codigoGestor: (session?.user as any)?.codigoGestor || "",
+            fecha: new Date().toISOString().split("T")[0]
+        };
+    };
+
+    // Al abrir el modal, buscar borrador guardado en localStorage para no perder datos si la app se cerró al usar la cámara
+    useEffect(() => {
+        if (isOpen && cliente?.id) {
+            const draftKey = `vd_draft_${cliente.id}`;
+            const savedDraft = typeof window !== 'undefined' ? localStorage.getItem(draftKey) : null;
+
+            if (savedDraft) {
+                try {
+                    const parsed = JSON.parse(savedDraft);
+                    if (parsed.form) setForm(parsed.form);
+                    if (parsed.fotos && Array.isArray(parsed.fotos)) setFotos(parsed.fotos);
+                    if (parsed.step) setStep(parsed.step);
+                    if (parsed.coords) setCoords(parsed.coords);
+                    setHasDraft(true);
+                    toast.info("Borrador recuperado", {
+                        description: "Se restauró la información capturada previamente."
+                    });
+                } catch (e) {
+                    console.error("Error al restaurar borrador de verificación:", e);
+                    setForm(initDefaultForm());
+                    setFotos([]);
+                    setStep(1);
+                    setHasDraft(false);
+                }
+            } else {
+                setForm(initDefaultForm());
+                setFotos([]);
+                setStep(1);
+                setHasDraft(false);
+            }
+            
+            // Obtener ubicación GPS con alta precisión
             const getUbicacion = async () => {
                 try {
                     const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
                     const pos = (await obtenerUbicacionCobrador(true, 5000)) as any;
-                    setCoords({
-                        lat: pos.lat,
-                        lng: pos.lng
-                    });
+                    if (pos?.lat && pos?.lng) {
+                        setCoords({
+                            lat: pos.lat,
+                            lng: pos.lng
+                        });
+                    }
                 } catch (error) {
                     console.warn("Error de geolocalización en verificación:", error);
                 }
             };
             getUbicacion();
         }
-    }, [isOpen, cliente, session]);
+    }, [isOpen, cliente?.id, session]);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Guardar borrador reactivamente ante cualquier cambio de campo o foto
+    useEffect(() => {
+        if (isOpen && cliente?.id) {
+            const draftKey = `vd_draft_${cliente.id}`;
+            try {
+                localStorage.setItem(draftKey, JSON.stringify({
+                    form,
+                    fotos,
+                    step,
+                    coords,
+                    timestamp: Date.now()
+                }));
+            } catch (e) {
+                console.warn("No se pudo guardar borrador local:", e);
+            }
+        }
+    }, [form, fotos, step, coords, isOpen, cliente?.id]);
+
+    const handleDiscardDraft = () => {
+        if (!cliente?.id) return;
+        if (confirm("¿Deseas descartar este borrador y reiniciar el formulario?")) {
+            localStorage.removeItem(`vd_draft_${cliente.id}`);
+            setForm(initDefaultForm());
+            setFotos([]);
+            setStep(1);
+            setHasDraft(false);
+            toast.info("Borrador descartado");
+        }
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
-        if (files) {
-            Array.from(files).forEach(file => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    setFotos(prev => [...prev, reader.result as string]);
-                };
-                reader.readAsDataURL(file);
-            });
+        if (!files || files.length === 0) return;
+
+        setCompressingPhotos(true);
+        try {
+            const fileList = Array.from(files);
+            const compressed = await Promise.all(
+                fileList.map(file => compressImage(file, 1200, 0.75))
+            );
+            setFotos(prev => [...prev, ...compressed]);
+            toast.success(`${compressed.length} foto(s) optimizada(s) para modo offline`);
+        } catch (error) {
+            console.error("Error al procesar imágenes:", error);
+            toast.error("Error al procesar las fotografías");
+        } finally {
+            setCompressingPhotos(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+            }
         }
     };
 
@@ -223,14 +336,19 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
             // Importar dinámicamente el servicio de sincronización para IndexedDB
             const { syncService } = await import("@/lib/sync-service");
             
-            // Guardar offline primero de forma robusta (siempre)
+            // Guardar offline primero de forma 100% robusta
             await syncService.addVerificacionOffline(verificacionData);
             
+            // Limpiar borrador ya que fue guardado exitosamente
+            if (typeof window !== 'undefined' && cliente?.id) {
+                localStorage.removeItem(`vd_draft_${cliente.id}`);
+            }
+
             // Siempre mostrar éxito tras guardar localmente
             toast.success("Verificación domiciliaria guardada", {
                 description: isOnline && navigator.onLine
                     ? "Sincronizando con el servidor..."
-                    : "Se sincronizará automáticamente cuando tengas señal."
+                    : "Guardada offline. Se sincronizará en cuanto tengas señal."
             });
             
             // Si está conectado, intentar sincronizar de inmediato en background sin bloquear el UI
@@ -611,7 +729,16 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
 
                         {/* CAPTURA DE FOTOS */}
                         <div className="space-y-2">
-                            <Label className="text-[9px] font-black uppercase text-slate-400">Captura de Fachada / Evidencia ({fotos.length} tomadas)</Label>
+                            <div className="flex items-center justify-between">
+                                <Label className="text-[9px] font-black uppercase text-slate-400">
+                                    Captura de Fachada / Evidencia ({fotos.length} tomadas)
+                                </Label>
+                                {compressingPhotos && (
+                                    <span className="text-[10px] text-orange-400 font-bold animate-pulse">
+                                        Optimizando fotos...
+                                    </span>
+                                )}
+                            </div>
                             <div className="grid grid-cols-4 gap-2">
                                 {fotos.map((foto, idx) => (
                                     <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-800 group">
@@ -627,11 +754,14 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
                                 ))}
                                 <button 
                                     type="button"
+                                    disabled={compressingPhotos}
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="aspect-square rounded-xl border-2 border-dashed border-slate-800 bg-slate-900/50 flex flex-col items-center justify-center gap-0.5 active:bg-slate-800 transition-colors"
+                                    className={`aspect-square rounded-xl border-2 border-dashed border-slate-800 bg-slate-900/50 flex flex-col items-center justify-center gap-0.5 active:bg-slate-800 transition-colors ${compressingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     <Camera className="w-5 h-5 text-orange-500" />
-                                    <span className="text-[7px] font-bold text-slate-500 uppercase">Añadir</span>
+                                    <span className="text-[7px] font-bold text-slate-500 uppercase">
+                                        {compressingPhotos ? "Procesando" : "Añadir"}
+                                    </span>
                                 </button>
                             </div>
                             <input 
@@ -658,14 +788,32 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
             <DialogContent className="max-w-md max-h-[95vh] overflow-y-auto p-0 border-none rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl bg-slate-950">
                 <div className="bg-orange-600 p-5 text-white sticky top-0 z-10 shadow-lg">
                     <div className="flex items-center justify-between mb-1.5">
-                        <Badge variant="outline" className="border-white/30 text-white bg-white/10 backdrop-blur-sm text-[9px] font-bold uppercase tracking-wider">
-                            VD - Campo
-                        </Badge>
-                        <MapPin className="h-5 w-5" />
+                        <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className="border-white/30 text-white bg-white/10 backdrop-blur-sm text-[9px] font-bold uppercase tracking-wider">
+                                VD - Campo
+                            </Badge>
+                            {hasDraft && (
+                                <Badge className="bg-emerald-500 text-white text-[9px] font-black uppercase">
+                                    Borrador Activo
+                                </Badge>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {hasDraft && (
+                                <button
+                                    type="button"
+                                    onClick={handleDiscardDraft}
+                                    className="text-[10px] underline text-orange-100 hover:text-white font-medium"
+                                >
+                                    Descartar
+                                </button>
+                            )}
+                            <MapPin className="h-5 w-5" />
+                        </div>
                     </div>
                     <DialogTitle className="text-xl font-black">Ficha de Verificación Domiciliaria</DialogTitle>
                     <DialogDescription className="text-orange-100 font-medium text-[11px]">
-                        Paso {step} de 4 • Captura obligatoria de auditoría domiciliaria.
+                        Paso {step} de 4 • Captura de auditoría sin pérdida de datos.
                     </DialogDescription>
                 </div>
 

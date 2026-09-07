@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
         const estatus = searchParams.get('estatus') || 'todos'; // 'todos' | 'efectuadas' | 'pendientes'
         const fechaDesde = searchParams.get('fechaDesde');
         const fechaHasta = searchParams.get('fechaHasta');
+        const gestorId = searchParams.get('gestorId') || searchParams.get('cobradorId') || '';
 
         const skip = (page - 1) * limit;
 
@@ -37,6 +38,9 @@ export async function GET(request: NextRequest) {
                 gte: new Date(fechaDesde),
                 lte: new Date(fechaHasta),
             };
+        }
+        if (gestorId && gestorId !== 'TODOS' && gestorId !== 'all') {
+            whereEfectuadas.gestorId = gestorId;
         }
 
         // ── 2. Filtros para Clientes Pendientes de VD ──
@@ -57,6 +61,9 @@ export async function GET(request: NextRequest) {
                 { fechaVenta: { gte: new Date(fechaDesde), lte: new Date(fechaHasta) } },
                 { createdAt: { gte: new Date(fechaDesde), lte: new Date(fechaHasta) } },
             ];
+        }
+        if (gestorId && gestorId !== 'TODOS' && gestorId !== 'all') {
+            wherePendientes.cobradorAsignadoId = gestorId;
         }
 
         // Obtener conteos para métricas

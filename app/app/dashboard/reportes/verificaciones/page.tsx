@@ -34,9 +34,18 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 export default function VerificacionesReportPage() {
     const [verificaciones, setVerificaciones] = useState<any[]>([]);
+    const [cobradores, setCobradores] = useState<any[]>([]);
+    const [selectedGestor, setSelectedGestor] = useState<string>("TODOS");
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
@@ -62,8 +71,25 @@ export default function VerificacionesReportPage() {
     const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
 
     useEffect(() => {
+        fetchCobradores();
+    }, []);
+
+    const fetchCobradores = async () => {
+        try {
+            const res = await fetch("/api/users");
+            if (res.ok) {
+                const data = await res.json();
+                const users = Array.isArray(data) ? data : data.users || [];
+                setCobradores(users.filter((u: any) => ["cobrador", "gestor_cobranza"].includes(u.role)));
+            }
+        } catch (error) {
+            console.error("Error al obtener cobradores/gestores", error);
+        }
+    };
+
+    useEffect(() => {
         fetchVerificaciones();
-    }, [currentPage, searchTerm, fechaDesde, fechaHasta, estatusFiltro]);
+    }, [currentPage, searchTerm, fechaDesde, fechaHasta, estatusFiltro, selectedGestor]);
 
     const fetchVerificaciones = async () => {
         setLoading(true);
@@ -76,6 +102,10 @@ export default function VerificacionesReportPage() {
                 fechaDesde: fechaDesde ? `${fechaDesde}T00:00:00.000Z` : "",
                 fechaHasta: fechaHasta ? `${fechaHasta}T23:59:59.999Z` : "",
             });
+
+            if (selectedGestor && selectedGestor !== "TODOS") {
+                params.append("gestorId", selectedGestor);
+            }
 
             const res = await fetch(`/api/reportes/verificaciones?${params}`);
             if (res.ok) {
@@ -742,15 +772,34 @@ export default function VerificacionesReportPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-6">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div className="relative md:col-span-2">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                <Input
-                                    placeholder="Buscar por cliente o gestor..."
-                                    value={searchTerm}
-                                    onChange={(e: any) => setSearchTerm(e.target.value)}
-                                    className="pl-9 border-gray-200 focus:ring-blue-500"
-                                />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+                            <div className="relative sm:col-span-2">
+                                <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Búsqueda rápida</label>
+                                <div className="relative mt-1">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                    <Input
+                                        placeholder="Buscar por cliente o gestor..."
+                                        value={searchTerm}
+                                        onChange={(e: any) => setSearchTerm(e.target.value)}
+                                        className="pl-9 border-gray-200 focus:ring-blue-500"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Gestor / Cobrador</label>
+                                <Select value={selectedGestor} onValueChange={setSelectedGestor}>
+                                    <SelectTrigger className="border-gray-200 bg-white font-medium text-xs">
+                                        <SelectValue placeholder="Todos los gestores" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="TODOS">Todos los gestores</SelectItem>
+                                        {cobradores.map((c: any) => (
+                                            <SelectItem key={c.id} value={c.id}>
+                                                {c.name} {c.codigoGestor ? `(${c.codigoGestor})` : ""}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="space-y-1">
                                 <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Desde</label>
@@ -816,9 +865,32 @@ export default function VerificacionesReportPage() {
                                                     <p className="text-[10px] text-gray-400 font-mono tracking-widest">{v.cliente?.codigoCliente || v.detallesExtra?.codigoCliente || "-"}</p>
                                                 </td>
                                                 <td className="px-6 py-4 max-w-xs">
-                                                    <p className="truncate text-gray-500 italic text-xs" title={v.cliente?.direccionCompleta || v.detallesExtra?.direccion}>
+                                                    <p className="truncate text-gray-700 text-xs font-medium mb-1" title={v.cliente?.direccionCompleta || v.detallesExtra?.direccion}>
                                                         {v.cliente?.direccionCompleta || v.detallesExtra?.direccion || "Sin dirección registrada"}
                                                     </p>
+                                                    {v.detallesExtra?.latitud && v.detallesExtra?.longitud ? (
+                                                        <a
+                                                            href={`https://www.google.com/maps/search/?api=1&query=${v.detallesExtra.latitud},${v.detallesExtra.longitud}`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 font-bold hover:underline"
+                                                        >
+                                                            <MapPin className="w-3.5 h-3.5 text-blue-600" />
+                                                            GPS ({Number(v.detallesExtra.latitud).toFixed(3)}, {Number(v.detallesExtra.longitud).toFixed(3)})
+                                                            <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                                                        </a>
+                                                    ) : (v.cliente?.direccionCompleta || v.detallesExtra?.direccion) ? (
+                                                        <a
+                                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((v.cliente?.direccionCompleta || v.detallesExtra?.direccion) + (v.detallesExtra?.municipio ? ', ' + v.detallesExtra.municipio : ''))}`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-blue-600 font-medium hover:underline"
+                                                        >
+                                                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                                            Buscar en Maps
+                                                            <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                                                        </a>
+                                                    ) : null}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-2">
