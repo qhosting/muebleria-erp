@@ -215,9 +215,14 @@ export async function POST(request: NextRequest) {
         const matchDocIdEnConcepto = (p.concepto || '').match(/ContPAQi Doc #(\d+)/i);
         if (matchDocIdEnConcepto) {
           const docIdPrisma = matchDocIdEnConcepto[1];
-          docExistente = abonosContpaqi.find((d: any) => String(d.id || d.cIdDocumento || d.CIDDOCUMENTO) === docIdPrisma);
-          if (!docExistente) {
-            // El ID ya está en el concepto aunque no esté en la lista actual
+          const matched = abonosContpaqi.find((d: any) => String(d.id || d.cIdDocumento || d.CIDDOCUMENTO) === docIdPrisma);
+          if (matched) {
+            const dPagoId = String(matched.textoExtra1 || matched.cTextoExtra1 || '').trim();
+            // Si el documento en ContPAQi ya tiene grabado otro pago ERP distinto en textoExtra1, no es este pago
+            if (!dPagoId || dPagoId === p.id) {
+              docExistente = matched;
+            }
+          } else {
             docExistente = { id: docIdPrisma, folio: 'VINCULADO' };
           }
         }
@@ -225,12 +230,12 @@ export async function POST(request: NextRequest) {
         // Check 3.2: ¿Hay un documento en ContPAQi con la misma referencia (recibo o folios de ticket)?
         if (!docExistente) {
           const refsCandidatas = [
-            referencia,
-            p.ticket?.folio,
-            p.ticket?.referencia,
             p.numeroRecibo,
+            p.ticket?.folio,
             p.ticket?.claveRastreo,
-            p.ticket?.id
+            p.ticket?.id,
+            p.ticket?.referencia,
+            referencia
           ]
             .map((r: any) => String(r || '').trim().toUpperCase())
             .filter((r: string) => r.length >= 4);
@@ -239,8 +244,21 @@ export async function POST(request: NextRequest) {
             if (!docExistente) {
               docExistente = abonosContpaqi.find((d: any) => {
                 if (d.usado) return false;
+                // Si el documento ya tiene asignado un pago ERP diferente en textoExtra1, pertenece a otro pago
+                const dPagoId = String(d.textoExtra1 || d.cTextoExtra1 || '').trim();
+                if (dPagoId && dPagoId !== p.id) return false;
+
                 const dRef = String(d.referencia || d.cReferencia || '').trim().toUpperCase();
-                return dRef && (dRef.includes(refItem) || refItem.includes(dRef));
+                if (!dRef || (!dRef.includes(refItem) && !refItem.includes(dRef))) return false;
+
+                // Si la referencia es de 4 caracteres o menos (ej. "2244" terminación bancaria),
+                // requerir obligatoriamente que coincida la fecha para evitar asociar pagos de semanas pasadas
+                if (refItem.length <= 4) {
+                  const dFecha = d.fecha ? (typeof d.fecha === 'string' ? d.fecha.slice(0, 10) : toCdmxDateString(d.fecha)) : '';
+                  return dFecha === fechaStr;
+                }
+
+                return true;
               });
             }
           }
@@ -250,6 +268,9 @@ export async function POST(request: NextRequest) {
         if (!docExistente) {
           docExistente = abonosContpaqi.find((d: any) => {
             if (d.usado) return false;
+            const dPagoId = String(d.textoExtra1 || d.cTextoExtra1 || '').trim();
+            if (dPagoId && dPagoId !== p.id) return false;
+
             const dFecha = d.fecha ? (typeof d.fecha === 'string' ? d.fecha.slice(0, 10) : toCdmxDateString(d.fecha)) : '';
             const dTotal = parseFloat(d.total || d.cTotal || d.CTOTAL || '0') || 0;
             return dFecha === fechaStr && Math.abs(dTotal - abonoMonto) < 0.01;
