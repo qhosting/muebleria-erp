@@ -162,8 +162,9 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // 3. Unir lista de todos los gestores involucrados
-        const todosLosGestores = Array.from(new Set([...Object.keys(erpMap), ...Object.keys(cpMap)])).sort();
+        // 3. Filtrar únicamente los gestores que tienen registros en el ERP
+        // (Los agentes que solo están en ContPAQi corresponden a capturas directas sin relación con el ERP)
+        const gestoresERP = Object.keys(erpMap).sort();
 
         // 4. Armar filas de la Matriz de Auditoría
         interface FilaAuditoria {
@@ -192,12 +193,12 @@ export async function GET(request: NextRequest) {
         let totalDQ_ERP = 0;
         let totalDQ_CP = 0;
 
-        for (const gestor of todosLosGestores) {
-            const erpData = erpMap[gestor] || { nombre: gestor, DP: { count: 0, total: 0, pagos: [] }, DQ: { count: 0, total: 0, pagos: [] } };
+        for (const gestor of gestoresERP) {
+            const erpData = erpMap[gestor];
             const cpData = cpMap[gestor] || { DP: { count: 0, total: 0, docs: [] }, DQ: { count: 0, total: 0, docs: [] } };
 
-            // Evaluar fila DP
-            if (erpData.DP.count > 0 || cpData.DP.count > 0) {
+            // Evaluar fila DP si el gestor tiene cobros DP en el ERP
+            if (erpData.DP.count > 0) {
                 const difDP = parseFloat((erpData.DP.total - cpData.DP.total).toFixed(2));
                 const cuadradoDP = Math.abs(difDP) < 0.01 && erpData.DP.count === cpData.DP.count;
 
@@ -224,8 +225,8 @@ export async function GET(request: NextRequest) {
                 totalDP_CP += cpData.DP.total;
             }
 
-            // Evaluar fila DQ
-            if (erpData.DQ.count > 0 || cpData.DQ.count > 0) {
+            // Evaluar fila DQ si el gestor tiene cobros DQ en el ERP
+            if (erpData.DQ.count > 0) {
                 const difDQ = parseFloat((erpData.DQ.total - cpData.DQ.total).toFixed(2));
                 const cuadradoDQ = Math.abs(difDQ) < 0.01 && erpData.DQ.count === cpData.DQ.count;
 
@@ -250,6 +251,16 @@ export async function GET(request: NextRequest) {
 
                 totalDQ_ERP += erpData.DQ.total;
                 totalDQ_CP += cpData.DQ.total;
+            }
+        }
+
+        // Calcular capturas directas en ContPAQi (gestores que no existen en el ERP)
+        let contpaqiDirectosCant = 0;
+        let contpaqiDirectosTotal = 0;
+        for (const [ag, data] of Object.entries(cpMap)) {
+            if (!erpMap[ag]) {
+                contpaqiDirectosCant += data.DP.count + data.DQ.count;
+                contpaqiDirectosTotal += data.DP.total + data.DQ.total;
             }
         }
 
@@ -283,6 +294,10 @@ export async function GET(request: NextRequest) {
                         contpaqiTotal: parseFloat(totalDQ_CP.toFixed(2)),
                         diferencia: parseFloat((totalDQ_ERP - totalDQ_CP).toFixed(2))
                     }
+                },
+                contpaqiDirectos: {
+                    cantidad: contpaqiDirectosCant,
+                    total: parseFloat(contpaqiDirectosTotal.toFixed(2))
                 }
             },
             filas

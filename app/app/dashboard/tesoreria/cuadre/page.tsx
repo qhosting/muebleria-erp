@@ -791,6 +791,12 @@ export default function CuadrePage() {
                         </tfoot>
                     </table>
                 </div>
+
+                {res?.contpaqiDirectos?.cantidad > 0 && (
+                    <div className="text-[11px] text-gray-500 dark:text-gray-400 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700/60">
+                        ℹ️ <strong>Capturas Directas en ContPAQi (sin ERP):</strong> Se detectaron {res.contpaqiDirectos.cantidad} documentos por un total de {formatCurrency(res.contpaqiDirectos.total)} registrados en ContPAQi por gestores de oficina/directos que no operan en el ERP (excluidos de este cuadre de ruta).
+                    </div>
+                )}
             </div>
         );
     };
