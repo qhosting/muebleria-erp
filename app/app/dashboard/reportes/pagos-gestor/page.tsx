@@ -1004,7 +1004,7 @@ export default function PagosGestorPage() {
 
                                         const conceptoDoc = (pago.conceptoOriginal || pago.concepto || '')?.toString();
                                         const docIdMatch = conceptoDoc?.match(/ContPAQi Doc #(\d+)/i)?.[1];
-                                        const estaEnContpaqi = Boolean(docIdMatch || conceptoDoc?.includes('ContPAQi Doc #') || conceptoDoc?.includes('Afectado en ContPAQi') || pago.sincronizado);
+                                        const estaEnContpaqi = Boolean(docIdMatch || conceptoDoc?.includes('ContPAQi Doc #') || conceptoDoc?.includes('Afectado en ContPAQi'));
 
                                         return (
                                             <tr key={pago.id} className="hover:bg-gray-50 transition-colors text-[11px]">
