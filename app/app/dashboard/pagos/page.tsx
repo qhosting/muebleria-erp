@@ -173,10 +173,28 @@ export default function PagosPage() {
           const clv1 = (p1.ticket?.claveRastreo || '').trim();
           const clv2 = (p2.ticket?.claveRastreo || '').trim();
 
-          // Criterio A: Mismo folio o clave de rastreo bancario
-          const sharesComprobante =
-            Boolean((fol1 && (fol1 === fol2 || fol1 === clv2)) ||
-            (clv1 && (clv1 === fol2 || clv1 === clv2)));
+          // Descartar si el folio es un número de cuenta, tarjeta Spin (9500...) o terminación (****1234)
+          const isGenericAccount = (val: string) =>
+            Boolean(val && (val.startsWith('9500') || val.includes('****') || val.length >= 16));
+
+          const foliosSonCuenta = Boolean(
+            (fol1 && isGenericAccount(fol1)) || (fol2 && isGenericAccount(fol2))
+          );
+
+          // Si tienen claves de rastreo bancarias y son distintas, son transferencias DIFERENTES garantizadas
+          const tienenClavesDistintas = Boolean(
+            clv1 && clv2 && clv1.length >= 10 && clv2.length >= 10 && clv1 !== clv2
+          );
+
+          // Criterio A: Mismo comprobante bancario (clave de rastreo idéntica, o folio idéntico legítimo)
+          const mismaClave = Boolean(clv1 && clv2 && clv1 === clv2);
+          const mismoFolioLegitimo = Boolean(fol1 && fol2 && fol1 === fol2 && !foliosSonCuenta);
+          const cruceClaveFolio = Boolean(
+            (fol1 && fol1 === clv2 && !isGenericAccount(fol1)) ||
+            (clv1 && clv1 === fol2 && !isGenericAccount(fol2))
+          );
+
+          const sharesComprobante = (mismaClave || mismoFolioLegitimo || cruceClaveFolio) && !tienenClavesDistintas;
 
           // Criterio B: Misma fecha calendario de pago
           const f1 = p1.fechaPago ? p1.fechaPago.slice(0, 10) : '';
@@ -189,19 +207,24 @@ export default function PagosPage() {
           const diffMin = (t1 && t2) ? Math.abs(t2 - t1) / (1000 * 60) : 999999;
           const diffHours = diffMin / 60;
 
+          // Si tienen claves de rastreo distintas y son de fechas distintas, son pagos semanales legítimos
+          if (tienenClavesDistintas && !sameDay) {
+            continue;
+          }
+
           let esDuplicado = false;
           let motivo = '';
 
           if (sharesComprobante) {
             esDuplicado = true;
-            motivo = `Mismo comprobante o clave bancaria (${fol1 || clv1})`;
+            motivo = `Mismo comprobante o clave bancaria (${clv1 || fol1})`;
           } else if (sameDay && diffMin <= 180) {
             esDuplicado = true;
             motivo = `Mismo día y registrado con solo ${Math.round(diffMin)} min de diferencia`;
           } else if (sameDay) {
             esDuplicado = true;
             motivo = `Misma fecha de pago (${f1}) con idéntico monto ($${m1})`;
-          } else if (diffHours <= 72) {
+          } else if (diffHours <= 72 && !tienenClavesDistintas && !foliosSonCuenta) {
             esDuplicado = true;
             motivo = `Mismo monto ($${m1}) registrado con ${Math.round(diffHours)}h de diferencia`;
           }
