@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -36,7 +36,8 @@ import {
   Lock,
   RefreshCw,
   BarChart3,
-  CalendarDays
+  CalendarDays,
+  ExternalLink
 } from "lucide-react";
 import { calcularSemanaCobranzaSabadoViernes, calcularRangoSemanaSabadoViernes, formatearFechaCortaMX } from "@/lib/calendario-cobranza-utils";
 import { formatCurrency, getDayName } from "@/lib/utils";
@@ -157,6 +158,11 @@ export default function ListaCobranzaPage() {
   // Modal de Guardar Corte
   const [guardarCorteModalOpen, setGuardarCorteModalOpen] = useState(false);
   const [observacionesCorte, setObservacionesCorte] = useState("");
+
+  // Modal y Visor de PDF Oficial
+  const [modalPDFOpen, setModalPDFOpen] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string>("");
+  const iframePDFRef = useRef<HTMLIFrameElement>(null);
 
   // Semanas del Calendario Anual de Cobranza (Ciclo Sábado a Viernes)
   const semanasDelAnio = useMemo(() => {
@@ -452,7 +458,7 @@ export default function ListaCobranzaPage() {
       ? new Date(calendario.fechaFin).toLocaleDateString("es-MX")
       : `${anio}`;
 
-    imprimirPDFCEJ({
+    const { blobUrl } = imprimirPDFCEJ({
       anio: parseInt(anio),
       semana: parseInt(semana),
       fechaInicioStr: fInicio,
@@ -462,6 +468,11 @@ export default function ListaCobranzaPage() {
       detalles: clientes as any,
       resumen: resumenCEJ || undefined
     });
+
+    if (blobUrl) {
+      setPdfBlobUrl(blobUrl);
+      setModalPDFOpen(true);
+    }
   };
 
   // Filtrado en memoria de clientes
@@ -961,8 +972,11 @@ export default function ListaCobranzaPage() {
                                 </div>
                               ) : (
                                 <Badge
-                                  variant={c.problema === "RUTA" ? "secondary" : "destructive"}
-                                  className={`text-[10px] font-black uppercase ${c.problema === "RUTA" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300" : ""}`}
+                                  variant="outline"
+                                  className={`text-[10px] font-black uppercase ${
+                                    OPCIONES_PROBLEMA.find((o) => o.value === (c.problema || "").toUpperCase().trim())?.color ||
+                                    (c.problema === "RUTA" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300" : "bg-red-100 text-red-800")
+                                  }`}
                                 >
                                   {c.problema}
                                 </Badge>
@@ -1358,6 +1372,69 @@ export default function ListaCobranzaPage() {
 
             <DialogFooter>
               <Button variant="outline" size="sm" onClick={() => setHistorialOpen(false)}>
+                Cerrar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* MODAL: Visor PDF Oficial (Plantilla Lista Cobranza) */}
+        <Dialog open={modalPDFOpen} onOpenChange={setModalPDFOpen}>
+          <DialogContent className="max-w-6xl w-[95vw] h-[90vh] flex flex-col p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
+                  <Printer className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  Plantilla Lista Cobranza - Semana {semana} ({getSelectedCobradorCodigo()})
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  Vista previa oficial de la cartera completa paginada y el Resumen Ejecutivo oficial.
+                </DialogDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-sm"
+                  onClick={() => {
+                    if (iframePDFRef.current?.contentWindow) {
+                      iframePDFRef.current.contentWindow.print();
+                    } else if (pdfBlobUrl) {
+                      window.open(pdfBlobUrl, "_blank");
+                    }
+                  }}
+                >
+                  <Printer className="w-4 h-4" /> Imprimir / Guardar como PDF
+                </Button>
+                {pdfBlobUrl && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs font-semibold gap-1.5 border-slate-300 dark:border-slate-700"
+                    onClick={() => window.open(pdfBlobUrl, "_blank")}
+                  >
+                    <ExternalLink className="w-4 h-4" /> Abrir en Ventana
+                  </Button>
+                )}
+              </div>
+            </DialogHeader>
+
+            <div className="flex-1 w-full bg-slate-100 dark:bg-slate-950 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 my-2">
+              {pdfBlobUrl ? (
+                <iframe
+                  ref={iframePDFRef}
+                  src={pdfBlobUrl}
+                  title="PDF Oficial Lista Cobranza"
+                  className="w-full h-full border-0 bg-white"
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                  Generando documento oficial...
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="pt-2 border-t border-slate-200 dark:border-slate-800">
+              <Button variant="outline" size="sm" onClick={() => setModalPDFOpen(false)}>
                 Cerrar
               </Button>
             </DialogFooter>

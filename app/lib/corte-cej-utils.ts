@@ -200,8 +200,12 @@ export function calcularComisionAnalista(pago: number, pagoAnalista: string | nu
  */
 export function procesarDetallesYResumenCEJ(
   clientes: ClienteCorteRaw[],
-  pagosSemana: PagoCorteRaw[] = []
+  pagosSemana: PagoCorteRaw[] = [],
+  periodicidadesActivas: string[] = []
 ): { detalles: DetalleCalculadoCEJ[]; resumen: ResumenCorteCEJ } {
+  // Normalizar periodicidades activas a minúsculas
+  const periodicidadesActivasNorm = (periodicidadesActivas || []).map((p) => p.toLowerCase().trim());
+
   // Mapa de pagos acumulados por cliente
   const pagosMap = new Map<string, { monto: number; moratorio: number; fechaPago: string | null; tipo: string; folio: string }>();
 
@@ -227,10 +231,28 @@ export function procesarDetallesYResumenCEJ(
     const saldoVencido = Number(c.saldoVencido) || 0;
     const saldoActual = Number(c.saldoActual) || 0;
     const periodicidad = (c.periodicidad || "SEMANAL").toUpperCase().trim();
+    const periodicidadMin = (c.periodicidad || "semanal").toLowerCase().trim();
     const pv = Number(c.pv) || 0;
     const sup = calcularSUP(periodicidad, pv);
 
-    const problema = (c.clasificacionCobranza || "RUTA").toUpperCase().trim();
+    // DETERMINACIÓN AUTOMÁTICA DE PROBLEMA (REGLAS DE NEGOCIO):
+    // 1. Si dio abono en la semana (pagoReal > 0), SIEMPRE es RUTA sin importar su etiqueta previa o PE
+    // 2. Si no dio abono y NO le toca pago su periodo en esta semana -> PE (Periodo)
+    // 3. Si sí le toca pago en esta semana -> RUTA (o clasificación asignada distinta de PE)
+    const leTocaPagoSemana =
+      periodicidadesActivasNorm.length === 0 ||
+      periodicidadesActivasNorm.includes(periodicidadMin);
+
+    let problema = "RUTA";
+    if (pagoReal > 0) {
+      problema = "RUTA";
+    } else if (!leTocaPagoSemana) {
+      problema = "PE";
+    } else {
+      const clasifActual = (c.clasificacionCobranza || "").toUpperCase().trim();
+      problema = (clasifActual && clasifActual !== "PE") ? clasifActual : "RUTA";
+    }
+
     const diaAsignado = normalizarDiaSemana(c.diaPago || c.pagoAnalista);
     const pagoAnalista = (c.pagoAnalista && (c.pagoAnalista.toUpperCase().trim() === "SI" || c.pagoAnalista.toUpperCase().trim() === "NO"))
       ? c.pagoAnalista.toUpperCase().trim()

@@ -178,12 +178,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 3. CONSULTA EN VIVO: Obtener clientes asignados
+    // 3. CONSULTA EN VIVO: Obtener clientes asignados (cartera completa activa)
     const whereClause: any = {
-      statusCuenta: "activo",
-      periodicidad: {
-        in: periodicidadesPermitidas as any
-      }
+      statusCuenta: "activo"
     };
 
     let nombreGestor = "GENERAL - TODOS LOS COBRADORES";
@@ -285,7 +282,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const { detalles, resumen } = procesarDetallesYResumenCEJ(clientesRaw, pagosRaw);
+    const { detalles, resumen } = procesarDetallesYResumenCEJ(clientesRaw, pagosRaw, periodicidadesPermitidas);
 
     return NextResponse.json({
       esCorteGuardado: false,

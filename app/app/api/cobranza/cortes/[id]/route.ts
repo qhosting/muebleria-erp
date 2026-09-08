@@ -141,7 +141,15 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         folio: d.serie
       }));
 
-      const { resumen } = procesarDetallesYResumenCEJ(clientesRaw, pagosRaw);
+      let periodicidadesActivas: string[] = [];
+      const cal = await prisma.calendarioCobranza.findUnique({
+        where: { anio_semana: { anio: corte.anio, semana: corte.semana } }
+      });
+      if (cal && Array.isArray(cal.periodicidadesActivas)) {
+        periodicidadesActivas = cal.periodicidadesActivas as string[];
+      }
+
+      const { resumen } = procesarDetallesYResumenCEJ(clientesRaw, pagosRaw, periodicidadesActivas);
 
       await prisma.corteCobranza.update({
         where: { id },

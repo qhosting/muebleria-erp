@@ -318,158 +318,37 @@ export function descargarExcelCEJ(datos: DatosExportacionCEJ) {
 }
 
 /**
- * Genera ventana o documento PDF oficial idéntico a PLANTILLA LISTA COBRANZA
- * Abre una ventana lista para imprimir o guardar como PDF en orientación horizontal
+ * Genera el HTML completo oficial idéntico a PLANTILLA LISTA COBRANZA
+ * Pagina toda la cartera en bloques de ~38 clientes para que no se recorte ningún registro,
+ * y finaliza con la página de Resumen Ejecutivo y Metas de Cobro.
  */
-export function imprimirPDFCEJ(datos: DatosExportacionCEJ) {
-  const popup = window.open("", "_blank", "width=1200,height=850");
-  if (!popup) {
-    alert("Por favor permite las ventanas emergentes para generar el PDF");
-    return;
-  }
-
+export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
   const p = datos.resumen?.resumenProblemas;
   const mPeriodos = datos.resumen?.matrizPeriodos || [];
   const rDiario = datos.resumen?.resumenDiario || [];
 
-  const html = `
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>PLANTILLA LISTA COBRANZA - ${datos.codigoGestor} - Semana ${datos.semana}</title>
-  <style>
-    @page {
-      size: letter landscape;
-      margin: 8mm 8mm 8mm 8mm;
-    }
-    body {
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 8.5px;
-      color: #111;
-      margin: 0;
-      padding: 0;
-      background: #fff;
-    }
-    .page-break {
-      page-break-after: always;
-      break-after: page;
-    }
-    .header-box {
-      margin-bottom: 8px;
-      border-bottom: 2px solid #333;
-      padding-bottom: 4px;
-    }
-    .title-company {
-      font-size: 14px;
-      font-weight: bold;
-      text-transform: uppercase;
-      margin: 0;
-    }
-    .subtitle {
-      font-size: 11px;
-      font-weight: 600;
-      color: #444;
-      margin: 2px 0 6px 0;
-    }
-    .info-bar {
-      display: flex;
-      justify-content: space-between;
-      font-size: 9px;
-      font-weight: bold;
-      background: #f1f5f9;
-      padding: 4px 8px;
-      border: 1px solid #cbd5e1;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 4px;
-    }
-    th {
-      background: #1e293b;
-      color: #fff;
-      font-size: 7.5px;
-      font-weight: bold;
-      text-align: center;
-      padding: 3px 2px;
-      border: 0.5px solid #475569;
-      white-space: nowrap;
-    }
-    td {
-      font-size: 7.5px;
-      padding: 2.5px 2px;
-      border: 0.5px solid #cbd5e1;
-      white-space: nowrap;
-    }
-    tr:nth-child(even) td {
-      background-color: #f8fafc;
-    }
-    .text-center { text-align: center; }
-    .text-right { text-align: right; }
-    .font-bold { font-weight: bold; }
-    .font-mono { font-family: 'Courier New', Courier, monospace; }
+  const FILAS_POR_PAGINA = 38;
+  const detalles = datos.detalles || [];
+  const chunks: DetalleCalculadoCEJ[][] = [];
 
-    /* Estilos Página 2: Resumen Ejecutivo */
-    .p2-container {
-      padding: 6px 0;
+  if (detalles.length === 0) {
+    chunks.push([]);
+  } else {
+    for (let i = 0; i < detalles.length; i += FILAS_POR_PAGINA) {
+      chunks.push(detalles.slice(i, i + FILAS_POR_PAGINA));
     }
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1.3fr;
-      gap: 16px;
-      margin-top: 8px;
-    }
-    .section-card {
-      border: 1px solid #94a3b8;
-      border-radius: 4px;
-      overflow: hidden;
-      margin-bottom: 12px;
-    }
-    .card-header {
-      background: #334155;
-      color: #fff;
-      font-weight: bold;
-      padding: 4px 8px;
-      font-size: 9px;
-      text-transform: uppercase;
-    }
-    .card-body {
-      padding: 6px 8px;
-    }
-    .kpi-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 2.5px 0;
-      border-bottom: 0.5px dashed #cbd5e1;
-      font-size: 8.5px;
-    }
-    .kpi-row.highlight {
-      background: #e2e8f0;
-      font-weight: bold;
-      padding: 3px 4px;
-    }
-    @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .no-print { display: none; }
-    }
-  </style>
-</head>
-<body>
-  <!-- BOTONES NO IMPRIMIBLES -->
-  <div class="no-print" style="padding: 10px; background: #0f172a; color: white; display: flex; justify-content: space-between; align-items: center;">
-    <div><strong>Vista Previa PDF Oficial (Plantilla Lista Cobranza - 2 Páginas)</strong></div>
-    <div>
-      <button onclick="window.print()" style="background: #10b981; color: white; border: none; padding: 6px 14px; font-weight: bold; cursor: pointer; border-radius: 4px;">
-        🖨️ Imprimir / Guardar como PDF
-      </button>
-      <button onclick="window.close()" style="background: #ef4444; color: white; border: none; padding: 6px 12px; font-weight: bold; cursor: pointer; border-radius: 4px; margin-left: 8px;">
-        Cerrar
-      </button>
-    </div>
-  </div>
+  }
 
-  <!-- PÁGINA 1: LISTADO DE CARTERA Y RUTA -->
+  const totalPaginas = chunks.length + 1;
+
+  const paginasDetallesHTML = chunks
+    .map((chunk, idx) => {
+      const paginaActual = idx + 1;
+      const desdeItem = idx * FILAS_POR_PAGINA + 1;
+      const hastaItem = Math.min((idx + 1) * FILAS_POR_PAGINA, detalles.length);
+
+      return `
+  <!-- PÁGINA ${paginaActual}: LISTADO DE CARTERA Y RUTA -->
   <div class="page-break" style="padding: 8px;">
     <div class="header-box">
       <div class="title-company">Grupo Mueblero DASO SA de CV</div>
@@ -478,7 +357,7 @@ export function imprimirPDFCEJ(datos: DatosExportacionCEJ) {
         <div>SEMANA: <strong>${datos.semana}</strong> (${datos.fechaInicioStr} al ${datos.fechaFinStr})</div>
         <div>GESTOR: <strong>${datos.codigoGestor} - ${datos.nombreGestor}</strong></div>
         <div>EMISIÓN: <strong>${new Date().toLocaleDateString("es-MX")}</strong></div>
-        <div>TOTAL CUENTAS: <strong>${datos.detalles.length}</strong></div>
+        <div>TOTAL CUENTAS: <strong>${detalles.length}</strong> (Cuentas ${detalles.length > 0 ? `${desdeItem} - ${hastaItem}` : 0})</div>
       </div>
     </div>
 
@@ -506,8 +385,7 @@ export function imprimirPDFCEJ(datos: DatosExportacionCEJ) {
         </tr>
       </thead>
       <tbody>
-        ${datos.detalles
-          .slice(0, 48)
+        ${chunk
           .map(
             (d) => `
           <tr>
@@ -516,18 +394,18 @@ export function imprimirPDFCEJ(datos: DatosExportacionCEJ) {
             <td class="text-center">${d.periodoInicial}</td>
             <td style="max-width: 140px; overflow: hidden; text-overflow: ellipsis;">${d.nombreCliente}</td>
             <td class="text-center font-bold">${d.periodicidad}</td>
-            <td class="text-right font-mono font-bold">$${d.pagoSugerido.toLocaleString("es-MX")}</td>
-            <td class="text-right font-mono text-danger">$${d.saldoVencido.toLocaleString("es-MX")}</td>
+            <td class="text-right font-mono font-bold">$${(d.pagoSugerido || 0).toLocaleString("es-MX")}</td>
+            <td class="text-right font-mono text-danger">$${(d.saldoVencido || 0).toLocaleString("es-MX")}</td>
             <td class="text-center font-bold">${d.pv}</td>
-            <td class="text-right font-mono">$${d.saldoActual.toLocaleString("es-MX")}</td>
+            <td class="text-right font-mono">$${(d.saldoActual || 0).toLocaleString("es-MX")}</td>
             <td class="text-center">${d.gestor}</td>
             <td class="text-center">${d.sup}</td>
-            <td class="text-right font-mono font-bold" style="${d.pagoReal > 0 ? 'color: #047857;' : ''}">$${d.pagoReal.toLocaleString("es-MX")}</td>
+            <td class="text-right font-mono font-bold" style="${d.pagoReal > 0 ? 'color: #047857;' : ''}">$${(d.pagoReal || 0).toLocaleString("es-MX")}</td>
             <td class="text-center">${d.diaPago}</td>
             <td class="text-center font-bold" style="color: ${d.problema === 'RUTA' ? '#1d4ed8' : '#b91c1c'};">${d.problema}</td>
-            <td class="text-right font-mono">$${d.pagoDoble.toLocaleString("es-MX")}</td>
-            <td class="text-right font-mono">$${d.recuperadoPv.toLocaleString("es-MX")}</td>
-            <td class="text-right font-mono">$${d.comisionAnalista.toLocaleString("es-MX")}</td>
+            <td class="text-right font-mono">$${(d.pagoDoble || 0).toLocaleString("es-MX")}</td>
+            <td class="text-right font-mono">$${(d.recuperadoPv || 0).toLocaleString("es-MX")}</td>
+            <td class="text-right font-mono">$${(d.comisionAnalista || 0).toLocaleString("es-MX")}</td>
             <td class="text-center font-mono">${d.telefono}</td>
           </tr>
         `
@@ -536,54 +414,88 @@ export function imprimirPDFCEJ(datos: DatosExportacionCEJ) {
       </tbody>
     </table>
     <div style="margin-top: 6px; font-size: 8px; color: #64748b; text-align: right;">
-      Página 1 de 2 • Plantilla Lista Cobranza • Grupo Mueblero DASO
+      Página ${paginaActual} de ${totalPaginas} • Plantilla Lista Cobranza • Grupo Mueblero DASO
+    </div>
+  </div>
+      `;
+    })
+    .join("\n");
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>PLANTILLA LISTA COBRANZA - ${datos.codigoGestor} - Semana ${datos.semana}</title>
+  <style>
+    @page { size: letter landscape; margin: 8mm; }
+    body { font-family: Arial, sans-serif; font-size: 8.5px; color: #111; margin: 0; padding: 0; background: #fff; }
+    .page-break { page-break-after: always; break-after: page; }
+    .header-box { margin-bottom: 8px; border-bottom: 2px solid #333; padding-bottom: 4px; }
+    .title-company { font-size: 14px; font-weight: bold; text-transform: uppercase; margin: 0; }
+    .subtitle { font-size: 11px; font-weight: 600; color: #444; margin: 2px 0 6px 0; }
+    .info-bar { display: flex; justify-content: space-between; font-size: 9px; font-weight: bold; background: #f1f5f9; padding: 4px 8px; border: 1px solid #cbd5e1; }
+    table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    th { background: #1e293b; color: #fff; font-size: 7.5px; padding: 3px 2px; border: 0.5px solid #475569; }
+    td { font-size: 7.5px; padding: 2.5px 2px; border: 0.5px solid #cbd5e1; }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .font-bold { font-weight: bold; }
+    .font-mono { font-family: 'Courier New', Courier, monospace; }
+    .section-card { border: 1px solid #94a3b8; border-radius: 4px; margin-bottom: 12px; }
+    .card-header { background: #334155; color: white; font-weight: bold; font-size: 9.5px; padding: 4px 8px; }
+    .card-body { padding: 6px 8px; }
+    .kpi-row { display: flex; justify-content: space-between; padding: 2.5px 0; border-bottom: 0.5px dashed #cbd5e1; font-size: 8.5px; }
+    .kpi-row.highlight { background: #e2e8f0; font-weight: bold; padding: 3px 4px; }
+    @media print { body { -webkit-print-color-adjust: exact; } .no-print { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="padding: 10px; background: #0f172a; color: white; display: flex; justify-content: space-between;">
+    <div><strong>Vista Previa PDF Oficial (${totalPaginas} Páginas)</strong></div>
+    <div>
+      <button onclick="window.print()">🖨️ Imprimir</button>
+      <button onclick="window.close()">Cerrar</button>
     </div>
   </div>
 
-  <!-- PÁGINA 2: RESUMEN EJECUTIVO Y METAS DE COBRO -->
+  ${paginasDetallesHTML}
+
   <div style="padding: 8px;">
     <div class="header-box">
       <div class="title-company">Grupo Mueblero DASO SA de CV</div>
       <div class="subtitle">Resumen Ejecutivo de Corte de Cobranza Querétaro</div>
       <div class="info-bar">
         <div>SEMANA: <strong>${datos.semana}</strong></div>
-        <div>GESTOR: <strong>${datos.codigoGestor} - ${datos.nombreGestor}</strong></div>
-        <div>FECHA CORTE: <strong>${new Date().toLocaleDateString("es-MX")}</strong></div>
-        <div>ESTATUS: <strong>${datos.resumen?.pagarConPorcentajeSinDobles ? 'PAGAR CON % SIN DOBLES' : 'OBJETIVO CUMPLIDO'}</strong></div>
+        <div>GESTOR: <strong>${datos.codigoGestor}</strong></div>
+        <div>FECHA: <strong>${new Date().toLocaleDateString("es-MX")}</strong></div>
       </div>
     </div>
-
-    <div class="grid-2">
-      <!-- Columna Izquierda: Clasificación de Problemas -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
       <div>
         <div class="section-card">
-          <div class="card-header">Clasificación de Cartera y Problemas</div>
+          <div class="card-header">Clasificación de Cartera</div>
           <div class="card-body">
-            <div class="kpi-row highlight">
-              <span>Cuentas Asignadas</span>
-              <span><strong>${p?.totalAsignadas.cuentas ?? 0}</strong> ($${(p?.totalAsignadas.pesos ?? 0).toLocaleString("es-MX")})</span>
-            </div>
+            <div class="kpi-row highlight"><span>Cuentas Asignadas</span><span><strong>${p?.totalAsignadas.cuentas ?? 0}</strong> ($${(p?.totalAsignadas.pesos ?? 0).toLocaleString("es-MX")})</span></div>
             <div class="kpi-row"><span>CANCELADO (K)</span><span>${p?.canceladoK.cuentas ?? 0} ($${(p?.canceladoK.pesos ?? 0).toLocaleString("es-MX")})</span></div>
             <div class="kpi-row"><span>INTERVENCION (IT)</span><span>${p?.intervencionIT.cuentas ?? 0} ($${(p?.intervencionIT.pesos ?? 0).toLocaleString("es-MX")})</span></div>
             <div class="kpi-row"><span>ADELANTADO (AD)</span><span>${p?.adelantadoAD.cuentas ?? 0} ($${(p?.adelantadoAD.pesos ?? 0).toLocaleString("es-MX")})</span></div>
             <div class="kpi-row"><span>PERIODO (PE)</span><span>${p?.periodoPE.cuentas ?? 0} ($${(p?.periodoPE.pesos ?? 0).toLocaleString("es-MX")})</span></div>
             <div class="kpi-row"><span>PAGO SEM (PS)</span><span>${p?.pagoSemPS.cuentas ?? 0} ($${(p?.pagoSemPS.pesos ?? 0).toLocaleString("es-MX")})</span></div>
             <div class="kpi-row"><span>DICT LEGAL (DL)</span><span>${p?.dictLegalDL.cuentas ?? 0} ($${(p?.dictLegalDL.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row highlight" style="background: #fecdd3;">
-              <span>TOTAL PROBLEMAS</span>
+            <div class="kpi-row highlight" style="margin-top: 4px;">
+              <span>Total Cuentas Problema</span>
               <span><strong>${p?.totalProblemas.cuentas ?? 0}</strong> ($${(p?.totalProblemas.pesos ?? 0).toLocaleString("es-MX")})</span>
             </div>
-            <div class="kpi-row highlight" style="background: #dbeafe; margin-top: 6px;">
+            <div class="kpi-row" style="margin-top: 6px; font-weight: bold; color: #1d4ed8;">
               <span>Cuentas en RUTA</span>
-              <span><strong>${p?.cuentasRuta.cuentas ?? 0}</strong> ($${(p?.cuentasRuta.pesos ?? 0).toLocaleString("es-MX")})</span>
+              <span>${p?.cuentasRuta.cuentas ?? 0} ($${(p?.cuentasRuta.pesos ?? 0).toLocaleString("es-MX")})</span>
             </div>
-            <div class="kpi-row">
+            <div class="kpi-row" style="font-weight: bold; color: #b91c1c;">
               <span>Vencidos en RUTA</span>
-              <span><strong>${p?.vencidosRuta.cuentas ?? 0}</strong> ($${(p?.vencidosRuta.pesos ?? 0).toLocaleString("es-MX")})</span>
+              <span>${p?.vencidosRuta.cuentas ?? 0} ($${(p?.vencidosRuta.pesos ?? 0).toLocaleString("es-MX")})</span>
             </div>
           </div>
         </div>
-
         <div class="section-card">
           <div class="card-header">Canales de Recaudación Real</div>
           <div class="card-body">
@@ -690,13 +602,33 @@ export function imprimirPDFCEJ(datos: DatosExportacionCEJ) {
     </div>
 
     <div style="margin-top: 12px; font-size: 8px; color: #64748b; text-align: right;">
-      Página 2 de 2 • Plantilla Lista Cobranza • Grupo Mueblero DASO
+      Página ${totalPaginas} de ${totalPaginas} • Plantilla Lista Cobranza • Grupo Mueblero DASO
     </div>
   </div>
 </body>
 </html>
   `;
 
-  popup.document.write(html);
-  popup.document.close();
+  return html;
+}
+
+/**
+ * Genera ventana o documento PDF oficial idéntico a PLANTILLA LISTA COBRANZA
+ * Retorna el HTML generado y la URL Blob, intentando abrirla en nueva pestaña de forma segura sin popups bloqueados.
+ */
+export function imprimirPDFCEJ(datos: DatosExportacionCEJ): { html: string; blobUrl: string } {
+  const html = generarHTMLPlantillaCEJ(datos);
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const blobUrl = URL.createObjectURL(blob);
+
+  try {
+    const popup = window.open(blobUrl, "_blank");
+    if (!popup) {
+      console.warn("Ventana emergente no abierta por el navegador. Usando visor modal.");
+    }
+  } catch (err) {
+    console.warn("Error al intentar abrir ventana emergente con Blob URL:", err);
+  }
+
+  return { html, blobUrl };
 }
