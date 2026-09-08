@@ -198,6 +198,21 @@ export async function POST(request: NextRequest) {
       const cobradorNombre = p.cobrador?.name || 'Cobrador';
 
       try {
+        // Check 0: Si el pago ya fue previamente validado como cuenta saldada en ContPAQi
+        if (p.sincronizado && p.concepto?.includes('ContPAQi: Cuenta Saldada $0')) {
+          yaExistentesCount++;
+          resultados.push({
+            pagoId: p.id,
+            codigoCliente: cod,
+            clienteNombre: nombreCliente,
+            monto: abonoMonto,
+            fecha: fechaStr,
+            status: 'YA_EXISTE',
+            mensaje: `El cliente cuenta con saldo $0.00 en ContPAQi (crédito liquidado). Previamente validado.`
+          });
+          continue;
+        }
+
         // 2. OBTENER DOCUMENTOS DE CONTPAQI PARA ESTE CLIENTE
         const docsCliente = await getDocsCliente(cod, empresa);
 
@@ -314,6 +329,47 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        // Check 3.4: Si no existe el abono, verificar si la cuenta ya está completamente saldada en ContPAQi
+        // (evita error 500 del SDK COM de ContPAQi fAsociaDocumento al no haber pagarés con saldo pendiente)
+        const docsConPendiente = docsCliente.filter((d: any) => {
+          if (d.cancelado) return false;
+          const c = String(d.codigoConcepto || d.Concepto || d.concepto || d.CCODIGOCONCEPTO || '').trim();
+          if (['101', '102'].includes(c)) return false;
+          return parseFloat(d.pendiente || d.cPendiente || '0') > 0.01;
+        });
+
+        const tieneCargosRegistrados = docsCliente.some((d: any) => {
+          if (d.cancelado) return false;
+          const c = String(d.codigoConcepto || d.Concepto || d.concepto || d.CCODIGOCONCEPTO || '').trim();
+          return !['101', '102'].includes(c);
+        });
+
+        if (tieneCargosRegistrados && docsConPendiente.length === 0) {
+          const baseConcepto = (p.concepto || 'ABONO')
+            .replace(/\s*\(ContPAQi Doc #\d+\)/gi, '')
+            .replace(/\s*\(ContPAQi: Cuenta Saldada \$0\)/gi, '')
+            .trim();
+          await prisma.pago.update({
+            where: { id: p.id },
+            data: {
+              sincronizado: true,
+              concepto: `${baseConcepto} (ContPAQi: Cuenta Saldada $0)`
+            }
+          });
+
+          yaExistentesCount++;
+          resultados.push({
+            pagoId: p.id,
+            codigoCliente: cod,
+            clienteNombre: nombreCliente,
+            monto: abonoMonto,
+            fecha: fechaStr,
+            status: 'YA_EXISTE',
+            mensaje: `El cliente ya no tiene documentos con saldo pendiente en ContPAQi (crédito liquidado $0.00). Sincronizado.`
+          });
+          continue;
+        }
+
         // Si solo estamos validando, no crear documento nuevo
         if (soloValidar) {
           resultados.push({
@@ -386,6 +442,43 @@ export async function POST(request: NextRequest) {
         });
 
       } catch (err: any) {
+        // Manejo especial de fallback si ContPAQi lanza error (ej. 500 por fAsociaDocumento al no haber pagarés con saldo pendiente)
+        let cuentaSaldada = false;
+        try {
+          const edoCta = await srv.getClienteEstadoCuenta(cod, empresa);
+          if (edoCta && typeof edoCta.saldoActual === 'number' && edoCta.saldoActual <= 0) {
+            cuentaSaldada = true;
+          }
+        } catch (e) {
+          // Ignorar error al consultar estado de cuenta
+        }
+
+        if (cuentaSaldada) {
+          const baseConcepto = (p.concepto || 'ABONO')
+            .replace(/\s*\(ContPAQi Doc #\d+\)/gi, '')
+            .replace(/\s*\(ContPAQi: Cuenta Saldada \$0\)/gi, '')
+            .trim();
+          await prisma.pago.update({
+            where: { id: p.id },
+            data: {
+              sincronizado: true,
+              concepto: `${baseConcepto} (ContPAQi: Cuenta Saldada $0)`
+            }
+          });
+
+          yaExistentesCount++;
+          resultados.push({
+            pagoId: p.id,
+            codigoCliente: cod,
+            clienteNombre: nombreCliente,
+            monto: abonoMonto,
+            fecha: fechaStr,
+            status: 'YA_EXISTE',
+            mensaje: `El cliente ya cuenta con saldo $0.00 en ContPAQi (crédito liquidado). Marcado como sincronizado.`
+          });
+          continue;
+        }
+
         erroresCount++;
         console.error(`[SyncContPAQi] Error en pago ${p.id} (${cod}):`, err);
         resultados.push({
