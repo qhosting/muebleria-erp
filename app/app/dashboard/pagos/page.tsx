@@ -91,30 +91,27 @@ interface DuplicadoInfo {
   }[];
 }
 
-function formatHora(fechaPago?: string | null, createdAt?: string | null): { horaStr: string; esRegistro: boolean; tooltip: string } {
+function formatHora(createdAt?: string | null, fechaPago?: string | null): { horaStr: string; tooltip: string } {
   let horaDate: Date | null = null;
-  let esRegistro = false;
 
-  if (fechaPago) {
-    const d = new Date(fechaPago);
-    if (!isNaN(d.getTime())) {
-      const hasTime = d.getUTCHours() !== 0 || d.getUTCMinutes() !== 0 || d.getUTCSeconds() !== 0;
-      if (hasTime) {
-        horaDate = d;
-      }
-    }
-  }
-
-  if (!horaDate && createdAt) {
+  // La hora con la que se registró el pago en el momento (createdAt)
+  if (createdAt) {
     const d = new Date(createdAt);
     if (!isNaN(d.getTime())) {
       horaDate = d;
-      esRegistro = true;
+    }
+  }
+
+  // Fallback si no viniera createdAt
+  if (!horaDate && fechaPago) {
+    const d = new Date(fechaPago);
+    if (!isNaN(d.getTime())) {
+      horaDate = d;
     }
   }
 
   if (!horaDate) {
-    return { horaStr: '--:--', esRegistro: false, tooltip: 'Sin hora registrada' };
+    return { horaStr: '--:--', tooltip: 'Sin hora registrada' };
   }
 
   const horaStr = horaDate.toLocaleTimeString('es-MX', {
@@ -125,11 +122,16 @@ function formatHora(fechaPago?: string | null, createdAt?: string | null): { hor
     hour12: true,
   });
 
-  const tooltip = esRegistro
-    ? `Hora de registro en sistema: ${horaStr}`
-    : `Hora de pago: ${horaStr}${createdAt ? ` (Registrado: ${new Date(createdAt).toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit', hour12: true })})` : ''}`;
+  const fechaRegStr = horaDate.toLocaleDateString('es-MX', {
+    timeZone: 'America/Mexico_City',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 
-  return { horaStr, esRegistro, tooltip };
+  const tooltip = `Registrado en el momento: ${horaStr} (${fechaRegStr})${fechaPago ? ` | Fecha de pago asignada: ${formatDate(fechaPago)}` : ''}`;
+
+  return { horaStr, tooltip };
 }
 
 export default function PagosPage() {
@@ -895,7 +897,7 @@ export default function PagosPage() {
                   <tbody>
                     {filteredPagos.map((pago) => {
                       const dupInfo = duplicateMap[pago.id];
-                      const horaInfo = formatHora(pago.fechaPago, pago.createdAt);
+                      const horaInfo = formatHora(pago.createdAt, pago.fechaPago);
 
                       return (
                         <tr 
@@ -918,9 +920,6 @@ export default function PagosPage() {
                             >
                               <Clock className="h-3 w-3 text-gray-400 shrink-0" />
                               <span>{horaInfo.horaStr}</span>
-                              {horaInfo.esRegistro && (
-                                <span className="text-[10px] text-gray-400 font-sans">(Reg)</span>
-                              )}
                             </div>
                             {dupInfo?.isDuplicate && (
                               <div className="mt-1.5">
