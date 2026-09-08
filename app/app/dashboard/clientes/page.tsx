@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ClienteModal } from '@/components/clientes/ClienteModal';
 import { ImportarClientesModal } from '@/components/clientes/ImportarClientesModal';
+import { ImportarClienteContpaqiModal } from '@/components/clientes/ImportarClienteContpaqiModal';
 import { ImportarSaldosModal } from '@/components/clientes/ImportarSaldosModal';
 import { EstadoCuentaModal } from '@/components/clientes/EstadoCuentaModal';
 import { ExportButton } from '@/components/export-button';
@@ -30,7 +31,8 @@ import {
   Smartphone,
   Receipt,
   RefreshCw,
-  FileText
+  FileText,
+  Building2
 } from 'lucide-react';
 import { formatCurrency, formatDate, getDayName, getPeriodicidadLabel } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -77,6 +79,7 @@ export default function ClientesPage() {
   const [syncingClients, setSyncingClients] = useState<Record<string, boolean>>({});
   const [clienteModalOpen, setClienteModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importContpaqiModalOpen, setImportContpaqiModalOpen] = useState(false);
   const [importSaldosOpen, setImportSaldosOpen] = useState(false);
   const [importWelcomeMode, setImportWelcomeMode] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -369,6 +372,14 @@ export default function ClientesPage() {
                 filename={`clientes-${new Date().toISOString().split('T')[0]}`}
                 label="Exportar"
               />
+              <Button 
+                variant="outline" 
+                className="border-indigo-500 text-indigo-700 hover:bg-indigo-50 font-semibold" 
+                onClick={() => setImportContpaqiModalOpen(true)}
+              >
+                <Building2 className="h-4 w-4 mr-2 text-indigo-600" />
+                ContPAQi por Código
+              </Button>
               {userRole === 'admin' && (
                 <>
                   <Button variant="outline" onClick={() => {
@@ -775,6 +786,16 @@ export default function ClientesPage() {
         sucursales={sucursales}
         onSuccess={handleModalSuccess}
         readOnly={userRole === 'cobrador'}
+      />
+
+      <ImportarClienteContpaqiModal
+        open={importContpaqiModalOpen}
+        onOpenChange={setImportContpaqiModalOpen}
+        onSuccess={(cod) => {
+          handleModalSuccess();
+          if (cod) setSearchTerm(cod);
+        }}
+        cobradores={cobradores}
       />
 
       {userRole === 'admin' && (
