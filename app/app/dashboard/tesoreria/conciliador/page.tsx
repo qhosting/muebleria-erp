@@ -257,11 +257,25 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
         const movAbono = parseFloat(mov.abono?.toString() || "0");
         const isMontoExact = Math.abs(montoTicket - movAbono) < 0.01;
 
-        const bancoNombre = mov.bancoDestino || (mov.tabla?.includes("Banorte") ? "BANORTE" : "SANTANDER");
-        const ctaDestino = mov.cuentaDestino || (mov.tabla?.includes("22001022837") ? "22001022837" : mov.tabla?.includes("65505732541") ? "65505732541" : "0330253963");
-        const fechaStr = mov.fechaOperacion ? mov.fechaOperacion.toString().slice(0, 10) : "";
+        const bancoNombre = mov.bancoDestino || (mov.tabla?.includes("Banorte") ? "Banorte" : "Santander");
+        const ctaCompleta = mov.cuentaDestino || (mov.tabla?.includes("22001022837") ? "22001022837" : mov.tabla?.includes("65505732541") ? "65505732541" : "0330253963");
+        const ctaCorto = ctaCompleta.length > 4 ? ctaCompleta.slice(-4) : ctaCompleta;
+
+        // Formato de fecha legible corta (ej. 08/Sep o 08-09)
+        let fechaCorta = "";
+        if (mov.fechaOperacion) {
+            const fStr = mov.fechaOperacion.toString().slice(0, 10);
+            const p = fStr.split("-");
+            if (p.length === 3) {
+                const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+                const mIdx = parseInt(p[1], 10) - 1;
+                fechaCorta = `${p[2]}/${meses[mIdx] || p[1]}`;
+            } else {
+                fechaCorta = fStr;
+            }
+        }
         const horaStr = extractHoraOperacion(mov);
-        const horaDisplay = horaStr ? ` | Hr: ${horaStr}` : "";
+        const fechaHoraDisplay = horaStr ? `${fechaCorta} ${horaStr}` : fechaCorta;
 
         const movRaw = `${mov.claveRastreo || ''} ${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''} ${mov.referencia || ''}`.toUpperCase();
         const movNorm = movRaw.replace(/[^A-Z0-9]/g, "");
@@ -285,17 +299,29 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
                 etiquetaPrioridad = "🟣 Nombre";
             } else {
                 prioridad = 5;
-                etiquetaPrioridad = "🔴 Monto Exacto";
+                etiquetaPrioridad = "🔴 Monto";
             }
         }
 
-        const descFull = (mov.descripcionDetallada || mov.concepto || mov.descripcionGeneral || "ABONO").trim();
-        const descCorta = descFull.length > 55 ? `${descFull.slice(0, 55)}...` : descFull;
-        const rastreoTxt = mov.claveRastreo ? ` | Rastreo: ${mov.claveRastreo}` : "";
-        const refTxt = mov.referencia ? ` | Ref: ${mov.referencia}` : "";
+        // Colapsar espacios consecutivos para evitar que 50 espacios vacíos desplacen la información
+        const rawDesc = (mov.descripcionDetallada || mov.concepto || mov.descripcionGeneral || "ABONO").replace(/\s+/g, " ").trim();
+        const descCorta = rawDesc.length > 40 ? `${rawDesc.slice(0, 40)}...` : rawDesc;
+        const refCorto = mov.referencia ? String(mov.referencia).trim() : "";
+        const rastreoCorto = mov.claveRastreo ? String(mov.claveRastreo).trim() : "";
 
-        const statusMontoTag = isMontoExact ? "[✅ MONTO COINCIDE]" : `[⚠️ DIFIERE: $${movAbono.toFixed(2)} vs $${montoTicket.toFixed(2)}]`;
-        const label = `ID: ${movIdx} | ${statusMontoTag} | [${bancoNombre} ${ctaDestino}] | ${fechaStr}${horaDisplay} | $${movAbono.toFixed(2)} | ${descCorta}${refTxt}${rastreoTxt}${etiquetaPrioridad ? ` (${etiquetaPrioridad})` : ""}`;
+        // Tag identificador de prioridad para la opción
+        const tagPrioridad = etiquetaPrioridad ? `[${etiquetaPrioridad}]` : "";
+        const refOrRastreo = refCorto ? `Ref: ${refCorto}` : (rastreoCorto ? `SPEI: ${rastreoCorto.slice(-8)}` : "");
+        const infoExtra = [refOrRastreo, descCorta].filter(Boolean).join(" · ");
+
+        // Formato para el selector: conciso, legible, datos clave al inicio
+        // Ej: "#11 · [⚡ SPEI Exacto] · 08/Sep 12:58 · $500.00 · Sant(2837) · Ref: 00251199 · DEP EFECTIVO"
+        let label = "";
+        if (isMontoExact) {
+            label = `#${movIdx} · ${tagPrioridad ? `${tagPrioridad} · ` : ""}${fechaHoraDisplay} · $${movAbono.toFixed(2)} · ${bancoNombre}(${ctaCorto})${infoExtra ? ` · ${infoExtra}` : ""}`;
+        } else {
+            label = `#${movIdx} · [⚠️ DIFIERE $${movAbono.toFixed(2)}] · ${fechaHoraDisplay} · ${bancoNombre}(${ctaCorto})${infoExtra ? ` · ${infoExtra}` : ""}`;
+        }
 
         const item = {
             valKey,
@@ -304,6 +330,13 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
             prioridad,
             etiquetaPrioridad,
             isMontoExact,
+            movAbono,
+            bancoNombre,
+            ctaCorto,
+            fechaHoraDisplay,
+            refCorto,
+            rastreoCorto,
+            descCorta,
             label
         };
 
@@ -1271,10 +1304,14 @@ export default function ConciliadorPage() {
                                                                                         const horaOperacionStr = extractHoraOperacion(mov);
                                                                                         const horaLabel = horaOperacionStr ? ` ${horaOperacionStr}` : "";
                                                                                         const montoMov = parseFloat(mov.abono?.toString() || "0").toFixed(2);
-                                                                                        const bancoLabel = mov.bancoDestino || (mov.cuentaDestino ? `CTA ${mov.cuentaDestino}` : "BANCO");
+                                                                                        const bancoLabel = mov.bancoDestino || (mov.tabla?.includes("Banorte") ? "Banorte" : "Santander");
+                                                                                        const ctaCorto = mov.cuentaDestino ? mov.cuentaDestino.slice(-4) : (mov.tabla?.includes("22001022837") ? "2837" : mov.tabla?.includes("65505732541") ? "2541" : "3963");
+                                                                                        const rawDesc = (mov.descripcionDetallada || mov.concepto || mov.descripcionGeneral || "").replace(/\s+/g, " ").trim();
+                                                                                        const descCorta = rawDesc.length > 30 ? `${rawDesc.slice(0, 30)}...` : rawDesc;
+                                                                                        const refTxt = mov.referencia ? ` · Ref: ${mov.referencia}` : "";
                                                                                         return (
                                                                                             <option key={valKey} value={valKey}>
-                                                                                                ID:{movIndex} | {fechaOperacionStr}{horaLabel} | ${montoMov} | [{bancoLabel}]
+                                                                                                #{movIndex} · {fechaOperacionStr}{horaLabel} · ${montoMov} · {bancoLabel}({ctaCorto}){refTxt}{descCorta ? ` · ${descCorta}` : ""}
                                                                                             </option>
                                                                                         );
                                                                                     })}
@@ -1289,10 +1326,11 @@ export default function ConciliadorPage() {
                                                                                         const horaOperacionStr = extractHoraOperacion(mov);
                                                                                         const horaLabel = horaOperacionStr ? ` ${horaOperacionStr}` : "";
                                                                                         const montoMov = parseFloat(mov.abono?.toString() || "0").toFixed(2);
-                                                                                        const bancoLabel = mov.bancoDestino || (mov.cuentaDestino ? `CTA ${mov.cuentaDestino}` : "BANCO");
+                                                                                        const bancoLabel = mov.bancoDestino || (mov.tabla?.includes("Banorte") ? "Banorte" : "Santander");
+                                                                                        const ctaCorto = mov.cuentaDestino ? mov.cuentaDestino.slice(-4) : (mov.tabla?.includes("22001022837") ? "2837" : mov.tabla?.includes("65505732541") ? "2541" : "3963");
                                                                                         return (
                                                                                             <option key={valKey} value={valKey}>
-                                                                                                [⚠️ NO COINCIDE] ID:{movIndex} | ${montoMov} vs ${montoTicketNum.toFixed(2)} | [{bancoLabel}]
+                                                                                                [⚠️ NO COINCIDE] #{movIndex} · {fechaOperacionStr}{horaLabel} · ${montoMov} vs ${montoTicketNum.toFixed(2)} · {bancoLabel}({ctaCorto})
                                                                                             </option>
                                                                                         );
                                                                                     })}
@@ -1635,8 +1673,8 @@ export default function ConciliadorPage() {
                                         </div>
 
                                         {/* Dropdown de Movimiento Bancario con Sugerencias y Manual */}
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center gap-2">
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between gap-2">
                                                 <label className="text-xs font-bold text-gray-800 block">
                                                     Sugerencias / Selección Manual:
                                                 </label>
@@ -1650,6 +1688,65 @@ export default function ConciliadorPage() {
                                                     </Badge>
                                                 )}
                                             </div>
+
+                                            {/* 🌟 Tarjetas de Selección Rápida para Sugerencias */}
+                                            {sugerencias.length > 0 && !estaConciliado && (
+                                                <div className="space-y-1.5 bg-slate-50/90 p-2.5 rounded-lg border border-slate-200">
+                                                    <div className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+                                                        <span>🎯 Sugerencias destacadas (clic para seleccionar):</span>
+                                                        <span className="text-[10px] text-emerald-700 font-semibold font-mono">
+                                                            {sugerencias.length} coinciden
+                                                        </span>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                        {sugerencias.slice(0, 4).map((sug) => {
+                                                            const isSelected = selectedMovValue === sug.valKey;
+                                                            return (
+                                                                <button
+                                                                    key={sug.valKey}
+                                                                    type="button"
+                                                                    onClick={() => setSelectedMovByTicket(prev => ({ ...prev, [ticket.id]: sug.valKey }))}
+                                                                    className={`text-left p-2.5 rounded-lg border text-xs transition-all flex flex-col justify-between gap-1.5 cursor-pointer ${
+                                                                        isSelected
+                                                                            ? "border-emerald-500 bg-emerald-50/90 ring-2 ring-emerald-500 shadow-sm"
+                                                                            : "border-gray-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/40"
+                                                                    }`}
+                                                                >
+                                                                    <div className="flex items-center justify-between gap-1">
+                                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                                            <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                                                                                #{sug.movIdx}
+                                                                            </span>
+                                                                            <span className="font-bold text-gray-900 text-xs">
+                                                                                {sug.etiquetaPrioridad || "⭐ Coincidencia"}
+                                                                            </span>
+                                                                        </div>
+                                                                        <span className="font-mono font-black text-emerald-700 text-xs">
+                                                                            ${sug.movAbono.toFixed(2)}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <div className="flex items-center justify-between text-[11px] text-gray-600 font-medium">
+                                                                        <span>{sug.bancoNombre} ({sug.ctaCorto})</span>
+                                                                        <span className="font-mono text-gray-800 font-semibold">{sug.fechaHoraDisplay}</span>
+                                                                    </div>
+
+                                                                    {(sug.refCorto || sug.rastreoCorto || sug.descCorta) && (
+                                                                        <div className="text-[10px] text-gray-500 truncate pt-1 border-t border-gray-100 font-mono">
+                                                                            {sug.refCorto ? `Ref: ${sug.refCorto} ` : ""}{sug.rastreoCorto ? `SPEI: ${sug.rastreoCorto} ` : ""}{sug.descCorta}
+                                                                        </div>
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    {sugerencias.length > 4 && (
+                                                        <p className="text-[10px] text-gray-500 italic mt-0.5">
+                                                            Mostrando las mejores 4 sugerencias. Usa el menú abajo para ver todas las {sugerencias.length} opciones.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
 
                                             <select
                                                 value={selectedMovValue || ""}
