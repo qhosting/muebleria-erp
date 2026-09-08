@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,9 @@ import {
   Filter,
   Download,
   Calendar,
+  Clock,
+  AlertTriangle,
+  AlertCircle,
   User,
   DollarSign,
   FileText,
@@ -23,7 +26,7 @@ import {
   Printer,
   Copy
 } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { EditPagoModal } from '@/components/pagos/EditPagoModal';
 import { VisualizarTicketModal, TicketData } from '@/components/mobile/visualizar-ticket-modal';
@@ -43,8 +46,11 @@ interface Pago {
     id?: string;
     folio?: string;
     referencia?: string;
+    claveRastreo?: string;
+    fecha?: string;
   } | null;
   fechaPago: string;
+  createdAt?: string;
   saldoAnterior: number;
   saldoNuevo: number;
   ticketImpreso: boolean;
@@ -72,6 +78,60 @@ interface EstadisticasPagos {
   ticketsImpresos: number;
 }
 
+interface DuplicadoInfo {
+  isDuplicate: boolean;
+  motivo: string;
+  coincidencias: {
+    id: string;
+    fechaPago: string;
+    createdAt?: string;
+    monto: number;
+    folio?: string;
+    claveRastreo?: string;
+  }[];
+}
+
+function formatHora(fechaPago?: string | null, createdAt?: string | null): { horaStr: string; esRegistro: boolean; tooltip: string } {
+  let horaDate: Date | null = null;
+  let esRegistro = false;
+
+  if (fechaPago) {
+    const d = new Date(fechaPago);
+    if (!isNaN(d.getTime())) {
+      const hasTime = d.getUTCHours() !== 0 || d.getUTCMinutes() !== 0 || d.getUTCSeconds() !== 0;
+      if (hasTime) {
+        horaDate = d;
+      }
+    }
+  }
+
+  if (!horaDate && createdAt) {
+    const d = new Date(createdAt);
+    if (!isNaN(d.getTime())) {
+      horaDate = d;
+      esRegistro = true;
+    }
+  }
+
+  if (!horaDate) {
+    return { horaStr: '--:--', esRegistro: false, tooltip: 'Sin hora registrada' };
+  }
+
+  const horaStr = horaDate.toLocaleTimeString('es-MX', {
+    timeZone: 'America/Mexico_City',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+
+  const tooltip = esRegistro
+    ? `Hora de registro en sistema: ${horaStr}`
+    : `Hora de pago: ${horaStr}${createdAt ? ` (Registrado: ${new Date(createdAt).toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit', hour12: true })})` : ''}`;
+
+  return { horaStr, esRegistro, tooltip };
+}
+
 export default function PagosPage() {
   const { data: session } = useSession();
   const userRole = (session?.user as any)?.role;
@@ -86,6 +146,99 @@ export default function PagosPage() {
   const [fechaHasta, setFechaHasta] = useState('');
   const [activeDbSearch, setActiveDbSearch] = useState('');
   const [isDbSearching, setIsDbSearching] = useState(false);
+  const [soloDuplicados, setSoloDuplicados] = useState(false);
+
+  // Detección automática de pagos duplicados en la lista cargada
+  const duplicateMap = useMemo(() => {
+    const map: Record<string, DuplicadoInfo> = {};
+    if (!pagos || pagos.length <= 1) return map;
+
+    for (let i = 0; i < pagos.length; i++) {
+      const p1 = pagos[i];
+      const codCli1 = (p1.cliente?.codigoCliente || '').trim().toUpperCase();
+      const m1 = Number(p1.monto || 0);
+      if (!codCli1 || m1 <= 0) continue;
+
+      for (let j = i + 1; j < pagos.length; j++) {
+        const p2 = pagos[j];
+        const codCli2 = (p2.cliente?.codigoCliente || '').trim().toUpperCase();
+        const m2 = Number(p2.monto || 0);
+
+        // Coincidencia estricta: Mismo cliente y mismo monto
+        if (codCli1 === codCli2 && m1 === m2) {
+          const fol1 = (p1.ticket?.folio || '').trim();
+          const fol2 = (p2.ticket?.folio || '').trim();
+          const clv1 = (p1.ticket?.claveRastreo || '').trim();
+          const clv2 = (p2.ticket?.claveRastreo || '').trim();
+
+          // Criterio A: Mismo folio o clave de rastreo bancario
+          const sharesComprobante =
+            Boolean((fol1 && (fol1 === fol2 || fol1 === clv2)) ||
+            (clv1 && (clv1 === fol2 || clv1 === clv2)));
+
+          // Criterio B: Misma fecha calendario de pago
+          const f1 = p1.fechaPago ? p1.fechaPago.slice(0, 10) : '';
+          const f2 = p2.fechaPago ? p2.fechaPago.slice(0, 10) : '';
+          const sameDay = Boolean(f1 && f2 && f1 === f2);
+
+          // Criterio C: Diferencia en horas/minutos entre registros o pagos
+          const t1 = p1.createdAt ? new Date(p1.createdAt).getTime() : (p1.fechaPago ? new Date(p1.fechaPago).getTime() : 0);
+          const t2 = p2.createdAt ? new Date(p2.createdAt).getTime() : (p2.fechaPago ? new Date(p2.fechaPago).getTime() : 0);
+          const diffMin = (t1 && t2) ? Math.abs(t2 - t1) / (1000 * 60) : 999999;
+          const diffHours = diffMin / 60;
+
+          let esDuplicado = false;
+          let motivo = '';
+
+          if (sharesComprobante) {
+            esDuplicado = true;
+            motivo = `Mismo comprobante o clave bancaria (${fol1 || clv1})`;
+          } else if (sameDay && diffMin <= 180) {
+            esDuplicado = true;
+            motivo = `Mismo día y registrado con solo ${Math.round(diffMin)} min de diferencia`;
+          } else if (sameDay) {
+            esDuplicado = true;
+            motivo = `Misma fecha de pago (${f1}) con idéntico monto ($${m1})`;
+          } else if (diffHours <= 72) {
+            esDuplicado = true;
+            motivo = `Mismo monto ($${m1}) registrado con ${Math.round(diffHours)}h de diferencia`;
+          }
+
+          if (esDuplicado) {
+            if (!map[p1.id]) {
+              map[p1.id] = { isDuplicate: true, motivo, coincidencias: [] };
+            }
+            map[p1.id].coincidencias.push({
+              id: p2.id,
+              fechaPago: p2.fechaPago,
+              createdAt: p2.createdAt,
+              monto: m2,
+              folio: fol2,
+              claveRastreo: clv2
+            });
+
+            if (!map[p2.id]) {
+              map[p2.id] = { isDuplicate: true, motivo, coincidencias: [] };
+            }
+            map[p2.id].coincidencias.push({
+              id: p1.id,
+              fechaPago: p1.fechaPago,
+              createdAt: p1.createdAt,
+              monto: m1,
+              folio: fol1,
+              claveRastreo: clv1
+            });
+          }
+        }
+      }
+    }
+
+    return map;
+  }, [pagos]);
+
+  const totalDuplicados = useMemo(() => {
+    return Object.keys(duplicateMap).length;
+  }, [duplicateMap]);
   
   // Edit modal states
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -432,6 +585,9 @@ export default function PagosPage() {
   };
 
   const filteredPagos = pagos.filter(pago => {
+    if (soloDuplicados && !duplicateMap[pago.id]?.isDuplicate) {
+      return false;
+    }
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     const idStr = (pago.id || '').toLowerCase();
@@ -530,6 +686,42 @@ export default function PagosPage() {
             </CardContent>
           </Card>
         </div>
+ 
+        {/* Banner de alerta de pagos duplicados */}
+        {totalDuplicados > 0 && (
+          <div className="bg-gradient-to-r from-rose-50 via-amber-50 to-orange-50 border border-rose-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-rose-950 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-full bg-rose-100 text-rose-600 shrink-0">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-bold text-sm text-rose-900 flex items-center gap-2">
+                  <span>Se detectaron {totalDuplicados} pagos con sospecha de duplicidad</span>
+                  <Badge variant="outline" className="bg-rose-100 text-rose-800 border-rose-300 text-[10px] font-bold uppercase tracking-wider">
+                    Atención
+                  </Badge>
+                </p>
+                <p className="text-xs text-rose-700 mt-0.5">
+                  Coinciden en código de cliente, monto y fecha/hora cercana o mismo comprobante bancario.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant={soloDuplicados ? "destructive" : "outline"}
+              size="sm"
+              onClick={() => setSoloDuplicados(!soloDuplicados)}
+              className={cn(
+                "gap-1.5 font-bold text-xs whitespace-nowrap shadow-sm transition-all",
+                soloDuplicados 
+                  ? "bg-rose-600 hover:bg-rose-700 text-white" 
+                  : "border-rose-300 text-rose-800 bg-white hover:bg-rose-100"
+              )}
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {soloDuplicados ? "Ver todos los pagos" : `Filtrar solo duplicados (${totalDuplicados})`}
+            </Button>
+          </div>
+        )}
 
         {/* Filtros */}
         <Card>
@@ -690,7 +882,7 @@ export default function PagosPage() {
                 <table className="w-full table-auto">
                   <thead>
                     <tr className="border-b bg-gray-50">
-                      <th className="text-left p-3 font-medium text-gray-900">Fecha</th>
+                      <th className="text-left p-3 font-medium text-gray-900">Fecha y Hora</th>
                       <th className="text-left p-3 font-medium text-gray-900">Folio / ID</th>
                       <th className="text-left p-3 font-medium text-gray-900">Cliente</th>
                       <th className="text-left p-3 font-medium text-gray-900">Concepto</th>
@@ -701,100 +893,160 @@ export default function PagosPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredPagos.map((pago) => (
-                      <tr key={pago.id} className="border-b hover:bg-gray-50">
-                        <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm font-medium">{formatDate(pago.fechaPago)}</span>
-                          </div>
-                          {pago.semanaCobranza ? (
-                            <div className="mt-1">
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                Sem {pago.semanaCobranza}
-                              </span>
-                            </div>
-                          ) : null}
-                        </td>
-                        <td className="p-3 whitespace-nowrap">
-                          <div className="flex flex-col items-start gap-1">
-                            <div className="flex items-center gap-1.5">
-                              <span
-                                className="font-mono text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded border border-slate-200 cursor-pointer select-all transition-colors"
-                                title="Clic para copiar ID completo"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(pago.id);
-                                  toast.success(`Folio copiado: ${pago.id}`);
-                                }}
-                              >
-                                {pago.id}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(pago.id);
-                                  toast.success(`Folio copiado: ${pago.id}`);
-                                }}
-                                className="text-gray-400 hover:text-gray-600 p-0.5 rounded transition-colors"
-                                title="Copiar Folio / ID"
-                              >
-                                <Copy className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-1">
-                              {pago.numeroRecibo && (
-                                <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded border border-blue-200 font-mono">
-                                  Rec: {pago.numeroRecibo}
-                                </span>
-                              )}
-                              {pago.ticket?.folio && (
-                                <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.2 rounded border border-amber-200 font-mono">
-                                  Tkt: {pago.ticket.folio}
-                                </span>
-                              )}
-                              {pago.metodoPago && pago.metodoPago.toLowerCase() !== 'gestor' && (
-                                <span className="text-[10px] text-gray-500 uppercase font-medium bg-gray-50 px-1 py-0.2 rounded border border-gray-200">
-                                  {pago.metodoPago}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <div>
-                            <p className="font-medium text-gray-900">{pago.cliente.nombreCompleto}</p>
-                            <p className="text-sm text-gray-600">{pago.cliente.codigoCliente}</p>
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <span className="text-sm text-gray-900">{pago.concepto}</span>
-                        </td>
-                        <td className="p-3">
-                          <Badge
-                            className={
-                              pago.tipoPago === 'regular'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
-                            }
-                          >
-                            {pago.tipoPago === 'regular' ? 'Regular' : 'Moratorio'}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-right">
-                          <span className="font-medium text-green-600">
-                            {formatCurrency(pago.monto)}
-                          </span>
-                          {pago.interesMoratorio && pago.interesMoratorio > 0 ? (
-                            <div className="text-xs text-orange-600 font-medium">
-                              + {formatCurrency(pago.interesMoratorio)} moratorio
-                            </div>
-                          ) : null}
-                          {pago.tipoPago === 'regular' && (
-                            <div className="text-xs text-gray-500">
-                              Saldo: {formatCurrency(pago.saldoAnterior)} → {formatCurrency(pago.saldoNuevo)}
-                            </div>
+                    {filteredPagos.map((pago) => {
+                      const dupInfo = duplicateMap[pago.id];
+                      const horaInfo = formatHora(pago.fechaPago, pago.createdAt);
+
+                      return (
+                        <tr 
+                          key={pago.id} 
+                          className={cn(
+                            "border-b transition-colors",
+                            dupInfo?.isDuplicate 
+                              ? "bg-rose-50/60 hover:bg-rose-100/70 border-l-4 border-l-rose-500" 
+                              : "hover:bg-gray-50"
                           )}
-                        </td>
+                        >
+                          <td className="p-3 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                              <span className="text-sm font-semibold text-gray-900">{formatDate(pago.fechaPago)}</span>
+                            </div>
+                            <div 
+                              className="flex items-center gap-1.5 mt-0.5 text-xs text-gray-600 font-mono cursor-help"
+                              title={horaInfo.tooltip}
+                            >
+                              <Clock className="h-3 w-3 text-gray-400 shrink-0" />
+                              <span>{horaInfo.horaStr}</span>
+                              {horaInfo.esRegistro && (
+                                <span className="text-[10px] text-gray-400 font-sans">(Reg)</span>
+                              )}
+                            </div>
+                            {dupInfo?.isDuplicate && (
+                              <div className="mt-1.5">
+                                <span 
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 cursor-help select-none"
+                                  title={`⚠️ ALERTA DE DUPLICADO:\n${dupInfo.motivo}\nCoincide con: ${dupInfo.coincidencias.map(c => `${c.id} ($${c.monto})`).join(', ')}`}
+                                >
+                                  <AlertTriangle className="h-3 w-3 text-rose-600 shrink-0" />
+                                  Posible duplicado
+                                </span>
+                              </div>
+                            )}
+                            {pago.semanaCobranza ? (
+                              <div className="mt-1">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  Sem {pago.semanaCobranza}
+                                </span>
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="p-3 whitespace-nowrap">
+                            <div className="flex flex-col items-start gap-1">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className="font-mono text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded border border-slate-200 cursor-pointer select-all transition-colors"
+                                  title="Clic para copiar ID completo"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(pago.id);
+                                    toast.success(`Folio copiado: ${pago.id}`);
+                                  }}
+                                >
+                                  {pago.id}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(pago.id);
+                                    toast.success(`Folio copiado: ${pago.id}`);
+                                  }}
+                                  className="text-gray-400 hover:text-gray-600 p-0.5 rounded transition-colors"
+                                  title="Copiar Folio / ID"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1">
+                                {pago.numeroRecibo && (
+                                  <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded border border-blue-200 font-mono">
+                                    Rec: {pago.numeroRecibo}
+                                  </span>
+                                )}
+                                {pago.ticket?.folio && (
+                                  <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.2 rounded border border-amber-200 font-mono">
+                                    Tkt: {pago.ticket.folio}
+                                  </span>
+                                )}
+                                {pago.ticket?.claveRastreo && (
+                                  <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.2 rounded border border-purple-200 font-mono">
+                                    Clv: {pago.ticket.claveRastreo}
+                                  </span>
+                                )}
+                                {pago.metodoPago && pago.metodoPago.toLowerCase() !== 'gestor' && (
+                                  <span className="text-[10px] text-gray-500 uppercase font-medium bg-gray-50 px-1 py-0.2 rounded border border-gray-200">
+                                    {pago.metodoPago}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <div>
+                              <p className="font-medium text-gray-900">{pago.cliente.nombreCompleto}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span
+                                  className={cn(
+                                    "text-xs font-mono px-1.5 py-0.5 rounded",
+                                    dupInfo?.isDuplicate
+                                      ? "font-bold text-rose-800 bg-rose-100 border border-rose-200"
+                                      : "text-gray-600 bg-gray-100"
+                                  )}
+                                >
+                                  {pago.cliente.codigoCliente}
+                                </span>
+                                {dupInfo?.isDuplicate && (
+                                  <span className="text-[10px] text-rose-600 font-bold">Cliente coincidente</span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <span className="text-sm text-gray-900">{pago.concepto}</span>
+                          </td>
+                          <td className="p-3">
+                            <Badge
+                              className={
+                                pago.tipoPago === 'regular'
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-red-100 text-red-800'
+                              }
+                            >
+                              {pago.tipoPago === 'regular' ? 'Regular' : 'Moratorio'}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-right">
+                            <span className={cn(
+                              "font-semibold text-sm",
+                              dupInfo?.isDuplicate ? "text-rose-700 font-bold" : "text-green-600"
+                            )}>
+                              {formatCurrency(pago.monto)}
+                            </span>
+                            {dupInfo?.isDuplicate && (
+                              <div className="text-[10px] text-rose-600 font-bold">
+                                Monto coincidente
+                              </div>
+                            )}
+                            {pago.interesMoratorio && pago.interesMoratorio > 0 ? (
+                              <div className="text-xs text-orange-600 font-medium">
+                                + {formatCurrency(pago.interesMoratorio)} moratorio
+                              </div>
+                            ) : null}
+                            {pago.tipoPago === 'regular' && (
+                              <div className="text-xs text-gray-500">
+                                Saldo: {formatCurrency(pago.saldoAnterior)} → {formatCurrency(pago.saldoNuevo)}
+                              </div>
+                            )}
+                          </td>
                         <td className="p-3">
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-gray-400" />
@@ -840,7 +1092,8 @@ export default function PagosPage() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>

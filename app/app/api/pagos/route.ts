@@ -81,6 +81,8 @@ export async function GET(request: NextRequest) {
               id: true,
               folio: true,
               referencia: true,
+              claveRastreo: true,
+              fecha: true,
             },
           },
         },
