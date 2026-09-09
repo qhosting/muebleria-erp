@@ -30,7 +30,7 @@ interface ImportarClienteContpaqiModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: (codigo?: string) => void;
-  cobradores?: User[];
+  cobradores?: (User & { codigoGestor?: string | null })[];
 }
 
 export function ImportarClienteContpaqiModal({
