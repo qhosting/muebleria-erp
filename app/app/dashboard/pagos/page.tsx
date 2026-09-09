@@ -1063,10 +1063,18 @@ export default function PagosPage() {
                                 + {formatCurrency(pago.interesMoratorio)} moratorio
                               </div>
                             ) : null}
-                            {pago.tipoPago === 'regular' && (
-                              <div className="text-xs text-gray-500">
-                                Saldo: {formatCurrency(pago.saldoAnterior)} → {formatCurrency(pago.saldoNuevo)}
-                              </div>
+                            {(pago.tipoPago === 'regular' || pago.saldoAnterior > 0 || pago.saldoNuevo > 0) && (
+                              <button
+                                type="button"
+                                onClick={() => handleEditPago(pago)}
+                                className="mt-1 inline-flex items-center justify-end gap-1 text-[11px] text-slate-600 hover:text-blue-700 bg-slate-100/90 hover:bg-blue-50 px-2 py-0.5 rounded border border-slate-200 hover:border-blue-300 transition-colors group cursor-pointer text-right ml-auto"
+                                title="Haga clic para editar el saldo de este pago"
+                              >
+                                <span>
+                                  Saldo: <span className="font-mono">{formatCurrency(pago.saldoAnterior)}</span> → <span className="font-mono font-semibold text-slate-800 group-hover:text-blue-700">{formatCurrency(pago.saldoNuevo)}</span>
+                                </span>
+                                <Edit className="h-2.5 w-2.5 opacity-50 group-hover:opacity-100 group-hover:text-blue-600" />
+                              </button>
                             )}
                           </td>
                         <td className="p-3">

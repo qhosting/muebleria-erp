@@ -416,8 +416,14 @@ export async function GET(request: NextRequest) {
                     }
                 }
 
-                // Prioridad 6: Solo coincidencia de monto exacto y misma fecha
+                // Prioridad 6: Solo coincidencia de monto exacto y misma fecha (sin contradicción de contrato)
                 if (isMontoExact && bestPriority > 6) {
+                    // Si el banco trae explícitamente otro código de contrato (DP o DQ), no emparejar ciegamente
+                    const contratoEnMov = dataPool.match(/\b(DP\d{7}|DQ\d{7})\b/);
+                    if (contratoEnMov && contratoEnMov[0] !== normalizedContrato) {
+                        continue;
+                    }
+
                     const ticketDate = ticket.fecha || ticket.creadoEn;
                     if (ticketDate && mov.fechaOperacion) {
                         const tDate = new Date(ticketDate);
@@ -1012,13 +1018,14 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                // --- TIER 6: Monto Exacto + Fecha Cercana (<= 3 días) ---
+                // --- TIER 6: Monto Exacto + Fecha Cercana (<= 3 días) sin contradicción de contrato ---
                 for (const ticket of ticketsPendientes) {
                     if (matchedTicketIds.has(ticket.id)) continue;
                     const montoTicket = parseFloat(ticket.monto.toString());
                     const fechaTktDate = ticket.fecha || ticket.creadoEn;
                     if (!fechaTktDate) continue;
                     const fechaTkt = new Date(fechaTktDate).getTime();
+                    const tktContrato = (ticket.cliente?.codigoCliente || '').toUpperCase();
 
                     for (const mov of movimientosPool) {
                         const movKey = `${mov.tabla}__${mov.id}`;
@@ -1026,6 +1033,13 @@ export async function POST(request: NextRequest) {
                         const movAbono = parseFloat(mov.abono?.toString() || '0');
                         if (Math.abs(montoTicket - movAbono) >= 0.01) continue;
                         if (!mov.fechaOperacion) continue;
+
+                        // Si el movimiento contiene explícitamente otro contrato DP o DQ, omitir match
+                        const movRawText = `${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''}`.toUpperCase();
+                        const contratoEnMov = movRawText.match(/\b(DP\d{7}|DQ\d{7})\b/);
+                        if (contratoEnMov && contratoEnMov[0] !== tktContrato) {
+                            continue;
+                        }
 
                         const fechaMov = new Date(mov.fechaOperacion).getTime();
                         const diffDias = Math.abs(fechaMov - fechaTkt) / (1000 * 60 * 60 * 24);

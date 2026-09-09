@@ -181,13 +181,24 @@ export async function PUT(
   try {
     const session = await getServerSession(authOptions);
     const userRole = (session?.user as any)?.role?.toString().toLowerCase();
-    if (!session || !['admin', 'superadmin', 'direccion'].includes(userRole)) {
+    if (!session || !['admin', 'superadmin', 'direccion', 'gestor_cobranza'].includes(userRole)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     const pagoId = params.id;
     const body = await request.json();
-    const { concepto, metodoPago, tipoPago, cobradorId, fechaPago, monto, interesMoratorio } = body;
+    const { 
+      concepto, 
+      metodoPago, 
+      tipoPago, 
+      cobradorId, 
+      fechaPago, 
+      monto, 
+      interesMoratorio,
+      saldoAnterior,
+      saldoNuevo,
+      actualizarSaldoCliente 
+    } = body;
 
     const pagoExistente = await prisma.pago.findUnique({
       where: { id: pagoId },
@@ -199,20 +210,43 @@ export async function PUT(
     }
 
     const resultado = await prisma.$transaction(async (tx) => {
-      const montoNuevo = monto !== undefined ? parseFloat(monto.toString()) : parseFloat(pagoExistente.monto.toString());
-      const interesMoratorioNuevo = interesMoratorio !== undefined ? parseFloat(interesMoratorio.toString()) : parseFloat(pagoExistente.interesMoratorio.toString());
+      const montoNuevo = monto !== undefined && monto !== null && !isNaN(parseFloat(monto.toString()))
+        ? parseFloat(monto.toString())
+        : parseFloat(pagoExistente.monto.toString());
+      const interesMoratorioNuevo = interesMoratorio !== undefined && interesMoratorio !== null && !isNaN(parseFloat(interesMoratorio.toString()))
+        ? parseFloat(interesMoratorio.toString())
+        : parseFloat(pagoExistente.interesMoratorio.toString());
       const tipoPagoNuevo = tipoPago !== undefined ? tipoPago : pagoExistente.tipoPago;
-      
-      let saldoNuevo = pagoExistente.saldoNuevo;
+
+      // Saldo anterior
+      const saldoAnteriorFinal = (saldoAnterior !== undefined && saldoAnterior !== null && !isNaN(parseFloat(saldoAnterior.toString())))
+        ? new Prisma.Decimal(parseFloat(saldoAnterior.toString()))
+        : pagoExistente.saldoAnterior;
+
+      // Saldo nuevo
+      let saldoNuevoFinal: Prisma.Decimal;
+      if (saldoNuevo !== undefined && saldoNuevo !== null && !isNaN(parseFloat(saldoNuevo.toString()))) {
+        saldoNuevoFinal = new Prisma.Decimal(parseFloat(saldoNuevo.toString()));
+      } else if (tipoPagoNuevo === 'regular') {
+        saldoNuevoFinal = new Prisma.Decimal(Math.max(0, parseFloat(saldoAnteriorFinal.toString()) - montoNuevo));
+      } else {
+        saldoNuevoFinal = saldoAnteriorFinal;
+      }
 
       // Lógica de actualización de saldo del cliente
-      // Solo si el tipo de pago era o es 'regular' afecta el saldo
-      if (pagoExistente.tipoPago === 'regular' || tipoPagoNuevo === 'regular') {
+      if (actualizarSaldoCliente && pagoExistente.clienteId) {
+        await tx.cliente.update({
+          where: { id: pagoExistente.clienteId },
+          data: {
+            saldoActual: saldoNuevoFinal
+          }
+        });
+      } else if (pagoExistente.tipoPago === 'regular' || tipoPagoNuevo === 'regular') {
         const montoAnteriorEfectivo = pagoExistente.tipoPago === 'regular' ? parseFloat(pagoExistente.monto.toString()) : 0;
         const montoNuevoEfectivo = tipoPagoNuevo === 'regular' ? montoNuevo : 0;
         const diferencia = montoNuevoEfectivo - montoAnteriorEfectivo;
 
-        if (diferencia !== 0) {
+        if (diferencia !== 0 && pagoExistente.clienteId) {
           await tx.cliente.update({
             where: { id: pagoExistente.clienteId },
             data: {
@@ -221,14 +255,6 @@ export async function PUT(
               }
             }
           });
-        }
-
-        // Recalcular el saldoNuevo para este registro de pago
-        if (tipoPagoNuevo === 'regular') {
-          saldoNuevo = new Prisma.Decimal(parseFloat(pagoExistente.saldoAnterior.toString()) - montoNuevo);
-        } else {
-          // Si ya no es regular, el saldo nuevo es igual al anterior
-          saldoNuevo = pagoExistente.saldoAnterior;
         }
       }
 
@@ -268,17 +294,19 @@ export async function PUT(
           tipoPago: tipoPagoNuevo,
           cobradorId: cobradorId !== undefined ? cobradorId : pagoExistente.cobradorId,
           fechaPago: nuevaFechaPago,
-          saldoNuevo: saldoNuevo
+          saldoAnterior: saldoAnteriorFinal,
+          saldoNuevo: saldoNuevoFinal
         },
         include: {
           cliente: { 
             select: { 
+              id: true,
               nombreCompleto: true,
               codigoCliente: true,
               saldoActual: true 
             } 
           },
-          cobrador: { select: { name: true } }
+          cobrador: { select: { id: true, name: true } }
         }
       });
     });

@@ -67,8 +67,13 @@ export async function GET(request: NextRequest) {
         include: {
           cliente: {
             select: {
+              id: true,
               codigoCliente: true,
               nombreCompleto: true,
+              saldoActual: true,
+              diaPago: true,
+              telefono: true,
+              direccionCompleta: true,
             },
           },
           cobrador: {
@@ -130,6 +135,10 @@ export async function GET(request: NextRequest) {
         gastosCobranza: pago.gastosCobranza ? parseFloat(pago.gastosCobranza.toString()) : 0,
         saldoAnterior: saldoAnt,
         saldoNuevo: saldoNvo,
+        cliente: pago.cliente ? {
+          ...pago.cliente,
+          saldoActual: pago.cliente.saldoActual ? parseFloat(pago.cliente.saldoActual.toString()) : 0,
+        } : null,
       };
     });
 

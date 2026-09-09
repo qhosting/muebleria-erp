@@ -38,6 +38,7 @@ import {
     CreditCard
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { calcularSemanaCobranzaSabadoViernes, calcularRangoSemanaSabadoViernes } from "@/lib/calendario-cobranza-utils";
 import { toast } from "sonner";
 
 // Formatear Hora de Operación Bancaria
@@ -785,7 +786,7 @@ export default function BancosPage() {
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left align-middle text-gray-600">
                                     {(() => {
-                                        const colSpan = activeTab === "todas" ? 15 : 14;
+                                        const colSpan = activeTab === "todas" ? 16 : 15;
                                         return (
                                             <>
                                                 <thead className="bg-gray-50/75 border-b border-gray-100 font-medium text-gray-700">
@@ -803,6 +804,7 @@ export default function BancosPage() {
                                                         <th className="px-3 py-3 text-right text-red-700 whitespace-nowrap">Cargo</th>
                                                         <th className="px-3 py-3 text-right text-blue-700 whitespace-nowrap">Saldo</th>
                                                         <th className="px-3 py-3 text-center whitespace-nowrap min-w-[150px]">Ticket Conciliado</th>
+                                                        <th className="px-3 py-3 text-center whitespace-nowrap">Semana</th>
                                                         <th className="px-3 py-3 text-center whitespace-nowrap">Estatus</th>
                                                         <th className="px-3 py-3 text-center w-16">Ficha</th>
                                                     </tr>
@@ -1009,6 +1011,29 @@ export default function BancosPage() {
                                                                                 )}
                                                                             </div>
                                                                         ) : (
+                                                                            <span className="text-gray-400 text-xs">—</span>
+                                                                        )}
+                                                                    </td>
+
+                                                                    {/* Semana de Cobranza (calculada con el ciclo Sábado a Viernes) */}
+                                                                    <td className="px-3 py-3 text-center whitespace-nowrap">
+                                                                        {esConciliado ? (() => {
+                                                                            const fechaParaSemana = fechaTicketRaw || mov.fechaOperacion;
+                                                                            const sem = calcularSemanaCobranzaSabadoViernes(fechaParaSemana);
+                                                                            const rango = calcularRangoSemanaSabadoViernes(sem.semana, sem.anio);
+                                                                            return (
+                                                                                <div className="flex flex-col items-center">
+                                                                                    <Badge 
+                                                                                        variant="outline" 
+                                                                                        className="text-xs font-semibold border-indigo-200 text-indigo-800 bg-indigo-50/80 px-2 py-0.5 shadow-sm"
+                                                                                        title={`Ciclo Operativo: Del ${rango.inicioStr} al ${rango.finStr}`}
+                                                                                    >
+                                                                                        Sem {sem.semana}
+                                                                                    </Badge>
+                                                                                    <span className="text-[10px] text-gray-400 font-medium mt-0.5">{sem.anio}</span>
+                                                                                </div>
+                                                                            );
+                                                                        })() : (
                                                                             <span className="text-gray-400 text-xs">—</span>
                                                                         )}
                                                                     </td>
@@ -1625,6 +1650,19 @@ export default function BancosPage() {
                                                 <span className="font-medium text-xs text-slate-700 block">
                                                     {detalleModalMov.ticket?.fecha || detalleModalMov.ticket?.creadoEn ? formatDate(detalleModalMov.ticket.fecha || detalleModalMov.ticket.creadoEn).split(" ")[0] : "—"}
                                                 </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 text-[10px] uppercase block font-semibold">Semana de Cobranza</span>
+                                                {(() => {
+                                                    const fechaParaSem = detalleModalMov.ticket?.fecha || detalleModalMov.ticket?.creadoEn || detalleModalMov.fechaOperacion;
+                                                    const sem = calcularSemanaCobranzaSabadoViernes(fechaParaSem);
+                                                    const rango = calcularRangoSemanaSabadoViernes(sem.semana, sem.anio);
+                                                    return (
+                                                        <span className="font-bold text-xs text-indigo-700 block" title={`Del ${rango.inicioStr} al ${rango.finStr}`}>
+                                                            Semana {sem.semana} ({sem.anio})
+                                                        </span>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     </div>

@@ -305,22 +305,30 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
 
         // Colapsar espacios consecutivos para evitar que 50 espacios vacíos desplacen la información
         const rawDesc = (mov.descripcionDetallada || mov.concepto || mov.descripcionGeneral || "ABONO").replace(/\s+/g, " ").trim();
-        const descCorta = rawDesc.length > 40 ? `${rawDesc.slice(0, 40)}...` : rawDesc;
-        const refCorto = mov.referencia ? String(mov.referencia).trim() : "";
-        const rastreoCorto = mov.claveRastreo ? String(mov.claveRastreo).trim() : "";
+        const descCorta = rawDesc.length > 50 ? `${rawDesc.slice(0, 50)}...` : rawDesc;
+
+        const cleanVal = (v: any) => {
+            if (!v || v === "null" || v === "undefined" || v === "none") return "";
+            const s = String(v).trim();
+            return s === "0" || s === "-" || s === "—" ? "" : s;
+        };
+        const refCorto = cleanVal(mov.referencia);
+        const rastreoCorto = cleanVal(mov.claveRastreo);
 
         // Tag identificador de prioridad para la opción
         const tagPrioridad = etiquetaPrioridad ? `[${etiquetaPrioridad}]` : "";
         const refOrRastreo = refCorto ? `Ref: ${refCorto}` : (rastreoCorto ? `SPEI: ${rastreoCorto.slice(-8)}` : "");
-        const infoExtra = [refOrRastreo, descCorta].filter(Boolean).join(" · ");
 
-        // Formato para el selector: conciso, legible, datos clave al inicio
-        // Ej: "#11 · [⚡ SPEI Exacto] · 08/Sep 12:58 · $500.00 · Sant(2837) · Ref: 00251199 · DEP EFECTIVO"
+        // 🏦 Quitar cuenta SANTANDER para ganar espacio visual y mostrar más datos como concepto (solicitado por usuario)
+        const isSantander = (bancoNombre || "").toLowerCase().includes("santander") || (mov.tabla || "").toLowerCase().includes("santander");
+        const bancoTag = isSantander ? "" : ` · ${bancoNombre}(${ctaCorto})`;
+
+        // Formato para el selector: conciso, letra reducida, quitando cuenta Santander y mostrando concepto
         let label = "";
         if (isMontoExact) {
-            label = `#${movIdx} · ${tagPrioridad ? `${tagPrioridad} · ` : ""}${fechaHoraDisplay} · $${movAbono.toFixed(2)} · ${bancoNombre}(${ctaCorto})${infoExtra ? ` · ${infoExtra}` : ""}`;
+            label = `#${movIdx} · ${tagPrioridad ? `${tagPrioridad} · ` : ""}${fechaHoraDisplay} · $${movAbono.toFixed(2)}${bancoTag} · ${descCorta}${refOrRastreo ? ` · ${refOrRastreo}` : ""}`;
         } else {
-            label = `#${movIdx} · [⚠️ DIFIERE $${movAbono.toFixed(2)}] · ${fechaHoraDisplay} · ${bancoNombre}(${ctaCorto})${infoExtra ? ` · ${infoExtra}` : ""}`;
+            label = `#${movIdx} · [⚠️ DIFIERE $${movAbono.toFixed(2)}] · ${fechaHoraDisplay}${bancoTag} · ${descCorta}${refOrRastreo ? ` · ${refOrRastreo}` : ""}`;
         }
 
         const item = {
@@ -337,6 +345,7 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
             refCorto,
             rastreoCorto,
             descCorta,
+            descCompleta: rawDesc,
             label
         };
 
@@ -505,12 +514,12 @@ export default function ConciliadorPage() {
                     setSpeiSearchText("");
                     setSpeiCodigoFilter("TODOS");
                     setSpeiTipoFilter("TODOS");
-                    // Por defecto, marcar como aprobadas SOLO las coincidencias con montos exactos
+                    // Por defecto, marcar como aprobadas las coincidencias con montos exactos, excepto MONTO_FECHA (requiere validación del usuario)
                     const initialSelection: Record<string, boolean> = {};
                     data.matches.forEach((m: any) => {
                         const movAbono = parseFloat(m.movimiento?.abono?.toString() || "0");
                         const tktMonto = parseFloat(m.ticket?.monto?.toString() || "0");
-                        if (Math.abs(movAbono - tktMonto) < 0.01) {
+                        if (Math.abs(movAbono - tktMonto) < 0.01 && m.tipoMatch !== "MONTO_FECHA") {
                             initialSelection[m.matchKey] = true;
                         }
                     });
@@ -1306,12 +1315,14 @@ export default function ConciliadorPage() {
                                                                                         const montoMov = parseFloat(mov.abono?.toString() || "0").toFixed(2);
                                                                                         const bancoLabel = mov.bancoDestino || (mov.tabla?.includes("Banorte") ? "Banorte" : "Santander");
                                                                                         const ctaCorto = mov.cuentaDestino ? mov.cuentaDestino.slice(-4) : (mov.tabla?.includes("22001022837") ? "2837" : mov.tabla?.includes("65505732541") ? "2541" : "3963");
+                                                                                        const isSantander = (bancoLabel || "").toLowerCase().includes("santander") || (mov.tabla || "").toLowerCase().includes("santander");
+                                                                                        const bancoTag = isSantander ? "" : ` · ${bancoLabel}(${ctaCorto})`;
                                                                                         const rawDesc = (mov.descripcionDetallada || mov.concepto || mov.descripcionGeneral || "").replace(/\s+/g, " ").trim();
-                                                                                        const descCorta = rawDesc.length > 30 ? `${rawDesc.slice(0, 30)}...` : rawDesc;
-                                                                                        const refTxt = mov.referencia ? ` · Ref: ${mov.referencia}` : "";
+                                                                                        const descCorta = rawDesc.length > 45 ? `${rawDesc.slice(0, 45)}...` : rawDesc;
+                                                                                        const cleanRef = mov.referencia && String(mov.referencia).trim() !== "0" && String(mov.referencia).trim() !== "null" ? ` · Ref: ${String(mov.referencia).trim()}` : "";
                                                                                         return (
                                                                                             <option key={valKey} value={valKey}>
-                                                                                                #{movIndex} · {fechaOperacionStr}{horaLabel} · ${montoMov} · {bancoLabel}({ctaCorto}){refTxt}{descCorta ? ` · ${descCorta}` : ""}
+                                                                                                #{movIndex} · {fechaOperacionStr}{horaLabel} · ${montoMov}${bancoTag} · {descCorta}{cleanRef}
                                                                                             </option>
                                                                                         );
                                                                                     })}
@@ -1698,44 +1709,87 @@ export default function ConciliadorPage() {
                                                             {sugerencias.length} coinciden
                                                         </span>
                                                     </div>
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    <div className="flex flex-col gap-1.5">
                                                         {sugerencias.slice(0, 4).map((sug) => {
                                                             const isSelected = selectedMovValue === sug.valKey;
+                                                            const m = sug.mov;
+                                                            const refVal = m?.referencia ? String(m.referencia).trim() : sug.refCorto;
+                                                            const rastreoVal = m?.claveRastreo ? String(m.claveRastreo).trim() : sug.rastreoCorto;
+                                                            const descTexto = sug.descCompleta || sug.descCorta || "";
+                                                            const cuentaEmisorVal = m?.cuentaEmisor || m?.clabeEmisor ? String(m.cuentaEmisor || m.clabeEmisor).trim() : null;
+                                                            const bancoOrigenVal = m?.bancoOrigen && m.bancoOrigen !== "null" && m.bancoOrigen !== "none" ? String(m.bancoOrigen).trim() : null;
+                                                            const saldoVal = m?.saldo !== undefined && m?.saldo !== null ? formatCurrency(m.saldo) : null;
+
                                                             return (
                                                                 <button
                                                                     key={sug.valKey}
                                                                     type="button"
                                                                     onClick={() => setSelectedMovByTicket(prev => ({ ...prev, [ticket.id]: sug.valKey }))}
-                                                                    className={`text-left p-2.5 rounded-lg border text-xs transition-all flex flex-col justify-between gap-1.5 cursor-pointer ${
+                                                                    className={`w-full text-left px-2.5 py-1.5 rounded-lg border text-xs transition-all flex items-center justify-between gap-2.5 cursor-pointer overflow-x-auto whitespace-nowrap scrollbar-thin ${
                                                                         isSelected
-                                                                            ? "border-emerald-500 bg-emerald-50/90 ring-2 ring-emerald-500 shadow-sm"
+                                                                            ? "border-emerald-500 bg-emerald-50/90 ring-2 ring-emerald-500 shadow-xs"
                                                                             : "border-gray-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/40"
                                                                     }`}
                                                                 >
-                                                                    <div className="flex items-center justify-between gap-1">
-                                                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                                                            <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
-                                                                                #{sug.movIdx}
-                                                                            </span>
-                                                                            <span className="font-bold text-gray-900 text-xs">
-                                                                                {sug.etiquetaPrioridad || "⭐ Coincidencia"}
-                                                                            </span>
-                                                                        </div>
-                                                                        <span className="font-mono font-black text-emerald-700 text-xs">
+                                                                    <div className="flex items-center gap-2 shrink-0">
+                                                                        <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                                                                            #{sug.movIdx}
+                                                                        </span>
+                                                                        <span className="font-bold text-gray-800 text-[11px] px-1.5 py-0.5 rounded bg-slate-50 border border-gray-200">
+                                                                            {sug.etiquetaPrioridad || "⭐ Coincidencia"}
+                                                                        </span>
+                                                                        <span className="font-mono font-black text-emerald-700 text-xs px-2 py-0.5 rounded bg-emerald-100/70 border border-emerald-200">
                                                                             ${sug.movAbono.toFixed(2)}
                                                                         </span>
+                                                                        <span className="text-gray-700 font-semibold text-[11px]">
+                                                                            {sug.bancoNombre} ({sug.ctaCorto})
+                                                                        </span>
+                                                                        <span className="font-mono text-gray-600 text-[11px]">
+                                                                            {sug.fechaHoraDisplay}
+                                                                        </span>
+                                                                        {bancoOrigenVal && (
+                                                                            <span className="font-mono text-[11px] text-gray-700 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
+                                                                                Origen: {bancoOrigenVal}
+                                                                            </span>
+                                                                        )}
+                                                                        {refVal && (
+                                                                            <span className="font-mono text-[11px] text-gray-700 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
+                                                                                Ref: {refVal}
+                                                                            </span>
+                                                                        )}
+                                                                        {rastreoVal && (
+                                                                            <span className="font-mono text-[11px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                                                                SPEI: {rastreoVal}
+                                                                            </span>
+                                                                        )}
+                                                                        {descTexto && (
+                                                                            <span className="font-mono text-[11px] text-gray-900 font-medium bg-white px-2 py-0.5 rounded border border-gray-200" title={descTexto}>
+                                                                                {descTexto}
+                                                                            </span>
+                                                                        )}
+                                                                        {cuentaEmisorVal && (
+                                                                            <span className="font-mono text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                                                                                Cta: {cuentaEmisorVal}
+                                                                            </span>
+                                                                        )}
+                                                                        {saldoVal && (
+                                                                            <span className="font-mono text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
+                                                                                Saldo: {saldoVal}
+                                                                            </span>
+                                                                        )}
                                                                     </div>
 
-                                                                    <div className="flex items-center justify-between text-[11px] text-gray-600 font-medium">
-                                                                        <span>{sug.bancoNombre} ({sug.ctaCorto})</span>
-                                                                        <span className="font-mono text-gray-800 font-semibold">{sug.fechaHoraDisplay}</span>
+                                                                    <div className="shrink-0 flex items-center">
+                                                                        {isSelected ? (
+                                                                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-200/80 px-2 py-0.5 rounded">
+                                                                                ✓ Seleccionado
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-[10px] font-medium text-gray-400">
+                                                                                Seleccionar →
+                                                                            </span>
+                                                                        )}
                                                                     </div>
-
-                                                                    {(sug.refCorto || sug.rastreoCorto || sug.descCorta) && (
-                                                                        <div className="text-[10px] text-gray-500 truncate pt-1 border-t border-gray-100 font-mono">
-                                                                            {sug.refCorto ? `Ref: ${sug.refCorto} ` : ""}{sug.rastreoCorto ? `SPEI: ${sug.rastreoCorto} ` : ""}{sug.descCorta}
-                                                                        </div>
-                                                                    )}
                                                                 </button>
                                                             );
                                                         })}
@@ -1755,21 +1809,21 @@ export default function ConciliadorPage() {
                                                     setSelectedMovByTicket(prev => ({ ...prev, [ticket.id]: val }));
                                                 }}
                                                 disabled={estaConciliado}
-                                                className="w-full h-10 bg-white border border-gray-300 rounded-md px-3 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono truncate disabled:bg-gray-100 shadow-xs"
+                                                className="w-full h-9 bg-white border border-gray-300 rounded-md px-2.5 text-[11px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono truncate disabled:bg-gray-100 shadow-xs"
                                             >
-                                                <option value="">-- Seleccionar movimiento bancario --</option>
+                                                <option value="" className="text-[11px] font-mono">-- Selecciona un depósito bancario para conciliar --</option>
                                                 {sugerencias.length > 0 && (
-                                                    <optgroup label={`⭐ Sugerencias Automáticas (${sugerencias.length})`}>
+                                                    <optgroup label={`⭐ Sugerencias Automáticas (${sugerencias.length})`} className="text-[11px] font-mono font-bold">
                                                         {sugerencias.map((sug) => (
-                                                            <option key={sug.valKey} value={sug.valKey}>
+                                                            <option key={sug.valKey} value={sug.valKey} className="text-[11px] font-mono py-1">
                                                                 {sug.label}
                                                             </option>
                                                         ))}
                                                     </optgroup>
                                                 )}
-                                                <optgroup label={`📋 Selección Manual (${manuales.length} movimientos)`}>
+                                                <optgroup label={`📋 Selección Manual (${manuales.length} movimientos)`} className="text-[11px] font-mono font-bold">
                                                     {manuales.map((mov) => (
-                                                        <option key={mov.valKey} value={mov.valKey}>
+                                                        <option key={mov.valKey} value={mov.valKey} className="text-[11px] font-mono py-1">
                                                             {mov.label}
                                                         </option>
                                                     ))}
@@ -1777,7 +1831,7 @@ export default function ConciliadorPage() {
                                             </select>
                                         </div>
 
-                                        {/* Vista Previa Detallada del Movimiento Seleccionado (Caja Completa) */}
+                                        {/* Vista Previa en UNA SOLA LÍNEA del Movimiento Seleccionado */}
                                         {selectedMovObj && (() => {
                                             const selectedValKey = `${selectedMovObj.tabla}__${selectedMovObj.id}`;
                                             const selectedMovIdx = globalMovIndexMap.get(selectedValKey) ?? 0;
@@ -1796,125 +1850,102 @@ export default function ConciliadorPage() {
                                             const referenciaLimpia = cleanText(selectedMovObj.referencia);
                                             const cuentaEmisorLimpia = cleanText(selectedMovObj.cuentaEmisor || selectedMovObj.clabeEmisor);
                                             const conceptoLimpio = cleanText(selectedMovObj.concepto || selectedMovObj.descripcionGeneral);
-                                            const descGeneralLimpia = cleanText(selectedMovObj.descripcionGeneral);
                                             const descDetalladaLimpia = cleanText(selectedMovObj.descripcionDetallada);
+                                            const bancoOrigenLimpio = cleanText(selectedMovObj.bancoOrigen);
+                                            const coincidesExacto = Math.abs(montoMovNum - montoTicketNum) < 0.01;
 
                                             return (
-                                                <div className="bg-[#f8f9fa] border border-[#e9ecef] rounded-lg p-4 text-xs space-y-3 shadow-xs">
-                                                    {/* Encabezado del Movimiento */}
-                                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 pb-2.5">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-950 border border-blue-200">
-                                                                🏦 Movimiento Bancario: ID #{selectedMovIdx}
+                                                <div className="space-y-1.5">
+                                                    <div className="bg-[#f8f9fa] border border-[#d0d7de] rounded-lg px-3 py-2 text-xs flex items-center gap-2 overflow-x-auto whitespace-nowrap scrollbar-thin shadow-2xs">
+                                                        {/* ID Movimiento */}
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-950 border border-blue-200 shrink-0">
+                                                            🏦 ID #{selectedMovIdx}
+                                                        </span>
+
+                                                        {/* Banco y Cuenta Destino */}
+                                                        <span className="text-xs font-bold text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-200 shrink-0">
+                                                            {bancoDestinoStr} · Cta: {cuentaDestinoStr}
+                                                        </span>
+
+                                                        {/* Monto & Coincidencia */}
+                                                        <span className="font-black text-sm text-emerald-700 font-mono px-2 py-0.5 rounded bg-emerald-100/70 border border-emerald-200 shrink-0">
+                                                            {formatCurrency(montoMovNum)}
+                                                        </span>
+
+                                                        {coincidesExacto ? (
+                                                            <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 rounded font-mono font-bold shrink-0">
+                                                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> ✓ Coincide 100%
                                                             </span>
-                                                            <span className="text-xs font-bold text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-200">
-                                                                {bancoDestinoStr} · Cta: {cuentaDestinoStr}
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1 text-[10px] bg-red-100 text-red-900 border border-red-300 px-2 py-0.5 rounded font-mono font-bold shrink-0">
+                                                                <AlertCircle className="w-3 h-3 text-red-600" /> Dif: {formatCurrency(Math.abs(montoMovNum - montoTicketNum))}
                                                             </span>
-                                                        </div>
-                                                        <div className="flex items-center gap-3">
-                                                            {selectedMovObj.saldo !== undefined && selectedMovObj.saldo !== null && (
-                                                                <span className="text-[11px] text-gray-500 font-mono">
-                                                                    Saldo: <strong className="text-gray-800">{formatCurrency(selectedMovObj.saldo)}</strong>
-                                                                </span>
-                                                            )}
-                                                            <span className="font-black text-base text-emerald-700 font-mono">
-                                                                {formatCurrency(montoMovNum)}
+                                                        )}
+
+                                                        {/* Fecha y Hora de Operación */}
+                                                        <span className="font-mono text-gray-700 bg-white px-2 py-0.5 rounded border border-gray-200 shrink-0 text-[11px]">
+                                                            📅 {fechaOperacionStr} {horaStr !== "—" ? `(${horaStr})` : ""}
+                                                        </span>
+
+                                                        {/* Banco Origen */}
+                                                        {bancoOrigenLimpio !== "—" && (
+                                                            <span className="font-semibold text-gray-700 bg-white px-2 py-0.5 rounded border border-gray-200 shrink-0 text-[11px]">
+                                                                🏛️ Origen: <strong className="text-gray-900">{bancoOrigenLimpio}</strong>
                                                             </span>
-                                                        </div>
+                                                        )}
+
+                                                        {/* Referencia */}
+                                                        {referenciaLimpia !== "—" && (
+                                                            <span className="font-mono font-bold text-gray-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 shrink-0 text-[11px]">
+                                                                Ref: {referenciaLimpia}
+                                                            </span>
+                                                        )}
+
+                                                        {/* Clave de Rastreo SPEI */}
+                                                        {claveRastreoLimpia !== "—" && (
+                                                            <span className="font-mono font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 shrink-0 text-[11px]">
+                                                                SPEI: {claveRastreoLimpia}
+                                                            </span>
+                                                        )}
+
+                                                        {/* Concepto / Motivo de Pago */}
+                                                        {conceptoLimpio !== "—" && (
+                                                            <span className="text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200 shrink-0 text-[11px]">
+                                                                Concepto: <strong className="font-semibold">{conceptoLimpio}</strong>
+                                                            </span>
+                                                        )}
+
+                                                        {/* Ordenante / Cuenta Emisora */}
+                                                        {cuentaEmisorLimpia !== "—" && (
+                                                            <span className="font-mono text-purple-800 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 shrink-0 text-[11px]">
+                                                                Ord/Cta: {cuentaEmisorLimpia}
+                                                            </span>
+                                                        )}
+
+                                                        {/* Leyenda / Descripción Detallada */}
+                                                        {(descDetalladaLimpia !== "—" && descDetalladaLimpia !== conceptoLimpio) && (
+                                                            <span className="font-mono text-gray-700 bg-white px-2 py-0.5 rounded border border-gray-200 shrink-0 text-[11px]">
+                                                                Leyenda: {descDetalladaLimpia}
+                                                            </span>
+                                                        )}
+
+                                                        {/* Saldo Posterior */}
+                                                        {selectedMovObj.saldo !== undefined && selectedMovObj.saldo !== null && (
+                                                            <span className="font-mono text-gray-600 bg-white px-2 py-0.5 rounded border border-gray-200 shrink-0 text-[11px]">
+                                                                Saldo: <strong className="text-gray-800">{formatCurrency(selectedMovObj.saldo)}</strong>
+                                                            </span>
+                                                        )}
                                                     </div>
 
-                                                    {/* Validación Estricta de Coincidencia de Montos */}
-                                                    {Math.abs(montoMovNum - montoTicketNum) < 0.01 ? (
-                                                        <div className="bg-emerald-50 border border-emerald-300 rounded-md p-2.5 flex items-center justify-between text-xs text-emerald-900 font-semibold shadow-2xs">
+                                                    {/* Alerta si montos no coinciden */}
+                                                    {!coincidesExacto && (
+                                                        <div className="bg-red-50 border border-red-300 rounded-md p-2 flex items-center justify-between text-xs text-red-900 font-bold">
                                                             <div className="flex items-center gap-2">
-                                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                                                <span>Los montos coinciden exactamente: Depósito bancario de <strong>{formatCurrency(montoMovNum)}</strong> = Ticket <strong>{formatCurrency(montoTicketNum)}</strong></span>
+                                                                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                                                                <span>⛔ Montos NO coinciden: Depósito ({formatCurrency(montoMovNum)}) ≠ Ticket ({formatCurrency(montoTicketNum)}). Diferencia de {formatCurrency(Math.abs(montoMovNum - montoTicketNum))}. Conciliación bloqueada.</span>
                                                             </div>
-                                                            <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-mono font-bold shrink-0">✓ Coincidencia 100%</span>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="bg-red-50 border border-red-300 rounded-md p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-red-900 font-bold shadow-2xs">
-                                                            <div className="flex items-center gap-2">
-                                                                <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-                                                                <div>
-                                                                    <span className="block text-red-800">⛔ Montos NO coinciden: Depósito Bancario ({formatCurrency(montoMovNum)}) ≠ Ticket ({formatCurrency(montoTicketNum)})</span>
-                                                                    <span className="text-[11px] text-red-700 font-normal">
-                                                                        Diferencia de <strong>{formatCurrency(Math.abs(montoMovNum - montoTicketNum))}</strong>. La auditoría exige que los montos sean idénticos para poder conciliar.
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                            <span className="text-[10px] bg-red-200 text-red-900 px-2.5 py-1 rounded font-mono font-black uppercase tracking-wider shrink-0">
+                                                            <span className="text-[10px] bg-red-200 text-red-900 px-2 py-0.5 rounded font-mono font-black uppercase tracking-wider shrink-0">
                                                                 BLOQUEADO
-                                                            </span>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Grid 1: Fechas, Horas e Identificadores */}
-                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                                        <div className="bg-white border border-gray-200 rounded-lg p-2">
-                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">ID MOVIMIENTO:</span>
-                                                            <span className="font-mono font-bold text-gray-900 block mt-0.5">
-                                                                ID: {selectedMovIdx}
-                                                            </span>
-                                                        </div>
-                                                        <div className="bg-white border border-gray-200 rounded-lg p-2">
-                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">FECHA OPERACIÓN:</span>
-                                                            <span className="font-semibold text-gray-900 block mt-0.5">
-                                                                {fechaOperacionStr}
-                                                            </span>
-                                                        </div>
-                                                        <div className="bg-white border border-gray-200 rounded-lg p-2">
-                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">HORA OPERACIÓN:</span>
-                                                            <span className="font-mono font-semibold text-gray-900 block mt-0.5">
-                                                                {horaStr || "—"}
-                                                            </span>
-                                                        </div>
-                                                        <div className="bg-white border border-gray-200 rounded-lg p-2">
-                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">BANCO ORIGEN:</span>
-                                                            <span className="font-bold text-gray-900 block mt-0.5 truncate" title={selectedMovObj.bancoOrigen || "—"}>
-                                                                {cleanText(selectedMovObj.bancoOrigen)}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Grid 2: Referencias, SPEI y Cuentas Emisoras */}
-                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                                        <div className="bg-white border border-gray-200 rounded-lg p-2">
-                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">REFERENCIA:</span>
-                                                            <span className="font-mono font-bold text-gray-900 block mt-0.5 truncate" title={referenciaLimpia}>
-                                                                {referenciaLimpia}
-                                                            </span>
-                                                        </div>
-                                                        <div className="bg-white border border-gray-200 rounded-lg p-2 sm:col-span-2">
-                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">CLAVE DE RASTREO SPEI:</span>
-                                                            <span className="font-mono font-bold text-blue-700 bg-blue-50/70 px-1.5 py-0.5 rounded border border-blue-100 block mt-0.5 break-all" title={claveRastreoLimpia}>
-                                                                {claveRastreoLimpia}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Grid 3: Concepto, Descripción y Ordenante */}
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                        <div className="bg-white border border-gray-200 rounded-lg p-2.5">
-                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">CONCEPTO / MOTIVO DE PAGO:</span>
-                                                            <span className="font-semibold text-gray-900 block mt-1 break-words">
-                                                                {conceptoLimpio}
-                                                            </span>
-                                                        </div>
-                                                        <div className="bg-white border border-gray-200 rounded-lg p-2.5">
-                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">ORDENANTE / CUENTA EMISORA:</span>
-                                                            <span className="font-mono font-medium text-gray-800 block mt-1 break-words">
-                                                                {cuentaEmisorLimpia !== "—" ? cuentaEmisorLimpia : (descDetalladaLimpia !== "—" ? descDetalladaLimpia : "—")}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Grid 4: Descripciones Adicionales si existen */}
-                                                    {(descDetalladaLimpia !== "—" && descDetalladaLimpia !== conceptoLimpio) && (
-                                                        <div className="bg-white border border-gray-200 rounded-lg p-2.5">
-                                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">DESCRIPCIÓN DETALLADA / LEYENDA:</span>
-                                                            <span className="text-gray-700 block mt-1 break-words font-mono text-[11px]">
-                                                                {descDetalladaLimpia}
                                                             </span>
                                                         </div>
                                                     )}
