@@ -30,9 +30,17 @@ import {
   Type,
   Upload,
   Plus,
-  RefreshCw
+  RefreshCw,
+  Landmark
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  CamposMovimientoConfig,
+  CAMPOS_METADATA,
+  DEFAULT_CAMPOS_MOVIMIENTO_CONFIG,
+  getStoredCamposConfig,
+  setStoredCamposConfig
+} from '@/lib/conciliador-config';
 
 interface ConfiguracionSistema {
   empresa: {
@@ -185,6 +193,21 @@ export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState('general');
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [syncingFechas, setSyncingFechas] = useState(false);
+
+  // Configuración de campos visibles del Conciliador Bancario
+  const [camposConciliador, setCamposConciliador] = useState<CamposMovimientoConfig>(DEFAULT_CAMPOS_MOVIMIENTO_CONFIG);
+
+  useEffect(() => {
+    setCamposConciliador(getStoredCamposConfig());
+  }, []);
+
+  const handleToggleCampoConciliador = (key: keyof CamposMovimientoConfig) => {
+    setCamposConciliador(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      setStoredCamposConfig(next);
+      return next;
+    });
+  };
 
   const [permissionsMatrix, setPermissionsMatrix] = useState<any[]>([]);
   const [loadingPerms, setLoadingPerms] = useState(true);
@@ -583,6 +606,42 @@ export default function ConfiguracionPage() {
                       onChange={(e) => setConfig({ ...config, cobranza: { ...config.cobranza, cargoMoratorio: parseFloat(e.target.value) || 0 } })}
                     />
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Preferencias de Conciliador Bancario */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Landmark className="h-5 w-5 text-emerald-600" />
+                  Datos Visibles en Conciliador Bancario
+                </CardTitle>
+                <CardDescription>
+                  Personaliza qué etiquetas e información se muestran por defecto en las sugerencias y vistas previas bancarias.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {CAMPOS_METADATA.map(({ key, label, desc, icon }) => (
+                    <div
+                      key={key}
+                      className="flex items-start justify-between gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="space-y-0.5 select-none flex-1">
+                        <Label htmlFor={`campo-${key}`} className="text-xs font-bold text-slate-800 flex items-center gap-1.5 cursor-pointer">
+                          <span>{icon}</span>
+                          <span>{label}</span>
+                        </Label>
+                        <p className="text-[10px] text-slate-400 font-mono truncate max-w-[180px]">{desc}</p>
+                      </div>
+                      <Switch
+                        id={`campo-${key}`}
+                        checked={camposConciliador[key]}
+                        onCheckedChange={() => handleToggleCampoConciliador(key)}
+                      />
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>

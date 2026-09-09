@@ -44,6 +44,13 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+    getStoredCamposConfig,
+    setStoredCamposConfig,
+    CamposMovimientoConfig,
+    DEFAULT_CAMPOS_MOVIMIENTO_CONFIG
+} from "@/lib/conciliador-config";
+import { CamposMovimientoConfigPopover } from "@/components/tesoreria/CamposMovimientoConfigPopover";
 
 // Función para calcular el rango de la semana de cobranza (Sábado a Viernes)
 function getSabadoAViernesRange(offsetWeeks = 0) {
@@ -407,6 +414,24 @@ export default function ConciliadorPage() {
     const [speiSearchText, setSpeiSearchText] = useState<string>("");
     const [speiCodigoFilter, setSpeiCodigoFilter] = useState<"TODOS" | "DP" | "DQ">("TODOS");
     const [speiTipoFilter, setSpeiTipoFilter] = useState<string>("TODOS");
+
+    // Configuración de campos visibles del movimiento bancario (persistida en localStorage)
+    const [camposConfig, setCamposConfig] = useState<CamposMovimientoConfig>(DEFAULT_CAMPOS_MOVIMIENTO_CONFIG);
+
+    useEffect(() => {
+        setCamposConfig(getStoredCamposConfig());
+
+        const handleStorageUpdate = () => {
+            setCamposConfig(getStoredCamposConfig());
+        };
+        window.addEventListener("conciliador_campos_config_updated", handleStorageUpdate);
+        return () => window.removeEventListener("conciliador_campos_config_updated", handleStorageUpdate);
+    }, []);
+
+    const handleUpdateCamposConfig = (next: CamposMovimientoConfig) => {
+        setCamposConfig(next);
+        setStoredCamposConfig(next);
+    };
 
     useEffect(() => {
         fetchData();
@@ -1130,6 +1155,9 @@ export default function ConciliadorPage() {
                                 Tarjetas
                             </button>
                         </div>
+
+                        {/* Configuración de Campos Visibles del Movimiento Bancario */}
+                        <CamposMovimientoConfigPopover config={camposConfig} onChange={handleUpdateCamposConfig} />
                     </div>
                 </div>
 
@@ -1741,38 +1769,42 @@ export default function ConciliadorPage() {
                                                                         <span className="font-mono font-black text-emerald-700 text-xs px-2 py-0.5 rounded bg-emerald-100/70 border border-emerald-200">
                                                                             ${sug.movAbono.toFixed(2)}
                                                                         </span>
-                                                                        <span className="text-gray-700 font-semibold text-[11px]">
-                                                                            {sug.bancoNombre} ({sug.ctaCorto})
-                                                                        </span>
-                                                                        <span className="font-mono text-gray-600 text-[11px]">
-                                                                            {sug.fechaHoraDisplay}
-                                                                        </span>
-                                                                        {bancoOrigenVal && (
+                                                                        {camposConfig.bancoDestino && (
+                                                                            <span className="text-gray-700 font-semibold text-[11px]">
+                                                                                {sug.bancoNombre} ({sug.ctaCorto})
+                                                                            </span>
+                                                                        )}
+                                                                        {camposConfig.fechaHora && (
+                                                                            <span className="font-mono text-gray-600 text-[11px]">
+                                                                                {sug.fechaHoraDisplay}
+                                                                            </span>
+                                                                        )}
+                                                                        {camposConfig.bancoOrigen && bancoOrigenVal && (
                                                                             <span className="font-mono text-[11px] text-gray-700 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
                                                                                 Origen: {bancoOrigenVal}
                                                                             </span>
                                                                         )}
-                                                                        {refVal && (
+                                                                        {camposConfig.referencia && refVal && (
                                                                             <span className="font-mono text-[11px] text-gray-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-bold">
                                                                                 Ref: {refVal}
                                                                             </span>
                                                                         )}
-                                                                        {rastreoVal && (
+                                                                        {camposConfig.spei && rastreoVal && (
                                                                             <span className="font-mono text-[11px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
                                                                                 SPEI: {rastreoVal}
                                                                             </span>
                                                                         )}
-                                                                        {descTexto && (
+                                                                        {camposConfig.concepto && descTexto && (
                                                                             <span className="font-mono text-[11px] text-gray-900 font-medium bg-white px-2 py-0.5 rounded border border-gray-200 break-words" title={descTexto}>
                                                                                 {descTexto}
                                                                             </span>
                                                                         )}
-                                                                        {cuentaEmisorVal && (
+                                                                        {camposConfig.cuentaEmisor && cuentaEmisorVal && (
                                                                             <span className="font-mono text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
                                                                                 Cta: {cuentaEmisorVal}
                                                                             </span>
                                                                         )}
-                                                                        {saldoVal && (
+                                                                        {camposConfig.saldo && saldoVal && (
                                                                             <span className="font-mono text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
                                                                                 Saldo: {saldoVal}
                                                                             </span>
@@ -1863,9 +1895,11 @@ export default function ConciliadorPage() {
                                                         </span>
 
                                                         {/* Banco y Cuenta Destino */}
-                                                        <span className="text-xs font-bold text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-200">
-                                                            {bancoDestinoStr} · Cta: {cuentaDestinoStr}
-                                                        </span>
+                                                        {camposConfig.bancoDestino && (
+                                                            <span className="text-xs font-bold text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-200">
+                                                                {bancoDestinoStr} · Cta: {cuentaDestinoStr}
+                                                            </span>
+                                                        )}
 
                                                         {/* Monto & Coincidencia */}
                                                         <span className="font-black text-sm text-emerald-700 font-mono px-2 py-0.5 rounded bg-emerald-100/70 border border-emerald-200">
@@ -1883,54 +1917,56 @@ export default function ConciliadorPage() {
                                                         )}
 
                                                         {/* Fecha y Hora de Operación */}
-                                                        <span className="font-mono text-gray-700 bg-white px-2 py-0.5 rounded border border-gray-200 text-[11px]">
-                                                            📅 {fechaOperacionStr} {horaStr !== "—" ? `(${horaStr})` : ""}
-                                                        </span>
+                                                        {camposConfig.fechaHora && (
+                                                            <span className="font-mono text-gray-700 bg-white px-2 py-0.5 rounded border border-gray-200 text-[11px]">
+                                                                📅 {fechaOperacionStr} {horaStr !== "—" ? `(${horaStr})` : ""}
+                                                            </span>
+                                                        )}
 
                                                         {/* Banco Origen */}
-                                                        {bancoOrigenLimpio !== "—" && (
+                                                        {camposConfig.bancoOrigen && bancoOrigenLimpio !== "—" && (
                                                             <span className="font-semibold text-gray-700 bg-white px-2 py-0.5 rounded border border-gray-200 text-[11px]">
                                                                 🏛️ Origen: <strong className="text-gray-900">{bancoOrigenLimpio}</strong>
                                                             </span>
                                                         )}
 
                                                         {/* Referencia */}
-                                                        {referenciaLimpia !== "—" && (
+                                                        {camposConfig.referencia && referenciaLimpia !== "—" && (
                                                             <span className="font-mono font-bold text-gray-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[11px]">
                                                                 Ref: {referenciaLimpia}
                                                             </span>
                                                         )}
 
                                                         {/* Clave de Rastreo SPEI */}
-                                                        {claveRastreoLimpia !== "—" && (
+                                                        {camposConfig.spei && claveRastreoLimpia !== "—" && (
                                                             <span className="font-mono font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-[11px] break-all">
                                                                 SPEI: {claveRastreoLimpia}
                                                             </span>
                                                         )}
 
                                                         {/* Concepto / Motivo de Pago */}
-                                                        {conceptoLimpio !== "—" && (
+                                                        {camposConfig.concepto && conceptoLimpio !== "—" && (
                                                             <span className="text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200 text-[11px] break-words">
                                                                 Concepto: <strong className="font-semibold">{conceptoLimpio}</strong>
                                                             </span>
                                                         )}
 
                                                         {/* Ordenante / Cuenta Emisora */}
-                                                        {cuentaEmisorLimpia !== "—" && (
+                                                        {camposConfig.cuentaEmisor && cuentaEmisorLimpia !== "—" && (
                                                             <span className="font-mono text-purple-800 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 text-[11px] break-all">
                                                                 Ord/Cta: {cuentaEmisorLimpia}
                                                             </span>
                                                         )}
 
                                                         {/* Leyenda / Descripción Detallada */}
-                                                        {(descDetalladaLimpia !== "—" && descDetalladaLimpia !== conceptoLimpio) && (
+                                                        {camposConfig.leyenda && (descDetalladaLimpia !== "—" && descDetalladaLimpia !== conceptoLimpio) && (
                                                             <span className="font-mono text-gray-700 bg-white px-2 py-0.5 rounded border border-gray-200 text-[11px] break-words">
                                                                 Leyenda: {descDetalladaLimpia}
                                                             </span>
                                                         )}
 
                                                         {/* Saldo Posterior */}
-                                                        {selectedMovObj.saldo !== undefined && selectedMovObj.saldo !== null && (
+                                                        {camposConfig.saldo && selectedMovObj.saldo !== undefined && selectedMovObj.saldo !== null && (
                                                             <span className="font-mono text-gray-600 bg-white px-2 py-0.5 rounded border border-gray-200 text-[11px]">
                                                                 Saldo: <strong className="text-gray-800">{formatCurrency(selectedMovObj.saldo)}</strong>
                                                             </span>
