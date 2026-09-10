@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { parseValidDate } from '@/lib/utils';
+import { parseValidDate, extractHoraOperacion } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -453,15 +453,56 @@ export async function GET(request: NextRequest) {
 
                     const ticketDate = ticket.fecha || ticket.creadoEn;
                     if (ticketDate && mov.fechaOperacion) {
-                        const tDate = new Date(ticketDate);
-                        const mDate = new Date(mov.fechaOperacion);
-                        const diffHours = Math.abs(tDate.getTime() - mDate.getTime()) / (1000 * 60 * 60);
-                        if (diffHours <= 36) {
-                            bestMatch = mov;
-                            bestPriority = 6;
-                            razon = `Mismo monto ($${monto.toFixed(2)}) y fecha cercana (${tDate.toISOString().split('T')[0]})`;
-                            continue;
-                        }
+                        try {
+                            const tDateStr = new Intl.DateTimeFormat('sv-SE', {
+                                timeZone: 'America/Mexico_City',
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: false
+                            }).format(new Date(ticketDate));
+
+                            const mDateObj = new Date(mov.fechaOperacion);
+                            const mFechaStr = new Intl.DateTimeFormat('sv-SE', {
+                                timeZone: 'America/Mexico_City',
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit'
+                            }).format(mDateObj);
+
+                            const movHoraStr = extractHoraOperacion(mov);
+                            let mDateStr = `${mFechaStr} 00:00:00`;
+                            if (movHoraStr) {
+                                const parts = movHoraStr.split(':');
+                                const hh = parts[0]?.padStart(2, '0') || '00';
+                                const mm = parts[1]?.padStart(2, '0') || '00';
+                                const ss = parts[2]?.padStart(2, '0') || '00';
+                                mDateStr = `${mFechaStr} ${hh}:${mm}:${ss}`;
+                            }
+
+                            const parseUtc = (s: string) => {
+                                const [d, t] = s.split(' ');
+                                if (!d || !t) return null;
+                                const [y, m, day] = d.split('-').map(Number);
+                                const [hr, min, sec = 0] = t.split(':').map(Number);
+                                return Date.UTC(y, m - 1, day, hr, min, sec);
+                            };
+
+                            const tMs = parseUtc(tDateStr);
+                            const mMs = parseUtc(mDateStr);
+                            if (tMs !== null && mMs !== null) {
+                                const diffSec = Math.abs(tMs - mMs) / 1000;
+                                if (diffSec <= 60) {
+                                    bestMatch = mov;
+                                    bestPriority = 6;
+                                    razon = `Mismo monto ($${monto.toFixed(2)}) y hora exacta de operación (${Math.round(diffSec)}s dif)`;
+                                    continue;
+                                }
+                            }
+                        } catch {}
                     }
                 }
             }

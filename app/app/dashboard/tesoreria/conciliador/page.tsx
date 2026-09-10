@@ -255,6 +255,9 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
         .split(/\s+/)
         .filter((w: string) => w.length >= 4 && !['DE', 'DEL', 'LOS', 'LAS', 'SAN', 'SANTA', 'MARIA', 'JOSE'].includes(w));
 
+    // Fecha y hora del ticket formateada en CDMX (YYYY-MM-DD HH:MM:SS)
+    const ticketDateTimeStr = formatDateTime(ticket.fecha || ticket.creadoEn);
+
     const sugerencias: any[] = [];
     const manuales: any[] = [];
 
@@ -270,19 +273,68 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
 
         // Formato de fecha legible corta (ej. 08/Sep o 08-09)
         let fechaCorta = "";
+        let movFechaIso = "";
         if (mov.fechaOperacion) {
-            const fStr = mov.fechaOperacion.toString().slice(0, 10);
-            const p = fStr.split("-");
-            if (p.length === 3) {
-                const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-                const mIdx = parseInt(p[1], 10) - 1;
-                fechaCorta = `${p[2]}/${meses[mIdx] || p[1]}`;
-            } else {
-                fechaCorta = fStr;
+            try {
+                const d = new Date(mov.fechaOperacion);
+                if (!isNaN(d.getTime())) {
+                    movFechaIso = new Intl.DateTimeFormat('sv-SE', {
+                        timeZone: 'America/Mexico_City',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    }).format(d);
+
+                    const p = movFechaIso.split("-");
+                    if (p.length === 3) {
+                        const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+                        const mIdx = parseInt(p[1], 10) - 1;
+                        fechaCorta = `${p[2]}/${meses[mIdx] || p[1]}`;
+                    } else {
+                        fechaCorta = movFechaIso;
+                    }
+                }
+            } catch {
+                fechaCorta = mov.fechaOperacion.toString().slice(0, 10);
             }
         }
         const horaStr = extractHoraOperacion(mov);
         const fechaHoraDisplay = horaStr ? `${fechaCorta} ${horaStr}` : fechaCorta;
+
+        // Construir fecha/hora completa del movimiento en CDMX
+        let movDateTimeStr = "";
+        if (movFechaIso) {
+            if (horaStr) {
+                const parts = horaStr.split(":");
+                const hh = parts[0]?.padStart(2, "0") || "00";
+                const mm = parts[1]?.padStart(2, "0") || "00";
+                const ss = parts[2]?.padStart(2, "0") || "00";
+                movDateTimeStr = `${movFechaIso} ${hh}:${mm}:${ss}`;
+            } else {
+                movDateTimeStr = `${movFechaIso} 00:00:00`;
+            }
+        }
+
+        // Calcular diferencia exacta en segundos entre fecha/hora del ticket y del movimiento
+        let diffSeconds: number | null = null;
+        if (ticketDateTimeStr && movDateTimeStr && ticketDateTimeStr !== "N/A") {
+            const parseToUtc = (s: string) => {
+                const [d, t] = s.split(" ");
+                if (!d || !t) return null;
+                const [y, m, day] = d.split("-").map(Number);
+                const [hr, min, sec = 0] = t.split(":").map(Number);
+                if (isNaN(y) || isNaN(m) || isNaN(day) || isNaN(hr) || isNaN(min)) return null;
+                return Date.UTC(y, m - 1, day, hr, min, isNaN(sec) ? 0 : sec);
+            };
+            const tMs = parseToUtc(ticketDateTimeStr);
+            const mMs = parseToUtc(movDateTimeStr);
+            if (tMs !== null && mMs !== null) {
+                diffSeconds = Math.abs(tMs - mMs) / 1000;
+            }
+        }
+
+        // 🎯 Regla solicitada por usuario: Solo sugerir si coincide fecha, hora y segundos con máximo 1 minuto de diferencia (<= 60s)
+        const isFechaHoraMatch = diffSeconds !== null && diffSeconds <= 60;
 
         const movRaw = `${mov.claveRastreo || ''} ${mov.concepto || ''} ${mov.descripcionDetallada || ''} ${mov.descripcionGeneral || ''} ${mov.referencia || ''}`.toUpperCase();
         const movNorm = movRaw.replace(/[^A-Z0-9]/g, "");
@@ -290,8 +342,8 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
         let prioridad = 999;
         let etiquetaPrioridad = "";
 
-        // 🛡️ Regla estricta de auditoría: Solo se clasifica como sugerencia si el monto coincide exactamente
-        if (isMontoExact) {
+        // 🛡️ Regla estricta: Solo entra a 'sugerencias destacadas' si coincide el MONTO Y la FECHA/HORA (máx 1 minuto de diferencia)
+        if (isMontoExact && isFechaHoraMatch) {
             if (rastreoNorm && rastreoNorm.length >= 6 && movNorm.includes(rastreoNorm)) {
                 prioridad = 1;
                 etiquetaPrioridad = "⚡ SPEI Exacto";
@@ -306,7 +358,7 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
                 etiquetaPrioridad = "🟣 Nombre";
             } else {
                 prioridad = 5;
-                etiquetaPrioridad = "🔴 Monto";
+                etiquetaPrioridad = `⏱️ Hora Exacta (${Math.round(diffSeconds!)}s)`;
             }
         }
 
@@ -345,6 +397,8 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
             prioridad,
             etiquetaPrioridad,
             isMontoExact,
+            isFechaHoraMatch,
+            diffSeconds,
             movAbono,
             bancoNombre,
             ctaCorto,
@@ -363,7 +417,10 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
         }
     }
 
-    sugerencias.sort((a, b) => a.prioridad - b.prioridad);
+    sugerencias.sort((a, b) => {
+        if (a.prioridad !== b.prioridad) return a.prioridad - b.prioridad;
+        return (a.diffSeconds ?? 999) - (b.diffSeconds ?? 999);
+    });
 
     return { sugerencias, manuales };
 }
@@ -472,6 +529,11 @@ export default function ConciliadorPage() {
                 const initialSelected: Record<string, string> = {};
                 const initialAmountFilter: Record<string, string> = {};
 
+                const currentMovMap = new Map<string, number>();
+                (data.movimientos || []).forEach((m: any, idx: number) => {
+                    currentMovMap.set(`${m.tabla}__${m.id}`, idx);
+                });
+
                 (data.tickets || []).forEach((t: any) => {
                     const montoTicket = parseFloat(t.monto?.toString() || "0");
                     initialAmountFilter[t.id] = montoTicket.toFixed(2);
@@ -484,15 +546,10 @@ export default function ConciliadorPage() {
                         return;
                     }
 
-                    // Buscar si hay sugerencia o match exacto de monto coincidente para tickets pendientes
-                    const sugerencia = (data.sugerencias || []).find((s: any) => s.ticket?.id === t.id);
-                    if (sugerencia?.movimiento && Math.abs(parseFloat(sugerencia.movimiento.abono?.toString() || "0") - montoTicket) < 0.01) {
-                        initialSelected[t.id] = `${sugerencia.movimiento.tabla}__${sugerencia.movimiento.id}`;
-                    } else {
-                        const matchingMov = (data.movimientos || []).find((m: any) => Math.abs(parseFloat(m.abono?.toString() || "0") - montoTicket) < 0.01);
-                        if (matchingMov) {
-                            initialSelected[t.id] = `${matchingMov.tabla}__${matchingMov.id}`;
-                        }
+                    // Auto-seleccionar SOLO si hay una sugerencia destacada válida (monto exacto y fecha/hora <= 1 min)
+                    const { sugerencias: tSugerencias } = getSugerenciasParaTicket(t, data.movimientos || [], currentMovMap);
+                    if (tSugerencias.length > 0) {
+                        initialSelected[t.id] = tSugerencias[0].valKey;
                     }
                 });
 
