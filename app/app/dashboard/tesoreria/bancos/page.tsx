@@ -151,6 +151,7 @@ const TABS: {
 
 interface Movimiento {
     id: string;
+    legacyId?: number | null;
     fechaOperacion: string;
     horaOperacion?: string | null;
     bancoOrigen: string;
@@ -760,7 +761,7 @@ export default function BancosPage() {
                                 </CardTitle>
                                 <div className="relative w-full sm:w-72">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                    <Input placeholder="Buscar por concepto, rastreo..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+                                    <Input placeholder="Buscar por ID, concepto, rastreo..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
                                 </div>
                             </div>
                         </CardHeader>
@@ -770,12 +771,13 @@ export default function BancosPage() {
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left align-middle text-gray-600">
                                     {(() => {
-                                        const colSpan = activeTab === "todas" ? 16 : 15;
+                                        const colSpan = activeTab === "todas" ? 17 : 16;
                                         return (
                                             <>
                                                 <thead className="bg-gray-50/75 border-b border-gray-100 font-medium text-gray-700">
                                                     <tr>
                                                         <th className="px-3 py-3 w-8"></th>
+                                                        <th className="px-3 py-3 whitespace-nowrap">ID Bancario</th>
                                                         <th className="px-3 py-3 whitespace-nowrap">Fecha y Hora</th>
                                                         {activeTab === "todas" && <th className="px-3 py-3 whitespace-nowrap">Cuenta Destino</th>}
                                                         <th className="px-3 py-3 whitespace-nowrap">Banco</th>
@@ -838,6 +840,29 @@ export default function BancosPage() {
                                                                         ) : (
                                                                             <CreditCard className="h-4 w-4 text-gray-400" />
                                                                         )}
+                                                                    </td>
+
+                                                                    {/* ID Bancario */}
+                                                                    <td className="px-3 py-3 whitespace-nowrap">
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <span
+                                                                                className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 transition-colors"
+                                                                                title={`ID Bancario: ${mov.id}${mov.legacyId ? ` (Legacy: #${mov.legacyId})` : ""}`}
+                                                                            >
+                                                                                #{mov.legacyId ?? (mov.id && mov.id.length > 8 ? mov.id.slice(-8) : mov.id)}
+                                                                            </span>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    copiarAlPortapapeles(mov.id, "ID Bancario");
+                                                                                }}
+                                                                                className="text-gray-400 hover:text-blue-600 p-0.5 transition-colors"
+                                                                                title="Copiar ID completo"
+                                                                            >
+                                                                                <Copy className="h-3 w-3" />
+                                                                            </button>
+                                                                        </div>
                                                                     </td>
 
                                                                     {/* Fecha y Hora */}

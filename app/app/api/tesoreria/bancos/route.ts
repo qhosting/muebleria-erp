@@ -23,7 +23,10 @@ export async function GET(request: NextRequest) {
         const where: any = {};
 
         if (search) {
+            const cleanSearchNum = parseInt(search.replace(/[^0-9]/g, ''), 10);
             where.OR = [
+                { id: { contains: search, mode: 'insensitive' } },
+                ...(!isNaN(cleanSearchNum) && cleanSearchNum > 0 ? [{ legacyId: cleanSearchNum }] : []),
                 { concepto: { contains: search, mode: 'insensitive' } },
                 { descripcionDetallada: { contains: search, mode: 'insensitive' } },
                 { descripcionGeneral: { contains: search, mode: 'insensitive' } },
