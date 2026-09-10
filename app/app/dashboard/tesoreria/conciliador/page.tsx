@@ -1370,12 +1370,17 @@ export default function ConciliadorPage() {
                                             <tr key={ticket.id} className={`hover:bg-slate-50/70 transition-colors ${estaConciliado ? "bg-emerald-50/20" : ""}`}>
                                                 {/* Fecha y Hora */}
                                                 <td className="px-3 py-3 whitespace-nowrap text-gray-800">
-                                                    <span className="font-medium text-gray-900 block">
+                                                    <span className="font-medium text-gray-900 block" title="Fecha extraída del comprobante">
                                                         {formatDateTime(ticket.fecha || ticket.creadoEn).split(' ')[0]}
                                                     </span>
-                                                    <span className="text-[11px] text-gray-500 font-mono mt-0.5 block">
+                                                    <span className="text-[11px] text-gray-500 font-mono mt-0.5 block" title="Hora extraída del comprobante">
                                                         {formatDateTime(ticket.fecha || ticket.creadoEn).split(' ')[1] || ""}
                                                     </span>
+                                                    {ticket.creadoEn && (
+                                                        <span className="text-[10px] text-slate-400 font-mono mt-0.5 block" title="Fecha y hora de registro en el sistema">
+                                                            Reg: {formatDateTime(ticket.creadoEn)}
+                                                        </span>
+                                                    )}
                                                 </td>
 
                                                 {/* Contrato */}
@@ -1762,9 +1767,14 @@ export default function ConciliadorPage() {
                                             <strong className="text-[10px] font-bold text-[#495057] uppercase tracking-wider block mb-1">
                                                 TICKET ID
                                             </strong>
-                                            <span className="font-semibold text-xs text-gray-900 block font-mono truncate">
+                                            <span className="font-semibold text-xs text-gray-900 block font-mono truncate" title={`ID: ${ticket.id}`}>
                                                 {ticket.legacyId ? ticket.legacyId : ticket.id}
                                             </span>
+                                            {ticket.creadoEn && (
+                                                <span className="text-[10px] text-gray-500 block font-mono mt-1" title="Fecha y hora exacta en que se registró en el sistema">
+                                                    Reg: {formatDateTime(ticket.creadoEn)}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="bg-[#f8f9fa] border border-[#e9ecef] rounded-lg p-3">
                                             <strong className="text-[10px] font-bold text-[#495057] uppercase tracking-wider block mb-1">
@@ -1775,11 +1785,14 @@ export default function ConciliadorPage() {
                                             </span>
                                         </div>
                                         <div className="bg-[#f8f9fa] border border-[#e9ecef] rounded-lg p-3">
-                                            <strong className="text-[10px] font-bold text-[#495057] uppercase tracking-wider block mb-1">
-                                                FECHA
+                                            <strong className="text-[10px] font-bold text-[#495057] uppercase tracking-wider block mb-1" title="Fecha y hora impresa o extraída del comprobante de pago">
+                                                FECHA COMPROBANTE
                                             </strong>
                                             <span className="font-medium text-xs text-gray-900 block truncate" title={formatDateTime(ticket.fecha || ticket.creadoEn)}>
                                                 {formatDateTime(ticket.fecha || ticket.creadoEn)}
+                                            </span>
+                                            <span className="text-[10px] text-blue-600 block mt-1 font-medium">
+                                                {ticket.fecha ? "Extraída de imagen" : "Fecha registro"}
                                             </span>
                                         </div>
                                         <div className="bg-[#f8f9fa] border border-[#e9ecef] rounded-lg p-3">
