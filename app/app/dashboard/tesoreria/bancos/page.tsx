@@ -606,6 +606,36 @@ export default function BancosPage() {
         }
     };
 
+    const handleEliminarDesde05Sep = async () => {
+        const confirm = window.confirm(
+            "¿Estás seguro de ELIMINAR todos los registros bancarios del 5 de septiembre de 2026 a hoy?\n\n" +
+            "• Se eliminarán los movimientos bancarios de Santander y Banorte cargados en este periodo.\n" +
+            "• Los tickets asociados se desconciliarán automáticamente y volverán a estado Pendiente.\n" +
+            "• Podrás volver a cargar los estados de cuenta bancarios limpiamente.\n\n" +
+            "Esta acción es irreversible. ¿Deseas continuar?"
+        );
+        if (!confirm) return;
+
+        setDeletingOld(true);
+        try {
+            const res = await fetch("/api/tesoreria/bancos?desde=2026-09-05", {
+                method: "DELETE"
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(`¡Se eliminaron ${data.eliminados.total} movimientos bancarios del 05/09/2026 a hoy!`);
+                fetchMovimientos();
+            } else {
+                toast.error(data.error || "Error al eliminar registros bancarios");
+            }
+        } catch (err) {
+            console.error("Error al eliminar registros:", err);
+            toast.error("Error de conexión al eliminar registros");
+        } finally {
+            setDeletingOld(false);
+        }
+    };
+
     const colSpan = activeTab === "todas" ? 8 : 7;
 
     return (
@@ -637,6 +667,20 @@ export default function BancosPage() {
                                     <Trash2 className="mr-1.5 h-3.5 w-3.5 text-red-600" />
                                 )}
                                 Depurar &lt; 27/08/2026
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={handleEliminarDesde05Sep}
+                                disabled={loading || deletingOld}
+                                className="border-rose-300 text-rose-700 bg-rose-50/70 hover:bg-rose-100 hover:text-rose-800 text-xs font-semibold"
+                                title="Eliminar movimientos bancarios desde el 5 de septiembre de 2026 a hoy para volver a cargarlos"
+                            >
+                                {deletingOld ? (
+                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Trash2 className="mr-1.5 h-3.5 w-3.5 text-rose-600" />
+                                )}
+                                Eliminar desde 05/Sep a Hoy
                             </Button>
                             <Button variant="outline" onClick={exportarCSV} disabled={loading || movimientos.length === 0}>
                                 <Download className="mr-2 h-4 w-4" /> Exportar CSV

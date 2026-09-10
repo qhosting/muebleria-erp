@@ -181,20 +181,91 @@ export async function DELETE(request: NextRequest) {
         }
 
         const { searchParams } = new URL(request.url);
-        const fechaStr = searchParams.get('antesDe') || '2026-08-27';
-        const fechaLimite = new Date(`${fechaStr}T00:00:00.000Z`);
+        const desdeStr = searchParams.get('desde');
+        const hastaStr = searchParams.get('hasta');
+        const antesDeStr = searchParams.get('antesDe');
 
+        let whereClause: any = {};
+        let logMessage = '';
+
+        if (desdeStr) {
+            const fechaInicio = new Date(`${desdeStr}T00:00:00.000Z`);
+            whereClause.fechaOperacion = { gte: fechaInicio };
+            if (hastaStr) {
+                const fechaFin = new Date(`${hastaStr}T23:59:59.999Z`);
+                whereClause.fechaOperacion.lte = fechaFin;
+                logMessage = `Registros bancarios del ${desdeStr} al ${hastaStr} eliminados correctamente`;
+            } else {
+                logMessage = `Registros bancarios desde el ${desdeStr} hasta hoy eliminados correctamente`;
+            }
+        } else {
+            const fechaStr = antesDeStr || '2026-08-27';
+            const fechaLimite = new Date(`${fechaStr}T00:00:00.000Z`);
+            whereClause.fechaOperacion = { lt: fechaLimite };
+            logMessage = `Registros bancarios anteriores al ${fechaStr} eliminados correctamente`;
+        }
+
+        // Antes de eliminar los movimientos, buscar los tickets vinculados a ellos para desconciliarlos
+        const [m1, m2, m3, m4] = await Promise.all([
+            prisma.movimientoSantander22001022837.findMany({ where: { ...whereClause, ticketId: { not: null } }, select: { ticketId: true } }),
+            prisma.movimientoSantander65505732541.findMany({ where: { ...whereClause, ticketId: { not: null } }, select: { ticketId: true } }),
+            prisma.movimientoBanorte0330253963.findMany({ where: { ...whereClause, ticketId: { not: null } }, select: { ticketId: true } }),
+            prisma.movimientoBancario.findMany({ where: { ...whereClause, ticketId: { not: null } }, select: { ticketId: true } }),
+        ]);
+
+        const ticketIds = Array.from(new Set([
+            ...m1.map(m => m.ticketId),
+            ...m2.map(m => m.ticketId),
+            ...m3.map(m => m.ticketId),
+            ...m4.map(m => m.ticketId)
+        ].filter(Boolean) as string[]));
+
+        if (ticketIds.length > 0) {
+            // Revertir pagos creados por el conciliador si los hay
+            const pagosConciliados = await prisma.pago.findMany({
+                where: {
+                    ticketId: { in: ticketIds },
+                    metodoPago: { in: ['TESORERIA CONCILIADOR', 'SPEI AUTO CONCILIADO', 'MIGRACION MANUAL'] }
+                },
+                include: { cliente: true }
+            });
+
+            for (const p of pagosConciliados) {
+                if (p.cliente) {
+                    const saldoActual = parseFloat(p.cliente.saldoActual.toString());
+                    const montoPago = parseFloat(p.monto.toString());
+                    await prisma.cliente.update({
+                        where: { id: p.clienteId },
+                        data: { saldoActual: saldoActual + montoPago }
+                    });
+                }
+            }
+
+            if (pagosConciliados.length > 0) {
+                await prisma.pago.deleteMany({
+                    where: { id: { in: pagosConciliados.map(p => p.id) } }
+                });
+            }
+
+            // Desmarcar tickets como no conciliados
+            await prisma.ticket.updateMany({
+                where: { id: { in: ticketIds } },
+                data: { conciliado: false }
+            });
+        }
+
+        // Eliminar los movimientos bancarios en todas las tablas
         const [delS1, delS2, delB, delMb] = await Promise.all([
-            prisma.movimientoSantander22001022837.deleteMany({ where: { fechaOperacion: { lt: fechaLimite } } }),
-            prisma.movimientoSantander65505732541.deleteMany({ where: { fechaOperacion: { lt: fechaLimite } } }),
-            prisma.movimientoBanorte0330253963.deleteMany({ where: { fechaOperacion: { lt: fechaLimite } } }),
-            prisma.movimientoBancario.deleteMany({ where: { fechaOperacion: { lt: fechaLimite } } }),
+            prisma.movimientoSantander22001022837.deleteMany({ where: whereClause }),
+            prisma.movimientoSantander65505732541.deleteMany({ where: whereClause }),
+            prisma.movimientoBanorte0330253963.deleteMany({ where: whereClause }),
+            prisma.movimientoBancario.deleteMany({ where: whereClause }),
         ]);
 
         return NextResponse.json({
             success: true,
-            message: `Registros bancarios anteriores al ${fechaStr} eliminados correctamente`,
-            fechaLimite: fechaLimite.toISOString(),
+            message: logMessage,
+            ticketsDesconciliados: ticketIds.length,
             eliminados: {
                 santander_22001022837: delS1.count,
                 santander_65505732541: delS2.count,
@@ -204,7 +275,7 @@ export async function DELETE(request: NextRequest) {
             }
         });
     } catch (error) {
-        console.error('Error al eliminar movimientos bancarios antiguos:', error);
+        console.error('Error al eliminar movimientos bancarios:', error);
         return NextResponse.json(
             { error: 'Error al eliminar movimientos bancarios' },
             { status: 500 }
