@@ -198,11 +198,12 @@ export async function DELETE(request: NextRequest) {
             } else {
                 logMessage = `Registros bancarios desde el ${desdeStr} hasta hoy eliminados correctamente`;
             }
-        } else {
-            const fechaStr = antesDeStr || '2026-08-27';
-            const fechaLimite = new Date(`${fechaStr}T00:00:00.000Z`);
+        } else if (antesDeStr) {
+            const fechaLimite = new Date(`${antesDeStr}T00:00:00.000Z`);
             whereClause.fechaOperacion = { lt: fechaLimite };
-            logMessage = `Registros bancarios anteriores al ${fechaStr} eliminados correctamente`;
+            logMessage = `Registros bancarios anteriores al ${antesDeStr} eliminados correctamente`;
+        } else {
+            return NextResponse.json({ error: 'Debes especificar el parámetro ?desde=YYYY-MM-DD para eliminar' }, { status: 400 });
         }
 
         // Antes de eliminar los movimientos, buscar los tickets vinculados a ellos para desconciliarlos

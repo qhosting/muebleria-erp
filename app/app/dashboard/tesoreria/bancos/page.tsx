@@ -582,34 +582,11 @@ export default function BancosPage() {
 
     const [deletingOld, setDeletingOld] = useState(false);
 
-    const handleEliminarAnteriores = async () => {
-        const confirm = window.confirm("¿Estás seguro de eliminar todos los registros bancarios anteriores al 27/08/2026 de todas las cuentas bancarias? Esta acción es irreversible.");
-        if (!confirm) return;
-
-        setDeletingOld(true);
-        try {
-            const res = await fetch("/api/tesoreria/bancos?antesDe=2026-08-27", {
-                method: "DELETE"
-            });
-            const data = await res.json();
-            if (res.ok) {
-                toast.success(`¡Se eliminaron ${data.eliminados.total} registros bancarios anteriores al 27/08/2026!`);
-                fetchMovimientos();
-            } else {
-                toast.error(data.error || "Error al eliminar registros bancarios");
-            }
-        } catch (err) {
-            console.error("Error al eliminar registros:", err);
-            toast.error("Error de conexión al eliminar registros");
-        } finally {
-            setDeletingOld(false);
-        }
-    };
-
     const handleEliminarDesde05Sep = async () => {
         const confirm = window.confirm(
-            "¿Estás seguro de ELIMINAR todos los registros bancarios del 5 de septiembre de 2026 a hoy?\n\n" +
-            "• Se eliminarán los movimientos bancarios de Santander y Banorte cargados en este periodo.\n" +
+            "¿Estás seguro de ELIMINAR los registros bancarios desde el 5 de septiembre de 2026 hasta hoy?\n\n" +
+            "• NO se tocará ningún registro anterior al 05/09/2026.\n" +
+            "• Se eliminarán únicamente los movimientos bancarios de Santander y Banorte registrados desde el 05/09/2026.\n" +
             "• Los tickets asociados se desconciliarán automáticamente y volverán a estado Pendiente.\n" +
             "• Podrás volver a cargar los estados de cuenta bancarios limpiamente.\n\n" +
             "Esta acción es irreversible. ¿Deseas continuar?"
@@ -654,20 +631,6 @@ export default function BancosPage() {
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                                variant="outline"
-                                onClick={handleEliminarAnteriores}
-                                disabled={loading || deletingOld}
-                                className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 text-xs font-semibold"
-                                title="Eliminar movimientos bancarios anteriores al 27 de agosto de 2026"
-                            >
-                                {deletingOld ? (
-                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                    <Trash2 className="mr-1.5 h-3.5 w-3.5 text-red-600" />
-                                )}
-                                Depurar &lt; 27/08/2026
-                            </Button>
                             <Button
                                 variant="outline"
                                 onClick={handleEliminarDesde05Sep}
