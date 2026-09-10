@@ -964,6 +964,81 @@ export default function ConciliadorPage() {
         }
     };
 
+    const handleDesconciliarTicket = async (ticket: any) => {
+        const ticketNum = ticket.legacyId || (ticket.id ? ticket.id.slice(-6) : "");
+        const confirm = window.confirm(
+            `¿Estás seguro de desconciliar el ticket #${ticketNum} (Contrato: ${ticket.cliente?.codigoCliente || ticket.contrato || "S/C"})?\n\n` +
+            `El ticket volverá a estado PENDIENTE y el movimiento bancario quedará liberado para conciliarse nuevamente.`
+        );
+        if (!confirm) return;
+
+        setActionLoading(prev => ({ ...prev, [ticket.id]: true }));
+        try {
+            const res = await fetch("/api/tesoreria/conciliador", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "desconciliar",
+                    ticketId: ticket.id
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                toast.success("Ticket desconciliado exitosamente");
+                setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, conciliado: false, movimientoConciliado: null } : t));
+                setSelectedMovByTicket(prev => {
+                    const next = { ...prev };
+                    delete next[ticket.id];
+                    return next;
+                });
+                fetchData();
+            } else {
+                toast.error(data.error || "Error al desconciliar ticket");
+            }
+        } catch (error) {
+            console.error("Error al desconciliar ticket:", error);
+            toast.error("Error de conexión al desconciliar");
+        } finally {
+            setActionLoading(prev => ({ ...prev, [ticket.id]: false }));
+        }
+    };
+
+    const handleDesconciliarSemana = async () => {
+        const confirm = window.confirm(
+            "¿Estás seguro de DESCONCILIAR TODOS los tickets a partir del 05/09/2026?\n\n" +
+            "• Todos los tickets de la semana volverán a estado PENDIENTE.\n" +
+            "• Los movimientos bancarios quedarán liberados para conciliarse con las reglas de hora exacta.\n" +
+            "• Los pagos automáticos creados por conciliación se revertirán."
+        );
+        if (!confirm) return;
+
+        setLoading(true);
+        try {
+            const res = await fetch("/api/tesoreria/conciliador", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "desconciliar_desde",
+                    desde: "2026-09-05"
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(data.message || `Tickets desconciliados: ${data.count || 0}`);
+                fetchData();
+            } else {
+                toast.error(data.error || "Error al desconciliar tickets de la semana");
+            }
+        } catch (error) {
+            console.error("Error al desconciliar semana:", error);
+            toast.error("Error de conexión al desconciliar");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleVerComprobante = async (ticket: any) => {
         setViewingTicket(ticket);
         setTicketImage(null);
@@ -1176,6 +1251,19 @@ export default function ConciliadorPage() {
                         >
                             <Download className="w-3 h-3" />
                             Exportar a Excel
+                        </Button>
+
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDesconciliarSemana}
+                            disabled={loading}
+                            className="h-7 text-[11px] font-semibold text-rose-700 bg-rose-50/60 hover:bg-rose-100 border-rose-200 rounded flex items-center gap-1.5 transition-colors"
+                            title="Desconciliar todos los tickets a partir del 05/09/2026 y liberar movimientos bancarios"
+                        >
+                            <RotateCcw className="w-3 h-3 text-rose-600" />
+                            Desconciliar Semana (desde 05/Sep)
                         </Button>
 
                         {/* Selector de Orden: Antiguos primero vs Recientes primero */}
@@ -1518,6 +1606,20 @@ export default function ConciliadorPage() {
                                                                 </>
                                                             );
                                                         })()}
+                                                        {estaConciliado && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                disabled={actionLoading[ticket.id]}
+                                                                onClick={() => handleDesconciliarTicket(ticket)}
+                                                                className="h-7 text-[11px] px-2 text-rose-700 hover:bg-rose-50 hover:text-rose-800 border-rose-200 rounded font-semibold flex items-center gap-1"
+                                                                title="Desconciliar este ticket y liberar el movimiento bancario"
+                                                            >
+                                                                {actionLoading[ticket.id] ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+                                                                Desconciliar
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1602,6 +1704,23 @@ export default function ConciliadorPage() {
                                                 <Eye className="w-3.5 h-3.5" />
                                                 Ver Comprobante
                                             </Button>
+                                            {estaConciliado && (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    disabled={actionLoading[ticket.id]}
+                                                    onClick={() => handleDesconciliarTicket(ticket)}
+                                                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold px-3 h-8 rounded text-xs flex items-center gap-1.5 shadow-none transition-colors"
+                                                    title="Desconciliar este ticket y liberar el movimiento bancario"
+                                                >
+                                                    {actionLoading[ticket.id] ? (
+                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    ) : (
+                                                        <RotateCcw className="w-3.5 h-3.5" />
+                                                    )}
+                                                    Desconciliar
+                                                </Button>
+                                            )}
                                             {!estaConciliado && (
                                                 <Button
                                                     type="button"

@@ -665,60 +665,102 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        // --- ACCIÓN: DESCONCILIAR MOVIMIENTO BANCARIO DEL TICKET ---
+        // --- ACCIÓN: DESCONCILIAR MOVIMIENTO BANCARIO DEL TICKET (POR MOVIMIENTO O POR TICKET) ---
         if (action === 'desconciliar' || action === 'desvincular') {
-            const targetMovId = movimientoId || body.id;
-            if (!targetMovId) return NextResponse.json({ error: 'ID de movimiento bancario requerido' }, { status: 400 });
-
-            let movimiento: any = null;
+            let targetTicketId = ticketId || body.ticketId;
+            let targetMovId = movimientoId || body.id;
             let tablaOrigen = tabla;
+            let movimiento: any = null;
 
-            if (tablaOrigen === 'movimientoSantander22001022837') {
-                movimiento = await prisma.movimientoSantander22001022837.findUnique({ where: { id: targetMovId } });
-            } else if (tablaOrigen === 'movimientoSantander65505732541') {
-                movimiento = await prisma.movimientoSantander65505732541.findUnique({ where: { id: targetMovId } });
-            } else if (tablaOrigen === 'movimientoBanorte0330253963') {
-                movimiento = await prisma.movimientoBanorte0330253963.findUnique({ where: { id: targetMovId } });
-            } else {
-                movimiento = await prisma.movimientoSantander22001022837.findUnique({ where: { id: targetMovId } });
-                if (movimiento) tablaOrigen = 'movimientoSantander22001022837';
-                else {
+            // Si se pasa ticketId pero no targetMovId, buscar el movimiento asociado en todas las tablas bancarias
+            if (!targetMovId && targetTicketId) {
+                const [mSantander22, mSantander65, mBanorte, mGeneral] = await Promise.all([
+                    prisma.movimientoSantander22001022837.findFirst({ where: { ticketId: targetTicketId } }),
+                    prisma.movimientoSantander65505732541.findFirst({ where: { ticketId: targetTicketId } }),
+                    prisma.movimientoBanorte0330253963.findFirst({ where: { ticketId: targetTicketId } }),
+                    prisma.movimientoBancario.findFirst({ where: { ticketId: targetTicketId } })
+                ]);
+
+                if (mSantander22) {
+                    movimiento = mSantander22;
+                    targetMovId = mSantander22.id;
+                    tablaOrigen = 'movimientoSantander22001022837';
+                } else if (mSantander65) {
+                    movimiento = mSantander65;
+                    targetMovId = mSantander65.id;
+                    tablaOrigen = 'movimientoSantander65505732541';
+                } else if (mBanorte) {
+                    movimiento = mBanorte;
+                    targetMovId = mBanorte.id;
+                    tablaOrigen = 'movimientoBanorte0330253963';
+                } else if (mGeneral) {
+                    movimiento = mGeneral;
+                    targetMovId = mGeneral.id;
+                    tablaOrigen = 'movimientoBancario';
+                }
+            } else if (targetMovId) {
+                if (tablaOrigen === 'movimientoSantander22001022837') {
+                    movimiento = await prisma.movimientoSantander22001022837.findUnique({ where: { id: targetMovId } });
+                } else if (tablaOrigen === 'movimientoSantander65505732541') {
                     movimiento = await prisma.movimientoSantander65505732541.findUnique({ where: { id: targetMovId } });
-                    if (movimiento) tablaOrigen = 'movimientoSantander65505732541';
+                } else if (tablaOrigen === 'movimientoBanorte0330253963') {
+                    movimiento = await prisma.movimientoBanorte0330253963.findUnique({ where: { id: targetMovId } });
+                } else {
+                    movimiento = await prisma.movimientoSantander22001022837.findUnique({ where: { id: targetMovId } });
+                    if (movimiento) tablaOrigen = 'movimientoSantander22001022837';
                     else {
-                        movimiento = await prisma.movimientoBanorte0330253963.findUnique({ where: { id: targetMovId } });
-                        if (movimiento) tablaOrigen = 'movimientoBanorte0330253963';
+                        movimiento = await prisma.movimientoSantander65505732541.findUnique({ where: { id: targetMovId } });
+                        if (movimiento) tablaOrigen = 'movimientoSantander65505732541';
+                        else {
+                            movimiento = await prisma.movimientoBanorte0330253963.findUnique({ where: { id: targetMovId } });
+                            if (movimiento) tablaOrigen = 'movimientoBanorte0330253963';
+                            else {
+                                movimiento = await prisma.movimientoBancario.findUnique({ where: { id: targetMovId } });
+                                if (movimiento) tablaOrigen = 'movimientoBancario';
+                            }
+                        }
                     }
+                }
+                if (movimiento && !targetTicketId) {
+                    targetTicketId = movimiento.ticketId;
                 }
             }
 
-            if (!movimiento) return NextResponse.json({ error: 'Movimiento bancario no encontrado' }, { status: 404 });
+            if (!movimiento && !targetTicketId) {
+                return NextResponse.json({ error: 'ID de ticket o movimiento bancario requerido' }, { status: 400 });
+            }
 
-            const targetTicketId = movimiento.ticketId || ticketId;
             const operations: any[] = [];
 
-            // 1. Desvincular el movimiento bancario
-            const clearMovData = {
-                ticketId: null,
-                clienteId: null,
-                fechaIdentificado: null
-            };
+            // 1. Desvincular el movimiento bancario si existe
+            if (movimiento && targetMovId) {
+                const clearMovData = {
+                    ticketId: null,
+                    clienteId: null,
+                    fechaIdentificado: null
+                };
 
-            if (tablaOrigen === 'movimientoSantander22001022837') {
-                operations.push(prisma.movimientoSantander22001022837.update({
-                    where: { id: targetMovId },
-                    data: clearMovData
-                }));
-            } else if (tablaOrigen === 'movimientoSantander65505732541') {
-                operations.push(prisma.movimientoSantander65505732541.update({
-                    where: { id: targetMovId },
-                    data: clearMovData
-                }));
-            } else if (tablaOrigen === 'movimientoBanorte0330253963') {
-                operations.push(prisma.movimientoBanorte0330253963.update({
-                    where: { id: targetMovId },
-                    data: clearMovData
-                }));
+                if (tablaOrigen === 'movimientoSantander22001022837') {
+                    operations.push(prisma.movimientoSantander22001022837.update({
+                        where: { id: targetMovId },
+                        data: clearMovData
+                    }));
+                } else if (tablaOrigen === 'movimientoSantander65505732541') {
+                    operations.push(prisma.movimientoSantander65505732541.update({
+                        where: { id: targetMovId },
+                        data: clearMovData
+                    }));
+                } else if (tablaOrigen === 'movimientoBanorte0330253963') {
+                    operations.push(prisma.movimientoBanorte0330253963.update({
+                        where: { id: targetMovId },
+                        data: clearMovData
+                    }));
+                } else if (tablaOrigen === 'movimientoBancario') {
+                    operations.push(prisma.movimientoBancario.update({
+                        where: { id: targetMovId },
+                        data: clearMovData
+                    }));
+                }
             }
 
             // 2. Si hay ticket asociado, desmarcarlo como no conciliado
@@ -764,11 +806,106 @@ export async function POST(request: NextRequest) {
                 }));
             }
 
-            await prisma.$transaction(operations);
+            if (operations.length > 0) {
+                await prisma.$transaction(operations);
+            }
 
             return NextResponse.json({
                 success: true,
-                message: `Movimiento bancario desconciliado exitosamente${targetTicketId ? ` del ticket #${targetTicketId}` : ''}`
+                message: `Desconciliado exitosamente${targetTicketId ? ` (ticket #${targetTicketId})` : ''}`
+            });
+        }
+
+        // --- ACCIÓN: DESCONCILIAR EN LOTE POR RANGO DE FECHAS (EJ. DESDE 2026-09-05) ---
+        if (action === 'desconciliar_desde' || action === 'desconciliar_rango') {
+            const fechaDesdeStr = body.desde || '2026-09-05';
+            const fechaHastaStr = body.hasta || null;
+
+            const fechaFiltro: any = {
+                gte: new Date(`${fechaDesdeStr}T00:00:00.000Z`)
+            };
+            if (fechaHastaStr) {
+                fechaFiltro.lte = new Date(`${fechaHastaStr}T23:59:59.999Z`);
+            }
+
+            // Buscar todos los tickets conciliados en ese rango
+            const ticketsConciliados = await prisma.ticket.findMany({
+                where: {
+                    conciliado: true,
+                    OR: [
+                        { fecha: fechaFiltro },
+                        { creadoEn: fechaFiltro }
+                    ]
+                },
+                select: { id: true }
+            });
+
+            const ticketIds = ticketsConciliados.map(t => t.id);
+
+            if (ticketIds.length === 0) {
+                return NextResponse.json({
+                    success: true,
+                    count: 0,
+                    message: `No se encontraron tickets conciliados a partir del ${fechaDesdeStr}`
+                });
+            }
+
+            // 1. Desvincular en todas las tablas bancarias
+            await Promise.all([
+                prisma.movimientoSantander22001022837.updateMany({
+                    where: { ticketId: { in: ticketIds } },
+                    data: { ticketId: null, clienteId: null, fechaIdentificado: null }
+                }),
+                prisma.movimientoSantander65505732541.updateMany({
+                    where: { ticketId: { in: ticketIds } },
+                    data: { ticketId: null, clienteId: null, fechaIdentificado: null }
+                }),
+                prisma.movimientoBanorte0330253963.updateMany({
+                    where: { ticketId: { in: ticketIds } },
+                    data: { ticketId: null, clienteId: null, fechaIdentificado: null }
+                }),
+                prisma.movimientoBancario.updateMany({
+                    where: { ticketId: { in: ticketIds } },
+                    data: { ticketId: null, clienteId: null, fechaIdentificado: null }
+                })
+            ]);
+
+            // 2. Revertir saldo de pagos creados por conciliador si los hay
+            const pagosConciliados = await prisma.pago.findMany({
+                where: {
+                    ticketId: { in: ticketIds },
+                    metodoPago: { in: ['TESORERIA CONCILIADOR', 'SPEI AUTO CONCILIADO', 'MIGRACION MANUAL'] }
+                },
+                include: { cliente: true }
+            });
+
+            for (const p of pagosConciliados) {
+                if (p.cliente) {
+                    const saldoActual = parseFloat(p.cliente.saldoActual.toString());
+                    const montoPago = parseFloat(p.monto.toString());
+                    await prisma.cliente.update({
+                        where: { id: p.clienteId },
+                        data: { saldoActual: saldoActual + montoPago }
+                    });
+                }
+            }
+
+            if (pagosConciliados.length > 0) {
+                await prisma.pago.deleteMany({
+                    where: { id: { in: pagosConciliados.map(p => p.id) } }
+                });
+            }
+
+            // 3. Marcar tickets como no conciliados
+            await prisma.ticket.updateMany({
+                where: { id: { in: ticketIds } },
+                data: { conciliado: false }
+            });
+
+            return NextResponse.json({
+                success: true,
+                count: ticketIds.length,
+                message: `Se desconciliaron exitosamente ${ticketIds.length} tickets a partir del ${fechaDesdeStr}`
             });
         }
 
