@@ -777,7 +777,7 @@ export default function BancosPage() {
                                                 <thead className="bg-gray-50/75 border-b border-gray-100 font-medium text-gray-700">
                                                     <tr>
                                                         <th className="px-3 py-3 w-8"></th>
-                                                        <th className="px-3 py-3 whitespace-nowrap">ID Bancario</th>
+                                                        <th className="px-3 py-3 text-center whitespace-nowrap">#</th>
                                                         <th className="px-3 py-3 whitespace-nowrap">Fecha y Hora</th>
                                                         {activeTab === "todas" && <th className="px-3 py-3 whitespace-nowrap">Cuenta Destino</th>}
                                                         <th className="px-3 py-3 whitespace-nowrap">Banco</th>
@@ -807,7 +807,7 @@ export default function BancosPage() {
                                                             <p className="text-sm text-gray-400 mt-1">Importa un estado de cuenta para comenzar.</p>
                                                         </td></tr>
                                                     ) : (
-                                                        movimientos.map((mov) => {
+                                                        movimientos.map((mov, index) => {
                                                             const esConciliado = !!mov.ticketId;
                                                             const esAbono = (mov.abono || 0) > 0;
                                                             const esClickable = esAbono && !esConciliado;
@@ -817,6 +817,7 @@ export default function BancosPage() {
                                                             const ticketIdVinculado = mov.ticket?.id || mov.ticketId;
                                                             const fechaTicketRaw = mov.ticket?.fecha || mov.ticket?.creadoEn;
                                                             const fechaTicketStr = fechaTicketRaw ? formatDate(fechaTicketRaw).split(" ")[0] : null;
+                                                            const numCorto = mov.legacyId ?? ((currentPage - 1) * (pagination?.perPage || 100) + index);
 
                                                             return (
                                                                 <tr
@@ -842,14 +843,14 @@ export default function BancosPage() {
                                                                         )}
                                                                     </td>
 
-                                                                    {/* ID Bancario */}
-                                                                    <td className="px-3 py-3 whitespace-nowrap">
-                                                                        <div className="flex items-center gap-1.5">
+                                                                    {/* # Corto */}
+                                                                    <td className="px-3 py-3 whitespace-nowrap text-center">
+                                                                        <div className="flex items-center justify-center gap-1.5">
                                                                             <span
                                                                                 className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 transition-colors"
-                                                                                title={`ID Bancario: ${mov.id}${mov.legacyId ? ` (Legacy: #${mov.legacyId})` : ""}`}
+                                                                                title={`# Corto: #${numCorto}${mov.id ? ` (ID: ${mov.id})` : ""}`}
                                                                             >
-                                                                                #{mov.legacyId ?? (mov.id && mov.id.length > 8 ? mov.id.slice(-8) : mov.id)}
+                                                                                #{numCorto}
                                                                             </span>
                                                                             <button
                                                                                 type="button"
@@ -858,7 +859,7 @@ export default function BancosPage() {
                                                                                     copiarAlPortapapeles(mov.id, "ID Bancario");
                                                                                 }}
                                                                                 className="text-gray-400 hover:text-blue-600 p-0.5 transition-colors"
-                                                                                title="Copiar ID completo"
+                                                                                title={`Copiar ID bancario (${mov.id})`}
                                                                             >
                                                                                 <Copy className="h-3 w-3" />
                                                                             </button>
