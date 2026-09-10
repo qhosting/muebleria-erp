@@ -476,7 +476,15 @@ export default function ConciliadorPage() {
                     const montoTicket = parseFloat(t.monto?.toString() || "0");
                     initialAmountFilter[t.id] = montoTicket.toFixed(2);
 
-                    // Buscar si hay sugerencia o match exacto de monto coincidente
+                    // Si el ticket ya está conciliado, asignar su movimiento real si existe y no buscar en movimientos pendientes
+                    if (t.conciliado) {
+                        if (t.movimientoConciliado) {
+                            initialSelected[t.id] = `${t.movimientoConciliado.tabla}__${t.movimientoConciliado.id}`;
+                        }
+                        return;
+                    }
+
+                    // Buscar si hay sugerencia o match exacto de monto coincidente para tickets pendientes
                     const sugerencia = (data.sugerencias || []).find((s: any) => s.ticket?.id === t.id);
                     if (sugerencia?.movimiento && Math.abs(parseFloat(sugerencia.movimiento.abono?.toString() || "0") - montoTicket) < 0.01) {
                         initialSelected[t.id] = `${sugerencia.movimiento.tabla}__${sugerencia.movimiento.id}`;
@@ -1486,7 +1494,9 @@ export default function ConciliadorPage() {
 
                             // Obtener el objeto del movimiento seleccionado actualmente
                             let selectedMovObj: any = null;
-                            if (selectedMovValue) {
+                            if (estaConciliado && ticket.movimientoConciliado) {
+                                selectedMovObj = ticket.movimientoConciliado;
+                            } else if (selectedMovValue) {
                                 const [tTabla, tId] = selectedMovValue.split("__");
                                 selectedMovObj = movimientos.find(m => m.tabla === tTabla && String(m.id) === String(tId));
                             }
@@ -1670,200 +1680,210 @@ export default function ConciliadorPage() {
 
                                     {/* Sección de Selección y Filtrado de Movimiento Bancario */}
                                     <div className="space-y-3">
-                                        <div>
-                                            <label className="text-xs font-bold text-gray-800 block mb-1">
-                                                Filtrar por monto:
-                                            </label>
-                                            <div className="flex items-center gap-2">
-                                                <Input
-                                                    type="number"
-                                                    step="0.01"
-                                                    value={currentAmountFilter === "TODOS" ? "" : currentAmountFilter}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value;
-                                                        setAmountFilterByTicket(prev => ({ ...prev, [ticket.id]: val }));
-                                                    }}
-                                                    placeholder="0.00"
-                                                    className="w-full h-9 bg-white border border-gray-300 rounded-md px-3 text-xs font-mono font-bold text-gray-900"
-                                                />
-                                                {currentAmountFilter !== montoTicketNum.toFixed(2) && (
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => setAmountFilterByTicket(prev => ({ ...prev, [ticket.id]: montoTicketNum.toFixed(2) }))}
-                                                        className="h-9 text-[11px] px-2.5 text-gray-700 shrink-0 font-semibold"
-                                                        title="Restablecer al monto original del ticket"
-                                                    >
-                                                        Monto Ticket (${montoTicketNum.toFixed(2)})
-                                                    </Button>
-                                                )}
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => setAmountFilterByTicket(prev => ({ ...prev, [ticket.id]: "TODOS" }))}
-                                                    className={`h-9 text-[11px] px-2.5 shrink-0 font-semibold ${currentAmountFilter === "TODOS" ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-100"}`}
-                                                    title="Ver todos los movimientos sin filtrar por monto"
-                                                >
-                                                    Ver Todos ({movimientos.length})
-                                                </Button>
-                                            </div>
-                                        </div>
-
-                                        {/* Dropdown de Movimiento Bancario con Sugerencias y Manual */}
-                                        <div className="space-y-2">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <label className="text-xs font-bold text-gray-800 block">
-                                                    Sugerencias / Selección Manual:
-                                                </label>
-                                                {sugerencias.length > 0 ? (
-                                                    <Badge className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs">
-                                                        ⭐ {sugerencias.length} sugerencia{sugerencias.length > 1 ? "s" : ""}
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300 text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                                                        Sin sugerencias
-                                                    </Badge>
-                                                )}
-                                            </div>
-
-                                            {/* 🌟 Tarjetas de Selección Rápida para Sugerencias */}
-                                            {sugerencias.length > 0 && !estaConciliado && (
-                                                <div className="space-y-1.5 bg-slate-50/90 p-2.5 rounded-lg border border-slate-200">
-                                                    <div className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
-                                                        <span>🎯 Sugerencias destacadas (clic para seleccionar):</span>
-                                                        <span className="text-[10px] text-emerald-700 font-semibold font-mono">
-                                                            {sugerencias.length} coinciden
-                                                        </span>
+                                        {!estaConciliado ? (
+                                            <>
+                                                <div>
+                                                    <label className="text-xs font-bold text-gray-800 block mb-1">
+                                                        Filtrar por monto:
+                                                    </label>
+                                                    <div className="flex items-center gap-2">
+                                                        <Input
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={currentAmountFilter === "TODOS" ? "" : currentAmountFilter}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                setAmountFilterByTicket(prev => ({ ...prev, [ticket.id]: val }));
+                                                            }}
+                                                            placeholder="0.00"
+                                                            className="w-full h-9 bg-white border border-gray-300 rounded-md px-3 text-xs font-mono font-bold text-gray-900"
+                                                        />
+                                                        {currentAmountFilter !== montoTicketNum.toFixed(2) && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => setAmountFilterByTicket(prev => ({ ...prev, [ticket.id]: montoTicketNum.toFixed(2) }))}
+                                                                className="h-9 text-[11px] px-2.5 text-gray-700 shrink-0 font-semibold"
+                                                                title="Restablecer al monto original del ticket"
+                                                            >
+                                                                Monto Ticket (${montoTicketNum.toFixed(2)})
+                                                            </Button>
+                                                        )}
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setAmountFilterByTicket(prev => ({ ...prev, [ticket.id]: "TODOS" }))}
+                                                            className={`h-9 text-[11px] px-2.5 shrink-0 font-semibold ${currentAmountFilter === "TODOS" ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-100"}`}
+                                                            title="Ver todos los movimientos sin filtrar por monto"
+                                                        >
+                                                            Ver Todos ({movimientos.length})
+                                                        </Button>
                                                     </div>
-                                                    <div className="flex flex-col gap-1.5">
-                                                        {sugerencias.slice(0, 4).map((sug) => {
-                                                            const isSelected = selectedMovValue === sug.valKey;
-                                                            const m = sug.mov;
-                                                            const refVal = m?.referencia ? String(m.referencia).trim() : sug.refCorto;
-                                                            const rastreoVal = m?.claveRastreo ? String(m.claveRastreo).trim() : sug.rastreoCorto;
-                                                            const descTexto = sug.descCompleta || sug.descCorta || "";
-                                                            const cuentaEmisorVal = m?.cuentaEmisor || m?.clabeEmisor ? String(m.cuentaEmisor || m.clabeEmisor).trim() : null;
-                                                            const bancoOrigenVal = m?.bancoOrigen && m.bancoOrigen !== "null" && m.bancoOrigen !== "none" ? String(m.bancoOrigen).trim() : null;
-                                                            const saldoVal = m?.saldo !== undefined && m?.saldo !== null ? formatCurrency(m.saldo) : null;
-
-                                                            return (
-                                                                <button
-                                                                    key={sug.valKey}
-                                                                    type="button"
-                                                                    onClick={() => setSelectedMovByTicket(prev => ({ ...prev, [ticket.id]: sug.valKey }))}
-                                                                    className={`w-full text-left p-2.5 rounded-lg border text-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2 cursor-pointer ${
-                                                                        isSelected
-                                                                            ? "border-emerald-500 bg-emerald-50/90 ring-2 ring-emerald-500 shadow-xs"
-                                                                            : "border-gray-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/40"
-                                                                    }`}
-                                                                >
-                                                                    <div className="flex flex-wrap items-center gap-1.5">
-                                                                        <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
-                                                                            #{sug.movIdx}
-                                                                        </span>
-                                                                        <span className="font-bold text-gray-800 text-[11px] px-1.5 py-0.5 rounded bg-slate-50 border border-gray-200">
-                                                                            {sug.etiquetaPrioridad || "⭐ Coincidencia"}
-                                                                        </span>
-                                                                        <span className="font-mono font-black text-emerald-700 text-xs px-2 py-0.5 rounded bg-emerald-100/70 border border-emerald-200">
-                                                                            ${sug.movAbono.toFixed(2)}
-                                                                        </span>
-                                                                        {camposConfig.bancoDestino && (
-                                                                            <span className="text-gray-700 font-semibold text-[11px]">
-                                                                                {sug.bancoNombre} ({sug.ctaCorto})
-                                                                            </span>
-                                                                        )}
-                                                                        {camposConfig.fechaHora && (
-                                                                            <span className="font-mono text-gray-600 text-[11px]">
-                                                                                {sug.fechaHoraDisplay}
-                                                                            </span>
-                                                                        )}
-                                                                        {camposConfig.bancoOrigen && bancoOrigenVal && (
-                                                                            <span className="font-mono text-[11px] text-gray-700 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
-                                                                                Origen: {bancoOrigenVal}
-                                                                            </span>
-                                                                        )}
-                                                                        {camposConfig.referencia && refVal && (
-                                                                            <span className="font-mono text-[11px] text-gray-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-bold">
-                                                                                Ref: {refVal}
-                                                                            </span>
-                                                                        )}
-                                                                        {camposConfig.spei && rastreoVal && (
-                                                                            <span className="font-mono text-[11px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                                                                                SPEI: {rastreoVal}
-                                                                            </span>
-                                                                        )}
-                                                                        {camposConfig.concepto && descTexto && (
-                                                                            <span className="font-mono text-[11px] text-gray-900 font-medium bg-white px-2 py-0.5 rounded border border-gray-200 break-words" title={descTexto}>
-                                                                                {descTexto}
-                                                                            </span>
-                                                                        )}
-                                                                        {camposConfig.cuentaEmisor && cuentaEmisorVal && (
-                                                                            <span className="font-mono text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                                                                                Cta: {cuentaEmisorVal}
-                                                                            </span>
-                                                                        )}
-                                                                        {camposConfig.saldo && saldoVal && (
-                                                                            <span className="font-mono text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
-                                                                                Saldo: {saldoVal}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-
-                                                                    <div className="shrink-0 flex items-center self-end sm:self-center">
-                                                                        {isSelected ? (
-                                                                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-200/80 px-2 py-0.5 rounded">
-                                                                                ✓ Seleccionado
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className="text-[10px] font-medium text-gray-400">
-                                                                                Seleccionar →
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                    {sugerencias.length > 4 && (
-                                                        <p className="text-[10px] text-gray-500 italic mt-0.5">
-                                                            Mostrando las mejores 4 sugerencias. Usa el menú abajo para ver todas las {sugerencias.length} opciones.
-                                                        </p>
-                                                    )}
                                                 </div>
-                                            )}
 
-                                            <select
-                                                value={selectedMovValue || ""}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    setSelectedMovByTicket(prev => ({ ...prev, [ticket.id]: val }));
-                                                }}
-                                                disabled={estaConciliado}
-                                                className="w-full h-9 bg-white border border-gray-300 rounded-md px-2.5 text-[11px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono truncate disabled:bg-gray-100 shadow-xs"
-                                            >
-                                                <option value="" className="text-[11px] font-mono">-- Selecciona un depósito bancario para conciliar --</option>
-                                                {sugerencias.length > 0 && (
-                                                    <optgroup label={`⭐ Sugerencias Automáticas (${sugerencias.length})`} className="text-[11px] font-mono font-bold">
-                                                        {sugerencias.map((sug) => (
-                                                            <option key={sug.valKey} value={sug.valKey} className="text-[11px] font-mono py-1">
-                                                                {sug.label}
-                                                            </option>
-                                                        ))}
-                                                    </optgroup>
-                                                )}
-                                                <optgroup label={`📋 Selección Manual (${manuales.length} movimientos)`} className="text-[11px] font-mono font-bold">
-                                                    {manuales.map((mov) => (
-                                                        <option key={mov.valKey} value={mov.valKey} className="text-[11px] font-mono py-1">
-                                                            {mov.label}
-                                                        </option>
-                                                    ))}
-                                                </optgroup>
-                                            </select>
-                                        </div>
+                                                {/* Dropdown de Movimiento Bancario con Sugerencias y Manual */}
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <label className="text-xs font-bold text-gray-800 block">
+                                                            Sugerencias / Selección Manual:
+                                                        </label>
+                                                        {sugerencias.length > 0 ? (
+                                                            <Badge className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs">
+                                                                ⭐ {sugerencias.length} sugerencia{sugerencias.length > 1 ? "s" : ""}
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                                                                Sin sugerencias
+                                                            </Badge>
+                                                        )}
+                                                    </div>
 
-                                        {/* Vista Previa en UNA SOLA LÍNEA del Movimiento Seleccionado */}
+                                                    {/* 🌟 Tarjetas de Selección Rápida para Sugerencias */}
+                                                    {sugerencias.length > 0 && (
+                                                        <div className="space-y-1.5 bg-slate-50/90 p-2.5 rounded-lg border border-slate-200">
+                                                            <div className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+                                                                <span>🎯 Sugerencias destacadas (clic para seleccionar):</span>
+                                                                <span className="text-[10px] text-emerald-700 font-semibold font-mono">
+                                                                    {sugerencias.length} coinciden
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex flex-col gap-1.5">
+                                                                {sugerencias.slice(0, 4).map((sug) => {
+                                                                    const isSelected = selectedMovValue === sug.valKey;
+                                                                    const m = sug.mov;
+                                                                    const refVal = m?.referencia ? String(m.referencia).trim() : sug.refCorto;
+                                                                    const rastreoVal = m?.claveRastreo ? String(m.claveRastreo).trim() : sug.rastreoCorto;
+                                                                    const descTexto = sug.descCompleta || sug.descCorta || "";
+                                                                    const cuentaEmisorVal = m?.cuentaEmisor || m?.clabeEmisor ? String(m.cuentaEmisor || m.clabeEmisor).trim() : null;
+                                                                    const bancoOrigenVal = m?.bancoOrigen && m.bancoOrigen !== "null" && m.bancoOrigen !== "none" ? String(m.bancoOrigen).trim() : null;
+                                                                    const saldoVal = m?.saldo !== undefined && m?.saldo !== null ? formatCurrency(m.saldo) : null;
+
+                                                                    return (
+                                                                        <button
+                                                                            key={sug.valKey}
+                                                                            type="button"
+                                                                            onClick={() => setSelectedMovByTicket(prev => ({ ...prev, [ticket.id]: sug.valKey }))}
+                                                                            className={`w-full text-left p-2.5 rounded-lg border text-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2 cursor-pointer ${
+                                                                                isSelected
+                                                                                    ? "border-emerald-500 bg-emerald-50/90 ring-2 ring-emerald-500 shadow-xs"
+                                                                                    : "border-gray-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/40"
+                                                                            }`}
+                                                                        >
+                                                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                                                <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                                                                                    #{sug.movIdx}
+                                                                                </span>
+                                                                                <span className="font-bold text-gray-800 text-[11px] px-1.5 py-0.5 rounded bg-slate-50 border border-gray-200">
+                                                                                    {sug.etiquetaPrioridad || "⭐ Coincidencia"}
+                                                                                </span>
+                                                                                <span className="font-mono font-black text-emerald-700 text-xs px-2 py-0.5 rounded bg-emerald-100/70 border border-emerald-200">
+                                                                                    ${sug.movAbono.toFixed(2)}
+                                                                                </span>
+                                                                                {camposConfig.bancoDestino && (
+                                                                                    <span className="text-gray-700 font-semibold text-[11px]">
+                                                                                        {sug.bancoNombre} ({sug.ctaCorto})
+                                                                                    </span>
+                                                                                )}
+                                                                                {camposConfig.fechaHora && (
+                                                                                    <span className="font-mono text-gray-600 text-[11px]">
+                                                                                        {sug.fechaHoraDisplay}
+                                                                                    </span>
+                                                                                )}
+                                                                                {camposConfig.bancoOrigen && bancoOrigenVal && (
+                                                                                    <span className="font-mono text-[11px] text-gray-700 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
+                                                                                        Origen: {bancoOrigenVal}
+                                                                                    </span>
+                                                                                )}
+                                                                                {camposConfig.referencia && refVal && (
+                                                                                    <span className="font-mono text-[11px] text-gray-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-bold">
+                                                                                        Ref: {refVal}
+                                                                                    </span>
+                                                                                )}
+                                                                                {camposConfig.spei && rastreoVal && (
+                                                                                    <span className="font-mono text-[11px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                                                                        SPEI: {rastreoVal}
+                                                                                    </span>
+                                                                                )}
+                                                                                {camposConfig.concepto && descTexto && (
+                                                                                    <span className="font-mono text-[11px] text-gray-900 font-medium bg-white px-2 py-0.5 rounded border border-gray-200 break-words" title={descTexto}>
+                                                                                        {descTexto}
+                                                                                    </span>
+                                                                                )}
+                                                                                {camposConfig.cuentaEmisor && cuentaEmisorVal && (
+                                                                                    <span className="font-mono text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                                                                                        Cta: {cuentaEmisorVal}
+                                                                                    </span>
+                                                                                )}
+                                                                                {camposConfig.saldo && saldoVal && (
+                                                                                    <span className="font-mono text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
+                                                                                        Saldo: {saldoVal}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+
+                                                                            <div className="shrink-0 flex items-center self-end sm:self-center">
+                                                                                {isSelected ? (
+                                                                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-200/80 px-2 py-0.5 rounded">
+                                                                                        ✓ Seleccionado
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-[10px] font-medium text-gray-400">
+                                                                                        Seleccionar →
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                            {sugerencias.length > 4 && (
+                                                                <p className="text-[10px] text-gray-500 italic mt-0.5">
+                                                                    Mostrando las mejores 4 sugerencias. Usa el menú abajo para ver todas las {sugerencias.length} opciones.
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    <select
+                                                        value={selectedMovValue || ""}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setSelectedMovByTicket(prev => ({ ...prev, [ticket.id]: val }));
+                                                        }}
+                                                        className="w-full h-9 bg-white border border-gray-300 rounded-md px-2.5 text-[11px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono truncate shadow-xs"
+                                                    >
+                                                        <option value="" className="text-[11px] font-mono">-- Selecciona un depósito bancario para conciliar --</option>
+                                                        {sugerencias.length > 0 && (
+                                                            <optgroup label={`⭐ Sugerencias Automáticas (${sugerencias.length})`} className="text-[11px] font-mono font-bold">
+                                                                {sugerencias.map((sug) => (
+                                                                    <option key={sug.valKey} value={sug.valKey} className="text-[11px] font-mono py-1">
+                                                                        {sug.label}
+                                                                    </option>
+                                                                ))}
+                                                            </optgroup>
+                                                        )}
+                                                        <optgroup label={`📋 Selección Manual (${manuales.length} movimientos)`} className="text-[11px] font-mono font-bold">
+                                                            {manuales.map((mov) => (
+                                                                <option key={mov.valKey} value={mov.valKey} className="text-[11px] font-mono py-1">
+                                                                    {mov.label}
+                                                                </option>
+                                                            ))}
+                                                        </optgroup>
+                                                    </select>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="flex items-center justify-between pb-1">
+                                                <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                                                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                                    Movimiento Bancario Conciliado:
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* Vista Previa en UNA SOLA LÍNEA del Movimiento Seleccionado o Conciliado */}
                                         {selectedMovObj && (() => {
                                             const selectedValKey = `${selectedMovObj.tabla}__${selectedMovObj.id}`;
                                             const selectedMovIdx = globalMovIndexMap.get(selectedValKey) ?? 0;
@@ -1891,7 +1911,7 @@ export default function ConciliadorPage() {
                                                     <div className="bg-[#f8f9fa] border border-[#d0d7de] rounded-lg p-2.5 text-xs flex flex-wrap items-center gap-1.5 shadow-2xs">
                                                         {/* ID Movimiento */}
                                                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-950 border border-blue-200">
-                                                            🏦 ID #{selectedMovIdx}
+                                                            🏦 ID #{selectedMovIdx > 0 ? selectedMovIdx : (selectedMovObj.legacyId || selectedMovObj.id)}
                                                         </span>
 
                                                         {/* Banco y Cuenta Destino */}

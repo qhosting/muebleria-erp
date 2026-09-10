@@ -263,7 +263,11 @@ export async function GET(request: NextRequest) {
                         monto: true,
                         fechaPago: true
                     }
-                }
+                },
+                movimientosSantander22001022837: true,
+                movimientosSantander65505732541: true,
+                movimientosBanorte0330253963: true,
+                movimientosBancarios: true
             },
             orderBy: [
                 { fecha: sortDirection },
@@ -277,6 +281,28 @@ export async function GET(request: NextRequest) {
             const timeA = new Date(a.fecha || a.creadoEn).getTime();
             const timeB = new Date(b.fecha || b.creadoEn).getTime();
             return sortDirection === 'desc' ? timeB - timeA : timeA - timeB;
+        });
+
+        const ticketsWithMovimiento = ticketsPendientes.map((t: any) => {
+            let movimientoConciliado: any = null;
+            if (t.movimientosSantander65505732541 && t.movimientosSantander65505732541.length > 0) {
+                const mov = t.movimientosSantander65505732541[0];
+                movimientoConciliado = { ...mov, tabla: 'movimientoSantander65505732541', cuentaDestino: '65505732541', bancoDestino: 'SANTANDER' };
+            } else if (t.movimientosSantander22001022837 && t.movimientosSantander22001022837.length > 0) {
+                const mov = t.movimientosSantander22001022837[0];
+                movimientoConciliado = { ...mov, tabla: 'movimientoSantander22001022837', cuentaDestino: '22001022837', bancoDestino: 'SANTANDER' };
+            } else if (t.movimientosBanorte0330253963 && t.movimientosBanorte0330253963.length > 0) {
+                const mov = t.movimientosBanorte0330253963[0];
+                movimientoConciliado = { ...mov, tabla: 'movimientoBanorte0330253963', cuentaDestino: '0330253963', bancoDestino: 'BANORTE' };
+            } else if (t.movimientosBancarios && t.movimientosBancarios.length > 0) {
+                const mov = t.movimientosBancarios[0];
+                movimientoConciliado = { ...mov, tabla: 'movimientosBancarios', cuentaDestino: mov.bancoDestino || '', bancoDestino: mov.bancoOrigen || '' };
+            }
+
+            return {
+                ...t,
+                movimientoConciliado
+            };
         });
 
         // 2. Obtener Movimientos Bancarios no conciliados de las 3 tablas
@@ -327,6 +353,7 @@ export async function GET(request: NextRequest) {
         };
 
         for (const ticket of ticketsPendientes) {
+            if (ticket.conciliado) continue;
             let bestMatch: any = null;
             let bestPriority = 10;
             let razon = "";
@@ -470,7 +497,7 @@ export async function GET(request: NextRequest) {
         });
 
         return NextResponse.json({
-            tickets: ticketsPendientes,
+            tickets: ticketsWithMovimiento,
             movimientos: movimientosPendientes,
             sugerencias,
             cobradores,
