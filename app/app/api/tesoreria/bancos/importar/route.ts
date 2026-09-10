@@ -12,6 +12,16 @@ function clean(value: any): string {
     return String(value).replace(/^'+|'+$/g, '').trim();
 }
 
+function normalizeHeader(h: any): string {
+    return String(h || '')
+        .replace(/^\uFEFF/, '')
+        .replace(/^'+|'+$/g, '')
+        .trim()
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+
 function parseExcelTime(val: any): string | null {
     if (val instanceof Date) {
         const hours = String(val.getHours()).padStart(2, '0');
@@ -76,10 +86,10 @@ function parseExcelDate(val: any): Date | null {
 function parseSantander(rows: any[][]): { records: any[], cuentaNum: string } {
     if (rows.length < 2) return { records: [], cuentaNum: '' };
     
-    const headers = rows[0].map(h => clean(h).toUpperCase());
+    const headers = rows[0].map(h => normalizeHeader(h));
     const records: any[] = [];
     
-    const colIdx = (name: string) => headers.indexOf(name);
+    const colIdx = (name: string) => headers.indexOf(normalizeHeader(name));
     
     const idxCuenta = colIdx('CUENTA');
     const idxFecha = colIdx('FECHA');
@@ -173,19 +183,19 @@ function parseSantander(rows: any[][]): { records: any[], cuentaNum: string } {
 function parseBanorte(rows: any[][]): { records: any[], cuentaNum: string } {
     if (rows.length < 2) return { records: [], cuentaNum: '' };
     
-    const headers = rows[0].map(h => clean(h).toUpperCase());
+    const headers = rows[0].map(h => normalizeHeader(h));
     const records: any[] = [];
     
-    const colIdx = (name: string) => headers.indexOf(name);
+    const colIdx = (name: string) => headers.indexOf(normalizeHeader(name));
     
     const idxCuenta = colIdx('CUENTA');
-    const idxFechaOperacion = colIdx('FECHA DE OPERACIÓN');
+    const idxFechaOperacion = colIdx('FECHA DE OPERACION');
     const idxReferencia = colIdx('REFERENCIA');
-    const idxDescripcion = colIdx('DESCRIPCIÓN');
-    const idxDepositos = colIdx('DEPÓSITOS');
+    const idxDescripcion = colIdx('DESCRIPCION');
+    const idxDepositos = colIdx('DEPOSITOS');
     const idxRetiros = colIdx('RETIROS');
     const idxSaldo = colIdx('SALDO');
-    const idxDescripcionDetallada = colIdx('DESCRIPCIÓN DETALLADA');
+    const idxDescripcionDetallada = colIdx('DESCRIPCION DETALLADA');
     
     let cuentaNum = '';
     
@@ -295,8 +305,7 @@ export async function POST(request: NextRequest) {
         const workbook = XLSX.read(buffer, { 
             type: 'buffer', 
             cellDates: !isCsv, 
-            raw: isCsv,
-            codepage: 65001 
+            raw: isCsv
         });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
