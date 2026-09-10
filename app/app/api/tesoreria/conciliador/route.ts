@@ -226,7 +226,8 @@ export async function GET(request: NextRequest) {
             ];
 
             andConditions.push({ OR: dateFilter });
-            movWhere.fechaOperacion = { gte: dStart, lte: dEnd };
+            // Nota: No restringir movimientos bancarios por la fecha de tickets seleccionada,
+            // para permitir seleccionar o sugerir depósitos realizados en cualquier fecha previa o posterior.
         }
 
         ticketWhere.AND = andConditions;
@@ -310,17 +311,17 @@ export async function GET(request: NextRequest) {
             prisma.movimientoSantander22001022837.findMany({
                 where: movWhere,
                 orderBy: { fechaOperacion: 'desc' },
-                take: 200
+                take: 1000
             }),
             prisma.movimientoSantander65505732541.findMany({
                 where: movWhere,
                 orderBy: { fechaOperacion: 'desc' },
-                take: 200
+                take: 1000
             }),
             prisma.movimientoBanorte0330253963.findMany({
                 where: movWhere,
                 orderBy: { fechaOperacion: 'desc' },
-                take: 200
+                take: 1000
             })
         ]);
 

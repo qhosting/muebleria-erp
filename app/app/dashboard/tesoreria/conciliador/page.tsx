@@ -342,8 +342,13 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
         let prioridad = 999;
         let etiquetaPrioridad = "";
 
-        // 🛡️ Regla estricta: Solo entra a 'sugerencias destacadas' si coincide el MONTO Y la FECHA/HORA (máx 1 minuto de diferencia)
-        if (isMontoExact && isFechaHoraMatch) {
+        // 🛡️ Regla de sugerencias destacadas (sin filtros de fecha en coincidencias clave):
+        // 1. Clave SPEI exacta (sin restricción de fecha)
+        // 2. Contrato del cliente (sin restricción de fecha)
+        // 3. Folio / Referencia (sin restricción de fecha)
+        // 4. Nombre del cliente (sin restricción de fecha)
+        // 5. Misma fecha y hora exacta (≤ 60 segundos de diferencia como fallback si no hay texto identificador)
+        if (isMontoExact) {
             if (rastreoNorm && rastreoNorm.length >= 6 && movNorm.includes(rastreoNorm)) {
                 prioridad = 1;
                 etiquetaPrioridad = "⚡ SPEI Exacto";
@@ -356,7 +361,7 @@ function getSugerenciasParaTicket(ticket: any, movsDisponibles: any[], globalInd
             } else if (palabrasNombre.length > 0 && palabrasNombre.filter((p: string) => movRaw.includes(p)).length >= 2) {
                 prioridad = 4;
                 etiquetaPrioridad = "🟣 Nombre";
-            } else {
+            } else if (isFechaHoraMatch) {
                 prioridad = 5;
                 etiquetaPrioridad = `⏱️ Hora Exacta (${Math.round(diffSeconds!)}s)`;
             }
