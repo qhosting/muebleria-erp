@@ -319,6 +319,9 @@ export default function BancosPage() {
     const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
+    const [fechaDesde, setFechaDesde] = useState("");
+    const [fechaHasta, setFechaHasta] = useState("");
+    const [filtroEstatus, setFiltroEstatus] = useState<"todos" | "pendientes" | "conciliados">("todos");
     const [currentPage, setCurrentPage] = useState(1);
     const [pagination, setPagination] = useState({ total: 0, pages: 0, currentPage: 1, perPage: 100 });
     const [importing, setImporting] = useState<string | null>(null);
@@ -355,6 +358,9 @@ export default function BancosPage() {
         try {
             const params = new URLSearchParams({ page: currentPage.toString(), limit: "100", search: searchTerm });
             if (currentTabConfig.bancoParam) params.set("banco", currentTabConfig.bancoParam);
+            if (fechaDesde) params.set("desde", fechaDesde);
+            if (fechaHasta) params.set("hasta", fechaHasta);
+            if (filtroEstatus !== "todos") params.set("estatus", filtroEstatus);
             const res = await fetch(`/api/tesoreria/bancos?${params}`);
             if (res.ok) {
                 const data = await res.json();
@@ -366,9 +372,9 @@ export default function BancosPage() {
         } finally {
             setLoading(false);
         }
-    }, [currentPage, searchTerm, activeTab]);
+    }, [currentPage, searchTerm, activeTab, fechaDesde, fechaHasta, filtroEstatus]);
 
-    useEffect(() => { setCurrentPage(1); }, [activeTab, searchTerm]);
+    useEffect(() => { setCurrentPage(1); }, [activeTab, searchTerm, fechaDesde, fechaHasta, filtroEstatus]);
     useEffect(() => { fetchMovimientos(); }, [fetchMovimientos]);
 
     // ── Abrir panel de conciliación para un movimiento ──
@@ -805,16 +811,161 @@ export default function BancosPage() {
                             </div>
                         )}
 
-                        {/* Search */}
-                        <CardHeader className="pb-3 border-b border-gray-100 pt-4">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <CardTitle className="text-base font-medium">
+                        {/* Search & Filters */}
+                        <CardHeader className="pb-3 border-b border-gray-100 pt-4 space-y-3">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <CardTitle className="text-base font-medium flex items-center">
                                     Historial de Transacciones
                                     <Badge variant="outline" className="ml-3 font-mono text-xs">{pagination.total} registros</Badge>
                                 </CardTitle>
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {/* Presets rápidos */}
+                                    <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50/70 p-0.5 text-xs font-medium text-gray-600">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const today = new Date().toISOString().split("T")[0];
+                                                setFechaDesde(today);
+                                                setFechaHasta(today);
+                                            }}
+                                            className="px-2.5 py-1 rounded-md hover:bg-white hover:text-gray-900 transition-colors"
+                                        >
+                                            Hoy
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const d = new Date();
+                                                const dayOfWeek = d.getDay(); // 0 es Domingo, 6 es Sábado
+                                                const diffToSat = (dayOfWeek + 1) % 7;
+                                                const sabado = new Date(d);
+                                                sabado.setDate(d.getDate() - diffToSat);
+                                                const viernes = new Date(sabado);
+                                                viernes.setDate(sabado.getDate() + 6);
+                                                setFechaDesde(sabado.toISOString().split("T")[0]);
+                                                setFechaHasta(viernes.toISOString().split("T")[0]);
+                                            }}
+                                            className="px-2.5 py-1 rounded-md hover:bg-white hover:text-gray-900 transition-colors"
+                                        >
+                                            Semana Cobranza
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const d = new Date();
+                                                const primerDia = new Date(d.getFullYear(), d.getMonth(), 1);
+                                                const ultimoDia = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                                                setFechaDesde(primerDia.toISOString().split("T")[0]);
+                                                setFechaHasta(ultimoDia.toISOString().split("T")[0]);
+                                            }}
+                                            className="px-2.5 py-1 rounded-md hover:bg-white hover:text-gray-900 transition-colors"
+                                        >
+                                            Este Mes
+                                        </button>
+                                    </div>
+
+                                    {/* Filtro de Estatus */}
+                                    <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50/70 p-0.5 text-xs font-medium">
+                                        <button
+                                            type="button"
+                                            onClick={() => setFiltroEstatus("todos")}
+                                            className={`px-2.5 py-1 rounded-md transition-colors ${
+                                                filtroEstatus === "todos"
+                                                    ? "bg-white text-gray-900 shadow-sm font-semibold"
+                                                    : "text-gray-600 hover:text-gray-900"
+                                            }`}
+                                        >
+                                            Todos
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFiltroEstatus("pendientes")}
+                                            className={`px-2.5 py-1 rounded-md transition-colors ${
+                                                filtroEstatus === "pendientes"
+                                                    ? "bg-amber-500 text-white shadow-sm font-semibold"
+                                                    : "text-amber-700 hover:text-amber-800"
+                                            }`}
+                                        >
+                                            Pendientes
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFiltroEstatus("conciliados")}
+                                            className={`px-2.5 py-1 rounded-md transition-colors ${
+                                                filtroEstatus === "conciliados"
+                                                    ? "bg-emerald-600 text-white shadow-sm font-semibold"
+                                                    : "text-emerald-700 hover:text-emerald-800"
+                                            }`}
+                                        >
+                                            Conciliados
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Segunda fila: Fechas Desde/Hasta y Buscador */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700 bg-gray-50/80 border border-gray-200 rounded-lg px-2.5 py-1">
+                                        <Calendar className="h-3.5 w-3.5 text-gray-500" />
+                                        <span className="text-gray-500 text-[11px]">Desde:</span>
+                                        <input
+                                            type="date"
+                                            value={fechaDesde}
+                                            onChange={(e) => setFechaDesde(e.target.value)}
+                                            className="bg-transparent border-none text-xs focus:ring-0 focus:outline-none p-0 cursor-pointer text-gray-800 font-medium"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700 bg-gray-50/80 border border-gray-200 rounded-lg px-2.5 py-1">
+                                        <Calendar className="h-3.5 w-3.5 text-gray-500" />
+                                        <span className="text-gray-500 text-[11px]">Hasta:</span>
+                                        <input
+                                            type="date"
+                                            value={fechaHasta}
+                                            onChange={(e) => setFechaHasta(e.target.value)}
+                                            className="bg-transparent border-none text-xs focus:ring-0 focus:outline-none p-0 cursor-pointer text-gray-800 font-medium"
+                                        />
+                                    </div>
+
+                                    {(fechaDesde || fechaHasta || searchTerm || filtroEstatus !== "todos") && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                                setFechaDesde("");
+                                                setFechaHasta("");
+                                                setSearchTerm("");
+                                                setFiltroEstatus("todos");
+                                            }}
+                                            className="h-8 px-2 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                            title="Limpiar todos los filtros"
+                                        >
+                                            <X className="h-3.5 w-3.5 mr-1" />
+                                            Limpiar filtros
+                                        </Button>
+                                    )}
+                                </div>
+
                                 <div className="relative w-full sm:w-72">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                    <Input placeholder="Buscar por ID, concepto, rastreo..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+                                    <Input
+                                        placeholder="Buscar por ID, concepto, rastreo..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="pl-9 h-9 text-xs"
+                                    />
+                                    {searchTerm && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearchTerm("")}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                            title="Borrar búsqueda"
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </CardHeader>

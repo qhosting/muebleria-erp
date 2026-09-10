@@ -18,9 +18,29 @@ export async function GET(request: NextRequest) {
         const limit = parseInt(searchParams.get('limit') || '50');
         const search = searchParams.get('search') || '';
         const banco = searchParams.get('banco') || ''; // '', '22001022837', '65505732541', '0330253963'
+        const desde = searchParams.get('desde') || '';
+        const hasta = searchParams.get('hasta') || '';
+        const estatus = searchParams.get('estatus') || ''; // 'todos', 'conciliados', 'pendientes'
 
         const skip = (page - 1) * limit;
         const where: any = {};
+
+        if (desde || hasta) {
+            where.fechaOperacion = {};
+            if (desde) {
+                where.fechaOperacion.gte = new Date(`${desde}T00:00:00.000Z`);
+            }
+            if (hasta) {
+                where.fechaOperacion.lte = new Date(`${hasta}T23:59:59.999Z`);
+            }
+        }
+
+        if (estatus === 'conciliados') {
+            where.ticketId = { not: null };
+        } else if (estatus === 'pendientes') {
+            where.ticketId = null;
+            where.abono = { gt: 0 };
+        }
 
         if (search) {
             const cleanSearchNum = parseInt(search.replace(/[^0-9]/g, ''), 10);
