@@ -37,30 +37,13 @@ import {
     Building2,
     CreditCard
 } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, formatDateTime, extractHoraOperacion } from "@/lib/utils";
 import { calcularSemanaCobranzaSabadoViernes, calcularRangoSemanaSabadoViernes } from "@/lib/calendario-cobranza-utils";
 import { toast } from "sonner";
 
-// Formatear Hora de Operación Bancaria
+// Formatear Hora de Operación Bancaria usando la función inteligente unificada
 function formatHoraOperacion(horaInput: any): string {
-    if (!horaInput) return "";
-    try {
-        if (typeof horaInput === "string") {
-            if (horaInput.includes("T")) {
-                const d = new Date(horaInput);
-                if (!isNaN(d.getTime())) {
-                    return d.toISOString().slice(11, 19);
-                }
-            }
-            if (horaInput.includes(":")) {
-                return horaInput.slice(0, 8);
-            }
-        }
-        if (horaInput instanceof Date && !isNaN(horaInput.getTime())) {
-            return horaInput.toISOString().slice(11, 19);
-        }
-    } catch {}
-    return String(horaInput).slice(0, 8);
+    return extractHoraOperacion(horaInput);
 }
 
 // Extraer Nombre del Ordenante de la información bancaria o ticket vinculado
@@ -185,6 +168,7 @@ interface Movimiento {
     saldo?: number;
     ticketId?: string | null;
     clienteId?: string | null;
+    fechaIdentificado?: string | null;
     tabla?: string;
     ticket?: {
         id: string;
@@ -826,7 +810,7 @@ export default function BancosPage() {
                                                             const esAbono = (mov.abono || 0) > 0;
                                                             const esClickable = esAbono && !esConciliado;
                                                             const isSelected = panelMov?.id === mov.id;
-                                                            const horaStr = formatHoraOperacion(mov.horaOperacion);
+                                                            const horaStr = extractHoraOperacion(mov);
                                                             const contratoCliente = mov.ticket?.cliente?.codigoCliente || mov.cliente?.codigoCliente;
                                                             const ticketIdVinculado = mov.ticket?.id || mov.ticketId;
                                                             const fechaTicketRaw = mov.ticket?.fecha || mov.ticket?.creadoEn;
@@ -1001,8 +985,14 @@ export default function BancosPage() {
                                                                                         <Copy className="h-3 w-3" />
                                                                                     </button>
                                                                                 </div>
-                                                                                {fechaTicketStr ? (
-                                                                                    <span className="flex items-center gap-1 text-[11px] text-gray-600 font-medium">
+                                                                                {/* Fecha y Hora de Conciliación */}
+                                                                                {mov.fechaIdentificado ? (
+                                                                                    <span className="flex items-center gap-1 text-[10px] text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-mono" title="Fecha y Hora de Conciliación en Tesorería">
+                                                                                        <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
+                                                                                        {formatDateTime(mov.fechaIdentificado)}
+                                                                                    </span>
+                                                                                ) : fechaTicketStr ? (
+                                                                                    <span className="flex items-center gap-1 text-[11px] text-gray-600 font-medium" title="Fecha del comprobante/ticket">
                                                                                         <Calendar className="h-3 w-3 text-gray-400" />
                                                                                         {fechaTicketStr}
                                                                                     </span>
@@ -1468,7 +1458,7 @@ export default function BancosPage() {
                                             {formatDate(detalleModalMov.fechaOperacion).split(" ")[0]}
                                         </span>
                                         <span className="text-[11px] font-mono text-slate-500">
-                                            {formatHoraOperacion(detalleModalMov.horaOperacion) || "Hora no reg."}
+                                            {extractHoraOperacion(detalleModalMov) || "Hora no reg."}
                                         </span>
                                     </div>
                                 </div>
@@ -1649,6 +1639,12 @@ export default function BancosPage() {
                                                 <span className="text-slate-400 text-[10px] uppercase block font-semibold">Fecha del Ticket</span>
                                                 <span className="font-medium text-xs text-slate-700 block">
                                                     {detalleModalMov.ticket?.fecha || detalleModalMov.ticket?.creadoEn ? formatDate(detalleModalMov.ticket.fecha || detalleModalMov.ticket.creadoEn).split(" ")[0] : "—"}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 text-[10px] uppercase block font-semibold">Conciliado En</span>
+                                                <span className="font-mono text-xs font-bold text-emerald-700 block" title="Fecha y Hora de Conciliación">
+                                                    {detalleModalMov.fechaIdentificado ? formatDateTime(detalleModalMov.fechaIdentificado) : "—"}
                                                 </span>
                                             </div>
                                             <div>

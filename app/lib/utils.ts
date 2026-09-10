@@ -206,6 +206,124 @@ export function getCdmxDateRange(fechaDesdeStr?: string | null, fechaHastaStr?: 
   };
 }
 
+/**
+ * Función inteligente para extraer y formatear la hora de operación (HH:MM:SS / HH:MM)
+ * de cualquier movimiento bancario o string/Date, garantizando total consistencia
+ * entre Tesorería Bancos y Conciliador.
+ */
+export function extractHoraOperacion(mov: any): string {
+  if (!mov) return "";
+
+  if (typeof mov === "string" || mov instanceof Date) {
+    return formatHoraString(mov);
+  }
+
+  // 1. Extraer del campo horaOperacion
+  if (mov.horaOperacion) {
+    const res = formatHoraString(mov.horaOperacion);
+    if (res && res !== "00:00" && res !== "00:00:00") return res;
+  }
+
+  // 2. Extraer de fechaOperacion si contiene hora distinta a medianoche UTC
+  if (mov.fechaOperacion) {
+    const res = formatHoraFromDateTime(mov.fechaOperacion);
+    if (res && res !== "00:00" && res !== "00:00:00") return res;
+  }
+
+  // 3. Buscar patrón de hora en descripcionDetallada, concepto o descripcionGeneral
+  const textPool = `${mov.descripcionDetallada || ''} ${mov.concepto || ''} ${mov.descripcionGeneral || ''}`;
+  if (textPool.trim()) {
+    const match = textPool.match(/(?:(?:HORA|HR|HRS|A LAS|HR LIQ)\s*:?\s*)?([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?/i);
+    if (match) {
+      const hh = match[1].padStart(2, '0');
+      const mm = match[2].padStart(2, '0');
+      const ss = match[3] ? `:${match[3].padStart(2, '0')}` : '';
+      return `${hh}:${mm}${ss}`;
+    }
+  }
+
+  // 4. Fallback a fechaIngreso si existe hora registrada
+  if (mov.fechaIngreso) {
+    const res = formatHoraFromDateTime(mov.fechaIngreso);
+    if (res && res !== "00:00" && res !== "00:00:00") return res;
+  }
+
+  return "";
+}
+
+export function formatHoraString(val: any): string {
+  if (!val) return "";
+  const str = String(val).trim();
+
+  // Formato directo HH:MM o HH:MM:SS
+  const simpleMatch = str.match(/^([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/);
+  if (simpleMatch) {
+    const hh = simpleMatch[1].padStart(2, '0');
+    const mm = simpleMatch[2].padStart(2, '0');
+    const ss = simpleMatch[3] ? `:${simpleMatch[3].padStart(2, '0')}` : '';
+    return `${hh}:${mm}${ss}`;
+  }
+
+  // Formato ISO string con T (ej: 1970-01-01T15:25:00.000Z o 2026-09-01T15:25:00Z)
+  if (str.includes("T")) {
+    const timePart = str.split("T")[1];
+    if (timePart) {
+      const m = timePart.match(/^([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?/);
+      if (m) {
+        const hh = m[1].padStart(2, '0');
+        const mm = m[2].padStart(2, '0');
+        const ss = m[3] ? `:${m[3].padStart(2, '0')}` : '';
+        if (hh !== "00" || mm !== "00") return `${hh}:${mm}${ss}`;
+      }
+    }
+  }
+
+  try {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      // Si es fecha base 1970 (típico de campos @db.Time), tomar UTC
+      if (d.getUTCFullYear() === 1970) {
+        const hh = String(d.getUTCHours()).padStart(2, '0');
+        const mm = String(d.getUTCMinutes()).padStart(2, '0');
+        const ss = String(d.getUTCSeconds()).padStart(2, '0');
+        if (hh !== "00" || mm !== "00") {
+          return ss !== "00" ? `${hh}:${mm}:${ss}` : `${hh}:${mm}`;
+        }
+      }
+      return new Intl.DateTimeFormat('es-MX', {
+        timeZone: 'America/Mexico_City',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).format(d);
+    }
+  } catch {}
+
+  return str;
+}
+
+export function formatHoraFromDateTime(val: any): string {
+  if (!val) return "";
+  try {
+    const d = typeof val === "string" ? new Date(val) : val;
+    if (d instanceof Date && !isNaN(d.getTime())) {
+      // Si no es medianoche exacta UTC (00:00:00.000Z)
+      if (!(d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0)) {
+        return new Intl.DateTimeFormat('es-MX', {
+          timeZone: 'America/Mexico_City',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(d);
+      }
+    }
+  } catch {}
+  return "";
+}
+
+
 export function getDayName(dayNumber: string): string {
   const days = {
     '1': 'Lunes',

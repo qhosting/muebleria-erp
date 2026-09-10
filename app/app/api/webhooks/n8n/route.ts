@@ -655,15 +655,19 @@ export async function POST(req: Request) {
             const noEncontrados: any[] = [];
 
             for (const m of movimientos) {
-                const fOperacion = m.fecha ? new Date(m.fecha) : new Date();
-                const desc = m.descripcion || m.concepto || '';
+                const rawFecha = m.fecha || m.fecha_operacion || m.fechaOperacion;
+                const fOperacion = rawFecha ? new Date(rawFecha) : new Date();
+                const desc = m.descripcion || m.concepto || m.descripcion_general || m.descripcionGeneral || '';
                 const cargo = parseFloat(m.cargo || '0') || null;
                 const abono = parseFloat(m.abono || m.monto || '0') || null;
                 const ref = m.referencia || m.folio || null;
-                const rastreo = m.claveRastreo || null;
-                const saldo = m.saldo ? parseFloat(m.saldo) : null;
+                const rastreo = m.claveRastreo || m.clave_rastreo || null;
+                const saldo = m.saldo != null ? parseFloat(m.saldo) : null;
+                const detalle = m.descripcionDetallada || m.descripcion_detallada || null;
+                const bOrigen = m.bancoEmisor || m.bancoOrigen || m.banco_origen || 'SANTANDER';
+                const nombreOrd = m.nombreOrdenante || m.nombre_ordenante || null;
 
-                const rawHora = m.hora || m.horaOperacion || m.time || null;
+                const rawHora = m.hora || m.horaOperacion || m.hora_operacion || m.time || null;
                 let hOp: Date | undefined = undefined;
                 if (rawHora) {
                     if (typeof rawHora === 'string' && rawHora.includes(':')) {
@@ -694,29 +698,29 @@ export async function POST(req: Request) {
                         noEncontrados.push({
                             cuenta: '65505732541',
                             fecha: fOperacion.toISOString().slice(0, 10),
-                            hora: m.hora || null,
+                            hora: rawHora || null,
                             abono,
                             referencia: ref,
                             claveRastreo: rastreo,
                             concepto: m.concepto || desc,
-                            nombreOrdenante: m.nombreOrdenante || null
+                            nombreOrdenante: nombreOrd
                         });
                         if (!soloRevisar) {
                             await prisma.movimientoSantander65505732541.create({
                                 data: {
-                                    bancoOrigen: m.bancoEmisor || m.bancoOrigen || 'SANTANDER',
+                                    bancoOrigen: bOrigen,
                                     fechaOperacion: fOperacion,
                                     horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
                                     descripcionGeneral: desc,
                                     concepto: m.concepto || desc,
-                                    descripcionDetallada: m.descripcionDetallada || null,
+                                    descripcionDetallada: detalle,
                                     cargo,
                                     abono,
                                     saldo,
                                     referencia: ref,
                                     claveRastreo: rastreo,
-                                    clabeEmisor: m.clabeEmisor || null,
-                                    cuentaEmisor: m.cuentaEmisor || null,
+                                    clabeEmisor: m.clabeEmisor || m.clabe_emisor || null,
+                                    cuentaEmisor: m.cuentaEmisor || m.cuenta_emisor || null,
                                 }
                             });
                             insertados++;
@@ -743,29 +747,29 @@ export async function POST(req: Request) {
                         noEncontrados.push({
                             cuenta: '22001022837',
                             fecha: fOperacion.toISOString().slice(0, 10),
-                            hora: m.hora || null,
+                            hora: rawHora || null,
                             abono,
                             referencia: ref,
                             claveRastreo: rastreo,
                             concepto: m.concepto || desc,
-                            nombreOrdenante: m.nombreOrdenante || null
+                            nombreOrdenante: nombreOrd
                         });
                         if (!soloRevisar) {
                             await prisma.movimientoSantander22001022837.create({
                                 data: {
-                                    bancoOrigen: m.bancoEmisor || m.bancoOrigen || 'SANTANDER',
+                                    bancoOrigen: bOrigen,
                                     fechaOperacion: fOperacion,
                                     horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
                                     descripcionGeneral: desc,
                                     concepto: m.concepto || desc,
-                                    descripcionDetallada: m.descripcionDetallada || null,
+                                    descripcionDetallada: detalle,
                                     cargo,
                                     abono,
                                     saldo,
                                     referencia: ref,
                                     claveRastreo: rastreo,
-                                    clabeEmisor: m.clabeEmisor || null,
-                                    cuentaEmisor: m.cuentaEmisor || null,
+                                    clabeEmisor: m.clabeEmisor || m.clabe_emisor || null,
+                                    cuentaEmisor: m.cuentaEmisor || m.cuenta_emisor || null,
                                 }
                             });
                             insertados++;
