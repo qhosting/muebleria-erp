@@ -184,6 +184,7 @@ export async function DELETE(request: NextRequest) {
         const desdeStr = searchParams.get('desde');
         const hastaStr = searchParams.get('hasta');
         const antesDeStr = searchParams.get('antesDe');
+        const banco = searchParams.get('banco') || ''; // '', 'todas', '22001022837', '65505732541', '0330253963'
 
         let whereClause: any = {};
         let logMessage = '';
@@ -206,12 +207,17 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Debes especificar el parámetro ?desde=YYYY-MM-DD para eliminar' }, { status: 400 });
         }
 
+        const checkS1 = !banco || banco === 'todas' || banco === '22001022837';
+        const checkS2 = !banco || banco === 'todas' || banco === '65505732541';
+        const checkBanorte = !banco || banco === 'todas' || banco === '0330253963';
+        const checkMb = !banco || banco === 'todas';
+
         // Antes de eliminar los movimientos, buscar los tickets vinculados a ellos para desconciliarlos
         const [m1, m2, m3, m4] = await Promise.all([
-            prisma.movimientoSantander22001022837.findMany({ where: { ...whereClause, ticketId: { not: null } }, select: { ticketId: true } }),
-            prisma.movimientoSantander65505732541.findMany({ where: { ...whereClause, ticketId: { not: null } }, select: { ticketId: true } }),
-            prisma.movimientoBanorte0330253963.findMany({ where: { ...whereClause, ticketId: { not: null } }, select: { ticketId: true } }),
-            prisma.movimientoBancario.findMany({ where: { ...whereClause, ticketId: { not: null } }, select: { ticketId: true } }),
+            checkS1 ? prisma.movimientoSantander22001022837.findMany({ where: { ...whereClause, ticketId: { not: null } }, select: { ticketId: true } }) : Promise.resolve([]),
+            checkS2 ? prisma.movimientoSantander65505732541.findMany({ where: { ...whereClause, ticketId: { not: null } }, select: { ticketId: true } }) : Promise.resolve([]),
+            checkBanorte ? prisma.movimientoBanorte0330253963.findMany({ where: { ...whereClause, ticketId: { not: null } }, select: { ticketId: true } }) : Promise.resolve([]),
+            checkMb ? prisma.movimientoBancario.findMany({ where: { ...whereClause, ticketId: { not: null } }, select: { ticketId: true } }) : Promise.resolve([]),
         ]);
 
         const ticketIds = Array.from(new Set([
@@ -255,12 +261,12 @@ export async function DELETE(request: NextRequest) {
             });
         }
 
-        // Eliminar los movimientos bancarios en todas las tablas
+        // Eliminar los movimientos bancarios en las tablas seleccionadas
         const [delS1, delS2, delB, delMb] = await Promise.all([
-            prisma.movimientoSantander22001022837.deleteMany({ where: whereClause }),
-            prisma.movimientoSantander65505732541.deleteMany({ where: whereClause }),
-            prisma.movimientoBanorte0330253963.deleteMany({ where: whereClause }),
-            prisma.movimientoBancario.deleteMany({ where: whereClause }),
+            checkS1 ? prisma.movimientoSantander22001022837.deleteMany({ where: whereClause }) : Promise.resolve({ count: 0 }),
+            checkS2 ? prisma.movimientoSantander65505732541.deleteMany({ where: whereClause }) : Promise.resolve({ count: 0 }),
+            checkBanorte ? prisma.movimientoBanorte0330253963.deleteMany({ where: whereClause }) : Promise.resolve({ count: 0 }),
+            checkMb ? prisma.movimientoBancario.deleteMany({ where: whereClause }) : Promise.resolve({ count: 0 }),
         ]);
 
         return NextResponse.json({

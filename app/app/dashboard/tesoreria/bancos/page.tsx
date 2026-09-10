@@ -8,6 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import {
     Landmark,
     Search,
     Download,
@@ -580,27 +588,58 @@ export default function BancosPage() {
         return { label: "Sugerencia", color: "bg-gray-100 text-gray-700 font-semibold" };
     };
 
+    // Modal de depuración flexible por fechas y cuenta
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [deleteBanco, setDeleteBanco] = useState<string>("todas");
+    const [deleteFechaInicio, setDeleteFechaInicio] = useState<string>("2026-09-05");
+    const [deleteFechaFin, setDeleteFechaFin] = useState<string>(() => {
+        const today = new Date();
+        return today.toISOString().split("T")[0];
+    });
     const [deletingOld, setDeletingOld] = useState(false);
 
-    const handleEliminarDesde05Sep = async () => {
+    const handleEjecutarDepuracion = async () => {
+        if (!deleteFechaInicio) {
+            toast.error("Debes seleccionar al menos la fecha de inicio.");
+            return;
+        }
+
+        const cuentaNombre =
+            deleteBanco === "22001022837" ? "Santander (22001022837)" :
+            deleteBanco === "65505732541" ? "Santander (65505732541)" :
+            deleteBanco === "0330253963" ? "Banorte (0330253963)" :
+            "TODAS las cuentas bancarias";
+
+        const rangoTexto = deleteFechaFin 
+            ? `del ${deleteFechaInicio} al ${deleteFechaFin}`
+            : `desde el ${deleteFechaInicio} en adelante`;
+
         const confirm = window.confirm(
-            "¿Estás seguro de ELIMINAR los registros bancarios desde el 5 de septiembre de 2026 hasta hoy?\n\n" +
-            "• NO se tocará ningún registro anterior al 05/09/2026.\n" +
-            "• Se eliminarán únicamente los movimientos bancarios de Santander y Banorte registrados desde el 05/09/2026.\n" +
-            "• Los tickets asociados se desconciliarán automáticamente y volverán a estado Pendiente.\n" +
-            "• Podrás volver a cargar los estados de cuenta bancarios limpiamente.\n\n" +
-            "Esta acción es irreversible. ¿Deseas continuar?"
+            `¿Estás seguro de ELIMINAR los registros bancarios ${rangoTexto} en ${cuentaNombre}?\n\n` +
+            `• NO se tocarán registros fuera de este rango de fechas.\n` +
+            `• Los tickets asociados se desconciliarán automáticamente y volverán a estado Pendiente.\n` +
+            `• Podrás volver a cargar los estados de cuenta bancarios limpiamente.\n\n` +
+            `Esta acción es irreversible. ¿Deseas continuar?`
         );
         if (!confirm) return;
 
         setDeletingOld(true);
         try {
-            const res = await fetch("/api/tesoreria/bancos?desde=2026-09-05", {
+            const params = new URLSearchParams();
+            params.set("desde", deleteFechaInicio);
+            if (deleteFechaFin) params.set("hasta", deleteFechaFin);
+            if (deleteBanco && deleteBanco !== "todas") params.set("banco", deleteBanco);
+
+            const res = await fetch(`/api/tesoreria/bancos?${params.toString()}`, {
                 method: "DELETE"
             });
             const data = await res.json();
             if (res.ok) {
-                toast.success(`¡Se eliminaron ${data.eliminados.total} movimientos bancarios del 05/09/2026 a hoy!`);
+                toast.success(
+                    `¡Éxito! Se eliminaron ${data.eliminados.total} movimientos bancarios. ` +
+                    (data.ticketsDesconciliados > 0 ? `Se desconciliaron ${data.ticketsDesconciliados} tickets.` : '')
+                );
+                setDeleteModalOpen(false);
                 fetchMovimientos();
             } else {
                 toast.error(data.error || "Error al eliminar registros bancarios");
@@ -633,17 +672,24 @@ export default function BancosPage() {
                         <div className="flex flex-wrap items-center gap-2">
                             <Button
                                 variant="outline"
-                                onClick={handleEliminarDesde05Sep}
+                                onClick={() => {
+                                    if (activeTab !== "todas") {
+                                        setDeleteBanco(currentTabConfig.bancoParam);
+                                    } else {
+                                        setDeleteBanco("todas");
+                                    }
+                                    setDeleteModalOpen(true);
+                                }}
                                 disabled={loading || deletingOld}
-                                className="border-rose-300 text-rose-700 bg-rose-50/70 hover:bg-rose-100 hover:text-rose-800 text-xs font-semibold"
-                                title="Eliminar movimientos bancarios desde el 5 de septiembre de 2026 a hoy para volver a cargarlos"
+                                className="border-rose-200 text-rose-700 bg-rose-50/50 hover:bg-rose-100 hover:text-rose-800 text-xs font-semibold"
+                                title="Eliminar movimientos bancarios por rango de fechas y cuenta"
                             >
                                 {deletingOld ? (
                                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                                 ) : (
                                     <Trash2 className="mr-1.5 h-3.5 w-3.5 text-rose-600" />
                                 )}
-                                Eliminar desde 05/Sep a Hoy
+                                Depurar por Fechas
                             </Button>
                             <Button variant="outline" onClick={exportarCSV} disabled={loading || movimientos.length === 0}>
                                 <Download className="mr-2 h-4 w-4" /> Exportar CSV
@@ -1751,6 +1797,105 @@ export default function BancosPage() {
                         </div>
                     </div>
                 )}
+
+                {/* ── Modal de Depuración por Rango de Fechas y Cuenta ── */}
+                <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+                    <DialogContent className="sm:max-w-md bg-white">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-red-700 text-lg">
+                                <Trash2 className="h-5 w-5 text-red-600" />
+                                Depurar Movimientos Bancarios
+                            </DialogTitle>
+                            <DialogDescription className="text-xs text-gray-500">
+                                Selecciona la cuenta y el rango de fechas de los movimientos bancarios que deseas eliminar.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4 py-2">
+                            <div>
+                                <label className="text-xs font-semibold text-gray-700 block mb-1">
+                                    Cuenta Bancaria
+                                </label>
+                                <select
+                                    value={deleteBanco}
+                                    onChange={(e) => setDeleteBanco(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-red-500 focus:outline-none"
+                                >
+                                    <option value="todas">Todas las cuentas bancarias</option>
+                                    <option value="22001022837">Santander · 22001022837</option>
+                                    <option value="65505732541">Santander · 65505732541</option>
+                                    <option value="0330253963">Banorte · 0330253963</option>
+                                </select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-semibold text-gray-700 block mb-1">
+                                        Desde (Fecha inicio)
+                                    </label>
+                                    <Input
+                                        type="date"
+                                        value={deleteFechaInicio}
+                                        onChange={(e) => setDeleteFechaInicio(e.target.value)}
+                                        className="text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-gray-700 block mb-1">
+                                        Hasta (Fecha fin)
+                                    </label>
+                                    <Input
+                                        type="date"
+                                        value={deleteFechaFin}
+                                        onChange={(e) => setDeleteFechaFin(e.target.value)}
+                                        className="text-sm"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 space-y-1.5">
+                                <div className="font-semibold flex items-center gap-1.5 text-amber-800">
+                                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                                    Advertencia de auditoría:
+                                </div>
+                                <ul className="list-disc pl-4 space-y-1 text-amber-800/90 text-[11px]">
+                                    <li>Solo se eliminarán los movimientos dentro del periodo y cuenta indicados.</li>
+                                    <li>Los <strong>tickets de cobro vinculados</strong> se desconciliarán y regresarán automáticamente a estado <strong>Pendiente</strong>.</li>
+                                    <li>Los abonos automáticos aplicados a clientes se revertirán para mantener los saldos exactos.</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <DialogFooter className="flex items-center justify-end gap-2 pt-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => setDeleteModalOpen(false)}
+                                disabled={deletingOld}
+                                size="sm"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handleEjecutarDepuracion}
+                                disabled={deletingOld || !deleteFechaInicio}
+                                size="sm"
+                                className="bg-red-600 hover:bg-red-700 text-white font-semibold"
+                            >
+                                {deletingOld ? (
+                                    <>
+                                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                                        Eliminando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="mr-1.5 h-4 w-4" />
+                                        Eliminar Movimientos
+                                    </>
+                                )}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         </DashboardLayout>
     );
