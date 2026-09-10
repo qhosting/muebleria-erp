@@ -42,17 +42,29 @@ function parseExcelDate(val: any): Date | null {
     const str = clean(val);
     if (!str) return null;
     
-    // Format ddmmyyyy (like '29052026') or dd/mm/yyyy
+    // Format ddmmyyyy (ej: '04092026')
     if (str.length === 8 && /^\d+$/.test(str)) {
         const day = parseInt(str.substring(0, 2));
         const month = parseInt(str.substring(2, 4)) - 1;
         const year = parseInt(str.substring(4, 8));
-        return new Date(year, month, day);
+        return new Date(Date.UTC(year, month, day, 12, 0, 0));
     }
+    // Format dd/mm/yyyy (ej: '08/09/2026')
     if (str.includes('/')) {
         const parts = str.split('/').map(Number);
         if (parts.length === 3) {
-            return new Date(parts[2], parts[1] - 1, parts[0]);
+            return new Date(Date.UTC(parts[2], parts[1] - 1, parts[0], 12, 0, 0));
+        }
+    }
+    // Format yyyy-mm-dd o dd-mm-yyyy
+    if (str.includes('-')) {
+        const parts = str.split('-').map(Number);
+        if (parts.length === 3) {
+            if (parts[0] > 1000) {
+                return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12, 0, 0));
+            } else {
+                return new Date(Date.UTC(parts[2], parts[1] - 1, parts[0], 12, 0, 0));
+            }
         }
     }
     const parsed = new Date(str);
@@ -277,13 +289,24 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Archivo y banco son requeridos' }, { status: 400 });
         }
 
+        const fileName = (file.name || '').toLowerCase();
+        const isCsv = fileName.endsWith('.csv');
         const buffer = Buffer.from(await file.arrayBuffer());
-        const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+        const workbook = XLSX.read(buffer, { 
+            type: 'buffer', 
+            cellDates: !isCsv, 
+            raw: isCsv,
+            codepage: 65001 
+        });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         
         // Parse to JSON array of arrays (header: 1)
-        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" }) as any[][];
+        const rows = XLSX.utils.sheet_to_json(worksheet, { 
+            header: 1, 
+            defval: "", 
+            raw: isCsv 
+        }) as any[][];
         
         let records: any[] = [];
         let cuentaNum = '';
