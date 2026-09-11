@@ -358,9 +358,9 @@ export function descargarExcelCEJ(datos: DatosExportacionCEJ) {
 }
 
 /**
- * Genera el HTML completo oficial idéntico a PLANTILLA LISTA COBRANZA
- * Pagina toda la cartera en bloques de ~38 clientes para que no se recorte ningún registro,
- * y finaliza con la página de Resumen Ejecutivo y Metas de Cobro.
+ * Genera el HTML oficial del Resumen Ejecutivo de Corte de Cobranza (PLANTILLA CEJ)
+ * Excluye el listado individual de clientes para emitir un reporte ejecutivo conciso,
+ * enfocado en métricas clave, comparativo GLOBAL vs DQ vs DP, canales de cobro y avance diario.
  */
 export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
   const resCalculados = separarYCalcularResumenesCEJ(datos.detalles);
@@ -371,229 +371,169 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
   const p = resGlobal.resumenProblemas;
   const mPeriodos = resGlobal.matrizPeriodos || [];
   const rDiario = resGlobal.resumenDiario || [];
-
-  const FILAS_POR_PAGINA = 38;
-  const detalles = datos.detalles || [];
-  const chunks: DetalleCalculadoCEJ[][] = [];
-
-  if (detalles.length === 0) {
-    chunks.push([]);
-  } else {
-    for (let i = 0; i < detalles.length; i += FILAS_POR_PAGINA) {
-      chunks.push(detalles.slice(i, i + FILAS_POR_PAGINA));
-    }
-  }
-
-  const totalPaginas = chunks.length + 1;
-
-  const paginasDetallesHTML = chunks
-    .map((chunk, idx) => {
-      const paginaActual = idx + 1;
-      const desdeItem = idx * FILAS_POR_PAGINA + 1;
-      const hastaItem = Math.min((idx + 1) * FILAS_POR_PAGINA, detalles.length);
-
-      return `
-  <!-- PÁGINA ${paginaActual}: LISTADO DE CARTERA Y RUTA -->
-  <div class="page-break" style="padding: 8px;">
-    <div class="header-box">
-      <div class="title-company">Grupo Mueblero DASO SA de CV</div>
-      <div class="subtitle">Relación de Cobranza Querétaro</div>
-      <div class="info-bar">
-        <div>SEMANA: <strong>${datos.semana}</strong> (${datos.fechaInicioStr} al ${datos.fechaFinStr})</div>
-        <div>GESTOR: <strong>${datos.codigoGestor} - ${datos.nombreGestor}</strong></div>
-        <div>EMISIÓN: <strong>${new Date().toLocaleDateString("es-MX")}</strong></div>
-        <div>TOTAL CUENTAS: <strong>${detalles.length}</strong> (Cuentas ${detalles.length > 0 ? `${desdeItem} - ${hastaItem}` : 0})</div>
-      </div>
-    </div>
-
-    <table>
-      <thead>
-        <tr>
-          <th>CODIGO</th>
-          <th>CONTRATO</th>
-          <th>INICIAL</th>
-          <th style="text-align: left; padding-left: 4px;">CLIENTE</th>
-          <th>PERIODO</th>
-          <th>SUGERIDO</th>
-          <th>VENCIDO</th>
-          <th>PV</th>
-          <th>SALDO ACT</th>
-          <th>GESTOR</th>
-          <th>SUP</th>
-          <th>PAGO</th>
-          <th>DIA</th>
-          <th>PROBLEMA</th>
-          <th>P. DOBLE</th>
-          <th>RECU PV</th>
-          <th>COMISIÓN</th>
-          <th>TELÉFONO</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${chunk
-          .map(
-            (d) => `
-          <tr>
-            <td class="text-center font-mono font-bold">${d.codigoCliente}</td>
-            <td class="text-center font-mono">${d.numContrato}</td>
-            <td class="text-center">${d.periodoInicial}</td>
-            <td style="max-width: 140px; overflow: hidden; text-overflow: ellipsis;">${d.nombreCliente}</td>
-            <td class="text-center font-bold">${d.periodicidad}</td>
-            <td class="text-right font-mono font-bold">$${(d.pagoSugerido || 0).toLocaleString("es-MX")}</td>
-            <td class="text-right font-mono text-danger">$${(d.saldoVencido || 0).toLocaleString("es-MX")}</td>
-            <td class="text-center font-bold">${d.pv}</td>
-            <td class="text-right font-mono">$${(d.saldoActual || 0).toLocaleString("es-MX")}</td>
-            <td class="text-center">${d.gestor}</td>
-            <td class="text-center">${d.sup}</td>
-            <td class="text-right font-mono font-bold" style="${d.pagoReal > 0 ? 'color: #047857;' : ''}">$${(d.pagoReal || 0).toLocaleString("es-MX")}</td>
-            <td class="text-center">${d.diaPago}</td>
-            <td class="text-center font-bold" style="color: ${d.problema === 'RUTA' ? '#1d4ed8' : '#b91c1c'};">${d.problema}</td>
-            <td class="text-right font-mono">$${(d.pagoDoble || 0).toLocaleString("es-MX")}</td>
-            <td class="text-right font-mono">$${(d.recuperadoPv || 0).toLocaleString("es-MX")}</td>
-            <td class="text-right font-mono">$${(d.comisionAnalista || 0).toLocaleString("es-MX")}</td>
-            <td class="text-center font-mono">${d.telefono}</td>
-          </tr>
-        `
-          )
-          .join("")}
-      </tbody>
-    </table>
-    <div style="margin-top: 6px; font-size: 8px; color: #64748b; text-align: right;">
-      Página ${paginaActual} de ${totalPaginas} • Plantilla Lista Cobranza • Grupo Mueblero DASO
-    </div>
-  </div>
-      `;
-    })
-    .join("\n");
+  const totalCuentas = datos.detalles?.length || resGlobal.totalCuentas || 0;
 
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>PLANTILLA LISTA COBRANZA - ${datos.codigoGestor} - Semana ${datos.semana}</title>
+  <title>PLANTILLA LISTA COBRANZA - RESUMEN DE CORTE - ${datos.codigoGestor} - Semana ${datos.semana}</title>
   <style>
     @page { size: letter landscape; margin: 8mm; }
-    body { font-family: Arial, sans-serif; font-size: 8.5px; color: #111; margin: 0; padding: 0; background: #fff; }
-    .page-break { page-break-after: always; break-after: page; }
-    .header-box { margin-bottom: 8px; border-bottom: 2px solid #333; padding-bottom: 4px; }
-    .title-company { font-size: 14px; font-weight: bold; text-transform: uppercase; margin: 0; }
-    .subtitle { font-size: 11px; font-weight: 600; color: #444; margin: 2px 0 6px 0; }
-    .info-bar { display: flex; justify-content: space-between; font-size: 9px; font-weight: bold; background: #f1f5f9; padding: 4px 8px; border: 1px solid #cbd5e1; }
-    table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-    th { background: #1e293b; color: #fff; font-size: 7.5px; padding: 3px 2px; border: 0.5px solid #475569; }
-    td { font-size: 7.5px; padding: 2.5px 2px; border: 0.5px solid #cbd5e1; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; font-size: 8px; color: #0f172a; margin: 0; padding: 0; background: #fff; line-height: 1.25; }
+    .header-box { margin-bottom: 8px; border-bottom: 2px solid #0f172a; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .title-company { font-size: 15px; font-weight: 900; text-transform: uppercase; color: #0f172a; letter-spacing: -0.02em; margin: 0; }
+    .subtitle { font-size: 10.5px; font-weight: 700; color: #334155; margin: 2px 0 0 0; }
+    .info-bar { display: flex; flex-wrap: wrap; gap: 14px; font-size: 8.5px; font-weight: bold; background: #f8fafc; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 8px; }
+    .info-bar span { color: #64748b; font-weight: 600; }
+    .info-bar strong { color: #0f172a; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #0f172a; color: #fff; font-size: 7.5px; font-weight: 700; padding: 3.5px 4px; border: 0.5px solid #334155; text-transform: uppercase; }
+    td { font-size: 7.5px; padding: 2.5px 4px; border: 0.5px solid #cbd5e1; }
     .text-center { text-align: center; }
     .text-right { text-align: right; }
-    .font-bold { font-weight: bold; }
-    .font-mono { font-family: 'Courier New', Courier, monospace; }
-    .section-card { border: 1px solid #94a3b8; border-radius: 4px; margin-bottom: 12px; }
-    .card-header { background: #334155; color: white; font-weight: bold; font-size: 9.5px; padding: 4px 8px; }
-    .card-body { padding: 6px 8px; }
-    .kpi-row { display: flex; justify-content: space-between; padding: 2.5px 0; border-bottom: 0.5px dashed #cbd5e1; font-size: 8.5px; }
-    .kpi-row.highlight { background: #e2e8f0; font-weight: bold; padding: 3px 4px; }
-    @media print { body { -webkit-print-color-adjust: exact; } .no-print { display: none !important; } }
+    .font-bold { font-weight: 700; }
+    .font-black { font-weight: 900; }
+    .font-mono { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+    .section-card { border: 1px solid #cbd5e1; border-radius: 5px; overflow: hidden; margin-bottom: 8px; background: #fff; }
+    .card-header { background: #0f172a; color: white; font-weight: 800; font-size: 8.5px; padding: 4px 8px; display: flex; justify-content: space-between; align-items: center; letter-spacing: 0.02em; }
+    .card-body { padding: 5px 8px; }
+    .kpi-row { display: flex; justify-content: space-between; padding: 2.5px 0; border-bottom: 0.5px dashed #e2e8f0; font-size: 8px; }
+    .kpi-row:last-child { border-bottom: none; }
+    .kpi-row.highlight { background: #f1f5f9; font-weight: bold; padding: 3px 6px; border-radius: 3px; }
+    .signatures-box { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 30px; margin-top: 14px; padding: 6px 12px; }
+    .signature-col { text-align: center; font-size: 8px; }
+    .signature-line { border-top: 1px solid #334155; margin-bottom: 4px; width: 85%; margin-left: auto; margin-right: auto; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print { display: none !important; }
+      @page { size: letter landscape; margin: 6mm; }
+    }
   </style>
 </head>
 <body>
-  <div class="no-print" style="padding: 10px; background: #0f172a; color: white; display: flex; justify-content: space-between;">
-    <div><strong>Vista Previa PDF Oficial (${totalPaginas} Páginas)</strong></div>
-    <div>
-      <button onclick="window.print()">🖨️ Imprimir</button>
-      <button onclick="window.close()">Cerrar</button>
+  <div class="no-print" style="padding: 8px 14px; background: #0f172a; color: white; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-radius: 4px;">
+    <div style="font-size: 11px;">
+      <strong>Plantilla Lista Cobranza — Resumen de Corte Oficial</strong> • Semana ${datos.semana} (${datos.codigoGestor})
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button onclick="window.print()" style="background: #2563eb; color: white; border: none; padding: 5px 12px; border-radius: 4px; font-weight: bold; font-size: 11px; cursor: pointer;">🖨️ Imprimir Resumen</button>
+      <button onclick="window.close()" style="background: #475569; color: white; border: none; padding: 5px 12px; border-radius: 4px; font-size: 11px; cursor: pointer;">Cerrar</button>
     </div>
   </div>
 
-  ${paginasDetallesHTML}
-
-  <div style="padding: 8px;">
+  <div style="padding: 4px 6px;">
+    <!-- ENCABEZADO INSTITUCIONAL -->
     <div class="header-box">
-      <div class="title-company">Grupo Mueblero DASO SA de CV</div>
-      <div class="subtitle">Resumen Ejecutivo de Corte de Cobranza Querétaro</div>
-      <div class="info-bar">
-        <div>SEMANA: <strong>${datos.semana}</strong></div>
-        <div>GESTOR: <strong>${datos.codigoGestor}</strong></div>
-        <div>FECHA: <strong>${new Date().toLocaleDateString("es-MX")}</strong></div>
+      <div>
+        <div class="title-company">Grupo Mueblero DASO SA de CV</div>
+        <div class="subtitle">Plantilla Lista Cobranza — Resumen Ejecutivo y Corte Semanal</div>
+      </div>
+      <div style="text-align: right; font-size: 8px; color: #475569;">
+        <div>SISTEMA ERP MUEBLERÍA DASO</div>
+        <div style="font-weight: bold; color: #0f172a;">FECHA IMPRESIÓN: ${new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" })}</div>
       </div>
     </div>
 
+    <!-- BARRA DE METADATOS DEL CICLO -->
+    <div class="info-bar">
+      <div><span>SEMANA:</span> <strong>Semana ${datos.semana} (${datos.anio})</strong></div>
+      <div><span>CICLO OFICIAL:</span> <strong>${datos.fechaInicioStr} al ${datos.fechaFinStr}</strong></div>
+      <div><span>GESTOR / COBRADOR:</span> <strong>${datos.codigoGestor} - ${datos.nombreGestor}</strong></div>
+      <div><span>TOTAL CARTERA:</span> <strong>${totalCuentas} cuentas</strong></div>
+    </div>
+
     <!-- TABLA COMPARATIVA EJECUTIVA: GLOBAL vs DQ vs DP -->
-    <div class="section-card" style="margin-bottom: 12px;">
-      <div class="card-header" style="background: #0f172a; display: flex; justify-content: space-between;">
-        <span>RESUMEN COMPARATIVO DE CORTE (GLOBAL vs DQ vs DP)</span>
+    <div class="section-card" style="margin-bottom: 8px;">
+      <div class="card-header" style="background: #0f172a;">
+        <span>RESUMEN COMPARATIVO DE CORTE (GLOBAL vs DQ QUERÉTARO vs DP DASOPLUS)</span>
         <span>Semana ${datos.semana} (${datos.anio})</span>
       </div>
-      <div class="card-body" style="padding: 4px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 8px;">
+      <div style="padding: 0;">
+        <table style="width: 100%; border-collapse: collapse;">
           <thead>
-            <tr style="background: #1e293b; color: white;">
-              <th style="padding: 4px 6px; text-align: left;">INDICADOR CLAVE</th>
-              <th style="padding: 4px 6px; text-align: right; background: #334155;">GLOBAL (TOTAL)</th>
-              <th style="padding: 4px 6px; text-align: right; background: #1e3a8a;">DQ (QUERÉTARO)</th>
-              <th style="padding: 4px 6px; text-align: right; background: #312e81;">DP (DASOPLUS)</th>
+            <tr>
+              <th style="padding: 3.5px 6px; text-align: left;">INDICADOR CLAVE</th>
+              <th style="padding: 3.5px 6px; text-align: right; background: #334155;">GLOBAL (TOTAL)</th>
+              <th style="padding: 3.5px 6px; text-align: right; background: #1e3a8a;">DQ (QUERÉTARO)</th>
+              <th style="padding: 3.5px 6px; text-align: right; background: #312e81;">DP (DASOPLUS)</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td class="font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cuentas Asignadas</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.totalCuentas} ($${resGlobal.totalSugerido.toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #1e3a8a;">${resDQ.totalCuentas} ($${resDQ.totalSugerido.toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #312e81;">${resDP.totalCuentas} ($${resDP.totalSugerido.toLocaleString("es-MX")})</td>
+              <td class="font-bold" style="padding: 2.5px 6px;">Cuentas Asignadas (Cartera)</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px;">${resGlobal.totalCuentas} ctas ($${resGlobal.totalSugerido.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #1e3a8a;">${resDQ.totalCuentas} ctas ($${resDQ.totalSugerido.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #312e81;">${resDP.totalCuentas} ctas ($${resDP.totalSugerido.toLocaleString("es-MX")})</td>
             </tr>
             <tr style="background: #f8fafc;">
-              <td class="font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cobranza Real Recibida</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #166534;">$${resGlobal.totalCobrado.toLocaleString("es-MX")}</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #166534;">$${resDQ.totalCobrado.toLocaleString("es-MX")}</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #166534;">$${resDP.totalCobrado.toLocaleString("es-MX")}</td>
+              <td class="font-bold" style="padding: 2.5px 6px;">Cobranza Real Recibida</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #166534; font-size: 8.5px;">$${resGlobal.totalCobrado.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #166534; font-size: 8.5px;">$${resDQ.totalCobrado.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #166534; font-size: 8.5px;">$${resDP.totalCobrado.toLocaleString("es-MX")}</td>
             </tr>
             <tr>
-              <td class="font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">% Cumplimiento (Sin Dobles)</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.porcentajeCtasSinDobles}%</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #1e3a8a;">${resDQ.porcentajeCtasSinDobles}%</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #312e81;">${resDP.porcentajeCtasSinDobles}%</td>
+              <td class="font-bold" style="padding: 2.5px 6px;">% Cumplimiento Metas (Sin Dobles)</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px;">${resGlobal.porcentajeCtasSinDobles}%</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #1e3a8a;">${resDQ.porcentajeCtasSinDobles}%</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #312e81;">${resDP.porcentajeCtasSinDobles}%</td>
             </tr>
             <tr style="background: #f8fafc;">
-              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cobranza Gestor (Efectivo)</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.cobranzaGestor?.cuentas ?? resGlobal.cobranzaEfectivo.cuentas} ctas ($${(resGlobal.cobranzaGestor?.pesos ?? resGlobal.cobranzaEfectivo.pesos).toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDQ.cobranzaGestor?.cuentas ?? resDQ.cobranzaEfectivo.cuentas} ctas ($${(resDQ.cobranzaGestor?.pesos ?? resDQ.cobranzaEfectivo.pesos).toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDP.cobranzaGestor?.cuentas ?? resDP.cobranzaEfectivo.cuentas} ctas ($${(resDP.cobranzaGestor?.pesos ?? resDP.cobranzaEfectivo.pesos).toLocaleString("es-MX")})</td>
+              <td style="padding: 2.5px 6px;">% Cumplimiento Metas (Con Dobles)</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px;">${resGlobal.porcentajeCtasConDobles}%</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; color: #1e3a8a;">${resDQ.porcentajeCtasConDobles}%</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; color: #312e81;">${resDP.porcentajeCtasConDobles}%</td>
+            </tr>
+            <!-- DESGLOSE CANALES SEPARADOS Y TOTALIZADOS -->
+            <tr style="background: #ecfdf5;">
+              <td style="padding: 2.5px 6px; font-weight: bold; color: #065f46;">💵 Cobranza Gestor (Efectivo Ruta)</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #065f46;">$${(resGlobal.cobranzaGestor?.pesos ?? resGlobal.cobranzaEfectivo?.pesos ?? 0).toLocaleString("es-MX")} <span style="font-weight: normal; color: #64748b;">(${resGlobal.cobranzaGestor?.cuentas ?? resGlobal.cobranzaEfectivo?.cuentas ?? 0} ctas)</span></td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #065f46;">$${(resDQ.cobranzaGestor?.pesos ?? resDQ.cobranzaEfectivo?.pesos ?? 0).toLocaleString("es-MX")} <span style="font-weight: normal; color: #64748b;">(${resDQ.cobranzaGestor?.cuentas ?? resDQ.cobranzaEfectivo?.cuentas ?? 0} ctas)</span></td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #065f46;">$${(resDP.cobranzaGestor?.pesos ?? resDP.cobranzaEfectivo?.pesos ?? 0).toLocaleString("es-MX")} <span style="font-weight: normal; color: #64748b;">(${resDP.cobranzaGestor?.cuentas ?? resDP.cobranzaEfectivo?.cuentas ?? 0} ctas)</span></td>
             </tr>
             <tr>
-              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Bancos BOT (Automático)</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.cobranzaBancosBot?.cuentas ?? 0} ctas ($${(resGlobal.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDQ.cobranzaBancosBot?.cuentas ?? 0} ctas ($${(resDQ.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDP.cobranzaBancosBot?.cuentas ?? 0} ctas ($${(resDP.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")})</td>
+              <td style="padding: 2.5px 6px; color: #1e3a8a;">🤖 Bancos BOT (Automático / SPEI)</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px;">$${(resGlobal.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")} <span style="color: #64748b;">(${resGlobal.cobranzaBancosBot?.cuentas ?? 0} ctas)</span></td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; color: #1e3a8a;">$${(resDQ.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")} <span style="color: #64748b;">(${resDQ.cobranzaBancosBot?.cuentas ?? 0} ctas)</span></td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; color: #312e81;">$${(resDP.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")} <span style="color: #64748b;">(${resDP.cobranzaBancosBot?.cuentas ?? 0} ctas)</span></td>
             </tr>
             <tr style="background: #f8fafc;">
-              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Bancos Gestor (Manual)</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.cobranzaBancosGestor?.cuentas ?? 0} ctas ($${(resGlobal.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDQ.cobranzaBancosGestor?.cuentas ?? 0} ctas ($${(resDQ.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDP.cobranzaBancosGestor?.cuentas ?? 0} ctas ($${(resDP.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")})</td>
+              <td style="padding: 2.5px 6px; color: #4338ca;">🏦 Bancos Gestor (Depósito Manual)</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px;">$${(resGlobal.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")} <span style="color: #64748b;">(${resGlobal.cobranzaBancosGestor?.cuentas ?? 0} ctas)</span></td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; color: #1e3a8a;">$${(resDQ.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")} <span style="color: #64748b;">(${resDQ.cobranzaBancosGestor?.cuentas ?? 0} ctas)</span></td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; color: #312e81;">$${(resDP.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")} <span style="color: #64748b;">(${resDP.cobranzaBancosGestor?.cuentas ?? 0} ctas)</span></td>
             </tr>
-            <tr style="font-weight: bold; background: #eff6ff;">
-              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Total Bancos (BOT + Gestor)</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.cobranzaBancos.cuentas} ctas ($${resGlobal.cobranzaBancos.pesos.toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDQ.cobranzaBancos.cuentas} ctas ($${resDQ.cobranzaBancos.pesos.toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDP.cobranzaBancos.cuentas} ctas ($${resDP.cobranzaBancos.pesos.toLocaleString("es-MX")})</td>
+            <tr style="background: #eff6ff; font-weight: bold;">
+              <td style="padding: 2.5px 6px; color: #1e40af;">💳 Total Bancos (BOT + GESTOR)</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; color: #1e40af;">$${resGlobal.cobranzaBancos.pesos.toLocaleString("es-MX")} <span style="font-weight: normal; color: #64748b;">(${resGlobal.cobranzaBancos.cuentas} ctas)</span></td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; color: #1e40af;">$${resDQ.cobranzaBancos.pesos.toLocaleString("es-MX")} <span style="font-weight: normal; color: #64748b;">(${resDQ.cobranzaBancos.cuentas} ctas)</span></td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; color: #1e40af;">$${resDP.cobranzaBancos.pesos.toLocaleString("es-MX")} <span style="font-weight: normal; color: #64748b;">(${resDP.cobranzaBancos.cuentas} ctas)</span></td>
             </tr>
-            <tr style="background: #f8fafc;">
-              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Saldo Vencido</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #b91c1c;">$${resGlobal.totalVencido.toLocaleString("es-MX")}</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #b91c1c;">$${resDQ.totalVencido.toLocaleString("es-MX")}</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #b91c1c;">$${resDP.totalVencido.toLocaleString("es-MX")}</td>
+            <tr style="background: #dcfce7; font-weight: 900;">
+              <td style="padding: 3px 6px; color: #14532d;">💰 TOTAL COBRANZA (GESTOR + BANCOS)</td>
+              <td class="text-right font-mono font-black" style="padding: 3px 6px; color: #14532d;">$${resGlobal.totalCobrado.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-black" style="padding: 3px 6px; color: #14532d;">$${resDQ.totalCobrado.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-black" style="padding: 3px 6px; color: #14532d;">$${resDP.totalCobrado.toLocaleString("es-MX")}</td>
             </tr>
             <tr>
-              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cartera Total</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">$${resGlobal.totalCartera.toLocaleString("es-MX")}</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">$${resDQ.totalCartera.toLocaleString("es-MX")}</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">$${resDP.totalCartera.toLocaleString("es-MX")}</td>
+              <td style="padding: 2.5px 6px;">Saldo Vencido</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; color: #b91c1c;">$${resGlobal.totalVencido.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; color: #b91c1c;">$${resDQ.totalVencido.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; color: #b91c1c;">$${resDP.totalVencido.toLocaleString("es-MX")}</td>
             </tr>
             <tr style="background: #f8fafc;">
-              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cuentas en RUTA</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.resumenProblemas.cuentasRuta.cuentas} ctas ($${resGlobal.resumenProblemas.cuentasRuta.pesos.toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #1e3a8a;">${resDQ.resumenProblemas.cuentasRuta.cuentas} ctas ($${resDQ.resumenProblemas.cuentasRuta.pesos.toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #312e81;">${resDP.resumenProblemas.cuentasRuta.cuentas} ctas ($${resDP.resumenProblemas.cuentasRuta.pesos.toLocaleString("es-MX")})</td>
+              <td style="padding: 2.5px 6px;">Cartera Total</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px;">$${resGlobal.totalCartera.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px;">$${resDQ.totalCartera.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px;">$${resDP.totalCartera.toLocaleString("es-MX")}</td>
             </tr>
             <tr>
+              <td style="padding: 2.5px 6px;">Cuentas en RUTA</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px;">${resGlobal.resumenProblemas.cuentasRuta.cuentas} ctas ($${resGlobal.resumenProblemas.cuentasRuta.pesos.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #1e3a8a;">${resDQ.resumenProblemas.cuentasRuta.cuentas} ctas ($${resDQ.resumenProblemas.cuentasRuta.pesos.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #312e81;">${resDP.resumenProblemas.cuentasRuta.cuentas} ctas ($${resDP.resumenProblemas.cuentasRuta.pesos.toLocaleString("es-MX")})</td>
+            </tr>
+            <tr style="background: #f8fafc;">
               <td style="padding: 2.5px 6px;">Total Cuentas Problema (K, IT, PE...)</td>
               <td class="text-right font-mono" style="padding: 2.5px 6px;">${resGlobal.resumenProblemas.totalProblemas.cuentas} ctas ($${resGlobal.resumenProblemas.totalProblemas.pesos.toLocaleString("es-MX")})</td>
               <td class="text-right font-mono" style="padding: 2.5px 6px;">${resDQ.resumenProblemas.totalProblemas.cuentas} ctas ($${resDQ.resumenProblemas.totalProblemas.pesos.toLocaleString("es-MX")})</td>
@@ -604,56 +544,62 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
       </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <!-- SECCIÓN DE 2 COLUMNAS: PROBLEMAS/CANALES VS PERIODICIDADES/DIARIO -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+      <!-- COLUMNA IZQUIERDA -->
       <div>
+        <!-- 1. Clasificación de Cartera y Problemas -->
         <div class="section-card">
-          <div class="card-header">Clasificación de Cartera</div>
+          <div class="card-header">Clasificación de Cartera y Problemas</div>
           <div class="card-body">
-            <div class="kpi-row highlight"><span>Cuentas Asignadas</span><span><strong>${p?.totalAsignadas.cuentas ?? 0}</strong> ($${(p?.totalAsignadas.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row"><span>CANCELADO (K)</span><span>${p?.canceladoK.cuentas ?? 0} ($${(p?.canceladoK.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row"><span>INTERVENCION (IT)</span><span>${p?.intervencionIT.cuentas ?? 0} ($${(p?.intervencionIT.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row"><span>ADELANTADO (AD)</span><span>${p?.adelantadoAD.cuentas ?? 0} ($${(p?.adelantadoAD.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row"><span>PERIODO (PE)</span><span>${p?.periodoPE.cuentas ?? 0} ($${(p?.periodoPE.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row"><span>PAGO SEM (PS)</span><span>${p?.pagoSemPS.cuentas ?? 0} ($${(p?.pagoSemPS.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row"><span>DICT LEGAL (DL)</span><span>${p?.dictLegalDL.cuentas ?? 0} ($${(p?.dictLegalDL.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row highlight" style="margin-top: 4px;">
+            <div class="kpi-row highlight"><span>Cuentas Asignadas (Total Cartera)</span><span><strong>${p?.totalAsignadas.cuentas ?? 0} ctas</strong> ($${(p?.totalAsignadas.pesos ?? 0).toLocaleString("es-MX")})</span></div>
+            <div class="kpi-row"><span>CANCELADO (K)</span><span>${p?.canceladoK.cuentas ?? 0} ctas ($${(p?.canceladoK.pesos ?? 0).toLocaleString("es-MX")})</span></div>
+            <div class="kpi-row"><span>INTERVENCION (IT)</span><span>${p?.intervencionIT.cuentas ?? 0} ctas ($${(p?.intervencionIT.pesos ?? 0).toLocaleString("es-MX")})</span></div>
+            <div class="kpi-row"><span>ADELANTADO (AD)</span><span>${p?.adelantadoAD.cuentas ?? 0} ctas ($${(p?.adelantadoAD.pesos ?? 0).toLocaleString("es-MX")})</span></div>
+            <div class="kpi-row"><span>PERIODO (PE)</span><span>${p?.periodoPE.cuentas ?? 0} ctas ($${(p?.periodoPE.pesos ?? 0).toLocaleString("es-MX")})</span></div>
+            <div class="kpi-row"><span>PAGO SEM (PS)</span><span>${p?.pagoSemPS.cuentas ?? 0} ctas ($${(p?.pagoSemPS.pesos ?? 0).toLocaleString("es-MX")})</span></div>
+            <div class="kpi-row"><span>DICT LEGAL (DL)</span><span>${p?.dictLegalDL.cuentas ?? 0} ctas ($${(p?.dictLegalDL.pesos ?? 0).toLocaleString("es-MX")})</span></div>
+            <div class="kpi-row highlight" style="margin-top: 2px;">
               <span>Total Cuentas Problema</span>
-              <span><strong>${p?.totalProblemas.cuentas ?? 0}</strong> ($${(p?.totalProblemas.pesos ?? 0).toLocaleString("es-MX")})</span>
+              <span><strong>${p?.totalProblemas.cuentas ?? 0} ctas</strong> ($${(p?.totalProblemas.pesos ?? 0).toLocaleString("es-MX")})</span>
             </div>
-            <div class="kpi-row" style="margin-top: 6px; font-weight: bold; color: #1d4ed8;">
+            <div class="kpi-row" style="margin-top: 4px; font-weight: bold; color: #1d4ed8;">
               <span>Cuentas en RUTA</span>
-              <span>${p?.cuentasRuta.cuentas ?? 0} ($${(p?.cuentasRuta.pesos ?? 0).toLocaleString("es-MX")})</span>
+              <span>${p?.cuentasRuta.cuentas ?? 0} ctas ($${(p?.cuentasRuta.pesos ?? 0).toLocaleString("es-MX")})</span>
             </div>
             <div class="kpi-row" style="font-weight: bold; color: #b91c1c;">
               <span>Vencidos en RUTA</span>
-              <span>${p?.vencidosRuta.cuentas ?? 0} ($${(p?.vencidosRuta.pesos ?? 0).toLocaleString("es-MX")})</span>
+              <span>${p?.vencidosRuta.cuentas ?? 0} ctas ($${(p?.vencidosRuta.pesos ?? 0).toLocaleString("es-MX")})</span>
             </div>
           </div>
         </div>
+
+        <!-- 2. Canales de Cobro y Cumplimiento -->
         <div class="section-card">
-          <div class="card-header">Canales de Recaudación Real</div>
+          <div class="card-header">Canales de Recaudación y Cumplimiento</div>
           <div class="card-body">
-            <div class="kpi-row"><span>GESTOR (Efectivo)</span><span><strong>${resGlobal.cobranzaGestor?.cuentas ?? resGlobal.cobranzaEfectivo.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaGestor?.pesos ?? resGlobal.cobranzaEfectivo.pesos ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row"><span>BANCOS BOT (Auto / SPEI)</span><span><strong>${resGlobal.cobranzaBancosBot?.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row"><span>BANCOS GESTOR (Depósito Manual)</span><span><strong>${resGlobal.cobranzaBancosGestor?.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row" style="background: #eff6ff; font-weight: bold;"><span>TOTAL BANCOS (BOT + GESTOR)</span><span><strong>${resGlobal.cobranzaBancos.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancos.pesos ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row highlight" style="background: #dcfce7;">
-              <span>TOTAL COBRANZA RECIBIDA</span>
+            <div class="kpi-row"><span>💵 GESTOR (Efectivo Ruta)</span><span><strong>${resGlobal.cobranzaGestor?.cuentas ?? resGlobal.cobranzaEfectivo?.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaGestor?.pesos ?? resGlobal.cobranzaEfectivo?.pesos ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row"><span>🤖 BANCOS BOT (Automático / SPEI)</span><span><strong>${resGlobal.cobranzaBancosBot?.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row"><span>🏦 BANCOS GESTOR (Depósito Manual)</span><span><strong>${resGlobal.cobranzaBancosGestor?.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row" style="background: #eff6ff; font-weight: bold; color: #1e40af;"><span>💳 TOTAL BANCOS (BOT + GESTOR)</span><span><strong>${resGlobal.cobranzaBancos.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancos.pesos ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row highlight" style="background: #dcfce7; color: #14532d; font-weight: 900;">
+              <span>💰 TOTAL COBRANZA RECIBIDA</span>
               <span><strong>$${(resGlobal.totalCobrado ?? 0).toLocaleString("es-MX")}</strong></span>
             </div>
             <div class="kpi-row"><span>Pagos Dobles Registrados</span><span>$${(resGlobal.totalPagosDobles ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row"><span>Recuperado Periodos Vencidos</span><span>$${(resGlobal.totalRecuperadoPv ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row"><span>% Cuentas sin Dobles</span><span><strong>${resGlobal.porcentajeCtasSinDobles ?? 0}%</strong></span></div>
-            <div class="kpi-row"><span>% Cuentas con Dobles</span><span><strong>${resGlobal.porcentajeCtasConDobles ?? 0}%</strong></span></div>
+            <div class="kpi-row"><span>Recuperado Periodos Vencidos (PV)</span><span>$${(resGlobal.totalRecuperadoPv ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row"><span>% Cumplimiento Metas (Sin Dobles)</span><span><strong>${resGlobal.porcentajeCtasSinDobles ?? 0}%</strong></span></div>
+            <div class="kpi-row"><span>% Cumplimiento Metas (Con Dobles)</span><span><strong>${resGlobal.porcentajeCtasConDobles ?? 0}%</strong></span></div>
           </div>
         </div>
       </div>
 
-      <!-- Columna Derecha: Matriz Periodicidades y Presupuesto Diario -->
+      <!-- COLUMNA DERECHA -->
       <div>
+        <!-- 3. Matriz por Periodicidad -->
         <div class="section-card">
           <div class="card-header">Presupuesto vs Cobranza por Periodicidad</div>
-          <table>
+          <table style="width: 100%;">
             <thead>
               <tr>
                 <th>PERIODICIDAD</th>
@@ -673,32 +619,33 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
                   <td class="font-bold text-center">${m.periodo}</td>
                   <td class="text-center">${m.pptoCtas}</td>
                   <td class="text-right font-mono">$${m.pptoPesos.toLocaleString("es-MX")}</td>
-                  <td class="text-center font-bold">${m.cobCtas}</td>
-                  <td class="text-right font-mono font-bold">$${m.cobPesos.toLocaleString("es-MX")}</td>
-                  <td class="text-center">${m.porcCtas}%</td>
-                  <td class="text-center">${m.porcPesos}%</td>
+                  <td class="text-center font-bold" style="color: #166534;">${m.cobCtas}</td>
+                  <td class="text-right font-mono font-bold" style="color: #166534;">$${m.cobPesos.toLocaleString("es-MX")}</td>
+                  <td class="text-center font-bold">${m.porcCtas}%</td>
+                  <td class="text-center font-bold">${m.porcPesos}%</td>
                 </tr>
               `
                 )
                 .join("")}
             </tbody>
             <tfoot>
-              <tr style="background: #f1f5f9; font-weight: bold; border-top: 1.5px solid #000;">
+              <tr style="background: #f1f5f9; font-weight: bold; border-top: 1.5px solid #0f172a;">
                 <td class="font-bold text-center">TOTALES</td>
                 <td class="text-center">${mPeriodos.reduce((a, b) => a + b.pptoCtas, 0)}</td>
                 <td class="text-right font-mono">$${mPeriodos.reduce((a, b) => a + b.pptoPesos, 0).toLocaleString("es-MX")}</td>
-                <td class="text-center font-bold" style="color: #047857;">${mPeriodos.reduce((a, b) => a + b.cobCtas, 0)}</td>
-                <td class="text-right font-mono font-bold" style="color: #047857;">$${mPeriodos.reduce((a, b) => a + b.cobPesos, 0).toLocaleString("es-MX")}</td>
-                <td class="text-center">${mPeriodos.reduce((a, b) => a + b.pptoCtas, 0) > 0 ? Math.round((mPeriodos.reduce((a, b) => a + b.cobCtas, 0) / mPeriodos.reduce((a, b) => a + b.pptoCtas, 0)) * 1000) / 10 : 0}%</td>
-                <td class="text-center">${mPeriodos.reduce((a, b) => a + b.pptoPesos, 0) > 0 ? Math.round((mPeriodos.reduce((a, b) => a + b.cobPesos, 0) / mPeriodos.reduce((a, b) => a + b.pptoPesos, 0)) * 1000) / 10 : 0}%</td>
+                <td class="text-center font-bold" style="color: #166534;">${mPeriodos.reduce((a, b) => a + b.cobCtas, 0)}</td>
+                <td class="text-right font-mono font-bold" style="color: #166534;">$${mPeriodos.reduce((a, b) => a + b.cobPesos, 0).toLocaleString("es-MX")}</td>
+                <td class="text-center font-bold">${mPeriodos.reduce((a, b) => a + b.pptoCtas, 0) > 0 ? Math.round((mPeriodos.reduce((a, b) => a + b.cobCtas, 0) / mPeriodos.reduce((a, b) => a + b.pptoCtas, 0)) * 1000) / 10 : 0}%</td>
+                <td class="text-center font-bold">${mPeriodos.reduce((a, b) => a + b.pptoPesos, 0) > 0 ? Math.round((mPeriodos.reduce((a, b) => a + b.cobPesos, 0) / mPeriodos.reduce((a, b) => a + b.pptoPesos, 0)) * 1000) / 10 : 0}%</td>
               </tr>
             </tfoot>
           </table>
         </div>
 
-        <div class="section-card" style="margin-top: 10px;">
-          <div class="card-header">Presupuesto y Avance Diario Semanal (RUTA)</div>
-          <table>
+        <!-- 4. Avance Diario Semanal -->
+        <div class="section-card" style="margin-top: 6px;">
+          <div class="card-header">Presupuesto y Avance Diario Semanal (Cuentas RUTA)</div>
+          <table style="width: 100%;">
             <thead>
               <tr>
                 <th>DÍA</th>
@@ -715,21 +662,21 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
                 <tr>
                   <td class="font-bold text-center">${d.dia}</td>
                   <td class="text-center">${d.pptoCuentas}</td>
-                  <td class="text-center font-bold" style="color: #047857;">${d.avanceCuentas}</td>
+                  <td class="text-center font-bold" style="color: #166534;">${d.avanceCuentas}</td>
                   <td class="text-right font-mono">$${d.pptoDinero.toLocaleString("es-MX")}</td>
-                  <td class="text-right font-mono font-bold" style="color: #047857;">$${d.avanceDinero.toLocaleString("es-MX")}</td>
+                  <td class="text-right font-mono font-bold" style="color: #166534;">$${d.avanceDinero.toLocaleString("es-MX")}</td>
                 </tr>
               `
                 )
                 .join("")}
             </tbody>
             <tfoot>
-              <tr style="background: #f1f5f9; font-weight: bold; border-top: 1.5px solid #000;">
+              <tr style="background: #f1f5f9; font-weight: bold; border-top: 1.5px solid #0f172a;">
                 <td class="font-bold text-center">TOTALES</td>
                 <td class="text-center">${rDiario.reduce((a, b) => a + b.pptoCuentas, 0)}</td>
-                <td class="text-center font-bold" style="color: #047857;">${rDiario.reduce((a, b) => a + b.avanceCuentas, 0)}</td>
+                <td class="text-center font-bold" style="color: #166534;">${rDiario.reduce((a, b) => a + b.avanceCuentas, 0)}</td>
                 <td class="text-right font-mono">$${rDiario.reduce((a, b) => a + b.pptoDinero, 0).toLocaleString("es-MX")}</td>
-                <td class="text-right font-mono font-bold" style="color: #047857;">$${rDiario.reduce((a, b) => a + b.avanceDinero, 0).toLocaleString("es-MX")}</td>
+                <td class="text-right font-mono font-bold" style="color: #166534;">$${rDiario.reduce((a, b) => a + b.avanceDinero, 0).toLocaleString("es-MX")}</td>
               </tr>
             </tfoot>
           </table>
@@ -737,8 +684,28 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
       </div>
     </div>
 
-    <div style="margin-top: 12px; font-size: 8px; color: #64748b; text-align: right;">
-      Página ${totalPaginas} de ${totalPaginas} • Plantilla Lista Cobranza • Grupo Mueblero DASO
+    <!-- FIRMAS DE AUTORIZACIÓN Y AUDITORÍA -->
+    <div class="signatures-box">
+      <div class="signature-col">
+        <div class="signature-line"></div>
+        <div style="font-weight: bold;">${datos.nombreGestor || "GESTOR DE COBRANZA"}</div>
+        <div style="color: #64748b; font-size: 7.5px;">Gestor / Cobrador en Ruta</div>
+      </div>
+      <div class="signature-col">
+        <div class="signature-line"></div>
+        <div style="font-weight: bold;">SUPERVISOR DE COBRANZA</div>
+        <div style="color: #64748b; font-size: 7.5px;">Auditoría y Revisión de Cartera</div>
+      </div>
+      <div class="signature-col">
+        <div class="signature-line"></div>
+        <div style="font-weight: bold;">GERENCIA CRÉDITO Y COBRANZA</div>
+        <div style="color: #64748b; font-size: 7.5px;">Autorización y Cierre de Semana</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 8px; font-size: 7.5px; color: #64748b; display: flex; justify-content: space-between;">
+      <div>Plantilla Lista Cobranza — Resumen de Corte • Grupo Mueblero DASO SA de CV</div>
+      <div>Página 1 de 1</div>
     </div>
   </div>
 </body>
