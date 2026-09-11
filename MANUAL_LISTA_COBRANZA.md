@@ -90,10 +90,32 @@ Con la lista en pantalla (sea en vivo, abierta o cerrada):
    - Resumen ejecutivo oficial (Problemas, Canales de Cobro, Matriz de Periodos y Avance Diario).
    - Fórmulas de pago sugerido, saldo vencido y cobro real.
 
-### B. Imprimir o Guardar en PDF
+### B. Imprimir o Guardar en PDF (Resumen de Corte)
 1. Haz clic en el botón negro **PDF (Plantilla Lista Cobranza)**.
-2. Se abrirá el visor oficial de alta resolución.
+2. Se generará y abrirá el **Resumen Ejecutivo de Corte Oficial**:
+   - Omite el listado masivo individual de clientes para emitir un reporte ejecutivo conciso de 1 página.
+   - Incluye comparativo GLOBAL vs DQ vs DP, canales separados (Gestor, Bot, Bancos Gestor), matriz de periodicidad, avance diario de Sábado a Viernes y firmas de auditoría.
 3. Opciones en el visor:
-   - **Imprimir / Guardar como PDF:** Abre el diálogo de impresión del navegador optimizado para hojas horizontales/verticales.
-   - **Abrir en Ventana:** Permite visualizarlo en una pestaña completa o enviarlo por correo.
-4. Para filtrar antes de exportar o imprimir, puedes usar los botones **Todas**, **DQ** o **DP**.
+   - **Imprimir / Guardar como PDF:** Abre el diálogo de impresión optimizado para hoja carta horizontal.
+   - **Abrir en Ventana:** Permite visualizarlo en una pestaña completa.
+
+---
+
+## 7. 🚫 Sección de Clientes Sin Pago y PDF de No Pago
+
+Para enfocar los esfuerzos de cobranza y auditoría en cuentas vencidas sin abono:
+
+1. **Acceder a la pestaña:**
+   - Haz clic en la pestaña **Clientes Sin Pago** (muestra un badge rojo con la cantidad exacta de clientes con `$0.00` de pago real).
+2. **Columnas de la tabla:**
+   - **CÓDIGO:** Código identificador (`DQ` o `DP`) y contrato.
+   - **NOMBRE:** Nombre completo del cliente.
+   - **DOMICILIO:** Dirección completa del cliente para localización en campo.
+   - **SALDO VENCIDO:** Importe vencido en rojo.
+   - **PV:** Periodos vencidos.
+   - **PROBLEMA (Selector interactivo):** Permite clasificar de inmediato el motivo por el cual no dio abono (`NC`, `VD`, `PA`, `FD`, `PE`, etc.).
+   - **TELÉFONO / DÍA PAGO:** Datos complementarios de contacto.
+3. **Descargar PDF de Clientes Sin Pago:**
+   - Haz clic en el botón **Descargar PDF Sin Pago**.
+   - Genera una plantilla horizontal con los domicilios, saldos, motivo asignado, firmas de auditoría y recuadro con líneas para **NOTAS DE RUTA Y FIRMA DE VISITA** en campo.
+
