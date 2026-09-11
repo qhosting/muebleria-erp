@@ -277,21 +277,31 @@ export async function GET(request: NextRequest) {
             take: 500
         });
 
-        // Contar el total de tickets pendientes y conciliados para el filtro actual
-        const [totalPendientes, totalConciliados] = await Promise.all([
-            prisma.ticket.count({
+        // Contar el total y monto de tickets pendientes y conciliados para el filtro actual
+        const baseTicketWhere = { AND: andConditions };
+        const [pendientesAgg, conciliadosAgg] = await Promise.all([
+            prisma.ticket.aggregate({
                 where: {
-                    ...ticketWhere,
+                    ...baseTicketWhere,
                     conciliado: false
-                }
+                },
+                _count: { id: true },
+                _sum: { monto: true }
             }),
-            prisma.ticket.count({
+            prisma.ticket.aggregate({
                 where: {
-                    ...ticketWhere,
+                    ...baseTicketWhere,
                     conciliado: true
-                }
+                },
+                _count: { id: true },
+                _sum: { monto: true }
             })
         ]);
+
+        const totalPendientes = pendientesAgg._count.id || 0;
+        const montoPendientes = Number(pendientesAgg._sum.monto || 0);
+        const totalConciliados = conciliadosAgg._count.id || 0;
+        const montoConciliados = Number(conciliadosAgg._sum.monto || 0);
 
         // Asegurar ordenamiento estricto por fecha más antigua primero (o más reciente si desc)
         ticketsPendientes.sort((a, b) => {
@@ -561,7 +571,9 @@ export async function GET(request: NextRequest) {
             cobradores,
             cuentasConocidas: cuentasConocidas.length,
             totalPendientes,
-            totalConciliados
+            montoPendientes,
+            totalConciliados,
+            montoConciliados
         });
 
     } catch (error) {

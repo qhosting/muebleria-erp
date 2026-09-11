@@ -453,22 +453,12 @@ export default function ConciliadorPage() {
     const [cobradorFiltro, setCobradorFiltro] = useState<string>("TODOS"); // ID del cobrador o TODOS
     const [orden, setOrden] = useState<"asc" | "desc">("asc"); // asc: antiguos primero, desc: recientes primero
     const [cobradores, setCobradores] = useState<any[]>([]);
-    const [totalPendientesBackend, setTotalPendientesBackend] = useState<number | null>(null);
-    const [totalConciliadosBackend, setTotalConciliadosBackend] = useState<number | null>(null);
-
-    const ticketsPendientes = useMemo(() => tickets.filter(t => !t.conciliado), [tickets]);
-    const ticketsConciliados = useMemo(() => tickets.filter(t => t.conciliado), [tickets]);
-
-    const conteoPendientes = totalPendientesBackend !== null ? totalPendientesBackend : ticketsPendientes.length;
-    const conteoConciliados = totalConciliadosBackend !== null ? totalConciliadosBackend : ticketsConciliados.length;
-
-    const montoPendientes = useMemo(() => {
-        return ticketsPendientes.reduce((sum, t) => sum + parseFloat(t.monto?.toString() || "0"), 0);
-    }, [ticketsPendientes]);
-
-    const montoConciliados = useMemo(() => {
-        return ticketsConciliados.reduce((sum, t) => sum + parseFloat(t.monto?.toString() || "0"), 0);
-    }, [ticketsConciliados]);
+    const [stats, setStats] = useState({
+        totalPendientes: 0,
+        montoPendientes: 0,
+        totalConciliados: 0,
+        montoConciliados: 0,
+    });
 
     // Estado por cada ticket para el movimiento seleccionado y el filtro de monto
     const [selectedMovByTicket, setSelectedMovByTicket] = useState<Record<string, string>>({});
@@ -542,16 +532,12 @@ export default function ConciliadorPage() {
                 });
                 setTickets(sortedTickets);
                 setMovimientos(data.movimientos || []);
-                if (typeof data.totalPendientes === "number") {
-                    setTotalPendientesBackend(data.totalPendientes);
-                } else {
-                    setTotalPendientesBackend(null);
-                }
-                if (typeof data.totalConciliados === "number") {
-                    setTotalConciliadosBackend(data.totalConciliados);
-                } else {
-                    setTotalConciliadosBackend(null);
-                }
+                setStats({
+                    totalPendientes: typeof data.totalPendientes === "number" ? data.totalPendientes : sortedTickets.filter((t: any) => !t.conciliado).length,
+                    montoPendientes: typeof data.montoPendientes === "number" ? data.montoPendientes : sortedTickets.filter((t: any) => !t.conciliado).reduce((sum: number, t: any) => sum + parseFloat(t.monto?.toString() || "0"), 0),
+                    totalConciliados: typeof data.totalConciliados === "number" ? data.totalConciliados : sortedTickets.filter((t: any) => t.conciliado).length,
+                    montoConciliados: typeof data.montoConciliados === "number" ? data.montoConciliados : sortedTickets.filter((t: any) => t.conciliado).reduce((sum: number, t: any) => sum + parseFloat(t.monto?.toString() || "0"), 0),
+                });
                 if (data.cobradores && Array.isArray(data.cobradores)) {
                     setCobradores(data.cobradores);
                 }
@@ -876,6 +862,14 @@ export default function ConciliadorPage() {
             const data = await res.json();
             if (res.ok) {
                 toast.success(`¡Ticket ${ticket.id} conciliado exitosamente!`);
+                const tktMontoNum = parseFloat(ticket.monto?.toString() || "0");
+                setStats(prev => ({
+                    totalPendientes: Math.max(0, prev.totalPendientes - 1),
+                    montoPendientes: Math.max(0, prev.montoPendientes - tktMontoNum),
+                    totalConciliados: prev.totalConciliados + 1,
+                    montoConciliados: prev.montoConciliados + tktMontoNum,
+                }));
+
                 if (estadoFiltro === "PENDIENTE") {
                     // Si estamos viendo solo no conciliados, remover el ticket de la vista
                     setTickets(prev => prev.filter(t => t.id !== ticket.id));
@@ -913,6 +907,13 @@ export default function ConciliadorPage() {
 
             if (res.ok) {
                 toast.success("Ticket descartado correctamente");
+                const targetT = tickets.find(t => t.id === ticketId);
+                const tktMontoNum = parseFloat(targetT?.monto?.toString() || "0");
+                setStats(prev => ({
+                    ...prev,
+                    totalPendientes: Math.max(0, prev.totalPendientes - 1),
+                    montoPendientes: Math.max(0, prev.montoPendientes - tktMontoNum),
+                }));
                 setTickets(prev => prev.filter(t => t.id !== ticketId));
             } else {
                 toast.error("Error al descartar el ticket");
@@ -981,11 +982,19 @@ export default function ConciliadorPage() {
                 })
             });
 
+            const data = await res.json();
             if (res.ok) {
                 toast.success("Ticket eliminado exitosamente");
+                const targetT = tickets.find(t => t.id === ticketId);
+                const tktMontoNum = parseFloat(targetT?.monto?.toString() || "0");
+                setStats(prev => ({
+                    ...prev,
+                    totalPendientes: Math.max(0, prev.totalPendientes - 1),
+                    montoPendientes: Math.max(0, prev.montoPendientes - tktMontoNum),
+                }));
                 setTickets(prev => prev.filter(t => t.id !== ticketId));
             } else {
-                toast.error("Error al eliminar el ticket");
+                toast.error(data.error || "Error al eliminar el ticket");
             }
         } catch (error) {
             console.error("Error eliminando ticket:", error);
@@ -1017,6 +1026,13 @@ export default function ConciliadorPage() {
             const data = await res.json();
             if (res.ok) {
                 toast.success("Ticket desconciliado exitosamente");
+                const tktMontoNum = parseFloat(ticket.monto?.toString() || "0");
+                setStats(prev => ({
+                    totalPendientes: prev.totalPendientes + 1,
+                    montoPendientes: prev.montoPendientes + tktMontoNum,
+                    totalConciliados: Math.max(0, prev.totalConciliados - 1),
+                    montoConciliados: Math.max(0, prev.montoConciliados - tktMontoNum),
+                }));
                 setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, conciliado: false, movimientoConciliado: null } : t));
                 setSelectedMovByTicket(prev => {
                     const next = { ...prev };
@@ -1343,14 +1359,14 @@ export default function ConciliadorPage() {
                             </span>
                             <div className="flex items-baseline gap-2">
                                 <span className="text-3xl font-black text-rose-900 font-mono">
-                                    {conteoPendientes}
+                                    {stats.totalPendientes}
                                 </span>
                                 <span className="text-xs font-bold text-rose-600 bg-rose-100/80 px-2 py-0.5 rounded-full">
                                     por conciliar
                                 </span>
                             </div>
                             <p className="text-[11px] font-mono text-gray-600">
-                                Monto: <span className="font-bold text-gray-800">{formatCurrency(montoPendientes)}</span>
+                                Monto: <span className="font-bold text-gray-800">{formatCurrency(stats.montoPendientes)}</span>
                             </p>
                         </div>
                         <div className="w-12 h-12 rounded-xl bg-rose-100/80 border border-rose-200 flex items-center justify-center text-rose-600 shadow-2xs">
@@ -1367,14 +1383,14 @@ export default function ConciliadorPage() {
                             </span>
                             <div className="flex items-baseline gap-2">
                                 <span className="text-3xl font-black text-emerald-900 font-mono">
-                                    {conteoConciliados}
+                                    {stats.totalConciliados}
                                 </span>
                                 <span className="text-xs font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">
                                     en banco
                                 </span>
                             </div>
                             <p className="text-[11px] font-mono text-gray-600">
-                                Monto: <span className="font-bold text-gray-800">{formatCurrency(montoConciliados)}</span>
+                                Monto: <span className="font-bold text-gray-800">{formatCurrency(stats.montoConciliados)}</span>
                             </p>
                         </div>
                         <div className="w-12 h-12 rounded-xl bg-emerald-100/80 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-2xs">
