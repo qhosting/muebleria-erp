@@ -261,29 +261,36 @@ export default function ListaCobranzaPage() {
           setCorteIdActivo(data.corte.id);
           setCorteGuardadoExistenteId(data.corte.id);
           setEstatusCorte(data.corte.estatus || "abierto");
-          setResumenCEJ({
-            totalCuentas: data.corte.totalCuentas,
-            totalSugerido: data.corte.totalSugerido,
-            totalCobrado: data.corte.totalCobrado,
-            totalVencido: data.corte.totalVencido,
-            totalCartera: data.corte.totalCartera,
-            totalPagosDobles: 0,
-            totalRecuperadoPv: 0,
-            porcentajeCtasSinDobles: data.corte.porcentajeCobro,
-            porcentajeCtasConDobles: data.corte.porcentajeCobro,
-            pagarConPorcentajeSinDobles: data.corte.porcentajeCobro < 81,
-            cobranzaEfectivo: data.corte.resumenCanales?.efectivo || { cuentas: 0, pesos: 0 },
-            cobranzaBancos: data.corte.resumenCanales?.bancos || { cuentas: 0, pesos: 0 },
-            cobranzaBancosBot: data.corte.resumenCanales?.bancosBot || { cuentas: 0, pesos: 0 },
-            cobranzaBancosGestor: data.corte.resumenCanales?.bancosGestor || { cuentas: 0, pesos: 0 },
-            cobranzaGestor: data.corte.resumenCanales?.gestor || data.corte.resumenCanales?.efectivo || { cuentas: 0, pesos: 0 },
-            resumenProblemas: data.corte.resumenProblemas,
-            matrizPeriodos: data.corte.resumenPeriodos || [],
-            resumenDiario: data.corte.resumenDiario || []
-          });
+          setResumenCEJ(
+            data.resumenCEJ || {
+              totalCuentas: data.corte.totalCuentas,
+              totalSugerido: data.corte.totalSugerido,
+              totalCobrado: data.corte.totalCobrado,
+              totalVencido: data.corte.totalVencido,
+              totalCartera: data.corte.totalCartera,
+              totalPagosDobles: 0,
+              totalRecuperadoPv: 0,
+              porcentajeCtasSinDobles: data.corte.porcentajeCobro,
+              porcentajeCtasConDobles: data.corte.porcentajeCobro,
+              pagarConPorcentajeSinDobles: data.corte.porcentajeCobro < 81,
+              cobranzaEfectivo: data.corte.resumenCanales?.efectivo || { cuentas: 0, pesos: 0 },
+              cobranzaBancos: data.corte.resumenCanales?.bancos || { cuentas: 0, pesos: 0 },
+              cobranzaBancosBot: data.corte.resumenCanales?.bancosBot || { cuentas: 0, pesos: 0 },
+              cobranzaBancosGestor: data.corte.resumenCanales?.bancosGestor || { cuentas: 0, pesos: 0 },
+              cobranzaGestor: data.corte.resumenCanales?.gestor || data.corte.resumenCanales?.efectivo || { cuentas: 0, pesos: 0 },
+              resumenProblemas: data.corte.resumenProblemas,
+              matrizPeriodos: data.corte.resumenPeriodos || [],
+              resumenDiario: data.corte.resumenDiario || []
+            }
+          );
           setResumenDQ(data.resumenDQ || null);
           setResumenDP(data.resumenDP || null);
-          toast.info(`Mostrando Corte Semanal guardado (${data.corte.estatus.toUpperCase()})`);
+          if (forzarEnVivo) {
+            const totalRecalculado = data.resumenCEJ?.totalCobrado ?? data.corte.totalCobrado ?? 0;
+            toast.success(`Pagos recalculados en vivo: $${Number(totalRecalculado).toLocaleString("es-MX", { minimumFractionDigits: 2 })} cobrados`);
+          } else {
+            toast.info(`Mostrando Corte Semanal guardado (${data.corte.estatus.toUpperCase()})`);
+          }
         } else {
           setCorteIdActivo(null);
           setCorteGuardadoExistenteId(data.corteGuardadoExistenteId || null);
