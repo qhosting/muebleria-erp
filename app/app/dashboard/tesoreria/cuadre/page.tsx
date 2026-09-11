@@ -11,7 +11,8 @@ import {
     Calculator, Users as UsersIcon, Calendar as CalendarIcon, 
     DollarSign, Search, AlertCircle, CheckCircle2, 
     FileSpreadsheet, RefreshCw, Layers, Building2, Receipt,
-    Bot, Banknote, Smartphone, Globe, Eye, Filter
+    Bot, Banknote, Smartphone, Globe, Eye, Filter,
+    AlertTriangle, ArrowRight, ExternalLink, ShieldAlert, Check
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,7 @@ export default function CuadrePage() {
     const [filtroAuditoria, setFiltroAuditoria] = useState<'todos' | 'diferencias'>('todos');
     const [searchGestorAuditoria, setSearchGestorAuditoria] = useState('');
     const [selectedFilaDetalle, setSelectedFilaDetalle] = useState<any>(null);
+    const [modalTab, setModalTab] = useState<'discrepancias' | 'erp' | 'contpaqi' | 'coincidentes'>('discrepancias');
 
     useEffect(() => {
         fetchCobradores();
@@ -759,7 +761,10 @@ export default function CuadrePage() {
                                                 size="sm"
                                                 variant="ghost"
                                                 className="h-7 w-7 p-0"
-                                                onClick={() => setSelectedFilaDetalle(f)}
+                                                onClick={() => {
+                                                    setSelectedFilaDetalle(f);
+                                                    setModalTab(f.estado === 'CUADRADO' ? 'erp' : 'discrepancias');
+                                                }}
                                                 title="Ver recibos y documentos de este gestor"
                                             >
                                                 <Eye className="w-3.5 h-3.5 text-gray-500 hover:text-indigo-600" />
@@ -797,6 +802,364 @@ export default function CuadrePage() {
                         ℹ️ <strong>Capturas Directas en ContPAQi (sin ERP):</strong> Se detectaron {res.contpaqiDirectos.cantidad} documentos por un total de {formatCurrency(res.contpaqiDirectos.total)} registrados en ContPAQi por gestores de oficina/directos que no operan en el ERP (excluidos de este cuadre de ruta).
                     </div>
                 )}
+            </div>
+        );
+    };
+
+    // Render de pestaña centralizada de Discrepancias
+    const renderDiscrepanciasTab = () => {
+        if (loading || loadingAuditoria) {
+            return (
+                <div className="py-16 text-center text-gray-400">
+                    <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-3 text-rose-600" />
+                    <p className="font-semibold text-sm text-gray-700 dark:text-gray-200">Analizando discrepancias comerciales y bancarias...</p>
+                    <p className="text-xs text-gray-400 mt-1">Cruzando movimientos de ERP, ContPAQi Comercial y Bancos</p>
+                </div>
+            );
+        }
+
+        const gestoresConDiferencia = auditoriaData?.filas?.filter((f: any) => f.estado !== 'CUADRADO') || [];
+        const ticketsDQ = data?.resumenDQ?.ticketsSinConciliarItems || [];
+        const ticketsDP = data?.resumenDP?.ticketsSinConciliarItems || [];
+        const allTicketsSinConciliar = [...ticketsDQ, ...ticketsDP];
+        const abonosSinAsignar = data?.otrasDiscrepancias?.abonosSinAsignar?.items || [];
+
+        const totalIncidentes = gestoresConDiferencia.length + (allTicketsSinConciliar.length > 0 ? 1 : 0) + (abonosSinAsignar.length > 0 ? 1 : 0);
+
+        return (
+            <div className="space-y-6">
+                {/* Resumen Superior de Estado de Discrepancias */}
+                <div className={`p-4 rounded-xl border ${totalIncidentes === 0 ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800' : 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/60'}`}>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2.5 rounded-xl ${totalIncidentes === 0 ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600' : 'bg-rose-100 dark:bg-rose-900/50 text-rose-600'}`}>
+                                {totalIncidentes === 0 ? <CheckCircle2 className="w-6 h-6" /> : <AlertTriangle className="w-6 h-6" />}
+                            </div>
+                            <div>
+                                <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                    {totalIncidentes === 0 
+                                        ? "Auditoría en Orden: 0 Discrepancias Detectadas" 
+                                        : `Atención Requerida: ${gestoresConDiferencia.length} Descuadres de Gestores y ${allTicketsSinConciliar.length + abonosSinAsignar.length} Incidentes Bancarios`}
+                                </h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {totalIncidentes === 0 
+                                        ? "Todos los cobros de ERP están registrados con exactitud en ContPAQi y los depósitos bancarios están conciliados."
+                                        : "A continuación se desglosan con precisión los códigos de cliente, folios y montos que difieren entre los sistemas."}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                            <Badge variant="outline" className={`text-xs px-2.5 py-1 ${gestoresConDiferencia.length > 0 ? 'border-rose-300 text-rose-700 bg-rose-50 dark:bg-rose-950/40' : 'border-emerald-300 text-emerald-700 bg-emerald-50'}`}>
+                                👨‍💼 Gestores Descuadrados: {gestoresConDiferencia.length}
+                            </Badge>
+                            <Badge variant="outline" className={`text-xs px-2.5 py-1 ${allTicketsSinConciliar.length > 0 ? 'border-amber-300 text-amber-700 bg-amber-50 dark:bg-amber-950/40' : 'border-emerald-300 text-emerald-700 bg-emerald-50'}`}>
+                                🤖 Tickets sin Banco: {allTicketsSinConciliar.length}
+                            </Badge>
+                            <Badge variant="outline" className={`text-xs px-2.5 py-1 ${abonosSinAsignar.length > 0 ? 'border-purple-300 text-purple-700 bg-purple-50 dark:bg-purple-950/40' : 'border-emerald-300 text-emerald-700 bg-emerald-50'}`}>
+                                🏦 Abonos sin Asignar: {abonosSinAsignar.length}
+                            </Badge>
+                        </div>
+                    </div>
+                </div>
+
+                {/* BLOQUE 1: DISCREPANCIAS ERP VS CONTPAQI POR GESTOR */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b pb-2">
+                        <div className="flex items-center gap-2">
+                            <Building2 className="w-5 h-5 text-indigo-600" />
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">
+                                1. Códigos con Discrepancia: ERP vs ContPAQi Comercial
+                            </h4>
+                        </div>
+                        <span className="text-xs text-gray-400 font-medium">
+                            {gestoresConDiferencia.length} gestores con diferencia en este periodo
+                        </span>
+                    </div>
+
+                    {gestoresConDiferencia.length === 0 ? (
+                        <div className="p-6 text-center border rounded-xl bg-slate-50/50 dark:bg-slate-800/30">
+                            <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">¡Conciliación Comercial Perfecta!</p>
+                            <p className="text-xs text-gray-400 mt-0.5">Todos los recibos de los gestores en el ERP coinciden al 100% con los conceptos 101 y 102 en ContPAQi Comercial.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {gestoresConDiferencia.map((f: any, idx: number) => {
+                                const disc = f.discrepancias || {};
+                                const soloERP = disc.soloEnERP || [];
+                                const soloCP = disc.soloEnContPAQi || [];
+                                const difMonto = disc.diferenciasMonto || [];
+
+                                return (
+                                    <div key={idx} className="border border-rose-200 dark:border-rose-900/60 rounded-xl bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+                                        {/* Header del Gestor */}
+                                        <div className="p-3.5 bg-rose-50/60 dark:bg-rose-950/30 border-b border-rose-100 dark:border-rose-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-8 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-xs">
+                                                    {f.gestor.substring(0, 2).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-sm text-gray-900 dark:text-white">{f.gestor}</span>
+                                                        <Badge variant="outline" className={`text-[10px] py-0 ${f.empresa === 'DP' ? 'border-sky-300 text-sky-700' : 'border-purple-300 text-purple-700'}`}>
+                                                            {f.empresa}
+                                                        </Badge>
+                                                        {f.nombreGestor && f.nombreGestor !== f.gestor && (
+                                                            <span className="text-xs text-gray-500">({f.nombreGestor})</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 mt-0.5">
+                                                        ERP: <strong className="text-indigo-700 font-mono">{formatCurrency(f.erpTotal)}</strong> ({f.erpCantidad} recibos) vs 
+                                                        ContPAQi: <strong className="text-emerald-700 font-mono">{formatCurrency(f.contpaqiTotal)}</strong> ({f.contpaqiCantidad} docs)
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 self-end sm:self-auto">
+                                                <div className="text-right">
+                                                    <div className="text-[10px] uppercase font-bold text-gray-400">Diferencia Neta</div>
+                                                    <div className="text-sm font-black font-mono text-rose-600">
+                                                        {formatCurrency(f.diferencia)}
+                                                    </div>
+                                                </div>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        setSelectedFilaDetalle(f);
+                                                        setModalTab('discrepancias');
+                                                    }}
+                                                    className="h-8 text-xs gap-1.5 border-rose-300 hover:bg-rose-100 text-rose-800 dark:text-rose-300"
+                                                >
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                    Inspeccionar Códigos
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* Detalle Inmediato de Códigos Causantes */}
+                                        <div className="p-4 space-y-4">
+                                            {/* Subsección: Falta en ContPAQi */}
+                                            {soloERP.length > 0 && (
+                                                <div className="border border-rose-100 dark:border-rose-900/40 rounded-lg p-3 bg-rose-50/20 dark:bg-rose-950/10 space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+                                                            <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                                                            Cobrados en ERP que FALTAN en ContPAQi ({soloERP.length} cliente{soloERP.length > 1 ? 's' : ''}):
+                                                        </span>
+                                                        <span className="text-xs font-bold font-mono text-rose-700">
+                                                            Suma: {formatCurrency(soloERP.reduce((acc: number, c: any) => acc + c.totalERP, 0))}
+                                                        </span>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1">
+                                                        {soloERP.map((item: any, i: number) => (
+                                                            <div key={i} className="p-2 rounded border bg-white dark:bg-slate-800 border-rose-200 dark:border-rose-900/50 flex justify-between items-center text-xs">
+                                                                <div>
+                                                                    <div className="font-mono font-bold text-rose-600">{item.cliente}</div>
+                                                                    <div className="text-[11px] text-gray-600 dark:text-gray-300 truncate max-w-[170px]" title={item.nombreCliente}>
+                                                                        {item.nombreCliente}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-gray-400">
+                                                                        Folio: {item.pagos?.[0]?.folioTicket || item.pagos?.[0]?.concepto || 'Sin folio'}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <div className="font-mono font-bold text-gray-900 dark:text-white">
+                                                                        {formatCurrency(item.totalERP)}
+                                                                    </div>
+                                                                    <Badge variant="outline" className="text-[9px] py-0 border-rose-300 text-rose-600">
+                                                                        No en CP
+                                                                    </Badge>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Subsección: Falta en ERP */}
+                                            {soloCP.length > 0 && (
+                                                <div className="border border-amber-100 dark:border-amber-900/40 rounded-lg p-3 bg-amber-50/20 dark:bg-amber-950/10 space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-bold text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+                                                            <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                                                            Capturados en ContPAQi que FALTAN en ERP ({soloCP.length} cliente{soloCP.length > 1 ? 's' : ''}):
+                                                        </span>
+                                                        <span className="text-xs font-bold font-mono text-amber-800">
+                                                            Suma: {formatCurrency(soloCP.reduce((acc: number, c: any) => acc + c.totalContpaqi, 0))}
+                                                        </span>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1">
+                                                        {soloCP.map((item: any, i: number) => (
+                                                            <div key={i} className="p-2 rounded border bg-white dark:bg-slate-800 border-amber-200 dark:border-amber-900/50 flex justify-between items-center text-xs">
+                                                                <div>
+                                                                    <div className="font-mono font-bold text-amber-700">{item.cliente}</div>
+                                                                    <div className="text-[11px] text-gray-600 dark:text-gray-300 truncate max-w-[170px]" title={item.razonSocial}>
+                                                                        {item.razonSocial}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-gray-400">
+                                                                        Folio CP: {item.docs?.[0]?.folio || item.docs?.[0]?.id}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <div className="font-mono font-bold text-gray-900 dark:text-white">
+                                                                        {formatCurrency(item.totalContpaqi)}
+                                                                    </div>
+                                                                    <Badge variant="outline" className="text-[9px] py-0 border-amber-300 text-amber-700">
+                                                                        No en ERP
+                                                                    </Badge>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Subsección: Diferencias en Importe */}
+                                            {difMonto.length > 0 && (
+                                                <div className="border border-orange-100 dark:border-orange-900/40 rounded-lg p-3 bg-orange-50/20 dark:bg-orange-950/10 space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-bold text-orange-800 dark:text-orange-400 flex items-center gap-1.5">
+                                                            <AlertCircle className="w-3.5 h-3.5 text-orange-600" />
+                                                            Mismo cliente pero con IMPORTE DIFERENTE ({difMonto.length} caso{difMonto.length > 1 ? 's' : ''}):
+                                                        </span>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1">
+                                                        {difMonto.map((item: any, i: number) => (
+                                                            <div key={i} className="p-2 rounded border bg-white dark:bg-slate-800 border-orange-200 dark:border-orange-900/50 flex justify-between items-center text-xs">
+                                                                <div>
+                                                                    <div className="font-mono font-bold text-orange-700">{item.cliente}</div>
+                                                                    <div className="text-[11px] text-gray-600 dark:text-gray-300 truncate max-w-[170px]">
+                                                                        {item.nombreCliente}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-gray-400">
+                                                                        ERP: {formatCurrency(item.totalERP)} | CP: {formatCurrency(item.totalContpaqi)}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <div className="font-mono font-bold text-orange-600">
+                                                                        Dif: {formatCurrency(item.diferencia)}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* BLOQUE 2: TICKETS DEL BOT SIN CONCILIAR */}
+                <div className="space-y-4 pt-2">
+                    <div className="flex items-center justify-between border-b pb-2">
+                        <div className="flex items-center gap-2">
+                            <Bot className="w-5 h-5 text-indigo-600" />
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">
+                                2. Tickets WhatsApp sin Depósito Bancario Emparejado (BANCOS BOT)
+                            </h4>
+                        </div>
+                        <Badge variant="outline" className={`text-xs ${allTicketsSinConciliar.length > 0 ? 'border-amber-400 text-amber-700 bg-amber-50' : 'border-emerald-400 text-emerald-700 bg-emerald-50'}`}>
+                            {allTicketsSinConciliar.length} tickets pendientes
+                        </Badge>
+                    </div>
+
+                    {allTicketsSinConciliar.length === 0 ? (
+                        <div className="p-5 text-center border rounded-xl bg-slate-50/50 dark:bg-slate-800/30">
+                            <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-1.5" />
+                            <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">No hay tickets del Bot pendientes de conciliar con bancos.</p>
+                        </div>
+                    ) : (
+                        <div className="border rounded-xl overflow-hidden">
+                            <table className="w-full text-xs text-left align-middle">
+                                <thead className="bg-gray-100/70 dark:bg-slate-800 font-bold text-gray-600 dark:text-slate-300 uppercase text-[10px] tracking-wider border-b">
+                                    <tr>
+                                        <th className="px-4 py-2.5">Folio Ticket</th>
+                                        <th className="px-3 py-2.5 text-center">Empresa</th>
+                                        <th className="px-4 py-2.5">Cliente</th>
+                                        <th className="px-4 py-2.5">Gestor</th>
+                                        <th className="px-4 py-2.5">Fecha</th>
+                                        <th className="px-4 py-2.5 text-right">Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+                                    {allTicketsSinConciliar.map((t: any, i: number) => (
+                                        <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                            <td className="px-4 py-2 font-mono font-bold text-indigo-600">
+                                                {t.folio || `#${t.id}`}
+                                            </td>
+                                            <td className="px-3 py-2 text-center">
+                                                <Badge variant="outline" className="font-mono text-[9px] py-0">{t.empresa}</Badge>
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <div className="font-mono font-semibold text-gray-800 dark:text-gray-200">{t.clienteCodigo}</div>
+                                                <div className="text-[10px] text-gray-400 truncate max-w-[200px]">{t.clienteNombre}</div>
+                                            </td>
+                                            <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{t.gestor}</td>
+                                            <td className="px-4 py-2 text-gray-400">{t.fecha ? new Date(t.fecha).toISOString().slice(0, 10) : '-'}</td>
+                                            <td className="px-4 py-2 text-right font-mono font-bold text-gray-900 dark:text-white">{formatCurrency(t.monto)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+
+                {/* BLOQUE 3: ABONOS BANCARIOS SIN ASIGNAR */}
+                <div className="space-y-4 pt-2">
+                    <div className="flex items-center justify-between border-b pb-2">
+                        <div className="flex items-center gap-2">
+                            <Smartphone className="w-5 h-5 text-purple-600" />
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-gray-800 dark:text-gray-200">
+                                3. Depósitos en Bancos no Asignados a Ningún Ticket
+                            </h4>
+                        </div>
+                        <Badge variant="outline" className={`text-xs ${abonosSinAsignar.length > 0 ? 'border-purple-400 text-purple-700 bg-purple-50' : 'border-emerald-400 text-emerald-700 bg-emerald-50'}`}>
+                            {abonosSinAsignar.length} depósitos huérfanos
+                        </Badge>
+                    </div>
+
+                    {abonosSinAsignar.length === 0 ? (
+                        <div className="p-5 text-center border rounded-xl bg-slate-50/50 dark:bg-slate-800/30">
+                            <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-1.5" />
+                            <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">No se encontraron abonos bancarios sin identificar.</p>
+                        </div>
+                    ) : (
+                        <div className="border rounded-xl overflow-hidden">
+                            <table className="w-full text-xs text-left align-middle">
+                                <thead className="bg-gray-100/70 dark:bg-slate-800 font-bold text-gray-600 dark:text-slate-300 uppercase text-[10px] tracking-wider border-b">
+                                    <tr>
+                                        <th className="px-4 py-2.5">Fecha Operación</th>
+                                        <th className="px-4 py-2.5">Banco / Cuenta</th>
+                                        <th className="px-4 py-2.5">Concepto / Descripción</th>
+                                        <th className="px-4 py-2.5">Referencia</th>
+                                        <th className="px-4 py-2.5 text-right">Monto Abono</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+                                    {abonosSinAsignar.map((a: any, i: number) => (
+                                        <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                            <td className="px-4 py-2 text-gray-500">{a.fecha ? new Date(a.fecha).toISOString().slice(0, 10) : '-'}</td>
+                                            <td className="px-4 py-2 font-mono">
+                                                <span className="font-bold text-gray-800 dark:text-gray-200">{a.banco}</span>
+                                                <span className="text-[10px] text-gray-400 ml-1">({a.cuenta})</span>
+                                            </td>
+                                            <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{a.concepto || '-'}</td>
+                                            <td className="px-4 py-2 font-mono text-gray-400">{a.referencia || '-'}</td>
+                                            <td className="px-4 py-2 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(a.abono)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
             </div>
         );
     };
@@ -1018,7 +1381,7 @@ export default function CuadrePage() {
                     </CardHeader>
                     <CardContent className="p-4 sm:p-6">
                         <Tabs defaultValue="global" className="space-y-4">
-                            <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto p-1 bg-gray-100 dark:bg-slate-800 rounded-xl">
+                            <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto p-1 bg-gray-100 dark:bg-slate-800 rounded-xl">
                                 <TabsTrigger value="global" className="text-xs font-bold py-2 gap-1.5 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-sm">
                                     <Globe className="w-3.5 h-3.5 text-indigo-600" />
                                     <span>GLOBAL</span>
@@ -1041,6 +1404,19 @@ export default function CuadrePage() {
                                     {auditoriaData?.resumen && (
                                         <Badge variant="outline" className={`text-[9px] py-0 px-1 font-mono ${auditoriaData.resumen.cuadrado ? 'border-emerald-400 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30' : 'border-rose-400 text-rose-600 bg-rose-50 dark:bg-rose-950/30'}`}>
                                             {auditoriaData.resumen.cuadrado ? '100%' : `${auditoriaData.resumen.filasConDiferencia} dif`}
+                                        </Badge>
+                                    )}
+                                </TabsTrigger>
+                                <TabsTrigger value="discrepancias" className="text-xs font-bold py-2 gap-1.5 data-[state=active]:bg-rose-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    <span>DISCREPANCIAS</span>
+                                    {((auditoriaData?.resumen?.filasConDiferencia || 0) + ((data?.resumenDQ?.ticketsSinConciliar?.ctas || 0) > 0 ? 1 : 0) + ((data?.resumenDP?.ticketsSinConciliar?.ctas || 0) > 0 ? 1 : 0) + ((data?.otrasDiscrepancias?.abonosSinAsignar?.ctas || 0) > 0 ? 1 : 0)) > 0 ? (
+                                        <Badge className="text-[9px] py-0 px-1.5 bg-rose-700 text-white font-mono border-0">
+                                            {(auditoriaData?.resumen?.filasConDiferencia || 0) + ((data?.resumenDQ?.ticketsSinConciliar?.ctas || 0) > 0 ? 1 : 0) + ((data?.resumenDP?.ticketsSinConciliar?.ctas || 0) > 0 ? 1 : 0) + ((data?.otrasDiscrepancias?.abonosSinAsignar?.ctas || 0) > 0 ? 1 : 0)}
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="text-[9px] py-0 px-1 border-emerald-400 text-emerald-600 bg-emerald-50 font-mono">
+                                            0
                                         </Badge>
                                     )}
                                 </TabsTrigger>
@@ -1082,6 +1458,11 @@ export default function CuadrePage() {
                             <TabsContent value="auditoriaContpaqi" className="m-0 border rounded-xl overflow-hidden bg-white dark:bg-slate-900 p-4">
                                 {renderAuditoriaContpaqiTable()}
                             </TabsContent>
+
+                            {/* Tab 6: DISCREPANCIAS CENTRALIZADAS */}
+                            <TabsContent value="discrepancias" className="m-0 border rounded-xl overflow-hidden bg-white dark:bg-slate-900 p-4">
+                                {renderDiscrepanciasTab()}
+                            </TabsContent>
                         </Tabs>
                     </CardContent>
                 </Card>
@@ -1099,22 +1480,158 @@ export default function CuadrePage() {
                                 </DialogTitle>
                                 <DialogDescription className="text-xs">
                                     {selectedFilaDetalle.erpCantidad} recibos en ERP ({formatCurrency(selectedFilaDetalle.erpTotal)}) vs {selectedFilaDetalle.contpaqiCantidad} documentos en ContPAQi ({formatCurrency(selectedFilaDetalle.contpaqiTotal)})
+                                    {selectedFilaDetalle.diferencia !== 0 && (
+                                        <span className="font-bold text-rose-600 ml-2">Diferencia: {formatCurrency(selectedFilaDetalle.diferencia)}</span>
+                                    )}
                                 </DialogDescription>
                             </DialogHeader>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                                {/* Lista ERP */}
-                                <div className="border rounded-lg p-3 space-y-2">
+                            {/* Selector de sub-tabs en el modal */}
+                            <div className="flex flex-wrap gap-1.5 border-b pb-2 pt-1">
+                                <Button
+                                    size="sm"
+                                    variant={modalTab === 'discrepancias' ? 'default' : 'outline'}
+                                    onClick={() => setModalTab('discrepancias')}
+                                    className={`h-7 text-xs ${modalTab === 'discrepancias' && (selectedFilaDetalle.discrepancias?.totalDiscrepancias || 0) > 0 ? 'bg-rose-600 hover:bg-rose-700 text-white' : ''}`}
+                                >
+                                    <AlertTriangle className="w-3 h-3 mr-1" />
+                                    Solo Discrepancias ({selectedFilaDetalle.discrepancias?.totalDiscrepancias || 0})
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant={modalTab === 'erp' ? 'default' : 'outline'}
+                                    onClick={() => setModalTab('erp')}
+                                    className="h-7 text-xs"
+                                >
+                                    Recibos ERP ({selectedFilaDetalle.pagosERP?.length || 0})
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant={modalTab === 'contpaqi' ? 'default' : 'outline'}
+                                    onClick={() => setModalTab('contpaqi')}
+                                    className="h-7 text-xs"
+                                >
+                                    Docs ContPAQi ({selectedFilaDetalle.docsContpaqi?.length || 0})
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant={modalTab === 'coincidentes' ? 'default' : 'outline'}
+                                    onClick={() => setModalTab('coincidentes')}
+                                    className="h-7 text-xs"
+                                >
+                                    <Check className="w-3 h-3 mr-1 text-emerald-600" />
+                                    Coincidentes ({selectedFilaDetalle.discrepancias?.coincidentes?.length || 0})
+                                </Button>
+                            </div>
+
+                            {/* Contenido de pestaña Discrepancias */}
+                            {modalTab === 'discrepancias' && (
+                                <div className="space-y-3 pt-2">
+                                    {(selectedFilaDetalle.discrepancias?.totalDiscrepancias || 0) === 0 ? (
+                                        <div className="p-8 text-center bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl">
+                                            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+                                            <p className="font-bold text-sm text-emerald-800 dark:text-emerald-200">¡Sin discrepancias!</p>
+                                            <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">Todos los cobros de {selectedFilaDetalle.gestor} coinciden exactamente con ContPAQi Comercial.</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {/* Solo en ERP */}
+                                            {(selectedFilaDetalle.discrepancias?.soloEnERP || []).length > 0 && (
+                                                <div className="border border-rose-200 dark:border-rose-900 rounded-lg p-3 bg-rose-50/30 dark:bg-rose-950/20 space-y-2">
+                                                    <div className="flex justify-between items-center text-xs font-bold text-rose-700 dark:text-rose-300">
+                                                        <span>🔴 FALTAN EN CONTPAQI (Cobrados en ERP pero no capturados en ContPAQi)</span>
+                                                        <Badge variant="outline" className="border-rose-400 text-rose-600 bg-white">
+                                                            {selectedFilaDetalle.discrepancias.soloEnERP.length} cliente(s)
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="space-y-1.5 max-h-48 overflow-y-auto text-xs">
+                                                        {selectedFilaDetalle.discrepancias.soloEnERP.map((item: any, i: number) => (
+                                                            <div key={i} className="flex justify-between items-center p-2 rounded bg-white dark:bg-slate-800 border border-rose-100 dark:border-rose-900/50">
+                                                                <div>
+                                                                    <span className="font-mono font-bold text-rose-600 mr-2">{item.cliente}</span>
+                                                                    <span className="font-medium text-gray-800 dark:text-gray-200">{item.nombreCliente}</span>
+                                                                    <div className="text-[10px] text-gray-400">
+                                                                        {item.pagos?.length} pago(s) ERP | Folio: {item.pagos?.[0]?.folioTicket || item.pagos?.[0]?.concepto || 'Sin folio'}
+                                                                    </div>
+                                                                </div>
+                                                                <span className="font-mono font-bold text-rose-600">{formatCurrency(item.totalERP)}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Solo en ContPAQi */}
+                                            {(selectedFilaDetalle.discrepancias?.soloEnContPAQi || []).length > 0 && (
+                                                <div className="border border-amber-200 dark:border-amber-900 rounded-lg p-3 bg-amber-50/30 dark:bg-amber-950/20 space-y-2">
+                                                    <div className="flex justify-between items-center text-xs font-bold text-amber-800 dark:text-amber-300">
+                                                        <span>🟡 FALTAN EN ERP (Capturados en ContPAQi pero no registrados en ERP)</span>
+                                                        <Badge variant="outline" className="border-amber-400 text-amber-700 bg-white">
+                                                            {selectedFilaDetalle.discrepancias.soloEnContPAQi.length} documento(s)
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="space-y-1.5 max-h-48 overflow-y-auto text-xs">
+                                                        {selectedFilaDetalle.discrepancias.soloEnContPAQi.map((item: any, i: number) => (
+                                                            <div key={i} className="flex justify-between items-center p-2 rounded bg-white dark:bg-slate-800 border border-amber-100 dark:border-amber-900/50">
+                                                                <div>
+                                                                    <span className="font-mono font-bold text-amber-700 mr-2">{item.cliente}</span>
+                                                                    <span className="font-medium text-gray-800 dark:text-gray-200">{item.razonSocial}</span>
+                                                                    <div className="text-[10px] text-gray-400">
+                                                                        Folio ContPAQi: {item.docs?.[0]?.folio || item.docs?.[0]?.id}
+                                                                    </div>
+                                                                </div>
+                                                                <span className="font-mono font-bold text-amber-700">{formatCurrency(item.totalContpaqi)}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Diferencias en Monto */}
+                                            {(selectedFilaDetalle.discrepancias?.diferenciasMonto || []).length > 0 && (
+                                                <div className="border border-orange-200 dark:border-orange-900 rounded-lg p-3 bg-orange-50/30 dark:bg-orange-950/20 space-y-2">
+                                                    <div className="flex justify-between items-center text-xs font-bold text-orange-800 dark:text-orange-300">
+                                                        <span>🟠 DIFERENCIA DE IMPORTE (Mismo cliente con montos dispares)</span>
+                                                        <Badge variant="outline" className="border-orange-400 text-orange-700 bg-white">
+                                                            {selectedFilaDetalle.discrepancias.diferenciasMonto.length} cliente(s)
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="space-y-1.5 max-h-48 overflow-y-auto text-xs">
+                                                        {selectedFilaDetalle.discrepancias.diferenciasMonto.map((item: any, i: number) => (
+                                                            <div key={i} className="flex justify-between items-center p-2 rounded bg-white dark:bg-slate-800 border border-orange-100 dark:border-orange-900/50">
+                                                                <div>
+                                                                    <span className="font-mono font-bold text-orange-700 mr-2">{item.cliente}</span>
+                                                                    <span className="font-medium text-gray-800 dark:text-gray-200">{item.nombreCliente}</span>
+                                                                    <div className="text-[10px] text-gray-400">
+                                                                        ERP: {formatCurrency(item.totalERP)} ({item.cantidadERP} pagos) | CP: {formatCurrency(item.totalContpaqi)} ({item.cantidadContpaqi} docs)
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right font-mono font-bold text-orange-600">
+                                                                    Dif: {formatCurrency(item.diferencia)}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Contenido pestaña ERP */}
+                            {modalTab === 'erp' && (
+                                <div className="border rounded-lg p-3 space-y-2 pt-2">
                                     <div className="flex justify-between items-center border-b pb-2">
                                         <span className="font-bold text-xs text-indigo-700 dark:text-indigo-400">Recibos ERP ({selectedFilaDetalle.pagosERP?.length || 0})</span>
                                         <span className="font-mono text-xs font-bold text-indigo-700">{formatCurrency(selectedFilaDetalle.erpTotal)}</span>
                                     </div>
-                                    <div className="max-h-72 overflow-y-auto space-y-1.5 text-xs">
+                                    <div className="max-h-96 overflow-y-auto space-y-1.5 text-xs">
                                         {(selectedFilaDetalle.pagosERP || []).map((p: any) => (
                                             <div key={p.id} className="flex justify-between items-center p-2 rounded bg-slate-50 dark:bg-slate-800 border">
                                                 <div>
                                                     <div className="font-mono font-bold text-gray-800 dark:text-gray-200">{p.cliente}</div>
-                                                    <div className="text-[10px] text-gray-500 truncate max-w-[180px]">{p.nombreCliente}</div>
+                                                    <div className="text-[10px] text-gray-500 truncate max-w-[280px]">{p.nombreCliente}</div>
                                                     <div className="text-[10px] text-gray-400">{p.fecha ? new Date(p.fecha).toISOString().slice(0, 10) : ''} | {p.folioTicket || p.concepto || 'Sin folio'}</div>
                                                 </div>
                                                 <span className="font-mono font-bold text-indigo-600 dark:text-indigo-300">{formatCurrency(p.monto)}</span>
@@ -1122,19 +1639,21 @@ export default function CuadrePage() {
                                         ))}
                                     </div>
                                 </div>
+                            )}
 
-                                {/* Lista ContPAQi */}
-                                <div className="border rounded-lg p-3 space-y-2">
+                            {/* Contenido pestaña ContPAQi */}
+                            {modalTab === 'contpaqi' && (
+                                <div className="border rounded-lg p-3 space-y-2 pt-2">
                                     <div className="flex justify-between items-center border-b pb-2">
                                         <span className="font-bold text-xs text-emerald-700 dark:text-emerald-400">Documentos ContPAQi ({selectedFilaDetalle.docsContpaqi?.length || 0})</span>
                                         <span className="font-mono text-xs font-bold text-emerald-700">{formatCurrency(selectedFilaDetalle.contpaqiTotal)}</span>
                                     </div>
-                                    <div className="max-h-72 overflow-y-auto space-y-1.5 text-xs">
+                                    <div className="max-h-96 overflow-y-auto space-y-1.5 text-xs">
                                         {(selectedFilaDetalle.docsContpaqi || []).map((d: any) => (
                                             <div key={d.id} className="flex justify-between items-center p-2 rounded bg-slate-50 dark:bg-slate-800 border">
                                                 <div>
                                                     <div className="font-mono font-bold text-gray-800 dark:text-gray-200">Folio: {d.folio}</div>
-                                                    <div className="text-[10px] text-gray-500 truncate max-w-[180px]">{d.cliente} - {d.razonSocial}</div>
+                                                    <div className="text-[10px] text-gray-500 truncate max-w-[280px]">{d.cliente} - {d.razonSocial}</div>
                                                     <div className="text-[10px] text-gray-400">{d.fecha ? new Date(d.fecha).toISOString().slice(0, 10) : ''} | Doc #{d.id}</div>
                                                 </div>
                                                 <span className="font-mono font-bold text-emerald-600 dark:text-emerald-300">{formatCurrency(d.total)}</span>
@@ -1142,7 +1661,31 @@ export default function CuadrePage() {
                                         ))}
                                     </div>
                                 </div>
-                            </div>
+                            )}
+
+                            {/* Contenido pestaña Coincidentes */}
+                            {modalTab === 'coincidentes' && (
+                                <div className="border rounded-lg p-3 space-y-2 pt-2">
+                                    <div className="flex justify-between items-center border-b pb-2">
+                                        <span className="font-bold text-xs text-emerald-700 dark:text-emerald-400">Clientes Coincidentes ({selectedFilaDetalle.discrepancias?.coincidentes?.length || 0})</span>
+                                        <span className="text-xs text-gray-400">Cuadrados al 100%</span>
+                                    </div>
+                                    <div className="max-h-96 overflow-y-auto space-y-1.5 text-xs">
+                                        {(selectedFilaDetalle.discrepancias?.coincidentes || []).map((c: any, i: number) => (
+                                            <div key={i} className="flex justify-between items-center p-2 rounded bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40">
+                                                <div>
+                                                    <span className="font-mono font-bold text-gray-900 dark:text-white mr-2">{c.cliente}</span>
+                                                    <span className="text-[10px] text-gray-400">({c.cantidadERP} recibos en ERP = {c.cantidadContpaqi} docs en ContPAQi)</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono font-bold text-emerald-600">{formatCurrency(c.total)}</span>
+                                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </DialogContent>
                     </Dialog>
                 )}

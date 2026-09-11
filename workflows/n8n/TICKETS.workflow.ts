@@ -1184,27 +1184,36 @@ const resultados = allItems.map(inputItem => {
       tipoOperacion: item['DESCRIPCIÓN'],
       abono: abono,
       cargo: cargo,
+      saldo: cleanCurrency(item['SALDO']),
+      referencia: item['REFERENCIA'] && item['REFERENCIA'] !== '0' ? item['REFERENCIA'] : null,
       concepto: null,
       claveRastreo: null,
       bancoEmisor: null,
+      clabeEmisor: extractDetail(/(?:CLABE|DE LA CLABE)\s*(\d{18})/, descripcionDetallada),
+      cuentaEmisor: extractDetail(/(?:DE LA CUENTA|CUENTA):\s*(\d+)/, descripcionDetallada),
+      descripcionDetallada: descripcionDetallada,
       bank: 'banorte'
     }
   };
+
+  if (!resultado.json.referencia) {
+    resultado.json.referencia = extractDetail(/REFERENCIA:\s*([0-9a-zA-Z]+)/, descripcionDetallada);
+  }
 
   // --- Lógica Diferenciada por Tipo de Movimiento ---
 
   // CASO 1: Es una transferencia SPEI recibida
   if (descripcionDetallada.includes('SPEI RECIBIDO')) {
-    resultado.json.claveRastreo = extractDetail(/CVE RAST: ([\\w.\\/-]+)/, descripcionDetallada);
+    resultado.json.claveRastreo = extractDetail(/CVE RAST: ([\w.\/-]+)/, descripcionDetallada);
     resultado.json.concepto = extractDetail(/CONCEPTO: (.*?)(?:, REFERENCIA:|, DEL CLIENTE:|, DE LA CLABE)/, descripcionDetallada);
-    resultado.json.bancoEmisor = extractDetail(/BCO:\\d+\\s(.*?):/, descripcionDetallada)?.replace(/\\s+/g, ' ');
-    resultado.json.hora = extractDetail(/HR LIQ: (\\d{2}:\\d{2}:\\d{2})/, descripcionDetallada);
+    resultado.json.bancoEmisor = extractDetail(/BCO:\d+\s+([^H,]+?)(?:\s+HR|,|$)/, descripcionDetallada)?.replace(/\s+/g, ' ');
+    resultado.json.hora = extractDetail(/HR LIQ: (\d{2}:\d{2}:\d{2})/, descripcionDetallada);
   
   // CASO 2: Es un TRASPASO interno
   } else if (item['DESCRIPCIÓN'] === 'TRASPASO') {
     resultado.json.tipoOperacion = 'TRASPASO INTERNO';
     // Para traspasos, el concepto está en la descripción detallada.
-    resultado.json.concepto = extractDetail(/DE LA CUENTA: \\d+, (.*)/, descripcionDetallada);
+    resultado.json.concepto = extractDetail(/DE LA CUENTA:\s*\d+,\s*(.*)/, descripcionDetallada) || 'TRASPASO';
     // La clave de rastreo es la referencia del CSV.
     resultado.json.claveRastreo = item['REFERENCIA'];
     resultado.json.bancoEmisor = 'BANORTE'; // Es una operación interna.

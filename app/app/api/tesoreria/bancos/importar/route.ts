@@ -221,7 +221,7 @@ function parseBanorte(rows: any[][]): { records: any[], cuentaNum: string } {
         const saldoStr = idxSaldo >= 0 ? clean(row[idxSaldo]) : '';
         const saldo = parseFloat(saldoStr.replace(/[$,"]/g, '')) || 0;
         
-        const referencia = idxReferencia >= 0 ? clean(row[idxReferencia]) : '';
+        let referencia = idxReferencia >= 0 ? clean(row[idxReferencia]) : '';
         const descripcion = idxDescripcion >= 0 ? clean(row[idxDescripcion]) : '';
         const descripcionDetallada = idxDescripcionDetallada >= 0 ? clean(row[idxDescripcionDetallada]) : '';
         
@@ -250,6 +250,9 @@ function parseBanorte(rows: any[][]): { records: any[], cuentaNum: string } {
             
             const matchClabe = descripcionDetallada.match(/(?:CLABE|DE LA CLABE)\s*(\d{18})/i);
             if (matchClabe) clabeEmisor = matchClabe[1];
+
+            const matchCuenta = descripcionDetallada.match(/(?:DE LA CUENTA|CUENTA):\s*(\d+)/i);
+            if (matchCuenta) cuentaEmisor = matchCuenta[1];
             
             const matchCliente = descripcionDetallada.match(/(?:DEL CLIENTE|ORDENANTE)\s+([^,]+)/i);
             if (matchCliente) nombreOrdenante = matchCliente[1].trim();
@@ -259,6 +262,11 @@ function parseBanorte(rows: any[][]): { records: any[], cuentaNum: string } {
             
             const matchConcepto = descripcionDetallada.match(/CONCEPTO:\s*([^,]+)/i);
             if (matchConcepto) concepto = matchConcepto[1].trim();
+
+            if (!referencia || referencia === '0') {
+                const matchRef = descripcionDetallada.match(/REFERENCIA:\s*([0-9a-zA-Z]+)/i);
+                if (matchRef) referencia = matchRef[1];
+            }
         }
         
         const fullDescripcionDetallada = `${descripcionDetallada} | Banco Destino: BANORTE | Cuenta Destino: ${cuenta}`;

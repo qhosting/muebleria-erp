@@ -179,6 +179,7 @@ export async function GET(request: NextRequest) {
             estado: 'CUADRADO' | 'DIFERENCIA';
             pagosERP?: any[];
             docsContpaqi?: any[];
+            discrepancias?: any;
         }
 
         const filas: FilaAuditoria[] = [];
@@ -193,6 +194,92 @@ export async function GET(request: NextRequest) {
         let totalDQ_ERP = 0;
         let totalDQ_CP = 0;
 
+function analizarDiscrepancias(pagosERP: any[], docsCP: any[]) {
+    const erpPorCliente = new Map<string, { total: number; count: number; pagos: any[] }>();
+    for (const p of pagosERP) {
+        const cod = (p.cliente || 'SIN_CODIGO').trim().toUpperCase();
+        if (!erpPorCliente.has(cod)) {
+            erpPorCliente.set(cod, { total: 0, count: 0, pagos: [] });
+        }
+        const item = erpPorCliente.get(cod)!;
+        item.total += p.monto;
+        item.count += 1;
+        item.pagos.push(p);
+    }
+
+    const cpPorCliente = new Map<string, { total: number; count: number; docs: any[] }>();
+    for (const d of docsCP) {
+        const cod = (d.cliente || 'SIN_CODIGO').trim().toUpperCase();
+        if (!cpPorCliente.has(cod)) {
+            cpPorCliente.set(cod, { total: 0, count: 0, docs: [] });
+        }
+        const item = cpPorCliente.get(cod)!;
+        item.total += d.total;
+        item.count += 1;
+        item.docs.push(d);
+    }
+
+    const soloEnERP: any[] = [];
+    const soloEnContPAQi: any[] = [];
+    const diferenciasMonto: any[] = [];
+    const coincidentes: any[] = [];
+
+    for (const [cod, erpVal] of erpPorCliente.entries()) {
+        const cpVal = cpPorCliente.get(cod);
+        if (!cpVal) {
+            soloEnERP.push({
+                cliente: cod,
+                nombreCliente: erpVal.pagos[0]?.nombreCliente || cod,
+                totalERP: parseFloat(erpVal.total.toFixed(2)),
+                cantidadERP: erpVal.count,
+                pagos: erpVal.pagos
+            });
+        } else {
+            const dif = parseFloat((erpVal.total - cpVal.total).toFixed(2));
+            if (Math.abs(dif) >= 0.01) {
+                diferenciasMonto.push({
+                    cliente: cod,
+                    nombreCliente: erpVal.pagos[0]?.nombreCliente || cpVal.docs[0]?.razonSocial || cod,
+                    totalERP: parseFloat(erpVal.total.toFixed(2)),
+                    totalContpaqi: parseFloat(cpVal.total.toFixed(2)),
+                    diferencia: dif,
+                    cantidadERP: erpVal.count,
+                    cantidadContpaqi: cpVal.count,
+                    pagosERP: erpVal.pagos,
+                    docsContpaqi: cpVal.docs
+                });
+            } else {
+                coincidentes.push({
+                    cliente: cod,
+                    total: parseFloat(erpVal.total.toFixed(2)),
+                    cantidadERP: erpVal.count,
+                    cantidadContpaqi: cpVal.count
+                });
+            }
+        }
+    }
+
+    for (const [cod, cpVal] of cpPorCliente.entries()) {
+        if (!erpPorCliente.has(cod)) {
+            soloEnContPAQi.push({
+                cliente: cod,
+                razonSocial: cpVal.docs[0]?.razonSocial || cod,
+                totalContpaqi: parseFloat(cpVal.total.toFixed(2)),
+                cantidadContpaqi: cpVal.count,
+                docs: cpVal.docs
+            });
+        }
+    }
+
+    return {
+        totalDiscrepancias: soloEnERP.length + soloEnContPAQi.length + diferenciasMonto.length,
+        soloEnERP,
+        soloEnContPAQi,
+        diferenciasMonto,
+        coincidentes
+    };
+}
+
         for (const gestor of gestoresERP) {
             const erpData = erpMap[gestor];
             const cpData = cpMap[gestor] || { DP: { count: 0, total: 0, docs: [] }, DQ: { count: 0, total: 0, docs: [] } };
@@ -201,6 +288,7 @@ export async function GET(request: NextRequest) {
             if (erpData.DP.count > 0) {
                 const difDP = parseFloat((erpData.DP.total - cpData.DP.total).toFixed(2));
                 const cuadradoDP = Math.abs(difDP) < 0.01 && erpData.DP.count === cpData.DP.count;
+                const analisisDP = analizarDiscrepancias(erpData.DP.pagos, cpData.DP.docs);
 
                 filas.push({
                     gestor,
@@ -213,7 +301,8 @@ export async function GET(request: NextRequest) {
                     diferencia: difDP,
                     estado: cuadradoDP ? 'CUADRADO' : 'DIFERENCIA',
                     pagosERP: erpData.DP.pagos,
-                    docsContpaqi: cpData.DP.docs
+                    docsContpaqi: cpData.DP.docs,
+                    discrepancias: analisisDP
                 });
 
                 granTotalERP += erpData.DP.total;
@@ -229,6 +318,7 @@ export async function GET(request: NextRequest) {
             if (erpData.DQ.count > 0) {
                 const difDQ = parseFloat((erpData.DQ.total - cpData.DQ.total).toFixed(2));
                 const cuadradoDQ = Math.abs(difDQ) < 0.01 && erpData.DQ.count === cpData.DQ.count;
+                const analisisDQ = analizarDiscrepancias(erpData.DQ.pagos, cpData.DQ.docs);
 
                 filas.push({
                     gestor,
@@ -241,7 +331,8 @@ export async function GET(request: NextRequest) {
                     diferencia: difDQ,
                     estado: cuadradoDQ ? 'CUADRADO' : 'DIFERENCIA',
                     pagosERP: erpData.DQ.pagos,
-                    docsContpaqi: cpData.DQ.docs
+                    docsContpaqi: cpData.DQ.docs,
+                    discrepancias: analisisDQ
                 });
 
                 granTotalERP += erpData.DQ.total;

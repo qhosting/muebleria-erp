@@ -39,35 +39,56 @@ export async function GET(
             });
         }
 
-        // Buscar en buzon_tesoreria por ticketId exacto, contrato o metadatos
-        // IMPORTANTE: Excluir referencias genericas bancarias como '1858' (Oxxo convenio) para evitar contaminacion cruzada
-        const orConditions: any[] = [
-            { metadata: { path: ['ticketId'], equals: ticket.id } }
-        ];
+        // Buscar en buzon_tesoreria con jerarquía estricta para evitar contaminación cruzada entre clientes
+        let buzon: any = null;
 
-        if (ticket.cliente?.codigoCliente) {
-            orConditions.push({ contractId: ticket.cliente.codigoCliente });
-            orConditions.push({ metadata: { path: ['contrato'], equals: ticket.cliente.codigoCliente } });
-        }
-        if (ticket.folio && ticket.folio !== 'null' && ticket.folio !== 'N/A' && ticket.folio.length >= 4) {
-            orConditions.push({ metadata: { path: ['folio'], equals: ticket.folio } });
-        }
-        if (ticket.claveRastreo && ticket.claveRastreo !== 'null' && ticket.claveRastreo !== 'N/A' && ticket.claveRastreo.length >= 6) {
-            orConditions.push({ metadata: { path: ['claverastreo'], equals: ticket.claveRastreo } });
-        }
-        if (ticket.referencia && ticket.referencia !== '1858' && ticket.referencia !== 'null' && ticket.referencia.length >= 6) {
-            orConditions.push({ referencia: ticket.referencia });
-        }
+        // 1. Por ticketId exacto en metadata
+        buzon = await (prisma as any).buzonTesoreria.findFirst({
+            where: { metadata: { path: ['ticketId'], equals: ticket.id } },
+            orderBy: { createdAt: 'desc' }
+        });
 
-        let buzon = null;
-        if (orConditions.length > 0) {
+        // 2. Por clave de rastreo SPEI (única nacional)
+        if (!buzon && ticket.claveRastreo && ticket.claveRastreo !== 'null' && ticket.claveRastreo !== 'N/A' && ticket.claveRastreo.length >= 6) {
             buzon = await (prisma as any).buzonTesoreria.findFirst({
-                where: { OR: orConditions },
+                where: { metadata: { path: ['claverastreo'], equals: ticket.claveRastreo } },
+                orderBy: { createdAt: 'desc' }
+            });
+        }
+
+        // 3. Por folio bancario exacto
+        if (!buzon && ticket.folio && ticket.folio !== 'null' && ticket.folio !== 'N/A' && ticket.folio.length >= 4) {
+            buzon = await (prisma as any).buzonTesoreria.findFirst({
+                where: { metadata: { path: ['folio'], equals: ticket.folio } },
+                orderBy: { createdAt: 'desc' }
+            });
+        }
+
+        // 4. Por contrato del cliente + monto del ticket (mismo cliente y mismo monto)
+        if (!buzon && ticket.cliente?.codigoCliente) {
+            buzon = await (prisma as any).buzonTesoreria.findFirst({
+                where: {
+                    contractId: ticket.cliente.codigoCliente,
+                    monto: ticket.monto
+                },
                 orderBy: { createdAt: 'desc' }
             });
         }
 
         if (buzon) {
+            const base64Clean = buzon.base64Data
+                ? (buzon.base64Data.startsWith('data:') ? buzon.base64Data : `data:image/jpeg;base64,${buzon.base64Data}`)
+                : null;
+            const finalImage = buzon.urlImagen || base64Clean;
+
+            // Auto-vincular de forma permanente al ticket si no la tenía
+            if (finalImage) {
+                await prisma.ticket.update({
+                    where: { id: ticket.id },
+                    data: { urlComprobante: finalImage }
+                }).catch(() => {});
+            }
+
             if (buzon.urlImagen) {
                 return NextResponse.json({
                     found: true,
@@ -76,11 +97,7 @@ export async function GET(
                     metadata: buzon.metadata
                 });
             }
-            if (buzon.base64Data) {
-                const base64Clean = buzon.base64Data.startsWith('data:')
-                    ? buzon.base64Data
-                    : `data:image/jpeg;base64,${buzon.base64Data}`;
-
+            if (base64Clean) {
                 return NextResponse.json({
                     found: true,
                     base64: base64Clean,

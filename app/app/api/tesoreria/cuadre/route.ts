@@ -336,6 +336,7 @@ export async function GET(request: NextRequest) {
         });
 
         // 5. Analizar tickets sin conciliar (exclusivo BANCOS BOT)
+        const ticketsSinConciliarDetalle: any[] = [];
         ticketsAll.forEach((ticket: any) => {
             const codigo = ticket.cliente?.codigoCliente || '';
             const pref = codigo.substring(0, 2).toUpperCase();
@@ -349,14 +350,37 @@ export async function GET(request: NextRequest) {
                 if (combinedMovs.length === 0 && !ticket.conciliado) {
                     resumenPrefijos[pref].ticketsSinConciliar.ctas++;
                     resumenPrefijos[pref].ticketsSinConciliar.monto += Number(ticket.monto || 0);
+                    ticketsSinConciliarDetalle.push({
+                        id: ticket.id,
+                        folio: ticket.folio,
+                        empresa: pref,
+                        monto: Number(ticket.monto || 0),
+                        clienteCodigo: ticket.cliente?.codigoCliente,
+                        clienteNombre: ticket.cliente?.nombreCompleto,
+                        gestor: ticket.gestor?.codigoGestor || ticket.gestor?.name || 'BOT',
+                        fecha: ticket.creadoEn
+                    });
                 }
             }
         });
 
         // 6. Abonos bancarios sin asignar a tickets
+        const abonosSinAsignarItems = movimientosBancos
+            .filter((m: any) => !m.ticketId)
+            .map((m: any) => ({
+                id: m.id,
+                fecha: m.fechaOperacion,
+                concepto: m.concepto || m.descripcion,
+                abono: m.abono,
+                banco: m.bancoDestino,
+                cuenta: m.cuentaDestino,
+                referencia: m.referencia
+            }));
+
         const abonosSinAsignar = {
-            ctas: movimientosBancos.filter((m: any) => !m.ticketId).length,
-            monto: movimientosBancos.filter((m: any) => !m.ticketId).reduce((acc: number, curr: any) => acc + (curr.abono || 0), 0),
+            ctas: abonosSinAsignarItems.length,
+            monto: abonosSinAsignarItems.reduce((acc: number, curr: any) => acc + (curr.abono || 0), 0),
+            items: abonosSinAsignarItems,
             bancos: {
                 'SANTANDER · 22001022837': {
                     ctas: m1.filter((m: any) => !m.ticketId).length,
@@ -389,7 +413,8 @@ export async function GET(request: NextRequest) {
                 discrepancia: {
                     ctas: ticketsSinConciliarCtas,
                     monto: ticketsSinConciliarMonto
-                }
+                },
+                ticketsSinConciliarItems: ticketsSinConciliarDetalle.filter(t => t.empresa === pref)
             };
         };
 

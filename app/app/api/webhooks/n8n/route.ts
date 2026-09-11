@@ -655,17 +655,21 @@ export async function POST(req: Request) {
             const noEncontrados: any[] = [];
 
             for (const m of movimientos) {
-                const rawFecha = m.fecha || m.fecha_operacion || m.fechaOperacion;
+                const rawFecha = m.fecha || m.fecha_operacion || m.fechaOperacion || m['FECHA DE OPERACIÓN'] || m['FECHA DE OPERACION'];
                 const fOperacion = rawFecha ? new Date(rawFecha) : new Date();
-                const desc = m.descripcion || m.concepto || m.descripcion_general || m.descripcionGeneral || '';
-                const cargo = parseFloat(m.cargo || '0') || null;
-                const abono = parseFloat(m.abono || m.monto || '0') || null;
-                const ref = m.referencia || m.folio || null;
+                const desc = m.descripcion || m.concepto || m.descripcion_general || m.descripcionGeneral || m['DESCRIPCIÓN'] || m['DESCRIPCION'] || '';
+                const cargo = parseFloat(String(m.cargo || m['RETIROS'] || '0').replace(/[$,\sMXN]/g, '')) || null;
+                const abono = parseFloat(String(m.abono || m.monto || m['DEPÓSITOS'] || m['DEPOSITOS'] || '0').replace(/[$,\sMXN]/g, '')) || null;
+                const ref = m.referencia || m.folio || m['REFERENCIA'] || null;
                 const rastreo = m.claveRastreo || m.clave_rastreo || null;
-                const saldo = m.saldo != null ? parseFloat(m.saldo) : null;
-                const detalle = m.descripcionDetallada || m.descripcion_detallada || null;
+                const saldo = (m.saldo != null && m.saldo !== '') ? parseFloat(String(m.saldo).replace(/[$,\sMXN]/g, '')) : (m['SALDO'] != null ? parseFloat(String(m['SALDO']).replace(/[$,\sMXN]/g, '')) : null);
+                const detalle = m.descripcionDetallada || m.descripcion_detallada || m['DESCRIPCIÓN DETALLADA'] || m['DESCRIPCION DETALLADA'] || null;
                 const bOrigen = m.bancoEmisor || m.bancoOrigen || m.banco_origen || 'SANTANDER';
                 const nombreOrd = m.nombreOrdenante || m.nombre_ordenante || null;
+
+                if (!abono && !cargo && !rastreo && (!ref || ref === '0') && (!desc || desc.trim() === '')) {
+                    continue; // Omitir filas vacías
+                }
 
                 const rawHora = m.hora || m.horaOperacion || m.hora_operacion || m.time || null;
                 let hOp: Date | undefined = undefined;
@@ -812,11 +816,14 @@ export async function POST(req: Request) {
                                     horaOperacion: hOp && !isNaN(hOp.getTime()) ? hOp : undefined,
                                     descripcionGeneral: desc,
                                     concepto: m.concepto || desc,
+                                    descripcionDetallada: detalle,
                                     cargo,
                                     abono,
                                     saldo,
                                     referencia: ref,
                                     claveRastreo: rastreo,
+                                    clabeEmisor: m.clabeEmisor || m.clabe_emisor || null,
+                                    cuentaEmisor: m.cuentaEmisor || m.cuenta_emisor || null,
                                 }
                             });
                             insertados++;
@@ -1360,6 +1367,7 @@ export async function POST(req: Request) {
                     claveRastreo: claverastreo !== 'null' ? claverastreo : null,
                     remitente: remitente !== 'null' ? remitente : null,
                     concepto: "TICKET WHATSAPP (n8n)",
+                    urlComprobante: base64Data ? (base64Data.startsWith('data:') ? base64Data : `data:image/jpeg;base64,${base64Data}`) : null,
                     conciliado: false
                 }
             });
@@ -1487,6 +1495,7 @@ export async function POST(req: Request) {
                     referencia: referencia !== 'null' ? referencia : null,
                     base64Data: base64Data || null,
                     metadata: {
+                        ticketId: newTicket.id,
                         contrato: codigoFinal,
                         monto: parseFloat(monto),
                         referencia: referencia,
@@ -1506,6 +1515,7 @@ export async function POST(req: Request) {
                     fecha: fechaTicket,
                     estado: movimientoBancario ? 'PROCESADO' : 'PENDIENTE',
                     metadata: {
+                        ticketId: newTicket.id,
                         contrato: codigoFinal,
                         monto: parseFloat(monto),
                         referencia: referencia,
