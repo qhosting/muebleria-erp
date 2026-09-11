@@ -1095,7 +1095,7 @@ export default function ListaCobranzaPage() {
                             🏢 DQ (QUERÉTARO)
                           </th>
                           <th className="px-4 py-2.5 text-right border border-slate-200 dark:border-slate-700 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-black">
-                            🏬 DP (POLANCO)
+                            🏬 DP (DASOPLUS)
                           </th>
                         </tr>
                       </thead>
@@ -1309,7 +1309,7 @@ export default function ListaCobranzaPage() {
                           tabResumenEmpresa === "GLOBAL" ? "bg-slate-800 text-white" :
                           tabResumenEmpresa === "DQ" ? "bg-blue-600 text-white" : "bg-indigo-600 text-white"
                         }`}>
-                          {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP POLANCO"}
+                          {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP DASOPLUS"}
                         </Badge>
                       </div>
                       <Badge variant="outline" className="text-[10px] font-bold">Página 2 CEJ</Badge>
@@ -1387,7 +1387,7 @@ export default function ListaCobranzaPage() {
                           tabResumenEmpresa === "GLOBAL" ? "bg-slate-800 text-white" :
                           tabResumenEmpresa === "DQ" ? "bg-blue-600 text-white" : "bg-indigo-600 text-white"
                         }`}>
-                          {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP POLANCO"}
+                          {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP DASOPLUS"}
                         </Badge>
                       </div>
                     </CardTitle>
@@ -1453,7 +1453,7 @@ export default function ListaCobranzaPage() {
                       tabResumenEmpresa === "GLOBAL" ? "bg-slate-800 text-white" :
                       tabResumenEmpresa === "DQ" ? "bg-blue-600 text-white" : "bg-indigo-600 text-white"
                     }`}>
-                      {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP POLANCO"}
+                      {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP DASOPLUS"}
                     </Badge>
                   </CardHeader>
                   <CardContent className="p-0">
@@ -1521,7 +1521,7 @@ export default function ListaCobranzaPage() {
                       tabResumenEmpresa === "GLOBAL" ? "bg-slate-800 text-white" :
                       tabResumenEmpresa === "DQ" ? "bg-blue-600 text-white" : "bg-indigo-600 text-white"
                     }`}>
-                      {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP POLANCO"}
+                      {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP DASOPLUS"}
                     </Badge>
                   </CardHeader>
                   <CardContent className="p-0">

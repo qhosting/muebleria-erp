@@ -151,7 +151,7 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
   setCell(resumenRowStart, 0, "RESUMEN COMPARATIVO DE CORTE");
   setCell(resumenRowStart, 1, "GLOBAL (TOTAL)");
   setCell(resumenRowStart, 2, "DQ (QUERETARO)");
-  setCell(resumenRowStart, 3, "DP (POLANCO)");
+  setCell(resumenRowStart, 3, "DP (DASOPLUS)");
 
   const rowsComp = [
     { concepto: "Cuentas Asignadas", g: resGlobal.totalCuentas, dq: resDQ.totalCuentas, dp: resDP.totalCuentas, num: true },
@@ -527,7 +527,7 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
               <th style="padding: 4px 6px; text-align: left;">INDICADOR CLAVE</th>
               <th style="padding: 4px 6px; text-align: right; background: #334155;">GLOBAL (TOTAL)</th>
               <th style="padding: 4px 6px; text-align: right; background: #1e3a8a;">DQ (QUERÉTARO)</th>
-              <th style="padding: 4px 6px; text-align: right; background: #312e81;">DP (POLANCO)</th>
+              <th style="padding: 4px 6px; text-align: right; background: #312e81;">DP (DASOPLUS)</th>
             </tr>
           </thead>
           <tbody>
