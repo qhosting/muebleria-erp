@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 import { calcularSemanaCobranzaSabadoViernes, calcularRangoSemanaSabadoViernes, formatearFechaCortaMX } from "@/lib/calendario-cobranza-utils";
 import { formatCurrency, getDayName } from "@/lib/utils";
-import { descargarExcelCEJ, imprimirPDFCEJ } from "@/lib/exportar-plantilla-cej";
+import { descargarExcelCEJ, imprimirPDFCEJ, imprimirPDFClientesSinPago } from "@/lib/exportar-plantilla-cej";
 import { ResumenCorteCEJ, separarYCalcularResumenesCEJ } from "@/lib/corte-cej-utils";
 
 interface User {
@@ -89,6 +89,7 @@ interface ClienteCEJ {
   montoBot?: number;
   montoBancosGestor?: number;
   montoGestor?: number;
+  domicilio?: string;
 }
 
 const OPCIONES_PROBLEMA = [
@@ -464,31 +465,36 @@ export default function ListaCobranzaPage() {
     }, 100);
   };
 
-  // Actualizar únicamente la columna PROBLEMA en el corte guardado oficial
-  const handleCambiarProblema = async (detalleId: string, nuevoProblema: string, nombreCliente?: string) => {
+  // Actualizar la columna PROBLEMA (en corte guardado oficial y/o en memoria)
+  const handleCambiarProblema = async (detalleIdOrCodigo: string, nuevoProblema: string, nombreCliente?: string) => {
+    // Actualización reactiva inmediata en la tabla
+    setClientes((prev) =>
+      prev.map((cli) =>
+        cli.id === detalleIdOrCodigo || cli.codigoCliente === detalleIdOrCodigo
+          ? { ...cli, problema: nuevoProblema }
+          : cli
+      )
+    );
+
     if (!corteIdActivo) {
-      toast.error("Solo se permite editar el problema en un corte de cobranza guardado.");
+      toast.success(`Problema de ${nombreCliente ? nombreCliente.split(' ')[0] : 'cuenta'} asignado a ${nuevoProblema}`);
       return;
     }
 
-    setUpdatingProblemaId(detalleId);
+    setUpdatingProblemaId(detalleIdOrCodigo);
     try {
       const res = await fetch(`/api/cobranza/cortes/${corteIdActivo}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "actualizarProblema",
-          detalleId,
+          detalleId: detalleIdOrCodigo,
           nuevoProblema
         })
       });
 
       if (res.ok) {
         const data = await res.json();
-        // Actualizar reactivamente la fila en la tabla
-        setClientes((prev) =>
-          prev.map((cli) => (cli.id === detalleId ? { ...cli, problema: nuevoProblema } : cli))
-        );
         // Actualizar las métricas de resumen si el servidor devolvió el nuevo cálculo
         if (data.resumenCEJ) {
           setResumenCEJ(data.resumenCEJ);
@@ -585,6 +591,49 @@ export default function ListaCobranzaPage() {
     }
   };
 
+  // Exportar / Imprimir PDF de Clientes Sin Pago
+  const handleExportarPDFSinPago = () => {
+    if (clientesSinPago.length === 0) {
+      toast.info("No hay clientes sin pago en este filtro");
+      return;
+    }
+
+    const fInicio = calendario
+      ? new Date(calendario.fechaInicio).toLocaleDateString("es-MX")
+      : `Semana ${semana}`;
+    const fFin = calendario
+      ? new Date(calendario.fechaFin).toLocaleDateString("es-MX")
+      : `${anio}`;
+
+    const { blobUrl } = imprimirPDFClientesSinPago({
+      anio: parseInt(anio),
+      semana: parseInt(semana),
+      fechaInicioStr: fInicio,
+      fechaFinStr: fFin,
+      nombreGestor: getSelectedCobradorName(),
+      codigoGestor: getSelectedCobradorCodigo(),
+      clientes: clientesSinPago.map((c) => ({
+        codigoCliente: c.codigoCliente,
+        numContrato: c.numContrato,
+        nombreCompleto: c.nombreCompleto,
+        domicilio: c.domicilio || "-",
+        saldoVencido: c.saldoVencido || 0,
+        pv: c.pv || 0,
+        problema: c.problema || "RUTA",
+        pagoReal: c.pagoReal || 0,
+        telefono: c.telefono || "-",
+        periodicidad: c.periodicidad,
+        montoPago: c.montoPago || 0,
+        diaPago: c.diaPago
+      }))
+    });
+
+    if (blobUrl) {
+      setPdfBlobUrl(blobUrl);
+      setModalPDFOpen(true);
+    }
+  };
+
   // Filtrado en memoria de clientes
   const clientesFiltrados = useMemo(() => {
     return clientes.filter((c) => {
@@ -601,10 +650,24 @@ export default function ListaCobranzaPage() {
         cod.toLowerCase().includes(b) ||
         cont.toLowerCase().includes(b) ||
         (c.telefono && c.telefono.includes(b)) ||
+        (c.domicilio && c.domicilio.toLowerCase().includes(b)) ||
         c.gestor.toLowerCase().includes(b)
       );
     });
   }, [clientes, filtroEmpresa, busqueda]);
+
+  // Clientes que no dieron pago en la semana (pagoReal === 0)
+  const clientesSinPago = useMemo(() => {
+    return clientesFiltrados.filter((c) => Number(c.pagoReal || 0) === 0);
+  }, [clientesFiltrados]);
+
+  const totalVencidoSinPago = useMemo(() => {
+    return clientesSinPago.reduce((acc, curr) => acc + (curr.saldoVencido || 0), 0);
+  }, [clientesSinPago]);
+
+  const totalSugeridoSinPago = useMemo(() => {
+    return clientesSinPago.reduce((acc, curr) => acc + (curr.montoPago || 0), 0);
+  }, [clientesSinPago]);
 
   const totalCuentasDQ = clientes.filter(
     (c) => (c.codigoCliente || "").toUpperCase().startsWith("DQ") || (c.numContrato || "").toUpperCase().startsWith("DQ")
@@ -967,6 +1030,9 @@ export default function ListaCobranzaPage() {
                 <TabsTrigger value="cartera" className="text-xs font-bold gap-1.5">
                   <FileText className="w-3.5 h-3.5" /> Cartera en Ruta (Plantilla Lista Cobranza)
                 </TabsTrigger>
+                <TabsTrigger value="sinpago" className="text-xs font-bold gap-1.5 text-rose-700 dark:text-rose-400">
+                  <AlertCircle className="w-3.5 h-3.5" /> Clientes Sin Pago ({clientesSinPago.length})
+                </TabsTrigger>
                 <TabsTrigger value="tablero" className="text-xs font-bold gap-1.5">
                   <BarChart3 className="w-3.5 h-3.5" /> Resumen de Corte (Plantilla Lista Cobranza)
                 </TabsTrigger>
@@ -1183,6 +1249,182 @@ export default function ListaCobranzaPage() {
                           </td>
                           <td colSpan={5} className="px-3 py-3 text-center border border-gray-200 dark:border-slate-700">-</td>
                         </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* PESTAÑA: LISTA DE CLIENTES SIN PAGO */}
+            <TabsContent value="sinpago" className="m-0 space-y-4">
+              <Card className="border-gray-100 dark:border-slate-800 shadow-md overflow-hidden">
+                <CardHeader className="py-3 px-4 border-b bg-gradient-to-r from-rose-50 via-white to-rose-50 dark:from-rose-950/30 dark:via-slate-900 dark:to-rose-950/30 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 rounded-lg">
+                        <AlertCircle className="w-4 h-4" />
+                      </div>
+                      <CardTitle className="text-sm font-black uppercase tracking-wider text-rose-900 dark:text-rose-200">
+                        Lista de Clientes Sin Pago ({clientesSinPago.length} cuentas)
+                      </CardTitle>
+                    </div>
+                    <CardDescription className="text-[11px] text-slate-500 mt-0.5">
+                      Cuentas asignadas que no han realizado abono en la Semana {semana} ({anio}). Asigna o clasifica el motivo en la columna de PROBLEMA.
+                    </CardDescription>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      onClick={handleExportarPDFSinPago}
+                      className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs gap-1.5 shadow-sm h-8"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Descargar PDF Sin Pago</span>
+                    </Button>
+                  </div>
+                </CardHeader>
+
+                {/* Banner de Métricas Rápidas Sin Pago */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 bg-slate-50 dark:bg-slate-900/60 border-b border-gray-100 dark:border-slate-800 text-xs">
+                  <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+                    <span className="text-[10px] font-bold uppercase text-slate-500 block">Cuentas Sin Abono</span>
+                    <strong className="text-base font-black text-rose-600 dark:text-rose-400 font-mono">{clientesSinPago.length} ctas</strong>
+                  </div>
+                  <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+                    <span className="text-[10px] font-bold uppercase text-slate-500 block">Saldo Vencido Total</span>
+                    <strong className="text-base font-black text-rose-600 dark:text-rose-400 font-mono">{formatCurrency(totalVencidoSinPago)}</strong>
+                  </div>
+                  <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+                    <span className="text-[10px] font-bold uppercase text-slate-500 block">Pago Sugerido No Cobrado</span>
+                    <strong className="text-base font-black text-blue-600 dark:text-blue-400 font-mono">{formatCurrency(totalSugeridoSinPago)}</strong>
+                  </div>
+                  <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+                    <span className="text-[10px] font-bold uppercase text-slate-500 block">Distribución Cartera</span>
+                    <strong className="text-xs font-black text-slate-800 dark:text-slate-200 font-mono block mt-1">
+                      DQ: {clientesSinPago.filter(c => (c.codigoCliente || "").startsWith("DQ")).length} • DP: {clientesSinPago.filter(c => (c.codigoCliente || "").startsWith("DP")).length}
+                    </strong>
+                  </div>
+                </div>
+
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto max-h-[650px]">
+                    <table className="w-full text-xs text-left align-middle border-collapse">
+                      <thead className="bg-[#0f172a] text-white text-[10px] font-bold uppercase tracking-wider sticky top-0 z-10">
+                        <tr>
+                          <th className="px-3 py-2.5 text-center border border-slate-700">#</th>
+                          <th className="px-3 py-2.5 text-center border border-slate-700">CODIGO</th>
+                          <th className="px-3 py-2.5 border border-slate-700">NOMBRE</th>
+                          <th className="px-3 py-2.5 border border-slate-700">DOMICILIO</th>
+                          <th className="px-3 py-2.5 text-right border border-slate-700 text-rose-300">SALDO VENCIDO</th>
+                          <th className="px-3 py-2.5 text-center border border-slate-700">PV</th>
+                          <th className="px-3 py-2.5 text-center border border-slate-700 bg-rose-950/80 text-rose-200">
+                            <div className="flex items-center justify-center gap-1">
+                              PROBLEMA <span className="text-[8px] bg-rose-500/40 text-rose-100 px-1 py-0.5 rounded font-bold">SELECCIÓN</span>
+                            </div>
+                          </th>
+                          <th className="px-3 py-2.5 text-center border border-slate-700">TELÉFONO</th>
+                          <th className="px-3 py-2.5 text-center border border-slate-700">DÍA PAGO</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-slate-800 bg-white dark:bg-slate-900 text-xs">
+                        {clientesSinPago.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="text-center py-12 text-slate-500">
+                              <div className="flex flex-col items-center justify-center gap-2">
+                                <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                                <p className="font-bold text-sm text-slate-700 dark:text-slate-200">
+                                  No hay clientes sin pago con los filtros actuales
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                  Todas las cuentas filtradas registran pagos en este período.
+                                </p>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          clientesSinPago.map((c, i) => (
+                            <tr key={c.codigoCliente + i} className="hover:bg-rose-50/40 dark:hover:bg-rose-950/20 transition-colors">
+                              <td className="px-3 py-2 text-center font-mono text-slate-400 border border-gray-100 dark:border-slate-800">
+                                {i + 1}
+                              </td>
+                              <td className="px-3 py-2 text-center font-mono font-bold text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800 whitespace-nowrap">
+                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] mr-1 font-black ${
+                                  c.codigoCliente.startsWith("DQ") ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300" : "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300"
+                                }`}>
+                                  {c.codigoCliente.startsWith("DQ") ? "DQ" : "DP"}
+                                </span>
+                                {c.codigoCliente}
+                              </td>
+                              <td className="px-3 py-2 font-bold text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800 whitespace-nowrap">
+                                {c.nombreCompleto}
+                              </td>
+                              <td className="px-3 py-2 text-slate-700 dark:text-slate-300 border border-gray-100 dark:border-slate-800 text-[11px] max-w-xs">
+                                {c.domicilio || "-"}
+                              </td>
+                              <td className="px-3 py-2 text-right font-mono font-bold text-rose-600 dark:text-rose-400 border border-gray-100 dark:border-slate-800 whitespace-nowrap">
+                                {formatCurrency(c.saldoVencido)}
+                              </td>
+                              <td className="px-3 py-2 text-center font-bold border border-gray-100 dark:border-slate-800">
+                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] ${
+                                  c.pv > 0 ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300" : "bg-slate-100 text-slate-600"
+                                }`}>
+                                  {c.pv}
+                                </span>
+                              </td>
+                              <td className="px-2 py-1 text-center border border-gray-100 dark:border-slate-800">
+                                <div className="inline-flex items-center justify-center">
+                                  <Select
+                                    value={c.problema || "RUTA"}
+                                    onValueChange={(val) => handleCambiarProblema(c.id || c.codigoCliente, val, c.nombreCompleto)}
+                                    disabled={updatingProblemaId === (c.id || c.codigoCliente)}
+                                  >
+                                    <SelectTrigger 
+                                      className={`h-7 text-[10px] font-black uppercase px-2 py-0 border border-slate-300 dark:border-slate-700 rounded shadow-none focus:ring-1 focus:ring-rose-500 cursor-pointer min-w-[84px] justify-between ${
+                                        OPCIONES_PROBLEMA.find((o) => o.value === (c.problema || "").toUpperCase().trim())?.color || "bg-slate-100 text-slate-800"
+                                      }`}
+                                    >
+                                      {updatingProblemaId === (c.id || c.codigoCliente) ? (
+                                        <RefreshCw className="w-3 h-3 animate-spin mx-auto text-rose-600" />
+                                      ) : (
+                                        <SelectValue>{c.problema || "RUTA"}</SelectValue>
+                                      )}
+                                    </SelectTrigger>
+                                    <SelectContent className="text-xs font-bold bg-white dark:bg-slate-900 z-50">
+                                      {OPCIONES_PROBLEMA.map((opt) => (
+                                        <SelectItem key={opt.value} value={opt.value} className="text-[11px] font-bold cursor-pointer">
+                                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] mr-1.5 font-black ${opt.color}`}>
+                                            {opt.value}
+                                          </span>
+                                          {opt.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 text-center font-mono border border-gray-100 dark:border-slate-800 text-slate-600 whitespace-nowrap">
+                                {c.telefono || "-"}
+                              </td>
+                              <td className="px-3 py-2 text-center border border-gray-100 dark:border-slate-800 whitespace-nowrap text-slate-700 dark:text-slate-300">
+                                {c.diaPago ? getDayName(c.diaPago) : "-"}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+
+                        {/* Fila de Totales Sin Pago */}
+                        {clientesSinPago.length > 0 && (
+                          <tr className="bg-slate-100 dark:bg-slate-800/90 font-black text-xs text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-700">
+                            <td colSpan={4} className="px-4 py-3 text-right uppercase text-[10px] tracking-wider border border-gray-200 dark:border-slate-700">
+                              TOTAL CARTERA SIN PAGO ({clientesSinPago.length} cuentas)
+                            </td>
+                            <td className="px-3 py-3 text-right font-mono text-rose-700 dark:text-rose-300 border border-gray-200 dark:border-slate-700">
+                              {formatCurrency(totalVencidoSinPago)}
+                            </td>
+                            <td colSpan={4} className="px-3 py-3 text-center border border-gray-200 dark:border-slate-700">-</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>

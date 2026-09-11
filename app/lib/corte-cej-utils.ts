@@ -21,6 +21,7 @@ export interface ClienteCorteRaw {
   telefonoTrabajo?: string | null;
   clasificacionCobranza?: string | null;
   pagoAnalista?: string | null;
+  domicilio?: string | null;
 }
 
 export interface PagoCorteRaw {
@@ -71,6 +72,7 @@ export interface DetalleCalculadoCEJ {
   montoBot?: number;
   montoBancosGestor?: number;
   montoGestor?: number;
+  domicilio?: string;
 }
 
 export interface ResumenProblemasCEJ {
@@ -453,7 +455,8 @@ export function procesarDetallesYResumenCEJ(
       comisionAnalista: comisionAnalista,
       fechaPago: pagoInfo.fechaPago,
       serie: pagoInfo.folio || "",
-      tipCob: tipCob
+      tipCob: tipCob,
+      domicilio: c.domicilio || "-"
     };
   });
 

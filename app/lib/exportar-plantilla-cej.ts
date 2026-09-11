@@ -735,3 +735,255 @@ export function imprimirPDFCEJ(datos: DatosExportacionCEJ): { html: string; blob
 
   return { html, blobUrl };
 }
+
+export interface ClienteSinPagoItem {
+  codigoCliente: string;
+  numContrato?: string;
+  nombreCompleto: string;
+  domicilio?: string;
+  saldoVencido: number;
+  pv: number;
+  problema: string;
+  pagoReal?: number;
+  telefono?: string;
+  periodicidad?: string;
+  montoPago?: number;
+  diaPago?: string;
+}
+
+export interface DatosExportacionSinPago {
+  anio: number;
+  semana: number;
+  fechaInicioStr: string;
+  fechaFinStr: string;
+  nombreGestor: string;
+  codigoGestor: string;
+  clientes: ClienteSinPagoItem[];
+}
+
+/**
+ * Genera el documento HTML para la Lista de Cobranza de Clientes Sin Pago
+ * Incluye: CODIGO, NOMBRE, DOMICILIO, SALDO VENCIDO, PV, PROBLEMA y espacio para notas/firma.
+ */
+export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): string {
+  const totalCuentas = datos.clientes.length;
+  const totalVencido = datos.clientes.reduce((acc, c) => acc + (c.saldoVencido || 0), 0);
+
+  // Dividir en páginas de aprox 24 clientes por página para impresión limpia
+  const FILAS_POR_PAGINA = 24;
+  const paginas: ClienteSinPagoItem[][] = [];
+  for (let i = 0; i < datos.clientes.length; i += FILAS_POR_PAGINA) {
+    paginas.push(datos.clientes.slice(i, i + FILAS_POR_PAGINA));
+  }
+  if (paginas.length === 0) {
+    paginas.push([]);
+  }
+
+  const totalPaginas = paginas.length;
+
+  const paginasHTML = paginas
+    .map((grupo, pagIdx) => {
+      const inicioIndex = pagIdx * FILAS_POR_PAGINA;
+      const esUltimaPagina = pagIdx === totalPaginas - 1;
+
+      return `
+        <div class="page-container" style="${pagIdx > 0 ? 'page-break-before: always;' : ''}">
+          <!-- ENCABEZADO INSTITUCIONAL -->
+          <div class="header-box">
+            <div>
+              <div class="title-company">Grupo Mueblero DASO SA de CV</div>
+              <div class="subtitle">Lista de Cobranza — Clientes Sin Pago (Cartera Pendiente de Recuperación)</div>
+            </div>
+            <div style="text-align: right; font-size: 8px; color: #475569;">
+              <div>SISTEMA ERP MUEBLERÍA DASO</div>
+              <div style="font-weight: bold; color: #0f172a;">FECHA: ${new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" })}</div>
+            </div>
+          </div>
+
+          <!-- BARRA DE METADATOS -->
+          <div class="info-bar">
+            <div><span>SEMANA:</span> <strong>Semana ${datos.semana} (${datos.anio})</strong></div>
+            <div><span>CICLO OFICIAL:</span> <strong>${datos.fechaInicioStr} al ${datos.fechaFinStr}</strong></div>
+            <div><span>GESTOR / COBRADOR:</span> <strong>${datos.codigoGestor} - ${datos.nombreGestor}</strong></div>
+            <div><span>TOTAL SIN PAGO:</span> <strong style="color: #b91c1c;">${totalCuentas} cuentas</strong></div>
+            <div><span>SALDO VENCIDO TOTAL:</span> <strong style="color: #b91c1c;">$${totalVencido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong></div>
+          </div>
+
+          <!-- TABLA DE CLIENTES SIN PAGO -->
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 26px; text-align: center;">#</th>
+                <th style="width: 75px; text-align: center;">CÓDIGO</th>
+                <th style="width: 170px;">NOMBRE COMPLETO</th>
+                <th>DOMICILIO</th>
+                <th style="width: 75px; text-align: center;">TELÉFONO</th>
+                <th style="width: 75px; text-align: right;">SALDO VENCIDO</th>
+                <th style="width: 30px; text-align: center;">PV</th>
+                <th style="width: 75px; text-align: center;">PROBLEMA</th>
+                <th style="width: 110px; text-align: center;">NOTAS DE RUTA / FIRMA</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${grupo.length === 0 ? `
+                <tr>
+                  <td colspan="9" style="text-align: center; padding: 20px; font-weight: bold; color: #166534;">
+                    ¡Excelente! No hay clientes con saldo pendiente sin abono en este filtro.
+                  </td>
+                </tr>
+              ` : grupo.map((c, idx) => {
+                const numFila = inicioIndex + idx + 1;
+                const prob = (c.problema || "RUTA").toUpperCase().trim();
+                let probColor = "#1e40af";
+                let probBg = "#eff6ff";
+                if (prob === "K" || prob === "DL") {
+                  probColor = "#991b1b";
+                  probBg = "#fee2e2";
+                } else if (prob === "NC" || prob === "FD") {
+                  probColor = "#9a3412";
+                  probBg = "#ffedd5";
+                } else if (prob === "PA") {
+                  probColor = "#0e7490";
+                  probBg = "#cffafe";
+                } else if (prob === "PE") {
+                  probColor = "#854d0e";
+                  probBg = "#fef9c3";
+                }
+
+                return `
+                  <tr>
+                    <td class="text-center font-mono" style="color: #64748b;">${numFila}</td>
+                    <td class="text-center font-mono font-bold" style="white-space: nowrap;">
+                      ${c.codigoCliente}
+                      ${c.numContrato && c.numContrato !== "-" ? `<br/><span style="color: #64748b; font-size: 6.5px;">${c.numContrato}</span>` : ""}
+                    </td>
+                    <td class="font-bold" style="white-space: normal;">${c.nombreCompleto}</td>
+                    <td style="font-size: 7px; color: #1e293b; line-height: 1.15;">${c.domicilio || "-"}</td>
+                    <td class="text-center font-mono" style="font-size: 7px;">${c.telefono || "-"}</td>
+                    <td class="text-right font-mono font-bold" style="color: #b91c1c;">$${Number(c.saldoVencido || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
+                    <td class="text-center font-bold">
+                      <span style="display: inline-block; padding: 1px 4px; border-radius: 2px; font-size: 7.5px; ${c.pv > 0 ? 'background: #fee2e2; color: #991b1b;' : 'background: #f1f5f9; color: #475569;'}">${c.pv}</span>
+                    </td>
+                    <td class="text-center font-bold">
+                      <span style="display: inline-block; padding: 1.5px 5px; border-radius: 3px; font-size: 7.5px; background: ${probBg}; color: ${probColor}; border: 0.5px solid ${probColor}40;">${prob}</span>
+                    </td>
+                    <td style="border-bottom: 0.5px solid #cbd5e1; height: 18px;">
+                      <div style="width: 100%; height: 12px; border-bottom: 0.5px dotted #94a3b8;"></div>
+                    </td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+            ${esUltimaPagina ? `
+              <tfoot>
+                <tr style="background: #f1f5f9; font-weight: bold; border-top: 1.5px solid #0f172a;">
+                  <td colspan="5" style="text-align: right; text-transform: uppercase; font-size: 7.5px; padding: 3px 6px;">
+                    TOTAL CARTERA SIN PAGO (${totalCuentas} CUENTAS)
+                  </td>
+                  <td class="text-right font-mono font-black" style="color: #b91c1c; font-size: 8px;">
+                    $${totalVencido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td colspan="3">-</td>
+                </tr>
+              </tfoot>
+            ` : ""}
+          </table>
+
+          ${esUltimaPagina ? `
+            <!-- FIRMAS DE AUTORIZACIÓN Y AUDITORÍA -->
+            <div class="signatures-box" style="margin-top: 14px;">
+              <div class="signature-col">
+                <div class="signature-line"></div>
+                <div style="font-weight: bold;">${datos.nombreGestor || "GESTOR DE COBRANZA"}</div>
+                <div style="color: #64748b; font-size: 7px;">Gestor / Cobrador en Ruta</div>
+              </div>
+              <div class="signature-col">
+                <div class="signature-line"></div>
+                <div style="font-weight: bold;">SUPERVISOR DE COBRANZA</div>
+                <div style="color: #64748b; font-size: 7px;">Auditoría y Validación de Visitas</div>
+              </div>
+              <div class="signature-col">
+                <div class="signature-line"></div>
+                <div style="font-weight: bold;">GERENCIA CRÉDITO Y COBRANZA</div>
+                <div style="color: #64748b; font-size: 7px;">Supervisión Cartera Sin Pago</div>
+              </div>
+            </div>
+          ` : ""}
+
+          <div style="margin-top: 8px; font-size: 7px; color: #64748b; display: flex; justify-content: space-between;">
+            <div>Lista de Cobranza — Clientes Sin Pago • Grupo Mueblero DASO SA de CV</div>
+            <div>Página ${pagIdx + 1} de ${totalPaginas}</div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>LISTA DE COBRANZA - CLIENTES SIN PAGO - ${datos.codigoGestor} - Semana ${datos.semana}</title>
+  <style>
+    @page { size: letter landscape; margin: 8mm; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; font-size: 7.5px; color: #0f172a; margin: 0; padding: 0; background: #fff; line-height: 1.25; }
+    .header-box { margin-bottom: 6px; border-bottom: 2px solid #0f172a; padding-bottom: 3px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .title-company { font-size: 14px; font-weight: 900; text-transform: uppercase; color: #0f172a; letter-spacing: -0.02em; margin: 0; }
+    .subtitle { font-size: 9.5px; font-weight: 700; color: #b91c1c; margin: 2px 0 0 0; }
+    .info-bar { display: flex; flex-wrap: wrap; gap: 12px; font-size: 8px; font-weight: bold; background: #f8fafc; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 6px; }
+    .info-bar span { color: #64748b; font-weight: 600; }
+    .info-bar strong { color: #0f172a; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+    th { background: #0f172a; color: #fff; font-size: 7px; font-weight: 700; padding: 3px 4px; border: 0.5px solid #334155; text-transform: uppercase; }
+    td { font-size: 7px; padding: 2px 4px; border: 0.5px solid #cbd5e1; }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .font-bold { font-weight: 700; }
+    .font-black { font-weight: 900; }
+    .font-mono { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+    .signatures-box { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 10px; padding: 4px 10px; }
+    .signature-col { text-align: center; font-size: 7.5px; }
+    .signature-line { border-top: 1px solid #334155; margin-bottom: 4px; width: 80%; margin-left: auto; margin-right: auto; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print { display: none !important; }
+      @page { size: letter landscape; margin: 6mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="padding: 8px 14px; background: #0f172a; color: white; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-radius: 4px;">
+    <div style="font-size: 11px;">
+      <strong>Lista de Cobranza — Clientes Sin Pago</strong> • Semana ${datos.semana} (${datos.codigoGestor}) • <strong>${totalCuentas} cuentas</strong>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button onclick="window.print()" style="background: #dc2626; color: white; border: none; padding: 5px 12px; border-radius: 4px; font-weight: bold; font-size: 11px; cursor: pointer;">🖨️ Imprimir Lista Sin Pago</button>
+      <button onclick="window.close()" style="background: #475569; color: white; border: none; padding: 5px 12px; border-radius: 4px; font-size: 11px; cursor: pointer;">Cerrar</button>
+    </div>
+  </div>
+
+  ${paginasHTML}
+</body>
+</html>`;
+}
+
+/**
+ * Genera ventana o Blob URL para imprimir la Lista de Clientes Sin Pago
+ */
+export function imprimirPDFClientesSinPago(datos: DatosExportacionSinPago): { html: string; blobUrl: string } {
+  const html = generarHTMLClientesSinPagoPDF(datos);
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const blobUrl = URL.createObjectURL(blob);
+
+  try {
+    const popup = window.open(blobUrl, "_blank");
+    if (!popup) {
+      console.warn("Ventana emergente no abierta por el navegador. Usando visor modal.");
+    }
+  } catch (err) {
+    console.warn("Error al intentar abrir ventana emergente con Blob URL:", err);
+  }
+
+  return { html, blobUrl };
+}
+

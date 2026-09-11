@@ -96,6 +96,26 @@ export async function GET(request: NextRequest) {
     if (corteGuardado) {
       const debeRecalcular = corteGuardado.estatus === "abierto" || forzarEnVivo;
 
+      // Cargar mapa de domicilios de los clientes del corte
+      const codigosCorte = corteGuardado.detalles.map((d) => d.codigoCliente);
+      const clientesDirs = await prisma.cliente.findMany({
+        where: { codigoCliente: { in: codigosCorte } },
+        select: {
+          codigoCliente: true,
+          direccionCompleta: true,
+          calle: true,
+          numeroExterior: true,
+          colonia: true,
+          ciudad: true
+        }
+      });
+      const dirMap = new Map(
+        clientesDirs.map((c) => [
+          c.codigoCliente.toUpperCase().trim(),
+          c.direccionCompleta || [c.calle, c.numeroExterior, c.colonia, c.ciudad].filter(Boolean).join(" ") || "-"
+        ])
+      );
+
       if (!debeRecalcular) {
         // Corte cerrado y no forzado en vivo: devolver corte histórico estático
         const detallesSerializados = corteGuardado.detalles.map((d) => ({
@@ -133,7 +153,8 @@ export async function GET(request: NextRequest) {
           canalCobro: clasificarCanalDesdeTipoCobro(d.tipoCobro || ""),
           montoBot: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "BANCOS_BOT" ? parseFloat(d.pagoReal.toString()) : 0,
           montoBancosGestor: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "BANCOS_GESTOR" ? parseFloat(d.pagoReal.toString()) : 0,
-          montoGestor: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "GESTOR" ? parseFloat(d.pagoReal.toString()) : 0
+          montoGestor: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "GESTOR" ? parseFloat(d.pagoReal.toString()) : 0,
+          domicilio: dirMap.get(d.codigoCliente.toUpperCase().trim()) || "-"
         }));
 
         let resumenDiario = corteGuardado.resumenDiario as any[];
@@ -400,7 +421,8 @@ export async function GET(request: NextRequest) {
           canalCobro,
           montoBot,
           montoBancosGestor,
-          montoGestor
+          montoGestor,
+          domicilio: dirMap.get(d.codigoCliente.toUpperCase().trim()) || "-"
         };
       });
 
@@ -472,7 +494,8 @@ export async function GET(request: NextRequest) {
           canalCobro,
           montoBot,
           montoBancosGestor,
-          montoGestor
+          montoGestor,
+          domicilio: c.direccionCompleta || [c.calle, c.numeroExterior, c.colonia, c.ciudad].filter(Boolean).join(" ") || "-"
         };
 
         detallesSerializados.push(nuevoDetalle);
@@ -712,7 +735,8 @@ export async function GET(request: NextRequest) {
         telefono: c.telefono,
         telefonoTrabajo: c.telefonoTrabajo,
         clasificacionCobranza: c.clasificacionCobranza,
-        pagoAnalista: c.diaPago
+        pagoAnalista: c.diaPago,
+        domicilio: c.direccionCompleta || [c.calle, c.numeroExterior, c.colonia, c.ciudad].filter(Boolean).join(" ") || "-"
       };
     });
 
