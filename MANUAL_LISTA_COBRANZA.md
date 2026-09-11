@@ -111,6 +111,7 @@ Para enfocar los esfuerzos de cobranza y auditoría en cuentas vencidas sin abon
    - **CÓDIGO:** Código identificador (`DQ` o `DP`) y contrato.
    - **NOMBRE:** Nombre completo del cliente.
    - **DOMICILIO:** Dirección completa del cliente para localización en campo.
+   - **GESTOR:** Código y nombre del gestor/cobrador asignado a la cuenta.
    - **SALDO VENCIDO:** Importe vencido en rojo.
    - **PV:** Periodos vencidos.
    - **PROBLEMA (Selector interactivo):** Permite clasificar de inmediato el motivo por el cual no dio abono (`NC`, `VD`, `PA`, `FD`, `PE`, etc.).
