@@ -105,7 +105,14 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
   headersRight.forEach((h, idx) => setCell(7, 32 + idx, h));
 
   // --- 3. FILAS DE CLIENTES Y CARTERA ---
-  datos.detalles.forEach((d, i) => {
+  const detallesOrdenados = [...datos.detalles].sort((a, b) =>
+    (a.codigoCliente || "").localeCompare(b.codigoCliente || "", undefined, {
+      numeric: true,
+      sensitivity: "base"
+    })
+  );
+
+  detallesOrdenados.forEach((d, i) => {
     const r = 8 + i;
     setCell(r, 0, d.codigoCliente);
     setCell(r, 1, d.codigoCliente);
@@ -767,14 +774,22 @@ export interface DatosExportacionSinPago {
  * Incluye: CODIGO, NOMBRE, DOMICILIO, GESTOR, SALDO VENCIDO, PV, PROBLEMA y espacio para notas/firma.
  */
 export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): string {
-  const totalCuentas = datos.clientes.length;
-  const totalVencido = datos.clientes.reduce((acc, c) => acc + (c.saldoVencido || 0), 0);
+  // Ordenar clientes alfanuméricamente por código de cliente A-Z
+  const clientesOrdenados = [...datos.clientes].sort((a, b) =>
+    (a.codigoCliente || "").localeCompare(b.codigoCliente || "", undefined, {
+      numeric: true,
+      sensitivity: "base"
+    })
+  );
+
+  const totalCuentas = clientesOrdenados.length;
+  const totalVencido = clientesOrdenados.reduce((acc, c) => acc + (c.saldoVencido || 0), 0);
 
   // Dividir en páginas de aprox 24 clientes por página para impresión limpia
   const FILAS_POR_PAGINA = 24;
   const paginas: ClienteSinPagoItem[][] = [];
-  for (let i = 0; i < datos.clientes.length; i += FILAS_POR_PAGINA) {
-    paginas.push(datos.clientes.slice(i, i + FILAS_POR_PAGINA));
+  for (let i = 0; i < clientesOrdenados.length; i += FILAS_POR_PAGINA) {
+    paginas.push(clientesOrdenados.slice(i, i + FILAS_POR_PAGINA));
   }
   if (paginas.length === 0) {
     paginas.push([]);

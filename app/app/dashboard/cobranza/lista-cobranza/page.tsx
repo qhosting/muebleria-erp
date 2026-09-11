@@ -635,31 +635,45 @@ export default function ListaCobranzaPage() {
     }
   };
 
-  // Filtrado en memoria de clientes
+  // Filtrado y ordenamiento en memoria de clientes (por Código de Cliente A-Z)
   const clientesFiltrados = useMemo(() => {
-    return clientes.filter((c) => {
-      const cod = (c.codigoCliente || "").toUpperCase();
-      const cont = (c.numContrato || "").toUpperCase();
+    return clientes
+      .filter((c) => {
+        const cod = (c.codigoCliente || "").toUpperCase();
+        const cont = (c.numContrato || "").toUpperCase();
 
-      if (filtroEmpresa === "DQ" && !cod.startsWith("DQ") && !cont.startsWith("DQ")) return false;
-      if (filtroEmpresa === "DP" && !cod.startsWith("DP") && !cont.startsWith("DP")) return false;
+        if (filtroEmpresa === "DQ" && !cod.startsWith("DQ") && !cont.startsWith("DQ")) return false;
+        if (filtroEmpresa === "DP" && !cod.startsWith("DP") && !cont.startsWith("DP")) return false;
 
-      if (!busqueda) return true;
-      const b = busqueda.toLowerCase();
-      return (
-        c.nombreCompleto.toLowerCase().includes(b) ||
-        cod.toLowerCase().includes(b) ||
-        cont.toLowerCase().includes(b) ||
-        (c.telefono && c.telefono.includes(b)) ||
-        (c.domicilio && c.domicilio.toLowerCase().includes(b)) ||
-        c.gestor.toLowerCase().includes(b)
+        if (!busqueda) return true;
+        const b = busqueda.toLowerCase();
+        return (
+          c.nombreCompleto.toLowerCase().includes(b) ||
+          cod.toLowerCase().includes(b) ||
+          cont.toLowerCase().includes(b) ||
+          (c.telefono && c.telefono.includes(b)) ||
+          (c.domicilio && c.domicilio.toLowerCase().includes(b)) ||
+          c.gestor.toLowerCase().includes(b)
+        );
+      })
+      .sort((a, b) =>
+        (a.codigoCliente || "").localeCompare(b.codigoCliente || "", undefined, {
+          numeric: true,
+          sensitivity: "base"
+        })
       );
-    });
   }, [clientes, filtroEmpresa, busqueda]);
 
-  // Clientes que no dieron pago en la semana (pagoReal === 0)
+  // Clientes que no dieron pago en la semana (pagoReal === 0), ordenados por Código de Cliente A-Z
   const clientesSinPago = useMemo(() => {
-    return clientesFiltrados.filter((c) => Number(c.pagoReal || 0) === 0);
+    return clientesFiltrados
+      .filter((c) => Number(c.pagoReal || 0) === 0)
+      .sort((a, b) =>
+        (a.codigoCliente || "").localeCompare(b.codigoCliente || "", undefined, {
+          numeric: true,
+          sensitivity: "base"
+        })
+      );
   }, [clientesFiltrados]);
 
   const totalVencidoSinPago = useMemo(() => {

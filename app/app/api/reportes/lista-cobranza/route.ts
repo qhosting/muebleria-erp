@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
       },
       include: {
         detalles: {
-          orderBy: [{ gestor: "asc" }, { diaPago: "asc" }, { codigoCliente: "asc" }]
+          orderBy: [{ codigoCliente: "asc" }]
         }
       }
     });
@@ -660,8 +660,6 @@ export async function GET(request: NextRequest) {
         }
       },
       orderBy: [
-        { cobradorAsignado: { codigoGestor: "asc" } },
-        { diaPago: "asc" },
         { codigoCliente: "asc" }
       ]
     });
