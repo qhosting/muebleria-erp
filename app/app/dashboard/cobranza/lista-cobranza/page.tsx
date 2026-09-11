@@ -34,6 +34,7 @@ import {
   Printer,
   CheckCircle2,
   Lock,
+  Unlock,
   RefreshCw,
   BarChart3,
   CalendarDays,
@@ -128,6 +129,10 @@ export default function ListaCobranzaPage() {
   const [loadingCobradores, setLoadingCobradores] = useState(true);
   const [savingCorte, setSavingCorte] = useState(false);
   const [updatingProblemaId, setUpdatingProblemaId] = useState<string | null>(null);
+  const [cerrarCorteModalOpen, setCerrarCorteModalOpen] = useState(false);
+  const [reabrirCorteModalOpen, setReabrirCorteModalOpen] = useState(false);
+  const [closingCorte, setClosingCorte] = useState(false);
+  const [observacionesCierre, setObservacionesCierre] = useState("");
 
   // Parámetros de consulta
   const [selectedCobrador, setSelectedCobrador] = useState<string>("TODOS");
@@ -369,6 +374,68 @@ export default function ListaCobranzaPage() {
     }
   };
 
+  // Cerrar Corte Semanal Oficial (Congelar snapshot definitivo para auditoría)
+  const handleConfirmarCerrarCorte = async () => {
+    if (!corteIdActivo) return;
+    try {
+      setClosingCorte(true);
+      const res = await fetch(`/api/cobranza/cortes/${corteIdActivo}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          estatus: "cerrado",
+          observaciones: observacionesCierre || undefined
+        })
+      });
+
+      if (res.ok) {
+        toast.success(`Corte de Semana ${semana} cerrado y congelado exitosamente`);
+        setEstatusCorte("cerrado");
+        setCerrarCorteModalOpen(false);
+        setObservacionesCierre("");
+        handleBuscar(undefined, false);
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Error al cerrar el corte");
+      }
+    } catch (e) {
+      console.error("Error al cerrar corte:", e);
+      toast.error("Error de conexión al cerrar el corte");
+    } finally {
+      setClosingCorte(false);
+    }
+  };
+
+  // Reabrir Corte Semanal (reactivar edición y recálculo en vivo)
+  const handleConfirmarReabrirCorte = async () => {
+    if (!corteIdActivo) return;
+    try {
+      setClosingCorte(true);
+      const res = await fetch(`/api/cobranza/cortes/${corteIdActivo}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          estatus: "abierto"
+        })
+      });
+
+      if (res.ok) {
+        toast.success(`Corte de Semana ${semana} reabierto exitosamente`);
+        setEstatusCorte("abierto");
+        setReabrirCorteModalOpen(false);
+        handleBuscar(undefined, true);
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Error al reabrir el corte");
+      }
+    } catch (e) {
+      console.error("Error al reabrir corte:", e);
+      toast.error("Error de conexión al reabrir el corte");
+    } finally {
+      setClosingCorte(false);
+    }
+  };
+
   // Abrir Historial de Cortes
   const handleAbrirHistorial = async () => {
     setHistorialOpen(true);
@@ -567,11 +634,17 @@ export default function ListaCobranzaPage() {
                 </h1>
                 {esCorteGuardado ? (
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <Badge className="bg-emerald-600 text-white font-bold text-xs uppercase px-2.5 py-0.5 gap-1 shadow-sm">
-                      <Lock className="w-3 h-3" /> Corte Guardado Oficial
-                    </Badge>
+                    {estatusCorte === "cerrado" ? (
+                      <Badge className="bg-slate-800 text-amber-400 border border-amber-500/40 font-bold text-xs uppercase px-2.5 py-0.5 gap-1.5 shadow-sm">
+                        <Lock className="w-3 h-3 text-amber-400" /> Corte Cerrado Oficial (Inmutable)
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-emerald-600 text-white font-bold text-xs uppercase px-2.5 py-0.5 gap-1 shadow-sm">
+                        <CheckCircle2 className="w-3 h-3" /> Corte Abierto (En Curso)
+                      </Badge>
+                    )}
                     <Badge variant="outline" className="text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 text-xs font-bold px-2 py-0.5">
-                      ✎ Columna PROBLEMA editable
+                      {estatusCorte === "cerrado" ? "🔒 Columna PROBLEMA archivada" : "✎ Columna PROBLEMA editable"}
                     </Badge>
                   </div>
                 ) : searched && (
@@ -619,19 +692,62 @@ export default function ListaCobranzaPage() {
                   >
                     <Save className="h-4 w-4" /> Guardar Corte del Cobrador
                   </Button>
+                ) : estatusCorte === "abierto" ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleBuscar(undefined, true)}
+                      className="text-blue-600 border-blue-300 hover:bg-blue-50 h-9 text-xs font-bold gap-1.5"
+                    >
+                      <RefreshCw className="h-4 w-4" /> Recalcular Pagos En Vivo
+                    </Button>
+                    <Button
+                      onClick={() => setCerrarCorteModalOpen(true)}
+                      className="bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-200 dark:shadow-none h-9 text-xs font-bold gap-1.5"
+                    >
+                      <Lock className="h-4 w-4" /> Cerrar Corte Semanal
+                    </Button>
+                  </>
                 ) : (
                   <Button
                     variant="outline"
-                    onClick={() => handleBuscar(undefined, true)}
-                    className="text-blue-600 border-blue-300 hover:bg-blue-50 h-9 text-xs font-bold gap-1.5"
+                    onClick={() => setReabrirCorteModalOpen(true)}
+                    className="text-amber-700 border-amber-300 hover:bg-amber-50 h-9 text-xs font-bold gap-1.5"
                   >
-                    <RefreshCw className="h-4 w-4" /> Recalcular Pagos En Vivo
+                    <Unlock className="h-4 w-4" /> Reabrir Corte (Auditoría)
                   </Button>
                 )}
               </>
             )}
           </div>
         </div>
+
+        {/* Banner Informativo de Corte Cerrado */}
+        {esCorteGuardado && estatusCorte === "cerrado" && (
+          <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center justify-between gap-3 text-amber-900 dark:text-amber-200 text-xs shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-100 dark:bg-amber-900/60 rounded-xl text-amber-700 dark:text-amber-300 shrink-0">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-bold text-sm text-amber-950 dark:text-amber-100">
+                  Corte Semanal Cerrado y Congelado Oficialmente
+                </p>
+                <p className="text-amber-800/90 dark:text-amber-300/80 mt-0.5">
+                  Este corte oficial se encuentra cerrado para efectos contables y de auditoría. Los cobros y clientes están congelados. Cualquier nuevo abono o cliente se considera automáticamente para la siguiente semana de cobranza.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReabrirCorteModalOpen(true)}
+              className="text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/50 font-bold shrink-0 text-xs gap-1.5"
+            >
+              <Unlock className="w-3.5 h-3.5" /> Reabrir Corte
+            </Button>
+          </div>
+        )}
 
         {/* Formulario de Parámetros del Calendario */}
         <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
@@ -1722,6 +1838,98 @@ export default function ListaCobranzaPage() {
               </Button>
               <Button size="sm" onClick={handleConfirmarGuardarCorte} disabled={savingCorte} className="bg-blue-600 hover:bg-blue-700 text-white font-bold">
                 {savingCorte ? "Guardando corte..." : "Confirmar y Guardar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* MODAL: Cerrar Corte Semanal Oficial */}
+        <Dialog open={cerrarCorteModalOpen} onOpenChange={setCerrarCorteModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-amber-700 dark:text-amber-400">
+                <Lock className="w-5 h-5" /> Cerrar y Congelar Corte Semanal
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Auditoría y cierre oficial de la <strong>Semana {semana} ({anio})</strong> para el cobrador{" "}
+                <strong>{getSelectedCobradorName()}</strong>.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2 text-xs">
+              <div className="p-3 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl space-y-1.5 text-amber-900 dark:text-amber-200">
+                <div className="flex justify-between"><span>Cobrador / Gestor:</span><span className="font-bold">{getSelectedCobradorName()}</span></div>
+                <div className="flex justify-between"><span>Total Cuentas Cartera:</span><span className="font-mono font-bold">{clientes.length}</span></div>
+                <div className="flex justify-between"><span>Cobrado Registrado:</span><span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(totalCobradoReal)}</span></div>
+                <div className="flex justify-between"><span>Sugerido de Semana:</span><span className="font-mono font-bold">{formatCurrency(totalCobrar)}</span></div>
+                <div className="flex justify-between"><span>Saldo Vencido:</span><span className="font-mono font-bold text-rose-700 dark:text-rose-400">{formatCurrency(totalSaldoVencido)}</span></div>
+              </div>
+
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-slate-600 dark:text-slate-300 space-y-1">
+                <p className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" /> Efectos del cierre oficial:
+                </p>
+                <ul className="list-disc pl-4 space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  <li>La lista de cuentas y abonos de esta semana queda <strong>definitivamente congelada</strong>.</li>
+                  <li>Los nuevos pagos y clientes asignados <strong>se registrarán para la siguiente semana</strong>.</li>
+                </ul>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="obsCierre" className="text-xs font-bold text-slate-600 dark:text-slate-400">Observaciones de Cierre (opcional)</Label>
+                <Input
+                  id="obsCierre"
+                  placeholder="Ej. Corte auditado y conciliado con caja el viernes por la tarde..."
+                  value={observacionesCierre}
+                  onChange={(e) => setObservacionesCierre(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" size="sm" onClick={() => setCerrarCorteModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleConfirmarCerrarCorte}
+                disabled={closingCorte}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold gap-1.5"
+              >
+                <Lock className="w-3.5 h-3.5" /> {closingCorte ? "Cerrando..." : "Confirmar y Cerrar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* MODAL: Reabrir Corte Semanal */}
+        <Dialog open={reabrirCorteModalOpen} onOpenChange={setReabrirCorteModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
+                <Unlock className="w-5 h-5 text-amber-600" /> Reabrir Corte Semanal
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                ¿Deseas reactivar el corte de la <strong>Semana {semana} ({anio})</strong> para <strong>{getSelectedCobradorName()}</strong>?
+              </DialogDescription>
+            </DialogHeader>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 py-2">
+              Al reabrir el corte, volverá a estar en estatus <strong>ABIERTO</strong>, permitiendo editar clasificaciones de problema y recalcular cobros en vivo.
+            </p>
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" size="sm" onClick={() => setReabrirCorteModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleConfirmarReabrirCorte}
+                disabled={closingCorte}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold gap-1.5"
+              >
+                <Unlock className="w-3.5 h-3.5" /> {closingCorte ? "Reabriendo..." : "Confirmar Reanudación"}
               </Button>
             </DialogFooter>
           </DialogContent>

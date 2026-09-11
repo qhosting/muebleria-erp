@@ -5,49 +5,70 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
+async function verificarYAjustarSemanaSiCorteCerrado(data: any, baseClient: PrismaClient) {
+  if (!data) return;
+  const fecha = data.fechaPago || new Date();
+  if (!data.semanaCobranza || !data.anioCobranza) {
+    const calc = calcularSemanaCobranzaSabadoViernes(fecha);
+    if (!data.semanaCobranza) data.semanaCobranza = calc.semana;
+    if (!data.anioCobranza) data.anioCobranza = calc.anio;
+  }
+
+  // Si el cobrador tiene su corte oficial ya cerrado para esta semana,
+  // el pago nuevo se considera automáticamente para la nueva semana de cobranza
+  if (data.cobradorId && data.semanaCobranza && data.anioCobranza) {
+    try {
+      const corte = await baseClient.corteCobranza.findUnique({
+        where: {
+          anio_semana_cobradorId: {
+            anio: data.anioCobranza,
+            semana: data.semanaCobranza,
+            cobradorId: data.cobradorId
+          }
+        },
+        select: { estatus: true }
+      });
+      if (corte && corte.estatus === "cerrado") {
+        data.semanaCobranza += 1;
+        if (data.semanaCobranza > 52) {
+          data.semanaCobranza = 1;
+          data.anioCobranza += 1;
+        }
+      }
+    } catch {
+      // Continuar con la semana calculada
+    }
+  }
+}
+
 function createExtendedClient() {
-  const baseClient = new PrismaClient()
+  const baseClient = new PrismaClient();
   return baseClient.$extends({
     query: {
       pago: {
         async create({ args, query }) {
           if (args.data) {
-            const fecha = (args.data as any).fechaPago || new Date()
-            if (!(args.data as any).semanaCobranza || !(args.data as any).anioCobranza) {
-              const calc = calcularSemanaCobranzaSabadoViernes(fecha)
-              if (!(args.data as any).semanaCobranza) (args.data as any).semanaCobranza = calc.semana
-              if (!(args.data as any).anioCobranza) (args.data as any).anioCobranza = calc.anio
-            }
+            await verificarYAjustarSemanaSiCorteCerrado(args.data, baseClient);
           }
-          return query(args)
+          return query(args);
         },
         async createMany({ args, query }) {
           if (Array.isArray(args.data)) {
             for (const item of args.data) {
-              const fecha = (item as any).fechaPago || new Date()
-              if (!(item as any).semanaCobranza || !(item as any).anioCobranza) {
-                const calc = calcularSemanaCobranzaSabadoViernes(fecha)
-                if (!(item as any).semanaCobranza) (item as any).semanaCobranza = calc.semana
-                if (!(item as any).anioCobranza) (item as any).anioCobranza = calc.anio
-              }
+              await verificarYAjustarSemanaSiCorteCerrado(item, baseClient);
             }
           }
-          return query(args)
+          return query(args);
         },
         async upsert({ args, query }) {
           if (args.create) {
-            const fecha = (args.create as any).fechaPago || new Date()
-            if (!(args.create as any).semanaCobranza || !(args.create as any).anioCobranza) {
-              const calc = calcularSemanaCobranzaSabadoViernes(fecha)
-              if (!(args.create as any).semanaCobranza) (args.create as any).semanaCobranza = calc.semana
-              if (!(args.create as any).anioCobranza) (args.create as any).anioCobranza = calc.anio
-            }
+            await verificarYAjustarSemanaSiCorteCerrado(args.create, baseClient);
           }
-          return query(args)
+          return query(args);
         }
       }
     }
-  })
+  });
 }
 
 export const prisma = (globalForPrisma.prisma ?? createExtendedClient()) as unknown as PrismaClient
