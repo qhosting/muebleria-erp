@@ -243,6 +243,9 @@ export async function GET(request: NextRequest) {
         fechaPago: true,
         numeroRecibo: true,
         metodoPago: true,
+        ticketId: true,
+        banco: true,
+        concepto: true,
         cliente: { select: { codigoCliente: true } }
       }
     });
@@ -253,7 +256,11 @@ export async function GET(request: NextRequest) {
       moratorio: p.interesMoratorio ? parseFloat(p.interesMoratorio.toString()) : 0,
       fechaPago: p.fechaPago,
       folio: p.numeroRecibo || "",
-      tipo: p.metodoPago || "EFECTIVO"
+      tipo: p.metodoPago || "EFECTIVO",
+      metodoPago: p.metodoPago,
+      ticketId: p.ticketId,
+      banco: p.banco,
+      concepto: p.concepto
     }));
 
     const clientesRaw: ClienteCorteRaw[] = clientes.map((c: any) => {

@@ -30,6 +30,10 @@ export interface PagoCorteRaw {
   fechaPago?: Date | string | null;
   tipo?: string | null; // EFECTIVO, BANCOS, etc.
   folio?: string | null;
+  metodoPago?: string | null;
+  ticketId?: string | null;
+  banco?: string | null;
+  concepto?: string | null;
 }
 
 export interface DetalleCalculadoCEJ {
@@ -63,6 +67,10 @@ export interface DetalleCalculadoCEJ {
   fechaPago: string | null;
   serie: string;
   tipCob: string;
+  canalCobro?: string;
+  montoBot?: number;
+  montoBancosGestor?: number;
+  montoGestor?: number;
 }
 
 export interface ResumenProblemasCEJ {
@@ -109,6 +117,9 @@ export interface ResumenCorteCEJ {
   pagarConPorcentajeSinDobles: boolean;
   cobranzaEfectivo: { cuentas: number; pesos: number };
   cobranzaBancos: { cuentas: number; pesos: number };
+  cobranzaBancosBot: { cuentas: number; pesos: number };
+  cobranzaBancosGestor: { cuentas: number; pesos: number };
+  cobranzaGestor: { cuentas: number; pesos: number };
   resumenProblemas: ResumenProblemasCEJ;
   matrizPeriodos: FilaPeriodoCEJ[];
   resumenDiario: ResumenDiarioCEJ[];
@@ -196,6 +207,73 @@ export function calcularComisionAnalista(pago: number, pagoAnalista: string | nu
 }
 
 /**
+ * Clasifica un pago individual en uno de los 3 canales oficiales del ERP:
+ * - BANCOS_BOT: Pago generado/conciliado automáticamente vía bot, tickets WhatsApp o SPEI
+ * - BANCOS_GESTOR: Reportado manualmente como bancario por el gestor en app móvil o depósito directo
+ * - GESTOR: Cobranza física en efectivo en ruta
+ */
+export function clasificarCanalPago(pago: {
+  metodoPago?: string | null;
+  ticketId?: string | null;
+  banco?: string | null;
+  concepto?: string | null;
+  tipo?: string | null;
+}): "BANCOS_BOT" | "BANCOS_GESTOR" | "GESTOR" {
+  const m = (pago.metodoPago || pago.tipo || "").toUpperCase().trim();
+  const c = (pago.concepto || "").toUpperCase().trim();
+
+  // 1. Si tiene ticketId vinculado o el método/concepto es explícitamente de bot
+  if (
+    Boolean(pago.ticketId) ||
+    m === "BANCOS BOT" ||
+    m === "BANCARIO_BOT" ||
+    m === "SPEI AUTO CONCILIADO" ||
+    m === "BOT" ||
+    m === "WHATSAPP" ||
+    c.includes("BOT") ||
+    c.includes("TKT")
+  ) {
+    return "BANCOS_BOT";
+  }
+
+  // 2. Cobranza física en efectivo en ruta por el cobrador
+  if (m === "GESTOR" || m === "EFECTIVO" || m === "CONTADO") {
+    return "GESTOR";
+  }
+
+  // 3. Captura manual de banco en app móvil / reporte bancario del gestor
+  if (
+    m === "BANCARIO" ||
+    m === "BANCOS GESTOR" ||
+    m === "GESTOR BANCOS" ||
+    m === "TRANSFERENCIA" ||
+    m === "DEPOSITO" ||
+    m.includes("BANCO") ||
+    m.includes("TRANS") ||
+    m.includes("DEPO") ||
+    Boolean(pago.banco)
+  ) {
+    return "BANCOS_GESTOR";
+  }
+
+  return pago.banco ? "BANCOS_GESTOR" : "GESTOR";
+}
+
+/**
+ * Clasifica un texto de tipoCobro (ej. de cortes guardados o detalles) a canal oficial
+ */
+export function clasificarCanalDesdeTipoCobro(tipoCobro: string = ""): "BANCOS_BOT" | "BANCOS_GESTOR" | "GESTOR" {
+  const t = (tipoCobro || "").toUpperCase().trim();
+  if (t.includes("BOT") || t.includes("WHATSAPP") || t.includes("SPEI") || t.includes("TKT")) {
+    return "BANCOS_BOT";
+  }
+  if (t.includes("BANCO") || t.includes("TRANS") || t.includes("DEPO") || t.includes("BANCARIO")) {
+    return "BANCOS_GESTOR";
+  }
+  return "GESTOR";
+}
+
+/**
  * Genera el detalle calculado y los resúmenes ejecutivos para un conjunto de clientes y pagos
  */
 export function procesarDetallesYResumenCEJ(
@@ -206,25 +284,87 @@ export function procesarDetallesYResumenCEJ(
   // Normalizar periodicidades activas a minúsculas
   const periodicidadesActivasNorm = (periodicidadesActivas || []).map((p) => p.toLowerCase().trim());
 
-  // Mapa de pagos acumulados por cliente
-  const pagosMap = new Map<string, { monto: number; moratorio: number; fechaPago: string | null; tipo: string; folio: string }>();
+  // Mapa de pagos acumulados por cliente con desglose por canal
+  const pagosMap = new Map<
+    string,
+    {
+      monto: number;
+      moratorio: number;
+      fechaPago: string | null;
+      tipo: string;
+      folio: string;
+      montoBot: number;
+      montoBancosGestor: number;
+      montoGestor: number;
+      canalDominante: "BANCOS BOT" | "BANCOS GESTOR" | "GESTOR";
+    }
+  >();
 
   pagosSemana.forEach((p) => {
     const cod = p.codigoCliente.toUpperCase().trim();
-    const existing = pagosMap.get(cod) || { monto: 0, moratorio: 0, fechaPago: null, tipo: "GESTOR", folio: "" };
-    existing.monto += Number(p.monto) || 0;
+    const existing = pagosMap.get(cod) || {
+      monto: 0,
+      moratorio: 0,
+      fechaPago: null,
+      tipo: "GESTOR",
+      folio: "",
+      montoBot: 0,
+      montoBancosGestor: 0,
+      montoGestor: 0,
+      canalDominante: "GESTOR" as const
+    };
+
+    const monto = Number(p.monto) || 0;
+    existing.monto += monto;
     existing.moratorio += Number(p.moratorio) || 0;
     if (p.fechaPago) {
       existing.fechaPago = typeof p.fechaPago === "string" ? p.fechaPago : p.fechaPago.toISOString();
     }
-    if (p.tipo) existing.tipo = p.tipo;
     if (p.folio) existing.folio = p.folio;
+
+    const canal = clasificarCanalPago(p);
+    if (canal === "BANCOS_BOT") {
+      existing.montoBot += monto;
+    } else if (canal === "BANCOS_GESTOR") {
+      existing.montoBancosGestor += monto;
+    } else {
+      existing.montoGestor += monto;
+    }
+
+    // Determinar canal predominante / etiqueta de tipo
+    if (existing.montoBot > 0 && existing.montoGestor === 0 && existing.montoBancosGestor === 0) {
+      existing.canalDominante = "BANCOS BOT";
+      existing.tipo = "BANCOS BOT";
+    } else if (existing.montoBancosGestor > 0 && existing.montoGestor === 0 && existing.montoBot === 0) {
+      existing.canalDominante = "BANCOS GESTOR";
+      existing.tipo = "BANCOS GESTOR";
+    } else if (existing.montoBot > 0) {
+      existing.canalDominante = "BANCOS BOT";
+      existing.tipo = "BANCOS BOT";
+    } else if (existing.montoBancosGestor > 0) {
+      existing.canalDominante = "BANCOS GESTOR";
+      existing.tipo = "BANCOS GESTOR";
+    } else {
+      existing.canalDominante = "GESTOR";
+      existing.tipo = "GESTOR";
+    }
+
     pagosMap.set(cod, existing);
   });
 
   const detalles: DetalleCalculadoCEJ[] = clientes.map((c) => {
     const cod = c.codigoCliente.toUpperCase().trim();
-    const pagoInfo = pagosMap.get(cod) || { monto: 0, moratorio: 0, fechaPago: null, tipo: "0", folio: "" };
+    const pagoInfo = pagosMap.get(cod) || {
+      monto: 0,
+      moratorio: 0,
+      fechaPago: null,
+      tipo: "0",
+      folio: "",
+      montoBot: 0,
+      montoBancosGestor: 0,
+      montoGestor: 0,
+      canalDominante: "GESTOR" as const
+    };
     const pagoReal = pagoInfo.monto;
     const moratorio = pagoInfo.moratorio;
     const pagoSugerido = Number(c.montoPago) || 0;
@@ -297,6 +437,10 @@ export function procesarDetallesYResumenCEJ(
       pagoReal: pagoReal,
       diaPago: diaAsignado,
       tipoCobro: pagoInfo.tipo !== "0" ? pagoInfo.tipo : "0",
+      canalCobro: pagoInfo.monto > 0 ? pagoInfo.canalDominante : undefined,
+      montoBot: pagoInfo.montoBot,
+      montoBancosGestor: pagoInfo.montoBancosGestor,
+      montoGestor: pagoInfo.montoGestor,
       telefono: c.telefono || c.telefonoTrabajo || "-",
       telefono2: c.telefonoTrabajo || "-",
       c: 1,
@@ -352,10 +496,12 @@ export function calcularResumenCEJDesdeDetalles(detalles: (DetalleCalculadoCEJ |
     diasMap.set(d, { pptoCuentas: 0, avanceCuentas: 0, pptoDinero: 0, avanceDinero: 0 });
   });
 
-  let cobEfectivoCtas = 0;
-  let cobEfectivoPesos = 0;
-  let cobBancosCtas = 0;
-  let cobBancosPesos = 0;
+  let cobBancosBotCtas = 0;
+  let cobBancosBotPesos = 0;
+  let cobBancosGestorCtas = 0;
+  let cobBancosGestorPesos = 0;
+  let cobGestorCtas = 0;
+  let cobGestorPesos = 0;
   let ctasCobradas = 0;
 
   detalles.forEach((d) => {
@@ -375,13 +521,52 @@ export function calcularResumenCEJDesdeDetalles(detalles: (DetalleCalculadoCEJ |
 
     if (pagoReal > 0) {
       ctasCobradas++;
-      const tipo = (d.tipoCobro || "").toUpperCase();
-      if (tipo.includes("BANCO") || tipo.includes("TRANS") || tipo.includes("DEPO")) {
-        cobBancosCtas++;
-        cobBancosPesos += pagoReal;
+
+      // Desglose analítico de canales: BANCOS BOT, BANCOS GESTOR, GESTOR
+      if (d.montoBot !== undefined || d.montoBancosGestor !== undefined || d.montoGestor !== undefined) {
+        const mBot = Number(d.montoBot) || 0;
+        const mBG = Number(d.montoBancosGestor) || 0;
+        const mG = Number(d.montoGestor) || 0;
+
+        if (mBot > 0) {
+          cobBancosBotCtas++;
+          cobBancosBotPesos += mBot;
+        }
+        if (mBG > 0) {
+          cobBancosGestorCtas++;
+          cobBancosGestorPesos += mBG;
+        }
+        if (mG > 0) {
+          cobGestorCtas++;
+          cobGestorPesos += mG;
+        }
+
+        // Fallback de contingencia si no se desglosaron montos
+        if (mBot === 0 && mBG === 0 && mG === 0) {
+          const canal = clasificarCanalDesdeTipoCobro(d.tipoCobro);
+          if (canal === "BANCOS_BOT") {
+            cobBancosBotCtas++;
+            cobBancosBotPesos += pagoReal;
+          } else if (canal === "BANCOS_GESTOR") {
+            cobBancosGestorCtas++;
+            cobBancosGestorPesos += pagoReal;
+          } else {
+            cobGestorCtas++;
+            cobGestorPesos += pagoReal;
+          }
+        }
       } else {
-        cobEfectivoCtas++;
-        cobEfectivoPesos += pagoReal;
+        const canal = clasificarCanalDesdeTipoCobro(d.tipoCobro);
+        if (canal === "BANCOS_BOT") {
+          cobBancosBotCtas++;
+          cobBancosBotPesos += pagoReal;
+        } else if (canal === "BANCOS_GESTOR") {
+          cobBancosGestorCtas++;
+          cobBancosGestorPesos += pagoReal;
+        } else {
+          cobGestorCtas++;
+          cobGestorPesos += pagoReal;
+        }
       }
     }
 
@@ -497,6 +682,11 @@ export function calcularResumenCEJDesdeDetalles(detalles: (DetalleCalculadoCEJ |
   const porcCtasSinDobles = Math.round((ctasCobradas / baseCtasRuta) * 1000) / 10;
   const porcCtasConDobles = Math.round(((ctasCobradas + totalPagosDobles) / baseCtasRuta) * 1000) / 10;
 
+  const cobBancosCtas = cobBancosBotCtas + cobBancosGestorCtas;
+  const cobBancosPesos = cobBancosBotPesos + cobBancosGestorPesos;
+  const cobEfectivoCtas = cobGestorCtas;
+  const cobEfectivoPesos = cobGestorPesos;
+
   return {
     totalCuentas: detalles.length,
     totalSugerido,
@@ -510,6 +700,9 @@ export function calcularResumenCEJDesdeDetalles(detalles: (DetalleCalculadoCEJ |
     pagarConPorcentajeSinDobles: porcCtasSinDobles < 81,
     cobranzaEfectivo: { cuentas: cobEfectivoCtas, pesos: cobEfectivoPesos },
     cobranzaBancos: { cuentas: cobBancosCtas, pesos: cobBancosPesos },
+    cobranzaBancosBot: { cuentas: cobBancosBotCtas, pesos: cobBancosBotPesos },
+    cobranzaBancosGestor: { cuentas: cobBancosGestorCtas, pesos: cobBancosGestorPesos },
+    cobranzaGestor: { cuentas: cobGestorCtas, pesos: cobGestorPesos },
     resumenProblemas,
     matrizPeriodos,
     resumenDiario

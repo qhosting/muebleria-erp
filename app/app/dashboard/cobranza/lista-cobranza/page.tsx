@@ -83,7 +83,11 @@ interface ClienteCEJ {
   comisionAnalista: number;
   fechaPago?: string | null;
   serie?: string;
-  tipCob?: string;
+  tipCob: string;
+  canalCobro?: string;
+  montoBot?: number;
+  montoBancosGestor?: number;
+  montoGestor?: number;
 }
 
 const OPCIONES_PROBLEMA = [
@@ -270,6 +274,9 @@ export default function ListaCobranzaPage() {
             pagarConPorcentajeSinDobles: data.corte.porcentajeCobro < 81,
             cobranzaEfectivo: data.corte.resumenCanales?.efectivo || { cuentas: 0, pesos: 0 },
             cobranzaBancos: data.corte.resumenCanales?.bancos || { cuentas: 0, pesos: 0 },
+            cobranzaBancosBot: data.corte.resumenCanales?.bancosBot || { cuentas: 0, pesos: 0 },
+            cobranzaBancosGestor: data.corte.resumenCanales?.bancosGestor || { cuentas: 0, pesos: 0 },
+            cobranzaGestor: data.corte.resumenCanales?.gestor || data.corte.resumenCanales?.efectivo || { cuentas: 0, pesos: 0 },
             resumenProblemas: data.corte.resumenProblemas,
             matrizPeriodos: data.corte.resumenPeriodos || [],
             resumenDiario: data.corte.resumenDiario || []
@@ -1158,30 +1165,58 @@ export default function ListaCobranzaPage() {
                         </tr>
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                           <td className="px-4 py-2 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">
-                            Cobranza en Efectivo (Gestor)
+                            💵 Cobranza Gestor (Efectivo)
                           </td>
                           <td className="px-4 py-2 text-right font-mono text-slate-800 dark:text-slate-200 border border-gray-100 dark:border-slate-800">
-                            {formatCurrency(resGlobalActivo?.cobranzaEfectivo.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resGlobalActivo?.cobranzaEfectivo.cuentas ?? 0} ctas)</span>
+                            {formatCurrency(resGlobalActivo?.cobranzaGestor?.pesos ?? resGlobalActivo?.cobranzaEfectivo?.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resGlobalActivo?.cobranzaGestor?.cuentas ?? resGlobalActivo?.cobranzaEfectivo?.cuentas ?? 0} ctas)</span>
                           </td>
                           <td className="px-4 py-2 text-right font-mono text-blue-700 dark:text-blue-300 border border-gray-100 dark:border-slate-800">
-                            {formatCurrency(resDQActivo?.cobranzaEfectivo.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDQActivo?.cobranzaEfectivo.cuentas ?? 0} ctas)</span>
+                            {formatCurrency(resDQActivo?.cobranzaGestor?.pesos ?? resDQActivo?.cobranzaEfectivo?.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDQActivo?.cobranzaGestor?.cuentas ?? resDQActivo?.cobranzaEfectivo?.cuentas ?? 0} ctas)</span>
                           </td>
                           <td className="px-4 py-2 text-right font-mono text-indigo-700 dark:text-indigo-300 border border-gray-100 dark:border-slate-800">
-                            {formatCurrency(resDPActivo?.cobranzaEfectivo.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDPActivo?.cobranzaEfectivo.cuentas ?? 0} ctas)</span>
+                            {formatCurrency(resDPActivo?.cobranzaGestor?.pesos ?? resDPActivo?.cobranzaEfectivo?.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDPActivo?.cobranzaGestor?.cuentas ?? resDPActivo?.cobranzaEfectivo?.cuentas ?? 0} ctas)</span>
                           </td>
                         </tr>
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                           <td className="px-4 py-2 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">
-                            Cobranza en Bancos / Depósitos
+                            🤖 Bancos BOT (Automático)
                           </td>
                           <td className="px-4 py-2 text-right font-mono text-slate-800 dark:text-slate-200 border border-gray-100 dark:border-slate-800">
-                            {formatCurrency(resGlobalActivo?.cobranzaBancos.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resGlobalActivo?.cobranzaBancos.cuentas ?? 0} ctas)</span>
+                            {formatCurrency(resGlobalActivo?.cobranzaBancosBot?.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resGlobalActivo?.cobranzaBancosBot?.cuentas ?? 0} ctas)</span>
                           </td>
                           <td className="px-4 py-2 text-right font-mono text-blue-700 dark:text-blue-300 border border-gray-100 dark:border-slate-800">
-                            {formatCurrency(resDQActivo?.cobranzaBancos.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDQActivo?.cobranzaBancos.cuentas ?? 0} ctas)</span>
+                            {formatCurrency(resDQActivo?.cobranzaBancosBot?.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDQActivo?.cobranzaBancosBot?.cuentas ?? 0} ctas)</span>
                           </td>
                           <td className="px-4 py-2 text-right font-mono text-indigo-700 dark:text-indigo-300 border border-gray-100 dark:border-slate-800">
-                            {formatCurrency(resDPActivo?.cobranzaBancos.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDPActivo?.cobranzaBancos.cuentas ?? 0} ctas)</span>
+                            {formatCurrency(resDPActivo?.cobranzaBancosBot?.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDPActivo?.cobranzaBancosBot?.cuentas ?? 0} ctas)</span>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-2 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">
+                            📱 Bancos Gestor (Manual)
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-slate-800 dark:text-slate-200 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resGlobalActivo?.cobranzaBancosGestor?.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resGlobalActivo?.cobranzaBancosGestor?.cuentas ?? 0} ctas)</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-blue-700 dark:text-blue-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDQActivo?.cobranzaBancosGestor?.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDQActivo?.cobranzaBancosGestor?.cuentas ?? 0} ctas)</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-indigo-700 dark:text-indigo-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDPActivo?.cobranzaBancosGestor?.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDPActivo?.cobranzaBancosGestor?.cuentas ?? 0} ctas)</span>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 bg-blue-50/20 dark:bg-blue-950/10">
+                          <td className="px-4 py-2 font-bold text-slate-700 dark:text-slate-300 border border-gray-100 dark:border-slate-800">
+                            🏦 Total Bancos (BOT + Gestor)
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resGlobalActivo?.cobranzaBancos?.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resGlobalActivo?.cobranzaBancos?.cuentas ?? 0} ctas)</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-blue-700 dark:text-blue-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDQActivo?.cobranzaBancos?.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDQActivo?.cobranzaBancos?.cuentas ?? 0} ctas)</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-indigo-700 dark:text-indigo-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDPActivo?.cobranzaBancos?.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDPActivo?.cobranzaBancos?.cuentas ?? 0} ctas)</span>
                           </td>
                         </tr>
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
@@ -1393,21 +1428,90 @@ export default function ListaCobranzaPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 space-y-3 text-xs">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-xl border border-emerald-100 dark:border-emerald-900">
-                        <p className="text-[10px] font-bold uppercase text-emerald-800 dark:text-emerald-300">EFECTIVO (Cobrador)</p>
-                        <p className="text-lg font-black font-mono text-emerald-700 dark:text-emerald-400 mt-1">
-                          {formatCurrency(resumenActivo?.cobranzaEfectivo.pesos ?? 0)}
+                    {/* Canales de Cobro Separados (BANCOS BOT, BANCOS GESTOR, GESTOR) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      {/* 1. GESTOR (Efectivo) */}
+                      <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-900 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black uppercase text-emerald-800 dark:text-emerald-300 tracking-wider">
+                              💵 GESTOR
+                            </p>
+                            <span className="text-[9px] bg-emerald-200/80 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 px-1.5 py-0.5 rounded font-bold">
+                              Efectivo Ruta
+                            </span>
+                          </div>
+                          <p className="text-lg font-black font-mono text-emerald-700 dark:text-emerald-400 mt-1">
+                            {formatCurrency(resumenActivo?.cobranzaGestor?.pesos ?? resumenActivo?.cobranzaEfectivo?.pesos ?? 0)}
+                          </p>
+                        </div>
+                        <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
+                          {resumenActivo?.cobranzaGestor?.cuentas ?? resumenActivo?.cobranzaEfectivo?.cuentas ?? 0} cuentas
                         </p>
-                        <p className="text-[10px] text-emerald-600 mt-0.5">{resumenActivo?.cobranzaEfectivo.cuentas ?? 0} cuentas</p>
                       </div>
 
-                      <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 rounded-xl border border-blue-100 dark:border-blue-900">
-                        <p className="text-[10px] font-bold uppercase text-blue-800 dark:text-blue-300">BANCOS (Depósito/Bot)</p>
-                        <p className="text-lg font-black font-mono text-blue-700 dark:text-blue-400 mt-1">
-                          {formatCurrency(resumenActivo?.cobranzaBancos.pesos ?? 0)}
+                      {/* 2. BANCOS BOT */}
+                      <div className="p-3 bg-indigo-50/70 dark:bg-indigo-950/30 rounded-xl border border-indigo-200 dark:border-indigo-900 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black uppercase text-indigo-800 dark:text-indigo-300 tracking-wider">
+                              🤖 BANCOS BOT
+                            </p>
+                            <span className="text-[9px] bg-indigo-200/80 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 px-1.5 py-0.5 rounded font-bold">
+                              Auto / WhatsApp
+                            </span>
+                          </div>
+                          <p className="text-lg font-black font-mono text-indigo-700 dark:text-indigo-400 mt-1">
+                            {formatCurrency(resumenActivo?.cobranzaBancosBot?.pesos ?? 0)}
+                          </p>
+                        </div>
+                        <p className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 mt-1">
+                          {resumenActivo?.cobranzaBancosBot?.cuentas ?? 0} cuentas
                         </p>
-                        <p className="text-[10px] text-blue-600 mt-0.5">{resumenActivo?.cobranzaBancos.cuentas ?? 0} cuentas</p>
+                      </div>
+
+                      {/* 3. BANCOS GESTOR */}
+                      <div className="p-3 bg-purple-50/70 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-900 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black uppercase text-purple-800 dark:text-purple-300 tracking-wider">
+                              📱 BANCOS GESTOR
+                            </p>
+                            <span className="text-[9px] bg-purple-200/80 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 px-1.5 py-0.5 rounded font-bold">
+                              Manual / Depósito
+                            </span>
+                          </div>
+                          <p className="text-lg font-black font-mono text-purple-700 dark:text-purple-400 mt-1">
+                            {formatCurrency(resumenActivo?.cobranzaBancosGestor?.pesos ?? 0)}
+                          </p>
+                        </div>
+                        <p className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 mt-1">
+                          {resumenActivo?.cobranzaBancosGestor?.cuentas ?? 0} cuentas
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Fila de Totales de Canales */}
+                    <div className="p-2.5 bg-slate-100/90 dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-black uppercase text-slate-700 dark:text-slate-300">
+                          🏦 TOTAL BANCOS:
+                        </span>
+                        <span className="font-mono font-bold text-xs text-blue-700 dark:text-blue-300">
+                          {formatCurrency(resumenActivo?.cobranzaBancos?.pesos ?? 0)}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          ({resumenActivo?.cobranzaBancos?.cuentas ?? 0} cuentas)
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 sm:border-l sm:border-slate-300 dark:sm:border-slate-600 sm:pl-3">
+                        <span className="text-[11px] font-black uppercase text-slate-900 dark:text-white">
+                          🌐 TOTAL COBRANZA:
+                        </span>
+                        <span className="font-mono font-black text-sm text-emerald-700 dark:text-emerald-400">
+                          {formatCurrency(resumenActivo?.totalCobrado ?? 0)}
+                        </span>
                       </div>
                     </div>
 

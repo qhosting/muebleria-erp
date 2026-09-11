@@ -159,8 +159,10 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
     { concepto: "Cobranza Real Recibida ($)", g: resGlobal.totalCobrado, dq: resDQ.totalCobrado, dp: resDP.totalCobrado, num: true },
     { concepto: "% Cumplimiento (Sin Dobles)", g: `${resGlobal.porcentajeCtasSinDobles}%`, dq: `${resDQ.porcentajeCtasSinDobles}%`, dp: `${resDP.porcentajeCtasSinDobles}%`, num: false },
     { concepto: "% Cumplimiento (Con Dobles)", g: `${resGlobal.porcentajeCtasConDobles}%`, dq: `${resDQ.porcentajeCtasConDobles}%`, dp: `${resDP.porcentajeCtasConDobles}%`, num: false },
-    { concepto: "Cobro en Efectivo ($)", g: resGlobal.cobranzaEfectivo.pesos, dq: resDQ.cobranzaEfectivo.pesos, dp: resDP.cobranzaEfectivo.pesos, num: true },
-    { concepto: "Cobro en Bancos ($)", g: resGlobal.cobranzaBancos.pesos, dq: resDQ.cobranzaBancos.pesos, dp: resDP.cobranzaBancos.pesos, num: true },
+    { concepto: "Cobro en Efectivo (Gestor)", g: resGlobal.cobranzaGestor?.pesos ?? resGlobal.cobranzaEfectivo.pesos, dq: resDQ.cobranzaGestor?.pesos ?? resDQ.cobranzaEfectivo.pesos, dp: resDP.cobranzaGestor?.pesos ?? resDP.cobranzaEfectivo.pesos, num: true },
+    { concepto: "Bancos BOT ($)", g: resGlobal.cobranzaBancosBot?.pesos ?? 0, dq: resDQ.cobranzaBancosBot?.pesos ?? 0, dp: resDP.cobranzaBancosBot?.pesos ?? 0, num: true },
+    { concepto: "Bancos Gestor ($)", g: resGlobal.cobranzaBancosGestor?.pesos ?? 0, dq: resDQ.cobranzaBancosGestor?.pesos ?? 0, dp: resDP.cobranzaBancosGestor?.pesos ?? 0, num: true },
+    { concepto: "Total Bancos ($)", g: resGlobal.cobranzaBancos.pesos, dq: resDQ.cobranzaBancos.pesos, dp: resDP.cobranzaBancos.pesos, num: true },
     { concepto: "Saldo Vencido ($)", g: resGlobal.totalVencido, dq: resDQ.totalVencido, dp: resDP.totalVencido, num: true },
     { concepto: "Cartera Total ($)", g: resGlobal.totalCartera, dq: resDQ.totalCartera, dp: resDP.totalCartera, num: true },
     { concepto: "Cuentas en RUTA", g: resGlobal.resumenProblemas.cuentasRuta.cuentas, dq: resDQ.resumenProblemas.cuentasRuta.cuentas, dp: resDP.resumenProblemas.cuentasRuta.cuentas, num: true },
@@ -550,13 +552,25 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
               <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #312e81;">${resDP.porcentajeCtasSinDobles}%</td>
             </tr>
             <tr style="background: #f8fafc;">
-              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cobranza Efectivo</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.cobranzaEfectivo.cuentas} ctas ($${resGlobal.cobranzaEfectivo.pesos.toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDQ.cobranzaEfectivo.cuentas} ctas ($${resDQ.cobranzaEfectivo.pesos.toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDP.cobranzaEfectivo.cuentas} ctas ($${resDP.cobranzaEfectivo.pesos.toLocaleString("es-MX")})</td>
+              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cobranza Gestor (Efectivo)</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.cobranzaGestor?.cuentas ?? resGlobal.cobranzaEfectivo.cuentas} ctas ($${(resGlobal.cobranzaGestor?.pesos ?? resGlobal.cobranzaEfectivo.pesos).toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDQ.cobranzaGestor?.cuentas ?? resDQ.cobranzaEfectivo.cuentas} ctas ($${(resDQ.cobranzaGestor?.pesos ?? resDQ.cobranzaEfectivo.pesos).toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDP.cobranzaGestor?.cuentas ?? resDP.cobranzaEfectivo.cuentas} ctas ($${(resDP.cobranzaGestor?.pesos ?? resDP.cobranzaEfectivo.pesos).toLocaleString("es-MX")})</td>
             </tr>
             <tr>
-              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cobranza Bancos / Depósitos</td>
+              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Bancos BOT (Automático)</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.cobranzaBancosBot?.cuentas ?? 0} ctas ($${(resGlobal.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDQ.cobranzaBancosBot?.cuentas ?? 0} ctas ($${(resDQ.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDP.cobranzaBancosBot?.cuentas ?? 0} ctas ($${(resDP.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")})</td>
+            </tr>
+            <tr style="background: #f8fafc;">
+              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Bancos Gestor (Manual)</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.cobranzaBancosGestor?.cuentas ?? 0} ctas ($${(resGlobal.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDQ.cobranzaBancosGestor?.cuentas ?? 0} ctas ($${(resDQ.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDP.cobranzaBancosGestor?.cuentas ?? 0} ctas ($${(resDP.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")})</td>
+            </tr>
+            <tr style="font-weight: bold; background: #eff6ff;">
+              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Total Bancos (BOT + Gestor)</td>
               <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.cobranzaBancos.cuentas} ctas ($${resGlobal.cobranzaBancos.pesos.toLocaleString("es-MX")})</td>
               <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDQ.cobranzaBancos.cuentas} ctas ($${resDQ.cobranzaBancos.pesos.toLocaleString("es-MX")})</td>
               <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDP.cobranzaBancos.cuentas} ctas ($${resDP.cobranzaBancos.pesos.toLocaleString("es-MX")})</td>
@@ -619,8 +633,10 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
         <div class="section-card">
           <div class="card-header">Canales de Recaudación Real</div>
           <div class="card-body">
-            <div class="kpi-row"><span>EFECTIVO (Cobranza Gestor)</span><span><strong>${resGlobal.cobranzaEfectivo.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaEfectivo.pesos ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row"><span>BANCOS (Transferencia / Depósito)</span><span><strong>${resGlobal.cobranzaBancos.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancos.pesos ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row"><span>GESTOR (Efectivo)</span><span><strong>${resGlobal.cobranzaGestor?.cuentas ?? resGlobal.cobranzaEfectivo.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaGestor?.pesos ?? resGlobal.cobranzaEfectivo.pesos ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row"><span>BANCOS BOT (Auto / SPEI)</span><span><strong>${resGlobal.cobranzaBancosBot?.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row"><span>BANCOS GESTOR (Depósito Manual)</span><span><strong>${resGlobal.cobranzaBancosGestor?.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row" style="background: #eff6ff; font-weight: bold;"><span>TOTAL BANCOS (BOT + GESTOR)</span><span><strong>${resGlobal.cobranzaBancos.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancos.pesos ?? 0).toLocaleString("es-MX")}</span></div>
             <div class="kpi-row highlight" style="background: #dcfce7;">
               <span>TOTAL COBRANZA RECIBIDA</span>
               <span><strong>$${(resGlobal.totalCobrado ?? 0).toLocaleString("es-MX")}</strong></span>

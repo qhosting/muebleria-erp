@@ -173,6 +173,9 @@ export async function POST(request: NextRequest) {
         fechaPago: true,
         numeroRecibo: true,
         metodoPago: true,
+        ticketId: true,
+        banco: true,
+        concepto: true,
         cliente: {
           select: { codigoCliente: true }
         }
@@ -186,7 +189,11 @@ export async function POST(request: NextRequest) {
       moratorio: p.interesMoratorio ? parseFloat(p.interesMoratorio.toString()) : 0,
       fechaPago: p.fechaPago,
       folio: p.numeroRecibo || "",
-      tipo: p.metodoPago || "EFECTIVO"
+      tipo: p.metodoPago || "EFECTIVO",
+      metodoPago: p.metodoPago,
+      ticketId: p.ticketId,
+      banco: p.banco,
+      concepto: p.concepto
     }));
 
     // 5. Mapear clientes para procesamiento analítico CEJ
@@ -232,7 +239,7 @@ export async function POST(request: NextRequest) {
           anio_semana_cobradorId: {
             anio: anioInt,
             semana: semanaInt,
-            cobradorId: cobradorId
+            cobradorId
           }
         },
         update: {
@@ -248,7 +255,13 @@ export async function POST(request: NextRequest) {
           porcentajeCobro: resumen.porcentajeCtasSinDobles,
           resumenProblemas: resumen.resumenProblemas as any,
           resumenPeriodos: resumen.matrizPeriodos as any,
-          resumenCanales: { efectivo: resumen.cobranzaEfectivo, bancos: resumen.cobranzaBancos } as any,
+          resumenCanales: {
+            efectivo: resumen.cobranzaEfectivo,
+            bancos: resumen.cobranzaBancos,
+            bancosBot: resumen.cobranzaBancosBot,
+            bancosGestor: resumen.cobranzaBancosGestor,
+            gestor: resumen.cobranzaGestor
+          } as any,
           resumenDiario: resumen.resumenDiario as any,
           observaciones: observaciones || null,
           creadoPorId: (session.user as any).id || null
@@ -269,7 +282,13 @@ export async function POST(request: NextRequest) {
           porcentajeCobro: resumen.porcentajeCtasSinDobles,
           resumenProblemas: resumen.resumenProblemas as any,
           resumenPeriodos: resumen.matrizPeriodos as any,
-          resumenCanales: { efectivo: resumen.cobranzaEfectivo, bancos: resumen.cobranzaBancos } as any,
+          resumenCanales: {
+            efectivo: resumen.cobranzaEfectivo,
+            bancos: resumen.cobranzaBancos,
+            bancosBot: resumen.cobranzaBancosBot,
+            bancosGestor: resumen.cobranzaBancosGestor,
+            gestor: resumen.cobranzaGestor
+          } as any,
           resumenDiario: resumen.resumenDiario as any,
           observaciones: observaciones || null,
           creadoPorId: (session.user as any).id || null
