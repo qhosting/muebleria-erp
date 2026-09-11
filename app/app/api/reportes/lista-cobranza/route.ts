@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { checkPermission } from "@/lib/permissions";
-import { procesarDetallesYResumenCEJ, ClienteCorteRaw, PagoCorteRaw, normalizarDiaSemana } from "@/lib/corte-cej-utils";
+import { procesarDetallesYResumenCEJ, separarYCalcularResumenesCEJ, ClienteCorteRaw, PagoCorteRaw, normalizarDiaSemana } from "@/lib/corte-cej-utils";
 import { calcularRangoSemanaSabadoViernes } from "@/lib/calendario-cobranza-utils";
 
 export const dynamic = "force-dynamic";
@@ -150,6 +150,8 @@ export async function GET(request: NextRequest) {
         }));
       }
 
+      const { global: resGlobal, dq: resDQ, dp: resDP } = separarYCalcularResumenesCEJ(detallesSerializados);
+
       return NextResponse.json({
         esCorteGuardado: true,
         corte: {
@@ -174,6 +176,9 @@ export async function GET(request: NextRequest) {
           updatedAt: corteGuardado.updatedAt
         },
         calendario,
+        resumenCEJ: resGlobal,
+        resumenDQ: resDQ,
+        resumenDP: resDP,
         clientes: detallesSerializados
       });
     }
@@ -283,6 +288,7 @@ export async function GET(request: NextRequest) {
     });
 
     const { detalles, resumen } = procesarDetallesYResumenCEJ(clientesRaw, pagosRaw, periodicidadesPermitidas);
+    const { dq: resumenDQ, dp: resumenDP } = separarYCalcularResumenesCEJ(detalles);
 
     return NextResponse.json({
       esCorteGuardado: false,
@@ -291,6 +297,8 @@ export async function GET(request: NextRequest) {
       nombreGestor,
       codigoGestor,
       resumenCEJ: resumen,
+      resumenDQ,
+      resumenDP,
       clientes: detalles.map((d) => ({
         ...d,
         montoPago: d.pagoSugerido,

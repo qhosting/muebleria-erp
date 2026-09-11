@@ -37,12 +37,14 @@ import {
   RefreshCw,
   BarChart3,
   CalendarDays,
-  ExternalLink
+  ExternalLink,
+  Globe,
+  Building2
 } from "lucide-react";
 import { calcularSemanaCobranzaSabadoViernes, calcularRangoSemanaSabadoViernes, formatearFechaCortaMX } from "@/lib/calendario-cobranza-utils";
 import { formatCurrency, getDayName } from "@/lib/utils";
 import { descargarExcelCEJ, imprimirPDFCEJ } from "@/lib/exportar-plantilla-cej";
-import { ResumenCorteCEJ } from "@/lib/corte-cej-utils";
+import { ResumenCorteCEJ, separarYCalcularResumenesCEJ } from "@/lib/corte-cej-utils";
 
 interface User {
   id: string;
@@ -141,6 +143,9 @@ export default function ListaCobranzaPage() {
   const [clientes, setClientes] = useState<ClienteCEJ[]>([]);
   const [calendario, setCalendario] = useState<any>(null);
   const [resumenCEJ, setResumenCEJ] = useState<ResumenCorteCEJ | null>(null);
+  const [resumenDQ, setResumenDQ] = useState<ResumenCorteCEJ | null>(null);
+  const [resumenDP, setResumenDP] = useState<ResumenCorteCEJ | null>(null);
+  const [tabResumenEmpresa, setTabResumenEmpresa] = useState<"GLOBAL" | "DQ" | "DP">("GLOBAL");
   const [busqueda, setBusqueda] = useState<string>("");
   const [searched, setSearched] = useState<boolean>(false);
 
@@ -269,12 +274,16 @@ export default function ListaCobranzaPage() {
             matrizPeriodos: data.corte.resumenPeriodos || [],
             resumenDiario: data.corte.resumenDiario || []
           });
+          setResumenDQ(data.resumenDQ || null);
+          setResumenDP(data.resumenDP || null);
           toast.info(`Mostrando Corte Semanal guardado (${data.corte.estatus.toUpperCase()})`);
         } else {
           setCorteIdActivo(null);
           setCorteGuardadoExistenteId(data.corteGuardadoExistenteId || null);
           setEstatusCorte("abierto");
           setResumenCEJ(data.resumenCEJ || null);
+          setResumenDQ(data.resumenDQ || null);
+          setResumenDP(data.resumenDP || null);
         }
       } else {
         const err = await res.json();
@@ -416,6 +425,22 @@ export default function ListaCobranzaPage() {
     }
   };
 
+  // Resúmenes calculados dinámicamente en memoria (GLOBAL, DQ, DP)
+  const resumenesCalculados = useMemo(() => {
+    if (clientes.length === 0) return null;
+    return separarYCalcularResumenesCEJ(clientes);
+  }, [clientes]);
+
+  const resGlobalActivo = resumenesCalculados?.global || resumenCEJ;
+  const resDQActivo = resumenesCalculados?.dq || resumenDQ;
+  const resDPActivo = resumenesCalculados?.dp || resumenDP;
+
+  const resumenActivo = useMemo(() => {
+    if (tabResumenEmpresa === "DQ") return resDQActivo;
+    if (tabResumenEmpresa === "DP") return resDPActivo;
+    return resGlobalActivo;
+  }, [tabResumenEmpresa, resGlobalActivo, resDQActivo, resDPActivo]);
+
   // Exportar Excel Oficial CEJ
   const handleExportarExcelCEJ = () => {
     if (clientes.length === 0) {
@@ -438,7 +463,9 @@ export default function ListaCobranzaPage() {
       nombreGestor: getSelectedCobradorName(),
       codigoGestor: getSelectedCobradorCodigo(),
       detalles: clientes as any,
-      resumen: resumenCEJ || undefined
+      resumen: resGlobalActivo || undefined,
+      resumenDQ: resDQActivo || undefined,
+      resumenDP: resDPActivo || undefined
     });
 
     toast.success("Descargando archivo Excel oficial idéntico a Plantilla CEJ");
@@ -466,7 +493,9 @@ export default function ListaCobranzaPage() {
       nombreGestor: getSelectedCobradorName(),
       codigoGestor: getSelectedCobradorCodigo(),
       detalles: clientes as any,
-      resumen: resumenCEJ || undefined
+      resumen: resGlobalActivo || undefined,
+      resumenDQ: resDQActivo || undefined,
+      resumenDP: resDPActivo || undefined
     });
 
     if (blobUrl) {
@@ -1032,13 +1061,257 @@ export default function ListaCobranzaPage() {
             </TabsContent>
 
             {/* PESTAÑA 2: TABLERO EJECUTIVO DE CORTE (PÁGINA 2 CEJ) */}
-            <TabsContent value="tablero" className="m-0 space-y-4">
+            <TabsContent value="tablero" className="m-0 space-y-5">
+              {/* 1. Tarjeta Ejecutiva Comparativa: GLOBAL vs DQ vs DP */}
+              <Card className="border-gray-200 dark:border-slate-800 shadow-md overflow-hidden">
+                <CardHeader className="py-3.5 px-4 border-b bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white flex flex-col md:flex-row md:items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-blue-400" />
+                      <CardTitle className="text-sm font-black tracking-wide text-white uppercase">
+                        Resumen Comparativo de Corte: GLOBAL vs DQ vs DP
+                      </CardTitle>
+                    </div>
+                    <CardDescription className="text-[11px] text-slate-300 mt-0.5">
+                      Separación ejecutiva de cuentas para la Semana {semana} ({anio}) • Cobrador: {getSelectedCobradorName()}
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px] font-bold text-slate-200 border-slate-700 bg-slate-800/80">
+                      {esCorteGuardado ? "🔒 Corte Congelado" : "⚡ En Vivo"}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left align-middle border-collapse">
+                      <thead className="bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 text-[10px] font-bold uppercase tracking-wider">
+                        <tr>
+                          <th className="px-4 py-2.5 border border-slate-200 dark:border-slate-700">INDICADOR CLAVE</th>
+                          <th className="px-4 py-2.5 text-right border border-slate-200 dark:border-slate-700 bg-slate-200/70 dark:bg-slate-700/60 text-slate-900 dark:text-white font-black">
+                            🌐 GLOBAL (TOTAL)
+                          </th>
+                          <th className="px-4 py-2.5 text-right border border-slate-200 dark:border-slate-700 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-black">
+                            🏢 DQ (QUERÉTARO)
+                          </th>
+                          <th className="px-4 py-2.5 text-right border border-slate-200 dark:border-slate-700 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-black">
+                            🏬 DP (POLANCO)
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-slate-800 text-xs">
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-2 font-bold text-slate-800 dark:text-slate-200 border border-gray-100 dark:border-slate-800">
+                            Cuentas Asignadas (Cartera)
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800">
+                            {resGlobalActivo?.totalCuentas ?? 0} <span className="text-[11px] font-normal text-slate-500">({formatCurrency(resGlobalActivo?.totalSugerido ?? 0)})</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-blue-700 dark:text-blue-300 border border-gray-100 dark:border-slate-800">
+                            {resDQActivo?.totalCuentas ?? 0} <span className="text-[11px] font-normal text-slate-500">({formatCurrency(resDQActivo?.totalSugerido ?? 0)})</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-indigo-700 dark:text-indigo-300 border border-gray-100 dark:border-slate-800">
+                            {resDPActivo?.totalCuentas ?? 0} <span className="text-[11px] font-normal text-slate-500">({formatCurrency(resDPActivo?.totalSugerido ?? 0)})</span>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 bg-emerald-50/40 dark:bg-emerald-950/20">
+                          <td className="px-4 py-2 font-bold text-emerald-900 dark:text-emerald-300 border border-gray-100 dark:border-slate-800">
+                            Cobranza Real Recibida ($)
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-black text-emerald-700 dark:text-emerald-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resGlobalActivo?.totalCobrado ?? 0)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-black text-emerald-700 dark:text-emerald-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDQActivo?.totalCobrado ?? 0)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-black text-emerald-700 dark:text-emerald-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDPActivo?.totalCobrado ?? 0)}
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-2 font-bold text-slate-700 dark:text-slate-300 border border-gray-100 dark:border-slate-800">
+                            % Cumplimiento Metas (Sin Dobles)
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800">
+                            {resGlobalActivo?.porcentajeCtasSinDobles ?? 0}%
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-blue-700 dark:text-blue-300 border border-gray-100 dark:border-slate-800">
+                            {resDQActivo?.porcentajeCtasSinDobles ?? 0}%
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-indigo-700 dark:text-indigo-300 border border-gray-100 dark:border-slate-800">
+                            {resDPActivo?.porcentajeCtasSinDobles ?? 0}%
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-2 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">
+                            % Cumplimiento Metas (Con Dobles)
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-slate-700 dark:text-slate-300 border border-gray-100 dark:border-slate-800">
+                            {resGlobalActivo?.porcentajeCtasConDobles ?? 0}%
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-blue-600 dark:text-blue-400 border border-gray-100 dark:border-slate-800">
+                            {resDQActivo?.porcentajeCtasConDobles ?? 0}%
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-indigo-600 dark:text-indigo-400 border border-gray-100 dark:border-slate-800">
+                            {resDPActivo?.porcentajeCtasConDobles ?? 0}%
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-2 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">
+                            Cobranza en Efectivo (Gestor)
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-slate-800 dark:text-slate-200 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resGlobalActivo?.cobranzaEfectivo.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resGlobalActivo?.cobranzaEfectivo.cuentas ?? 0} ctas)</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-blue-700 dark:text-blue-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDQActivo?.cobranzaEfectivo.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDQActivo?.cobranzaEfectivo.cuentas ?? 0} ctas)</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-indigo-700 dark:text-indigo-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDPActivo?.cobranzaEfectivo.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDPActivo?.cobranzaEfectivo.cuentas ?? 0} ctas)</span>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-2 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">
+                            Cobranza en Bancos / Depósitos
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-slate-800 dark:text-slate-200 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resGlobalActivo?.cobranzaBancos.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resGlobalActivo?.cobranzaBancos.cuentas ?? 0} ctas)</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-blue-700 dark:text-blue-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDQActivo?.cobranzaBancos.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDQActivo?.cobranzaBancos.cuentas ?? 0} ctas)</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-indigo-700 dark:text-indigo-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDPActivo?.cobranzaBancos.pesos ?? 0)} <span className="text-[10px] text-slate-400">({resDPActivo?.cobranzaBancos.cuentas ?? 0} ctas)</span>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-2 text-rose-700 dark:text-rose-400 font-medium border border-gray-100 dark:border-slate-800">
+                            Saldo Vencido ($)
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-rose-600 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resGlobalActivo?.totalVencido ?? 0)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-rose-600 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDQActivo?.totalVencido ?? 0)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-rose-600 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDPActivo?.totalVencido ?? 0)}
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-2 font-bold text-slate-700 dark:text-slate-300 border border-gray-100 dark:border-slate-800">
+                            Cartera Total ($)
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resGlobalActivo?.totalCartera ?? 0)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-blue-700 dark:text-blue-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDQActivo?.totalCartera ?? 0)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-indigo-700 dark:text-indigo-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDPActivo?.totalCartera ?? 0)}
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-2 font-bold text-blue-700 dark:text-blue-400 border border-gray-100 dark:border-slate-800">
+                            Cuentas en RUTA
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-blue-700 dark:text-blue-400 border border-gray-100 dark:border-slate-800">
+                            {resGlobalActivo?.resumenProblemas.cuentasRuta.cuentas ?? 0} ctas <span className="text-[11px] font-normal text-slate-500">({formatCurrency(resGlobalActivo?.resumenProblemas.cuentasRuta.pesos ?? 0)})</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-blue-700 dark:text-blue-400 border border-gray-100 dark:border-slate-800">
+                            {resDQActivo?.resumenProblemas.cuentasRuta.cuentas ?? 0} ctas <span className="text-[11px] font-normal text-slate-500">({formatCurrency(resDQActivo?.resumenProblemas.cuentasRuta.pesos ?? 0)})</span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-indigo-700 dark:text-indigo-400 border border-gray-100 dark:border-slate-800">
+                            {resDPActivo?.resumenProblemas.cuentasRuta.cuentas ?? 0} ctas <span className="text-[11px] font-normal text-slate-500">({formatCurrency(resDPActivo?.resumenProblemas.cuentasRuta.pesos ?? 0)})</span>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-2 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">
+                            Total Cuentas Problema (K, IT, PE, PS, DL...)
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-slate-700 dark:text-slate-300 border border-gray-100 dark:border-slate-800">
+                            {resGlobalActivo?.resumenProblemas.totalProblemas.cuentas ?? 0} ctas
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-blue-600 dark:text-blue-400 border border-gray-100 dark:border-slate-800">
+                            {resDQActivo?.resumenProblemas.totalProblemas.cuentas ?? 0} ctas
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono text-indigo-600 dark:text-indigo-400 border border-gray-100 dark:border-slate-800">
+                            {resDPActivo?.resumenProblemas.totalProblemas.cuentas ?? 0} ctas
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 2. Selector de Empresa para Desglose Analítico */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
+                <div>
+                  <h3 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider">
+                    Desglose Analítico en Detalle
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Selecciona qué empresa visualizar en las 4 secciones inferiores (Problemas, Canales, Periodicidad y Diario):
+                  </p>
+                </div>
+
+                <div className="inline-flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setTabResumenEmpresa("GLOBAL")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
+                      tabResumenEmpresa === "GLOBAL"
+                        ? "bg-slate-900 text-white shadow-sm"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    <span>GLOBAL ({resGlobalActivo?.totalCuentas ?? 0})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTabResumenEmpresa("DQ")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
+                      tabResumenEmpresa === "DQ"
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "text-slate-600 dark:text-slate-400 hover:text-blue-600"
+                    }`}
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>DQ ({resDQActivo?.totalCuentas ?? 0})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTabResumenEmpresa("DP")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
+                      tabResumenEmpresa === "DP"
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "text-slate-600 dark:text-slate-400 hover:text-indigo-600"
+                    }`}
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>DP ({resDPActivo?.totalCuentas ?? 0})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Cuadrícula de 4 Tarjetas de Detalle */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* 1. Clasificación por Problema */}
                 <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
                   <CardHeader className="py-3 px-4 border-b bg-slate-50 dark:bg-slate-800/60">
                     <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center justify-between">
-                      <span>Clasificación de Cartera y Problemas</span>
+                      <div className="flex items-center gap-2">
+                        <span>Clasificación de Cartera y Problemas</span>
+                        <Badge className={`text-[10px] font-bold ${
+                          tabResumenEmpresa === "GLOBAL" ? "bg-slate-800 text-white" :
+                          tabResumenEmpresa === "DQ" ? "bg-blue-600 text-white" : "bg-indigo-600 text-white"
+                        }`}>
+                          {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP POLANCO"}
+                        </Badge>
+                      </div>
                       <Badge variant="outline" className="text-[10px] font-bold">Página 2 CEJ</Badge>
                     </CardTitle>
                   </CardHeader>
@@ -1046,59 +1319,59 @@ export default function ListaCobranzaPage() {
                     <div className="flex justify-between items-center py-1.5 px-2 bg-slate-100 dark:bg-slate-800 rounded font-bold">
                       <span>Cuentas Asignadas</span>
                       <span>
-                        {resumenCEJ?.resumenProblemas.totalAsignadas.cuentas ?? clientes.length} ctas •{" "}
-                        {formatCurrency(resumenCEJ?.resumenProblemas.totalAsignadas.pesos ?? totalCobrar)}
+                        {resumenActivo?.resumenProblemas.totalAsignadas.cuentas ?? 0} ctas •{" "}
+                        {formatCurrency(resumenActivo?.resumenProblemas.totalAsignadas.pesos ?? 0)}
                       </span>
                     </div>
 
                     <div className="space-y-1 pt-1">
                       <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
                         <span className="text-slate-600 dark:text-slate-400">CANCELADO (K)</span>
-                        <span className="font-mono">{resumenCEJ?.resumenProblemas.canceladoK.cuentas ?? 0} ({formatCurrency(resumenCEJ?.resumenProblemas.canceladoK.pesos ?? 0)})</span>
+                        <span className="font-mono">{resumenActivo?.resumenProblemas.canceladoK.cuentas ?? 0} ({formatCurrency(resumenActivo?.resumenProblemas.canceladoK.pesos ?? 0)})</span>
                       </div>
                       <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
                         <span className="text-slate-600 dark:text-slate-400">INTERVENCION (IT)</span>
-                        <span className="font-mono">{resumenCEJ?.resumenProblemas.intervencionIT.cuentas ?? 0} ({formatCurrency(resumenCEJ?.resumenProblemas.intervencionIT.pesos ?? 0)})</span>
+                        <span className="font-mono">{resumenActivo?.resumenProblemas.intervencionIT.cuentas ?? 0} ({formatCurrency(resumenActivo?.resumenProblemas.intervencionIT.pesos ?? 0)})</span>
                       </div>
                       <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
                         <span className="text-slate-600 dark:text-slate-400">ADELANTADO (AD)</span>
-                        <span className="font-mono">{resumenCEJ?.resumenProblemas.adelantadoAD.cuentas ?? 0} ({formatCurrency(resumenCEJ?.resumenProblemas.adelantadoAD.pesos ?? 0)})</span>
+                        <span className="font-mono">{resumenActivo?.resumenProblemas.adelantadoAD.cuentas ?? 0} ({formatCurrency(resumenActivo?.resumenProblemas.adelantadoAD.pesos ?? 0)})</span>
                       </div>
                       <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
                         <span className="text-slate-600 dark:text-slate-400">PERIODO (PE)</span>
-                        <span className="font-mono font-bold text-amber-600">{resumenCEJ?.resumenProblemas.periodoPE.cuentas ?? 0} ({formatCurrency(resumenCEJ?.resumenProblemas.periodoPE.pesos ?? 0)})</span>
+                        <span className="font-mono font-bold text-amber-600">{resumenActivo?.resumenProblemas.periodoPE.cuentas ?? 0} ({formatCurrency(resumenActivo?.resumenProblemas.periodoPE.pesos ?? 0)})</span>
                       </div>
                       <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
                         <span className="text-slate-600 dark:text-slate-400">PAGO SEM (PS)</span>
-                        <span className="font-mono">{resumenCEJ?.resumenProblemas.pagoSemPS.cuentas ?? 0} ({formatCurrency(resumenCEJ?.resumenProblemas.pagoSemPS.pesos ?? 0)})</span>
+                        <span className="font-mono">{resumenActivo?.resumenProblemas.pagoSemPS.cuentas ?? 0} ({formatCurrency(resumenActivo?.resumenProblemas.pagoSemPS.pesos ?? 0)})</span>
                       </div>
                       <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
                         <span className="text-slate-600 dark:text-slate-400">DICT LEGAL (DL)</span>
-                        <span className="font-mono">{resumenCEJ?.resumenProblemas.dictLegalDL.cuentas ?? 0} ({formatCurrency(resumenCEJ?.resumenProblemas.dictLegalDL.pesos ?? 0)})</span>
+                        <span className="font-mono">{resumenActivo?.resumenProblemas.dictLegalDL.cuentas ?? 0} ({formatCurrency(resumenActivo?.resumenProblemas.dictLegalDL.pesos ?? 0)})</span>
                       </div>
                     </div>
 
                     <div className="flex justify-between items-center py-1.5 px-2 bg-rose-50 dark:bg-rose-950/40 text-rose-900 dark:text-rose-300 rounded font-bold">
                       <span>TOTAL PROBLEMAS</span>
                       <span>
-                        {resumenCEJ?.resumenProblemas.totalProblemas.cuentas ?? 0} ctas •{" "}
-                        {formatCurrency(resumenCEJ?.resumenProblemas.totalProblemas.pesos ?? 0)}
+                        {resumenActivo?.resumenProblemas.totalProblemas.cuentas ?? 0} ctas •{" "}
+                        {formatCurrency(resumenActivo?.resumenProblemas.totalProblemas.pesos ?? 0)}
                       </span>
                     </div>
 
                     <div className="flex justify-between items-center py-1.5 px-2 bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-300 rounded font-bold mt-2">
                       <span>Cuentas en RUTA</span>
                       <span>
-                        {resumenCEJ?.resumenProblemas.cuentasRuta.cuentas ?? 0} ctas •{" "}
-                        {formatCurrency(resumenCEJ?.resumenProblemas.cuentasRuta.pesos ?? 0)}
+                        {resumenActivo?.resumenProblemas.cuentasRuta.cuentas ?? 0} ctas •{" "}
+                        {formatCurrency(resumenActivo?.resumenProblemas.cuentasRuta.pesos ?? 0)}
                       </span>
                     </div>
 
                     <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
                       <span className="text-slate-600 dark:text-slate-400">Vencidos en RUTA</span>
                       <span className="font-mono font-bold text-rose-600">
-                        {resumenCEJ?.resumenProblemas.vencidosRuta.cuentas ?? 0} ctas •{" "}
-                        {formatCurrency(resumenCEJ?.resumenProblemas.vencidosRuta.pesos ?? 0)}
+                        {resumenActivo?.resumenProblemas.vencidosRuta.cuentas ?? 0} ctas •{" "}
+                        {formatCurrency(resumenActivo?.resumenProblemas.vencidosRuta.pesos ?? 0)}
                       </span>
                     </div>
                   </CardContent>
@@ -1107,8 +1380,16 @@ export default function ListaCobranzaPage() {
                 {/* 2. Canales de Recaudación y Cumplimiento */}
                 <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
                   <CardHeader className="py-3 px-4 border-b bg-slate-50 dark:bg-slate-800/60">
-                    <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                      Canales de Cobro y Cumplimiento de Metas
+                    <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span>Canales de Cobro y Cumplimiento de Metas</span>
+                        <Badge className={`text-[10px] font-bold ${
+                          tabResumenEmpresa === "GLOBAL" ? "bg-slate-800 text-white" :
+                          tabResumenEmpresa === "DQ" ? "bg-blue-600 text-white" : "bg-indigo-600 text-white"
+                        }`}>
+                          {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP POLANCO"}
+                        </Badge>
+                      </div>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 space-y-3 text-xs">
@@ -1116,33 +1397,33 @@ export default function ListaCobranzaPage() {
                       <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-xl border border-emerald-100 dark:border-emerald-900">
                         <p className="text-[10px] font-bold uppercase text-emerald-800 dark:text-emerald-300">EFECTIVO (Cobrador)</p>
                         <p className="text-lg font-black font-mono text-emerald-700 dark:text-emerald-400 mt-1">
-                          {formatCurrency(resumenCEJ?.cobranzaEfectivo.pesos ?? 0)}
+                          {formatCurrency(resumenActivo?.cobranzaEfectivo.pesos ?? 0)}
                         </p>
-                        <p className="text-[10px] text-emerald-600 mt-0.5">{resumenCEJ?.cobranzaEfectivo.cuentas ?? 0} cuentas</p>
+                        <p className="text-[10px] text-emerald-600 mt-0.5">{resumenActivo?.cobranzaEfectivo.cuentas ?? 0} cuentas</p>
                       </div>
 
                       <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 rounded-xl border border-blue-100 dark:border-blue-900">
                         <p className="text-[10px] font-bold uppercase text-blue-800 dark:text-blue-300">BANCOS (Depósito/Bot)</p>
                         <p className="text-lg font-black font-mono text-blue-700 dark:text-blue-400 mt-1">
-                          {formatCurrency(resumenCEJ?.cobranzaBancos.pesos ?? 0)}
+                          {formatCurrency(resumenActivo?.cobranzaBancos.pesos ?? 0)}
                         </p>
-                        <p className="text-[10px] text-blue-600 mt-0.5">{resumenCEJ?.cobranzaBancos.cuentas ?? 0} cuentas</p>
+                        <p className="text-[10px] text-blue-600 mt-0.5">{resumenActivo?.cobranzaBancos.cuentas ?? 0} cuentas</p>
                       </div>
                     </div>
 
                     <div className="p-3 bg-slate-100 dark:bg-slate-800/80 rounded-xl space-y-1.5">
                       <div className="flex justify-between font-bold text-slate-900 dark:text-white">
                         <span>% Cumplimiento Cuentas (Sin Dobles)</span>
-                        <span className="font-mono">{resumenCEJ?.porcentajeCtasSinDobles ?? 0}%</span>
+                        <span className="font-mono">{resumenActivo?.porcentajeCtasSinDobles ?? 0}%</span>
                       </div>
                       <div className="flex justify-between text-slate-600 dark:text-slate-400">
                         <span>% Cumplimiento Cuentas (Con Dobles)</span>
-                        <span className="font-mono">{resumenCEJ?.porcentajeCtasConDobles ?? 0}%</span>
+                        <span className="font-mono">{resumenActivo?.porcentajeCtasConDobles ?? 0}%</span>
                       </div>
                       <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                         <span className="font-bold text-xs">Regla de Pago de Comisiones:</span>
-                        <Badge variant={resumenCEJ?.pagarConPorcentajeSinDobles ? "destructive" : "default"} className="font-bold">
-                          {resumenCEJ?.pagarConPorcentajeSinDobles ? "PAGAR CON % SIN DOBLES (<81%)" : "OBJETIVO CUMPLIDO (>=81%)"}
+                        <Badge variant={resumenActivo?.pagarConPorcentajeSinDobles ? "destructive" : "default"} className="font-bold">
+                          {resumenActivo?.pagarConPorcentajeSinDobles ? "PAGAR CON % SIN DOBLES (<81%)" : "OBJETIVO CUMPLIDO (>=81%)"}
                         </Badge>
                       </div>
                     </div>
@@ -1150,11 +1431,11 @@ export default function ListaCobranzaPage() {
                     <div className="space-y-1.5 pt-1 text-slate-600 dark:text-slate-400">
                       <div className="flex justify-between">
                         <span>Pagos Dobles Registrados:</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(resumenCEJ?.totalPagosDobles ?? 0)}</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(resumenActivo?.totalPagosDobles ?? 0)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Recuperado Periodos Vencidos (PV):</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(resumenCEJ?.totalRecuperadoPv ?? 0)}</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(resumenActivo?.totalRecuperadoPv ?? 0)}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -1162,12 +1443,18 @@ export default function ListaCobranzaPage() {
               </div>
 
               {/* 3. Matriz Presupuesto vs Cobranza por Periodicidad */}
-              {resumenCEJ?.matrizPeriodos && resumenCEJ.matrizPeriodos.length > 0 && (
+              {resumenActivo?.matrizPeriodos && resumenActivo.matrizPeriodos.length > 0 && (
                 <Card className="border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                  <CardHeader className="py-3 px-4 border-b bg-slate-50 dark:bg-slate-800/60">
+                  <CardHeader className="py-3 px-4 border-b bg-slate-50 dark:bg-slate-800/60 flex flex-row items-center justify-between">
                     <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
                       Presupuesto vs Cobranza por Periodicidad
                     </CardTitle>
+                    <Badge className={`text-[10px] font-bold ${
+                      tabResumenEmpresa === "GLOBAL" ? "bg-slate-800 text-white" :
+                      tabResumenEmpresa === "DQ" ? "bg-blue-600 text-white" : "bg-indigo-600 text-white"
+                    }`}>
+                      {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP POLANCO"}
+                    </Badge>
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="overflow-x-auto">
@@ -1184,7 +1471,7 @@ export default function ListaCobranzaPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-slate-800 bg-white dark:bg-slate-900 text-xs">
-                          {resumenCEJ.matrizPeriodos.map((m) => (
+                          {resumenActivo.matrizPeriodos.map((m) => (
                             <tr key={m.periodo} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                               <td className="px-4 py-2 font-bold uppercase border border-gray-100 dark:border-slate-800">{m.periodo}</td>
                               <td className="px-4 py-2 text-center font-mono border border-gray-100 dark:border-slate-800">{m.pptoCtas}</td>
@@ -1197,10 +1484,10 @@ export default function ListaCobranzaPage() {
                           ))}
                         </tbody>
                         {(() => {
-                          const totPptoCtas = resumenCEJ.matrizPeriodos.reduce((acc, m) => acc + m.pptoCtas, 0);
-                          const totPptoPesos = resumenCEJ.matrizPeriodos.reduce((acc, m) => acc + m.pptoPesos, 0);
-                          const totCobCtas = resumenCEJ.matrizPeriodos.reduce((acc, m) => acc + m.cobCtas, 0);
-                          const totCobPesos = resumenCEJ.matrizPeriodos.reduce((acc, m) => acc + m.cobPesos, 0);
+                          const totPptoCtas = resumenActivo.matrizPeriodos.reduce((acc, m) => acc + m.pptoCtas, 0);
+                          const totPptoPesos = resumenActivo.matrizPeriodos.reduce((acc, m) => acc + m.pptoPesos, 0);
+                          const totCobCtas = resumenActivo.matrizPeriodos.reduce((acc, m) => acc + m.cobCtas, 0);
+                          const totCobPesos = resumenActivo.matrizPeriodos.reduce((acc, m) => acc + m.cobPesos, 0);
                           const totPorcCtas = totPptoCtas > 0 ? Math.round((totCobCtas / totPptoCtas) * 1000) / 10 : 0;
                           const totPorcPesos = totPptoPesos > 0 ? Math.round((totCobPesos / totPptoPesos) * 1000) / 10 : 0;
                           return (
@@ -1224,12 +1511,18 @@ export default function ListaCobranzaPage() {
               )}
 
               {/* 4. Presupuesto Diario Semanal */}
-              {resumenCEJ?.resumenDiario && resumenCEJ.resumenDiario.length > 0 && (
+              {resumenActivo?.resumenDiario && resumenActivo.resumenDiario.length > 0 && (
                 <Card className="border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                  <CardHeader className="py-3 px-4 border-b bg-slate-50 dark:bg-slate-800/60">
+                  <CardHeader className="py-3 px-4 border-b bg-slate-50 dark:bg-slate-800/60 flex flex-row items-center justify-between">
                     <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
                       Presupuesto y Avance Diario Semanal (Cuentas RUTA)
                     </CardTitle>
+                    <Badge className={`text-[10px] font-bold ${
+                      tabResumenEmpresa === "GLOBAL" ? "bg-slate-800 text-white" :
+                      tabResumenEmpresa === "DQ" ? "bg-blue-600 text-white" : "bg-indigo-600 text-white"
+                    }`}>
+                      {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP POLANCO"}
+                    </Badge>
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="overflow-x-auto">
@@ -1244,7 +1537,7 @@ export default function ListaCobranzaPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-slate-800 bg-white dark:bg-slate-900 text-xs">
-                          {resumenCEJ.resumenDiario.map((d) => (
+                          {resumenActivo.resumenDiario.map((d) => (
                             <tr key={d.dia} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                               <td className="px-4 py-2 font-bold uppercase border border-gray-100 dark:border-slate-800">{d.dia}</td>
                               <td className="px-4 py-2 text-center font-mono border border-gray-100 dark:border-slate-800">{d.pptoCuentas}</td>
@@ -1255,10 +1548,10 @@ export default function ListaCobranzaPage() {
                           ))}
                         </tbody>
                         {(() => {
-                          const totPptoCtas = resumenCEJ.resumenDiario.reduce((acc, d) => acc + d.pptoCuentas, 0);
-                          const totAvanceCtas = resumenCEJ.resumenDiario.reduce((acc, d) => acc + d.avanceCuentas, 0);
-                          const totPptoDinero = resumenCEJ.resumenDiario.reduce((acc, d) => acc + d.pptoDinero, 0);
-                          const totAvanceDinero = resumenCEJ.resumenDiario.reduce((acc, d) => acc + d.avanceDinero, 0);
+                          const totPptoCtas = resumenActivo.resumenDiario.reduce((acc, d) => acc + d.pptoCuentas, 0);
+                          const totAvanceCtas = resumenActivo.resumenDiario.reduce((acc, d) => acc + d.avanceCuentas, 0);
+                          const totPptoDinero = resumenActivo.resumenDiario.reduce((acc, d) => acc + d.pptoDinero, 0);
+                          const totAvanceDinero = resumenActivo.resumenDiario.reduce((acc, d) => acc + d.avanceDinero, 0);
                           return (
                             <tfoot className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-xs">
                               <tr>

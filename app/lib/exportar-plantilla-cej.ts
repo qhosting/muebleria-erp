@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { DetalleCalculadoCEJ, ResumenCorteCEJ } from "./corte-cej-utils";
+import { DetalleCalculadoCEJ, ResumenCorteCEJ, separarYCalcularResumenesCEJ } from "./corte-cej-utils";
 
 export interface DatosExportacionCEJ {
   anio: number;
@@ -10,6 +10,8 @@ export interface DatosExportacionCEJ {
   codigoGestor: string;
   detalles: DetalleCalculadoCEJ[];
   resumen?: ResumenCorteCEJ;
+  resumenDQ?: ResumenCorteCEJ;
+  resumenDP?: ResumenCorteCEJ;
 }
 
 /**
@@ -137,75 +139,111 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
     setCell(r, 29, d.tipCob);
   });
 
-  // --- 4. BLOQUE DE RESUMEN EJECUTIVO (Fila 500 en adelante) ---
-  const resumenRowStart = Math.max(8 + datos.detalles.length + 10, 500);
+  // --- 4. BLOQUE COMPARATIVO Y RESUMEN EJECUTIVO (Fila 500 en adelante) ---
+  const resCalculados = separarYCalcularResumenesCEJ(datos.detalles);
+  const resGlobal = datos.resumen || resCalculados.global;
+  const resDQ = datos.resumenDQ || resCalculados.dq;
+  const resDP = datos.resumenDP || resCalculados.dp;
+
+  const resumenRowStart = Math.max(8 + datos.detalles.length + 5, 500);
+
+  // Tabla Comparativa Ejecutiva: GLOBAL vs DQ vs DP
+  setCell(resumenRowStart, 0, "RESUMEN COMPARATIVO DE CORTE");
+  setCell(resumenRowStart, 1, "GLOBAL (TOTAL)");
+  setCell(resumenRowStart, 2, "DQ (QUERETARO)");
+  setCell(resumenRowStart, 3, "DP (POLANCO)");
+
+  const rowsComp = [
+    { concepto: "Cuentas Asignadas", g: resGlobal.totalCuentas, dq: resDQ.totalCuentas, dp: resDP.totalCuentas, num: true },
+    { concepto: "Pago Sugerido (Ppto $)", g: resGlobal.totalSugerido, dq: resDQ.totalSugerido, dp: resDP.totalSugerido, num: true },
+    { concepto: "Cobranza Real Recibida ($)", g: resGlobal.totalCobrado, dq: resDQ.totalCobrado, dp: resDP.totalCobrado, num: true },
+    { concepto: "% Cumplimiento (Sin Dobles)", g: `${resGlobal.porcentajeCtasSinDobles}%`, dq: `${resDQ.porcentajeCtasSinDobles}%`, dp: `${resDP.porcentajeCtasSinDobles}%`, num: false },
+    { concepto: "% Cumplimiento (Con Dobles)", g: `${resGlobal.porcentajeCtasConDobles}%`, dq: `${resDQ.porcentajeCtasConDobles}%`, dp: `${resDP.porcentajeCtasConDobles}%`, num: false },
+    { concepto: "Cobro en Efectivo ($)", g: resGlobal.cobranzaEfectivo.pesos, dq: resDQ.cobranzaEfectivo.pesos, dp: resDP.cobranzaEfectivo.pesos, num: true },
+    { concepto: "Cobro en Bancos ($)", g: resGlobal.cobranzaBancos.pesos, dq: resDQ.cobranzaBancos.pesos, dp: resDP.cobranzaBancos.pesos, num: true },
+    { concepto: "Saldo Vencido ($)", g: resGlobal.totalVencido, dq: resDQ.totalVencido, dp: resDP.totalVencido, num: true },
+    { concepto: "Cartera Total ($)", g: resGlobal.totalCartera, dq: resDQ.totalCartera, dp: resDP.totalCartera, num: true },
+    { concepto: "Cuentas en RUTA", g: resGlobal.resumenProblemas.cuentasRuta.cuentas, dq: resDQ.resumenProblemas.cuentasRuta.cuentas, dp: resDP.resumenProblemas.cuentasRuta.cuentas, num: true },
+    { concepto: "Vencidos en RUTA ($)", g: resGlobal.resumenProblemas.vencidosRuta.pesos, dq: resDQ.resumenProblemas.vencidosRuta.pesos, dp: resDP.resumenProblemas.vencidosRuta.pesos, num: true },
+    { concepto: "Total Cuentas Problema", g: resGlobal.resumenProblemas.totalProblemas.cuentas, dq: resDQ.resumenProblemas.totalProblemas.cuentas, dp: resDP.resumenProblemas.totalProblemas.cuentas, num: true }
+  ];
+
+  rowsComp.forEach((item, rIdx) => {
+    const curRow = resumenRowStart + 1 + rIdx;
+    setCell(curRow, 0, item.concepto);
+    setCell(curRow, 1, item.g, item.num ? 'n' : 's');
+    setCell(curRow, 2, item.dq, item.num ? 'n' : 's');
+    setCell(curRow, 3, item.dp, item.num ? 'n' : 's');
+  });
+
+  const detalleStart = resumenRowStart + rowsComp.length + 3;
 
   // Totales de la Cartera
-  setCell(resumenRowStart + 1, 0, "Totales");
-  setCell(resumenRowStart + 1, 6, datos.resumen?.totalSugerido ?? 0, 'n');
-  setCell(resumenRowStart + 1, 7, datos.resumen?.totalVencido ?? 0, 'n');
-  setCell(resumenRowStart + 1, 9, datos.resumen?.totalCartera ?? 0, 'n');
-  setCell(resumenRowStart + 1, 14, datos.resumen?.totalCobrado ?? 0, 'n');
-  setCell(resumenRowStart + 1, 15, "CUENTAS");
-  setCell(resumenRowStart + 1, 16, datos.detalles.length, 'n');
+  setCell(detalleStart + 1, 0, "Totales Cartera");
+  setCell(detalleStart + 1, 6, resGlobal.totalSugerido ?? 0, 'n');
+  setCell(detalleStart + 1, 7, resGlobal.totalVencido ?? 0, 'n');
+  setCell(detalleStart + 1, 9, resGlobal.totalCartera ?? 0, 'n');
+  setCell(detalleStart + 1, 14, resGlobal.totalCobrado ?? 0, 'n');
+  setCell(detalleStart + 1, 15, "CUENTAS");
+  setCell(detalleStart + 1, 16, datos.detalles.length, 'n');
 
   // Resumen de Problemas (Página 2 CEJ)
-  setCell(resumenRowStart + 3, 0, "RESUMEN DE COBRANZA");
-  setCell(resumenRowStart + 3, 3, `${datos.nombreGestor} RUTA SEMANA ${datos.semana}`);
+  setCell(detalleStart + 3, 0, "RESUMEN DE COBRANZA");
+  setCell(detalleStart + 3, 3, `${datos.nombreGestor} RUTA SEMANA ${datos.semana}`);
 
-  const prob = datos.resumen?.resumenProblemas;
-  setCell(resumenRowStart + 4, 0, "Cuentas Asignadas");
-  setCell(resumenRowStart + 4, 2, prob?.totalAsignadas.cuentas ?? datos.detalles.length, 'n');
-  setCell(resumenRowStart + 4, 3, prob?.totalAsignadas.pesos ?? datos.resumen?.totalSugerido ?? 0, 'n');
+  const prob = resGlobal.resumenProblemas;
+  setCell(detalleStart + 4, 0, "Cuentas Asignadas");
+  setCell(detalleStart + 4, 2, prob?.totalAsignadas.cuentas ?? datos.detalles.length, 'n');
+  setCell(detalleStart + 4, 3, prob?.totalAsignadas.pesos ?? resGlobal.totalSugerido ?? 0, 'n');
 
-  setCell(resumenRowStart + 5, 0, "Cuentas (CANCELADO K)");
-  setCell(resumenRowStart + 5, 2, prob?.canceladoK.cuentas ?? 0, 'n');
-  setCell(resumenRowStart + 5, 3, prob?.canceladoK.pesos ?? 0, 'n');
+  setCell(detalleStart + 5, 0, "Cuentas (CANCELADO K)");
+  setCell(detalleStart + 5, 2, prob?.canceladoK.cuentas ?? 0, 'n');
+  setCell(detalleStart + 5, 3, prob?.canceladoK.pesos ?? 0, 'n');
 
-  setCell(resumenRowStart + 6, 0, "Cuentas (INTERVENCION IT)");
-  setCell(resumenRowStart + 6, 2, prob?.intervencionIT.cuentas ?? 0, 'n');
-  setCell(resumenRowStart + 6, 3, prob?.intervencionIT.pesos ?? 0, 'n');
+  setCell(detalleStart + 6, 0, "Cuentas (INTERVENCION IT)");
+  setCell(detalleStart + 6, 2, prob?.intervencionIT.cuentas ?? 0, 'n');
+  setCell(detalleStart + 6, 3, prob?.intervencionIT.pesos ?? 0, 'n');
 
-  setCell(resumenRowStart + 7, 0, "Cuentas (ADELANTADO AD)");
-  setCell(resumenRowStart + 7, 2, prob?.adelantadoAD.cuentas ?? 0, 'n');
-  setCell(resumenRowStart + 7, 3, prob?.adelantadoAD.pesos ?? 0, 'n');
+  setCell(detalleStart + 7, 0, "Cuentas (ADELANTADO AD)");
+  setCell(detalleStart + 7, 2, prob?.adelantadoAD.cuentas ?? 0, 'n');
+  setCell(detalleStart + 7, 3, prob?.adelantadoAD.pesos ?? 0, 'n');
 
-  setCell(resumenRowStart + 8, 0, "Cuentas (PERIODO PE)");
-  setCell(resumenRowStart + 8, 2, prob?.periodoPE.cuentas ?? 0, 'n');
-  setCell(resumenRowStart + 8, 3, prob?.periodoPE.pesos ?? 0, 'n');
+  setCell(detalleStart + 8, 0, "Cuentas (PERIODO PE)");
+  setCell(detalleStart + 8, 2, prob?.periodoPE.cuentas ?? 0, 'n');
+  setCell(detalleStart + 8, 3, prob?.periodoPE.pesos ?? 0, 'n');
 
-  setCell(resumenRowStart + 9, 0, "Cuentas (PAGO SEM PS)");
-  setCell(resumenRowStart + 9, 2, prob?.pagoSemPS.cuentas ?? 0, 'n');
-  setCell(resumenRowStart + 9, 3, prob?.pagoSemPS.pesos ?? 0, 'n');
+  setCell(detalleStart + 9, 0, "Cuentas (PAGO SEM PS)");
+  setCell(detalleStart + 9, 2, prob?.pagoSemPS.cuentas ?? 0, 'n');
+  setCell(detalleStart + 9, 3, prob?.pagoSemPS.pesos ?? 0, 'n');
 
-  setCell(resumenRowStart + 10, 0, "Cuentas (DICT LEGAL DL)");
-  setCell(resumenRowStart + 10, 2, prob?.dictLegalDL.cuentas ?? 0, 'n');
-  setCell(resumenRowStart + 10, 3, prob?.dictLegalDL.pesos ?? 0, 'n');
+  setCell(detalleStart + 10, 0, "Cuentas (DICT LEGAL DL)");
+  setCell(detalleStart + 10, 2, prob?.dictLegalDL.cuentas ?? 0, 'n');
+  setCell(detalleStart + 10, 3, prob?.dictLegalDL.pesos ?? 0, 'n');
 
-  setCell(resumenRowStart + 11, 0, "TOTAL PROBLEMAS");
-  setCell(resumenRowStart + 11, 2, prob?.totalProblemas.cuentas ?? 0, 'n');
-  setCell(resumenRowStart + 11, 3, prob?.totalProblemas.pesos ?? 0, 'n');
+  setCell(detalleStart + 11, 0, "TOTAL PROBLEMAS");
+  setCell(detalleStart + 11, 2, prob?.totalProblemas.cuentas ?? 0, 'n');
+  setCell(detalleStart + 11, 3, prob?.totalProblemas.pesos ?? 0, 'n');
 
-  setCell(resumenRowStart + 12, 0, "Cuentas (RUTA)");
-  setCell(resumenRowStart + 12, 2, prob?.cuentasRuta.cuentas ?? 0, 'n');
-  setCell(resumenRowStart + 12, 3, prob?.cuentasRuta.pesos ?? 0, 'n');
+  setCell(detalleStart + 12, 0, "Cuentas (RUTA)");
+  setCell(detalleStart + 12, 2, prob?.cuentasRuta.cuentas ?? 0, 'n');
+  setCell(detalleStart + 12, 3, prob?.cuentasRuta.pesos ?? 0, 'n');
 
-  setCell(resumenRowStart + 13, 0, "Vencidos (RUTA)");
-  setCell(resumenRowStart + 13, 2, prob?.vencidosRuta.cuentas ?? 0, 'n');
-  setCell(resumenRowStart + 13, 3, prob?.vencidosRuta.pesos ?? 0, 'n');
+  setCell(detalleStart + 13, 0, "Vencidos (RUTA)");
+  setCell(detalleStart + 13, 2, prob?.vencidosRuta.cuentas ?? 0, 'n');
+  setCell(detalleStart + 13, 3, prob?.vencidosRuta.pesos ?? 0, 'n');
 
   // Matriz de Periodicidades
-  setCell(resumenRowStart + 14, 4, "PERIODICIDAD");
-  setCell(resumenRowStart + 14, 5, "PPTO CTAS");
-  setCell(resumenRowStart + 14, 6, "PPTO PESOS");
-  setCell(resumenRowStart + 14, 7, "COB CTAS");
-  setCell(resumenRowStart + 14, 8, "COB PESOS");
-  setCell(resumenRowStart + 14, 9, "%CTAS");
-  setCell(resumenRowStart + 14, 10, "%PESOS");
+  setCell(detalleStart + 14, 4, "PERIODICIDAD");
+  setCell(detalleStart + 14, 5, "PPTO CTAS");
+  setCell(detalleStart + 14, 6, "PPTO PESOS");
+  setCell(detalleStart + 14, 7, "COB CTAS");
+  setCell(detalleStart + 14, 8, "COB PESOS");
+  setCell(detalleStart + 14, 9, "%CTAS");
+  setCell(detalleStart + 14, 10, "%PESOS");
 
-  if (datos.resumen?.matrizPeriodos) {
-    datos.resumen.matrizPeriodos.forEach((p, idx) => {
-      const pr = resumenRowStart + 15 + idx;
+  if (resGlobal.matrizPeriodos) {
+    resGlobal.matrizPeriodos.forEach((p, idx) => {
+      const pr = detalleStart + 15 + idx;
       setCell(pr, 4, p.periodo);
       setCell(pr, 5, p.pptoCtas, 'n');
       setCell(pr, 6, p.pptoPesos, 'n');
@@ -214,11 +252,11 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
       setCell(pr, 9, `${p.porcCtas}%`);
       setCell(pr, 10, `${p.porcPesos}%`);
     });
-    const totRow = resumenRowStart + 15 + datos.resumen.matrizPeriodos.length;
-    const totPptoCtas = datos.resumen.matrizPeriodos.reduce((a, b) => a + b.pptoCtas, 0);
-    const totPptoPesos = datos.resumen.matrizPeriodos.reduce((a, b) => a + b.pptoPesos, 0);
-    const totCobCtas = datos.resumen.matrizPeriodos.reduce((a, b) => a + b.cobCtas, 0);
-    const totCobPesos = datos.resumen.matrizPeriodos.reduce((a, b) => a + b.cobPesos, 0);
+    const totRow = detalleStart + 15 + resGlobal.matrizPeriodos.length;
+    const totPptoCtas = resGlobal.matrizPeriodos.reduce((a, b) => a + b.pptoCtas, 0);
+    const totPptoPesos = resGlobal.matrizPeriodos.reduce((a, b) => a + b.pptoPesos, 0);
+    const totCobCtas = resGlobal.matrizPeriodos.reduce((a, b) => a + b.cobCtas, 0);
+    const totCobPesos = resGlobal.matrizPeriodos.reduce((a, b) => a + b.cobPesos, 0);
     const totPorcCtas = totPptoCtas > 0 ? Math.round((totCobCtas / totPptoCtas) * 1000) / 10 : 0;
     const totPorcPesos = totPptoPesos > 0 ? Math.round((totCobPesos / totPptoPesos) * 1000) / 10 : 0;
     setCell(totRow, 4, "TOTAL");
@@ -231,7 +269,7 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
   }
 
   // Presupuesto Diario Semanal
-  const diarioStart = resumenRowStart + 24;
+  const diarioStart = detalleStart + 24;
   setCell(diarioStart, 4, "PPTO DIARIO SEMANAL");
   const diasHeaders = ["SABADO", "DOMINGO", "LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES", "TOTAL"];
   diasHeaders.forEach((dh, di) => setCell(diarioStart, 5 + di, dh));
@@ -323,9 +361,14 @@ export function descargarExcelCEJ(datos: DatosExportacionCEJ) {
  * y finaliza con la página de Resumen Ejecutivo y Metas de Cobro.
  */
 export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
-  const p = datos.resumen?.resumenProblemas;
-  const mPeriodos = datos.resumen?.matrizPeriodos || [];
-  const rDiario = datos.resumen?.resumenDiario || [];
+  const resCalculados = separarYCalcularResumenesCEJ(datos.detalles);
+  const resGlobal = datos.resumen || resCalculados.global;
+  const resDQ = datos.resumenDQ || resCalculados.dq;
+  const resDP = datos.resumenDP || resCalculados.dp;
+
+  const p = resGlobal.resumenProblemas;
+  const mPeriodos = resGlobal.matrizPeriodos || [];
+  const rDiario = resGlobal.resumenDiario || [];
 
   const FILAS_POR_PAGINA = 38;
   const detalles = datos.detalles || [];
@@ -470,6 +513,83 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
         <div>FECHA: <strong>${new Date().toLocaleDateString("es-MX")}</strong></div>
       </div>
     </div>
+
+    <!-- TABLA COMPARATIVA EJECUTIVA: GLOBAL vs DQ vs DP -->
+    <div class="section-card" style="margin-bottom: 12px;">
+      <div class="card-header" style="background: #0f172a; display: flex; justify-content: space-between;">
+        <span>RESUMEN COMPARATIVO DE CORTE (GLOBAL vs DQ vs DP)</span>
+        <span>Semana ${datos.semana} (${datos.anio})</span>
+      </div>
+      <div class="card-body" style="padding: 4px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 8px;">
+          <thead>
+            <tr style="background: #1e293b; color: white;">
+              <th style="padding: 4px 6px; text-align: left;">INDICADOR CLAVE</th>
+              <th style="padding: 4px 6px; text-align: right; background: #334155;">GLOBAL (TOTAL)</th>
+              <th style="padding: 4px 6px; text-align: right; background: #1e3a8a;">DQ (QUERÉTARO)</th>
+              <th style="padding: 4px 6px; text-align: right; background: #312e81;">DP (POLANCO)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cuentas Asignadas</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.totalCuentas} ($${resGlobal.totalSugerido.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #1e3a8a;">${resDQ.totalCuentas} ($${resDQ.totalSugerido.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #312e81;">${resDP.totalCuentas} ($${resDP.totalSugerido.toLocaleString("es-MX")})</td>
+            </tr>
+            <tr style="background: #f8fafc;">
+              <td class="font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cobranza Real Recibida</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #166534;">$${resGlobal.totalCobrado.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #166534;">$${resDQ.totalCobrado.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #166534;">$${resDP.totalCobrado.toLocaleString("es-MX")}</td>
+            </tr>
+            <tr>
+              <td class="font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">% Cumplimiento (Sin Dobles)</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.porcentajeCtasSinDobles}%</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #1e3a8a;">${resDQ.porcentajeCtasSinDobles}%</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #312e81;">${resDP.porcentajeCtasSinDobles}%</td>
+            </tr>
+            <tr style="background: #f8fafc;">
+              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cobranza Efectivo</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.cobranzaEfectivo.cuentas} ctas ($${resGlobal.cobranzaEfectivo.pesos.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDQ.cobranzaEfectivo.cuentas} ctas ($${resDQ.cobranzaEfectivo.pesos.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDP.cobranzaEfectivo.cuentas} ctas ($${resDP.cobranzaEfectivo.pesos.toLocaleString("es-MX")})</td>
+            </tr>
+            <tr>
+              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cobranza Bancos / Depósitos</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.cobranzaBancos.cuentas} ctas ($${resGlobal.cobranzaBancos.pesos.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDQ.cobranzaBancos.cuentas} ctas ($${resDQ.cobranzaBancos.pesos.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resDP.cobranzaBancos.cuentas} ctas ($${resDP.cobranzaBancos.pesos.toLocaleString("es-MX")})</td>
+            </tr>
+            <tr style="background: #f8fafc;">
+              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Saldo Vencido</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #b91c1c;">$${resGlobal.totalVencido.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #b91c1c;">$${resDQ.totalVencido.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #b91c1c;">$${resDP.totalVencido.toLocaleString("es-MX")}</td>
+            </tr>
+            <tr>
+              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cartera Total</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">$${resGlobal.totalCartera.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">$${resDQ.totalCartera.toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">$${resDP.totalCartera.toLocaleString("es-MX")}</td>
+            </tr>
+            <tr style="background: #f8fafc;">
+              <td style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">Cuentas en RUTA</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1;">${resGlobal.resumenProblemas.cuentasRuta.cuentas} ctas ($${resGlobal.resumenProblemas.cuentasRuta.pesos.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #1e3a8a;">${resDQ.resumenProblemas.cuentasRuta.cuentas} ctas ($${resDQ.resumenProblemas.cuentasRuta.pesos.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; border-bottom: 0.5px dashed #cbd5e1; color: #312e81;">${resDP.resumenProblemas.cuentasRuta.cuentas} ctas ($${resDP.resumenProblemas.cuentasRuta.pesos.toLocaleString("es-MX")})</td>
+            </tr>
+            <tr>
+              <td style="padding: 2.5px 6px;">Total Cuentas Problema (K, IT, PE...)</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px;">${resGlobal.resumenProblemas.totalProblemas.cuentas} ctas ($${resGlobal.resumenProblemas.totalProblemas.pesos.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px;">${resDQ.resumenProblemas.totalProblemas.cuentas} ctas ($${resDQ.resumenProblemas.totalProblemas.pesos.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono" style="padding: 2.5px 6px;">${resDP.resumenProblemas.totalProblemas.cuentas} ctas ($${resDP.resumenProblemas.totalProblemas.pesos.toLocaleString("es-MX")})</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
       <div>
         <div class="section-card">
@@ -499,16 +619,16 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
         <div class="section-card">
           <div class="card-header">Canales de Recaudación Real</div>
           <div class="card-body">
-            <div class="kpi-row"><span>EFECTIVO (Cobranza Gestor)</span><span><strong>${datos.resumen?.cobranzaEfectivo.cuentas ?? 0} ctas</strong> • $${(datos.resumen?.cobranzaEfectivo.pesos ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row"><span>BANCOS (Transferencia / Depósito)</span><span><strong>${datos.resumen?.cobranzaBancos.cuentas ?? 0} ctas</strong> • $${(datos.resumen?.cobranzaBancos.pesos ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row"><span>EFECTIVO (Cobranza Gestor)</span><span><strong>${resGlobal.cobranzaEfectivo.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaEfectivo.pesos ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row"><span>BANCOS (Transferencia / Depósito)</span><span><strong>${resGlobal.cobranzaBancos.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancos.pesos ?? 0).toLocaleString("es-MX")}</span></div>
             <div class="kpi-row highlight" style="background: #dcfce7;">
               <span>TOTAL COBRANZA RECIBIDA</span>
-              <span><strong>$${(datos.resumen?.totalCobrado ?? 0).toLocaleString("es-MX")}</strong></span>
+              <span><strong>$${(resGlobal.totalCobrado ?? 0).toLocaleString("es-MX")}</strong></span>
             </div>
-            <div class="kpi-row"><span>Pagos Dobles Registrados</span><span>$${(datos.resumen?.totalPagosDobles ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row"><span>Recuperado Periodos Vencidos</span><span>$${(datos.resumen?.totalRecuperadoPv ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row"><span>% Cuentas sin Dobles</span><span><strong>${datos.resumen?.porcentajeCtasSinDobles ?? 0}%</strong></span></div>
-            <div class="kpi-row"><span>% Cuentas con Dobles</span><span><strong>${datos.resumen?.porcentajeCtasConDobles ?? 0}%</strong></span></div>
+            <div class="kpi-row"><span>Pagos Dobles Registrados</span><span>$${(resGlobal.totalPagosDobles ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row"><span>Recuperado Periodos Vencidos</span><span>$${(resGlobal.totalRecuperadoPv ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row"><span>% Cuentas sin Dobles</span><span><strong>${resGlobal.porcentajeCtasSinDobles ?? 0}%</strong></span></div>
+            <div class="kpi-row"><span>% Cuentas con Dobles</span><span><strong>${resGlobal.porcentajeCtasConDobles ?? 0}%</strong></span></div>
           </div>
         </div>
       </div>

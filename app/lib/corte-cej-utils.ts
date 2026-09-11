@@ -313,7 +313,15 @@ export function procesarDetallesYResumenCEJ(
     };
   });
 
-  // --- Resúmenes Ejecutivos ---
+  const resumen = calcularResumenCEJDesdeDetalles(detalles);
+
+  return { detalles, resumen };
+}
+
+/**
+ * Calcula el resumen ejecutivo de corte a partir de una lista de detalles de cobranza
+ */
+export function calcularResumenCEJDesdeDetalles(detalles: (DetalleCalculadoCEJ | any)[]): ResumenCorteCEJ {
   let totalSugerido = 0;
   let totalCobrado = 0;
   let totalVencido = 0;
@@ -351,53 +359,60 @@ export function procesarDetallesYResumenCEJ(
   let ctasCobradas = 0;
 
   detalles.forEach((d) => {
-    totalSugerido += d.pagoSugerido;
-    totalCobrado += d.pagoReal;
-    totalVencido += d.saldoVencido;
-    totalCartera += d.saldoActual;
-    totalPagosDobles += d.pagoDoble;
-    totalRecuperadoPv += d.recuperadoPv;
+    const pagoSugerido = Number(d.pagoSugerido ?? d.montoPago) || 0;
+    const pagoReal = Number(d.pagoReal) || 0;
+    const saldoVencido = Number(d.saldoVencido) || 0;
+    const saldoActual = Number(d.saldoActual) || 0;
+    const pagoDoble = Number(d.pagoDoble) || 0;
+    const recuperadoPv = Number(d.recuperadoPv) || 0;
 
-    if (d.pagoReal > 0) {
+    totalSugerido += pagoSugerido;
+    totalCobrado += pagoReal;
+    totalVencido += saldoVencido;
+    totalCartera += saldoActual;
+    totalPagosDobles += pagoDoble;
+    totalRecuperadoPv += recuperadoPv;
+
+    if (pagoReal > 0) {
       ctasCobradas++;
-      const tipo = d.tipoCobro.toUpperCase();
+      const tipo = (d.tipoCobro || "").toUpperCase();
       if (tipo.includes("BANCO") || tipo.includes("TRANS") || tipo.includes("DEPO")) {
         cobBancosCtas++;
-        cobBancosPesos += d.pagoReal;
+        cobBancosPesos += pagoReal;
       } else {
         cobEfectivoCtas++;
-        cobEfectivoPesos += d.pagoReal;
+        cobEfectivoPesos += pagoReal;
       }
     }
 
     // Clasificación Problema
-    const prob = d.problema.toUpperCase();
+    const prob = (d.problema || "RUTA").toUpperCase().trim();
     if (prob.includes("CAN") || prob === "K") {
       problemasAgg.canceladoK.cuentas++;
-      problemasAgg.canceladoK.pesos += d.pagoSugerido;
+      problemasAgg.canceladoK.pesos += pagoSugerido;
     } else if (prob.includes("INT") || prob === "IT") {
       problemasAgg.intervencionIT.cuentas++;
-      problemasAgg.intervencionIT.pesos += d.pagoSugerido;
+      problemasAgg.intervencionIT.pesos += pagoSugerido;
     } else if (prob.includes("AD") || prob === "ADELANTADO") {
       problemasAgg.adelantadoAD.cuentas++;
-      problemasAgg.adelantadoAD.pesos += d.pagoSugerido;
+      problemasAgg.adelantadoAD.pesos += pagoSugerido;
     } else if (prob.includes("PE") || prob === "PERIODO") {
       problemasAgg.periodoPE.cuentas++;
-      problemasAgg.periodoPE.pesos += d.pagoSugerido;
+      problemasAgg.periodoPE.pesos += pagoSugerido;
     } else if (prob.includes("PS") || prob === "PAGO SEM") {
       problemasAgg.pagoSemPS.cuentas++;
-      problemasAgg.pagoSemPS.pesos += d.pagoSugerido;
+      problemasAgg.pagoSemPS.pesos += pagoSugerido;
     } else if (prob.includes("DL") || prob.includes("DICT")) {
       problemasAgg.dictLegalDL.cuentas++;
-      problemasAgg.dictLegalDL.pesos += d.pagoSugerido;
+      problemasAgg.dictLegalDL.pesos += pagoSugerido;
     }
 
     if (prob === "RUTA") {
       problemasAgg.cuentasRuta.cuentas++;
-      problemasAgg.cuentasRuta.pesos += d.pagoSugerido;
-      if (d.saldoVencido >= 1) {
+      problemasAgg.cuentasRuta.pesos += pagoSugerido;
+      if (saldoVencido >= 1) {
         problemasAgg.vencidosRuta.cuentas++;
-        problemasAgg.vencidosRuta.pesos += d.saldoVencido;
+        problemasAgg.vencidosRuta.pesos += saldoVencido;
       }
 
       // Desglose Diario Semanal para RUTA
@@ -405,28 +420,29 @@ export function procesarDetallesYResumenCEJ(
       if (matchDia && diasMap.has(matchDia)) {
         const item = diasMap.get(matchDia)!;
         item.pptoCuentas++;
-        item.pptoDinero += d.pagoSugerido;
-        if (d.pagoReal > 0) {
+        item.pptoDinero += pagoSugerido;
+        if (pagoReal > 0) {
           item.avanceCuentas++;
-          item.avanceDinero += d.pagoReal;
+          item.avanceDinero += pagoReal;
         }
       }
     }
 
     // Periodicidad
     let perKey = "SEMANAL";
+    const periodicidadStr = (d.periodicidad || "SEMANAL").toUpperCase();
     for (const p of periodicidadesDef) {
-      if (d.periodicidad.includes(p)) {
+      if (periodicidadStr.includes(p)) {
         perKey = p;
         break;
       }
     }
     const perItem = periodosMap.get(perKey) || { pptoCtas: 0, pptoPesos: 0, cobCtas: 0, cobPesos: 0 };
     perItem.pptoCtas++;
-    perItem.pptoPesos += d.pagoSugerido;
-    if (d.pagoReal > 0) {
+    perItem.pptoPesos += pagoSugerido;
+    if (pagoReal > 0) {
       perItem.cobCtas++;
-      perItem.cobPesos += d.pagoReal;
+      perItem.cobPesos += pagoReal;
     }
     periodosMap.set(perKey, perItem);
   });
@@ -481,7 +497,7 @@ export function procesarDetallesYResumenCEJ(
   const porcCtasSinDobles = Math.round((ctasCobradas / baseCtasRuta) * 1000) / 10;
   const porcCtasConDobles = Math.round(((ctasCobradas + totalPagosDobles) / baseCtasRuta) * 1000) / 10;
 
-  const resumen: ResumenCorteCEJ = {
+  return {
     totalCuentas: detalles.length,
     totalSugerido,
     totalCobrado,
@@ -498,6 +514,32 @@ export function procesarDetallesYResumenCEJ(
     matrizPeriodos,
     resumenDiario
   };
+}
 
-  return { detalles, resumen };
+/**
+ * Separa una lista de detalles por empresa (DQ y DP) y calcula los tres resúmenes (Global, DQ, DP)
+ */
+export function separarYCalcularResumenesCEJ(detalles: (DetalleCalculadoCEJ | any)[]): {
+  global: ResumenCorteCEJ;
+  dq: ResumenCorteCEJ;
+  dp: ResumenCorteCEJ;
+} {
+  const global = calcularResumenCEJDesdeDetalles(detalles);
+
+  const detallesDQ = detalles.filter((d) => {
+    const cod = (d.codigoCliente || "").toUpperCase();
+    const cont = (d.numContrato || "").toUpperCase();
+    return cod.startsWith("DQ") || cont.startsWith("DQ");
+  });
+
+  const detallesDP = detalles.filter((d) => {
+    const cod = (d.codigoCliente || "").toUpperCase();
+    const cont = (d.numContrato || "").toUpperCase();
+    return cod.startsWith("DP") || cont.startsWith("DP");
+  });
+
+  const dq = calcularResumenCEJDesdeDetalles(detallesDQ);
+  const dp = calcularResumenCEJDesdeDetalles(detallesDP);
+
+  return { global, dq, dp };
 }
