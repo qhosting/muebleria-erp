@@ -11,6 +11,46 @@ function getCdmxDateRange(fechaDesdeStr: string, fechaHastaStr: string) {
     return { gte: desde, lte: hasta };
 }
 
+// Cache en memoria para el catálogo de clientes ContPAQi (expira cada 30 minutos)
+const clientesMapCache: Record<string, { map: Map<number, string>; lastFetch: number }> = {};
+
+async function getClientesMap(empresa: string): Promise<Map<number, string>> {
+    const now = Date.now();
+    if (clientesMapCache[empresa] && (now - clientesMapCache[empresa].lastFetch < 1000 * 60 * 30)) {
+        return clientesMapCache[empresa].map;
+    }
+    const apiUrl = process.env.CONTPAQI_API_URL || 'http://vortex520.qhosting.net:5000';
+    const apiKey = process.env.CONTPAQI_API_KEY || 'VERTEX123_CONTPAQI_ERP_2024';
+    const url = `${apiUrl}/api/clientes?empresa=${empresa}&limit=50000`;
+    try {
+        const res = await fetch(url, {
+            headers: {
+                'X-API-Key': apiKey,
+                'X-Company-Id': empresa
+            },
+            cache: 'no-store'
+        });
+        if (!res.ok) {
+            console.error(`Error consultando catálogo clientes ContPAQi ${empresa}: HTTP ${res.status}`);
+            return clientesMapCache[empresa]?.map || new Map();
+        }
+        const data = await res.json();
+        const map = new Map<number, string>();
+        if (Array.isArray(data)) {
+            for (const c of data) {
+                if (c.id != null && c.codigo) {
+                    map.set(Number(c.id), c.codigo.trim().toUpperCase());
+                }
+            }
+        }
+        clientesMapCache[empresa] = { map, lastFetch: now };
+        return map;
+    } catch (err) {
+        console.error(`Excepción al conectar con catálogo clientes ContPAQi (${empresa}):`, err);
+        return clientesMapCache[empresa]?.map || new Map();
+    }
+}
+
 async function fetchContpaqiDocs(empresa: string, fechaInicio: string, fechaFin: string) {
     const apiUrl = process.env.CONTPAQI_API_URL || 'http://vortex520.qhosting.net:5000';
     const apiKey = process.env.CONTPAQI_API_KEY || 'VERTEX123_CONTPAQI_ERP_2024';
@@ -56,10 +96,12 @@ export async function GET(request: NextRequest) {
         const fechaInicio = desdeParam || sab.toISOString().split('T')[0];
         const fechaFin = hastaParam || vie.toISOString().split('T')[0];
 
-        // 1. Descargar documentos de ContPAQi para DP y DQ en paralelo
-        const [docsDP, docsDQ] = await Promise.all([
+        // 1. Descargar documentos y catálogos de clientes de ContPAQi para DP y DQ en paralelo
+        const [docsDP, docsDQ, clientesMapDP, clientesMapDQ] = await Promise.all([
             fetchContpaqiDocs('DP', fechaInicio, fechaFin),
-            fetchContpaqiDocs('DQ', fechaInicio, fechaFin)
+            fetchContpaqiDocs('DQ', fechaInicio, fechaFin),
+            getClientesMap('DP'),
+            getClientesMap('DQ')
         ]);
 
         // Filtrar conceptos de cobranza de cuotas regulares (no cancelados):
@@ -86,11 +128,12 @@ export async function GET(request: NextRequest) {
             ensureCpAgente(ag);
             cpMap[ag].DP.count++;
             cpMap[ag].DP.total += parseFloat(d.total) || 0;
+            const codigoResuelto = (d.idClienteProveedor != null ? clientesMapDP.get(Number(d.idClienteProveedor)) : null) || d.codigoCliente || null;
             cpMap[ag].DP.docs.push({
                 id: d.id,
                 folio: d.folio,
                 fecha: d.fecha,
-                cliente: d.codigoCliente,
+                cliente: codigoResuelto,
                 razonSocial: d.razonSocial,
                 total: parseFloat(d.total) || 0,
                 referencia: d.referencia
@@ -102,11 +145,12 @@ export async function GET(request: NextRequest) {
             ensureCpAgente(ag);
             cpMap[ag].DQ.count++;
             cpMap[ag].DQ.total += parseFloat(d.total) || 0;
+            const codigoResuelto = (d.idClienteProveedor != null ? clientesMapDQ.get(Number(d.idClienteProveedor)) : null) || d.codigoCliente || null;
             cpMap[ag].DQ.docs.push({
                 id: d.id,
                 folio: d.folio,
                 fecha: d.fecha,
-                cliente: d.codigoCliente,
+                cliente: codigoResuelto,
                 razonSocial: d.razonSocial,
                 total: parseFloat(d.total) || 0,
                 referencia: d.referencia
