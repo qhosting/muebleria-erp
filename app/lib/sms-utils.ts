@@ -6,13 +6,9 @@ export interface LabsMobileResponse {
 }
 
 export async function sendSMS(phoneNumber: string, message: string): Promise<LabsMobileResponse> {
-  const user = process.env.LABSMOBILE_USER;
-  const token = process.env.LABSMOBILE_TOKEN;
+  const user = process.env.LABSMOBILE_USER || 'sms@mueblesdaso.com';
+  const token = process.env.LABSMOBILE_TOKEN || 'Hh3neMmfapZzmDMkaoVAjJhYtDDCTytr';
   const sender = process.env.LABSMOBILE_SENDER || 'DASO';
-
-  if (!user || !token) {
-    throw new Error('LABSMOBILE_USER or LABSMOBILE_TOKEN not configured in environment');
-  }
 
   const auth = Buffer.from(`${user}:${token}`).toString('base64');
   
@@ -44,12 +40,8 @@ export async function sendSMS(phoneNumber: string, message: string): Promise<Lab
 }
 
 export async function getLabsMobileBalance(): Promise<{ balance: number; error?: string }> {
-  const user = process.env.LABSMOBILE_USER;
-  const token = process.env.LABSMOBILE_TOKEN;
-
-  if (!user || !token) {
-    return { balance: 0, error: 'Credentials not configured' };
-  }
+  const user = process.env.LABSMOBILE_USER || 'sms@mueblesdaso.com';
+  const token = process.env.LABSMOBILE_TOKEN || 'Hh3neMmfapZzmDMkaoVAjJhYtDDCTytr';
 
   const auth = Buffer.from(`${user}:${token}`).toString('base64');
 

@@ -100,7 +100,7 @@ const navigation: NavItem[] = [
       { name: 'Pagos', href: '/dashboard/pagos', icon: Receipt },
       { name: 'Monitoreo Vivo', href: '/dashboard/monitoreo', icon: Activity },
       { name: 'Análisis de Rutas', href: '/dashboard/rutas', icon: Route },
-      { name: 'Campañas SMS', href: '/dashboard/sms', icon: MessageSquare },
+      { name: 'Campañas SMS', href: '/dashboard/cobranza-mobile/sms', icon: MessageSquare },
       { name: 'Lista Cobranza', href: '/dashboard/cobranza/lista-cobranza', icon: FileText },
     ]
   },
@@ -130,7 +130,7 @@ const navigation: NavItem[] = [
     name: 'Campañas SMS',
     href: '/dashboard/cobranza-mobile/sms',
     icon: MessageSquare,
-    roles: ['cobrador'],
+    roles: ['admin', 'gestor_cobranza', 'cobrador', 'direccion'],
   },
   {
     name: 'Tesorería',

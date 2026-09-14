@@ -13,7 +13,8 @@ export default async function SmsPage() {
   }
 
   const userRole = (session?.user as any)?.role;
-  if (!['admin', 'gestor_cobranza', 'reporte_cobranza'].includes(userRole)) {
+  const allowedRoles = ['admin', 'gestor_cobranza', 'reporte_cobranza', 'cobrador', 'direccion'];
+  if (!allowedRoles.includes(userRole)) {
     redirect('/dashboard');
   }
 
