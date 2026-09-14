@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
 import LandingPage from '@/components/ecommerce/LandingPage';
+import LoginForm from './login/login-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +9,13 @@ const isCobradorMode = process.env.NEXT_PUBLIC_APP_MODE === 'cobrador';
 export default async function HomePage() {
   // 🚀 En Capacitor / Modo Cobrador redirigir de inmediato sin usar Base de Datos ni Sesiones de Servidor
   if (isCapacitor || isCobradorMode) {
-    redirect('/cobrador-app');
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
+        <meta httpEquiv="refresh" content="0;url=/cobrador-app" />
+        <script dangerouslySetInnerHTML={{ __html: `window.location.replace('/cobrador-app');` }} />
+        <p className="text-sm text-slate-400">Cargando aplicación móvil...</p>
+      </div>
+    );
   }
 
   // Importar dinámicamente dependencias de servidor para evitar bails en build estático
@@ -24,32 +30,38 @@ export default async function HomePage() {
     console.error('Error fetching session:', error);
   }
 
-  // Si hay sesión activa, redirigir al área correspondiente
+  // Si hay sesión activa, redirigir al área correspondiente de forma segura
   if (session) {
     const userRole = (session.user as any)?.role;
-    console.log('User session found, role:', userRole);
     const mobileRoles = ['cobrador', 'vendedor', 'jefe_ventas'];
-    if (mobileRoles.includes(userRole)) {
-      redirect('/cobrador-app');
-    }
-    redirect('/dashboard');
+    const target = mobileRoles.includes(userRole) ? '/cobrador-app' : '/dashboard';
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
+        <meta httpEquiv="refresh" content={`0;url=${target}`} />
+        <script dangerouslySetInnerHTML={{ __html: `window.location.replace('${target}');` }} />
+        <p className="text-sm text-slate-400">Redirigiendo a tu panel...</p>
+      </div>
+    );
   }
 
   // Consultar configuración del sistema para ver si el landing page está habilitado
-  const config = await prisma.configuracionSistema.findUnique({
-    where: { clave: 'sistema' }
-  });
-
-  const empresaConfig = (config?.empresa as any) || {};
-  const isLandingEnabled = empresaConfig.habilitarLandingPage !== false; // Por defecto true
-
-  // Si no hay sesión y el landing está deshabilitado, redirigir a login
-  if (!isLandingEnabled) {
-    console.log('LandingPage disabled by config, redirecting to login');
-    redirect('/login');
+  let isLandingEnabled = true;
+  try {
+    const config = await prisma.configuracionSistema.findUnique({
+      where: { clave: 'sistema' }
+    });
+    const empresaConfig = (config?.empresa as any) || {};
+    isLandingEnabled = empresaConfig.habilitarLandingPage !== false;
+  } catch (error) {
+    console.error('Error reading configuracionSistema:', error);
   }
 
-  console.log('No session, showing LandingPage');
+  // Si no hay sesión y el landing está deshabilitado, renderizar directamente el formulario de Login
+  // Esto evita la excepción de Next.js NEXT_REDIRECT en renderizado streaming ('digest' of null)
+  if (!isLandingEnabled) {
+    return <LoginForm />;
+  }
+
   // Por defecto mostrar el Landing Page (Tienda)
   return <LandingPage />;
 }
