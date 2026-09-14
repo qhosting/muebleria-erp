@@ -1360,6 +1360,10 @@ export async function POST(req: Request) {
         const folioVariants = cleanFolio ? Array.from(new Set([cleanFolio, `#${cleanFolio}`, String(folio).trim()])) : [];
         const isFolioValido = Boolean(cleanFolio && cleanFolio.length >= 4);
 
+        // Clave de Rastreo válida (descartar RFCs o CURPs extraídos por error del comprobante)
+        const isRfcOrCurp = Boolean(claverastreo && /^[A-Z&Ñ]{3,4}\d{6}[A-V1-9][A-Z1-9][0-9A]$/i.test(String(claverastreo).trim()));
+        const isClaveRastreoValida = Boolean(!isRfcOrCurp && claverastreo && claverastreo !== 'null' && String(claverastreo).trim().length >= 6);
+
         // Referencias estructuradas (excluyendo números de tarjeta / cuenta destino de la empresa como 1858, 2837, etc.)
         const companyAccounts = ['0228372', '22001022837', '65505732541', '0330253963', '1858', '2837', '5396', '0228'];
         const isCompanyAccountRef = companyAccounts.some(acc => referencia && String(referencia).includes(acc));
@@ -1371,7 +1375,7 @@ export async function POST(req: Request) {
                 clienteId: cliente.id,
                 OR: [
                     (legacyIdNum) ? { legacyId: legacyIdNum } : { id: 'none' },
-                    (claverastreo && claverastreo !== 'null' && claverastreo.length >= 6) ? { claveRastreo: claverastreo } : { id: 'none' },
+                    (isClaveRastreoValida) ? { claveRastreo: String(claverastreo).trim() } : { id: 'none' },
                     (isFolioValido) ? { folio: { in: folioVariants } } : { id: 'none' },
                     (isNumericRef && dayStart && dayEnd) ? { referencia: String(referencia).trim(), fecha: { gte: dayStart, lte: dayEnd } } : { id: 'none' },
                     {
@@ -1383,8 +1387,9 @@ export async function POST(req: Request) {
         });
 
         if (existingTicket) {
-            // Si la fecha o hora enviada es válida, actualizar fecha del ticket existente y de su pago
-            if (safeSearchDate || (hr && hr !== 'null')) {
+            // Si la fecha o hora enviada es válida y el ticket NO está ya conciliado ni es histórico, actualizar fecha
+            const esTicketReciente = (Date.now() - existingTicket.creadoEn.getTime()) < 7 * 24 * 60 * 60 * 1000;
+            if (!existingTicket.conciliado && esTicketReciente && (safeSearchDate || (hr && hr !== 'null'))) {
                 const combinedDate = parseValidDate(fecha, hr);
                 if (combinedDate) {
                     await prisma.ticket.update({
@@ -1447,7 +1452,7 @@ export async function POST(req: Request) {
                     referencia: referencia !== 'null' ? referencia : null,
                     folio: folio !== 'null' ? folio : null,
                     fecha: fechaTicket,
-                    claveRastreo: claverastreo !== 'null' ? claverastreo : null,
+                    claveRastreo: isClaveRastreoValida ? String(claverastreo).trim() : null,
                     remitente: remitente !== 'null' ? remitente : null,
                     concepto: "TICKET WHATSAPP (n8n)",
                     urlComprobante: base64Data ? (base64Data.startsWith('data:') ? base64Data : `data:image/jpeg;base64,${base64Data}`) : null,
