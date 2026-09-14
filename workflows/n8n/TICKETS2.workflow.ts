@@ -305,26 +305,26 @@ export class Tickets2Workflow {
         jsCode: `// Nodo: EXTRAE_DATOS (Versión final que maneja bloques de código y herencia completa de contrato)
 
 // PASO 1: OBTENER EL CONTRATO Y EL REMITENTE
-let contratoInicial = null;
-let remitenteInicial = null;
+const safeGet = (fn) => { try { return fn(); } catch (e) { return null; } };
 
-try {
-  contratoInicial = $('Estandarizar Variables de Imagen')?.item?.json?.contrato ||
-                    $('Merge')?.item?.json?.contrato ||
-                    $('Selector de Acción')?.item?.json?.contrato ||
-                    $('Unir Datos de Busqueda')?.item?.json?.contrato ||
-                    $('Buscar Cliente por Teléfono')?.item?.json?.cod_cliente ||
-                    $('Buscar Cliente por Teléfono')?.item?.json?.cliente?.codigoCliente ||
-                    $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.caption ||
-                    $('Webhook WAHA')?.first()?.json?.body?.payload?.caption ||
-                    $('Webhook WAHA')?.first()?.json?.body?.payload?.body ||
-                    $('Enrutador Principal')?.item?.json?.contrato ||
-                    $('Buscar_Ticket_Pendiente')?.item?.json?.contrato ||
-                    $('Validar Respuesta de Texto')?.item?.json?.contrato ||
-                    $json.contrato ||
-                    $json.cod_cliente ||
-                    $json.contacto;
-} catch (e) {}
+let contratoInicial =
+  safeGet(() => $('Estandarizar Variables de Imagen')?.item?.json?.contrato) ||
+  safeGet(() => $('Merge')?.item?.json?.contrato) ||
+  safeGet(() => $('Selector de Acción')?.item?.json?.contrato) ||
+  safeGet(() => $('Unir Datos de Busqueda')?.item?.json?.contrato) ||
+  safeGet(() => $('Buscar Cliente por Teléfono')?.item?.json?.cod_cliente) ||
+  safeGet(() => $('Buscar Cliente por Teléfono')?.item?.json?.cliente?.codigoCliente) ||
+  safeGet(() => $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.caption) ||
+  safeGet(() => $('Webhook WAHA')?.first()?.json?.body?.payload?.caption) ||
+  safeGet(() => $('Webhook WAHA')?.first()?.json?.body?.payload?.body) ||
+  safeGet(() => $('Validar Respuesta de Texto')?.item?.json?.contrato) ||
+  safeGet(() => $('Buscar_Ticket_Pendiente')?.item?.json?.contrato) ||
+  safeGet(() => $('Buscar Ticket Pendiente')?.item?.json?.contrato) ||
+  safeGet(() => $('Enrutador Principal')?.item?.json?.contrato) ||
+  $json.contrato ||
+  $json.cod_cliente ||
+  $json.contacto ||
+  null;
 
 // Si contratoInicial tiene texto con formato DP o DQ, limpiarlo para asegurar formato uniforme
 if (contratoInicial && typeof contratoInicial === 'string') {
@@ -334,14 +334,15 @@ if (contratoInicial && typeof contratoInicial === 'string') {
   }
 }
 
-try {
-  remitenteInicial = $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid ||
-                     $('Estandarizar Variables de Imagen')?.item?.json?.remitente ||
-                     $('Unir Datos de Busqueda')?.item?.json?.remitente ||
-                     $('Webhook WAHA')?.first()?.json?.body?.payload?.from ||
-                     $('Webhook')?.first()?.json?.body?.data?.key?.remoteJid ||
-                     $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.key?.remoteJid;
-} catch (e) {}
+let remitenteInicial =
+  safeGet(() => $('Estandarizar Variables de Imagen')?.item?.json?.remitente) ||
+  safeGet(() => $('Unir Datos de Busqueda')?.item?.json?.remitente) ||
+  safeGet(() => $('Validar Respuesta de Texto')?.item?.json?.remitente) ||
+  safeGet(() => $('Webhook WAHA')?.first()?.json?.body?.payload?.from) ||
+  safeGet(() => $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.key?.remoteJid) ||
+  safeGet(() => $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid) ||
+  $json.remitente ||
+  null;
 
 // PASO 2: OBTENER Y LIMPIAR LA RESPUESTA DE LA IA
 const aiItem = $('Analyze image')?.first()?.json || $('Analyze image')?.item?.json || $json || {};
@@ -659,7 +660,7 @@ return [{
         specifyBody: 'json',
         jsonBody: `={
   "action": "pending",
-  "remitente": "{{ $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '' }}",
+  "remitente": "{{ $json.body?.data?.key?.remoteJid || $json.body?.payload?.from || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '' }}",
   "base64Data": "{{ $json.body?.data?.message?.base64 || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.base64 || (typeof $json.base64 === 'string' && $json.base64.length > 50 ? $json.base64 : '') || '' }}",
   "tipoArchivo": "{{ $json.body?.data?.message?.imageMessage?.mimetype || $('Adaptador a Formato Evolution')?.first()?.json?.body?.data?.message?.imageMessage?.mimetype || 'image/jpeg' }}"
 }`,
@@ -697,7 +698,7 @@ return [{
         specifyBody: 'json',
         jsonBody: `={
   "action": "resolve",
-  "remitente": "{{ $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.item?.json?.body?.payload?.from }}",
+  "remitente": "{{ $json.remitente || $json.body?.payload?.from || $('Webhook WAHA')?.first()?.json?.body?.payload?.from || '' }}",
   "contrato": "{{ $json.contrato || $json.contrato_respuesta || $('Validar Respuesta de Texto')?.item?.json?.contrato }}"
 }`,
         options: {},
@@ -2004,10 +2005,21 @@ return [{ json: { mensaje: mensaje } }];`,
     GenerarMensajeDeFormatoInvalido = {
         jsCode: `const mensaje = '❌ *Código no reconocido.*\\n\\nPor favor asegúrate de enviar tu número de contrato que comienza con *DP* o *DQ* (ejemplo: *DP2601001* o *DQ2501001*) junto con tu comprobante para aplicarlo a tu saldo.';
 
+const safeGet = (fn) => { try { return fn(); } catch (e) { return null; } };
+
+const remitente = $json.remitente ||
+                  $json.body?.payload?.from ||
+                  $json.body?.data?.key?.remoteJid ||
+                  safeGet(() => $('Webhook WAHA')?.first()?.json?.body?.payload?.from) ||
+                  safeGet(() => $('Validar Respuesta de Texto')?.first()?.json?.remitente) ||
+                  safeGet(() => $('Enrutador Principal')?.first()?.json?.body?.data?.key?.chatId) ||
+                  safeGet(() => $('Enrutador Principal')?.first()?.json?.body?.data?.key?.remoteJid) ||
+                  null;
+
 return [{
   json: {
     mensaje: mensaje,
-    remitente: $('Enrutador Principal')?.first()?.json?.body?.data?.key?.chatId || $('Enrutador Principal')?.first()?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.first()?.json?.body?.payload?.from
+    remitente: remitente
   }
 }];`,
     };
@@ -2044,7 +2056,7 @@ return [{
                 },
                 {
                     name: 'chatId',
-                    value: "={{ ($json.remitente || $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '').replace('@s.whatsapp.net', '@c.us') }}",
+                    value: "={{ ($json.remitente || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '').replace('@s.whatsapp.net', '@c.us') }}",
                 },
                 {
                     name: 'text',
@@ -2069,7 +2081,7 @@ return [{
         specifyBody: 'json',
         jsonBody: `={
   "action": "buscar_cliente",
-  "telefono": "{{ $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.item?.json?.body?.payload?.from }}"
+  "telefono": "{{ $json.body?.data?.key?.remoteJid || $json.body?.payload?.from || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '' }}"
 }`,
         options: {},
     };
@@ -2188,7 +2200,16 @@ return $json;`,
     GenerarMensajeDeFormatoIncorrecto = {
         jsCode: `const mensaje = '❌ *Código no válido.*\\n\\nPor favor verifica tu número de contrato. Debe comenzar con *DP* o *DQ* seguido de sus números (ejemplo: *DP2601001* o *DQ2501001*).';
 
-const remitente = $('Enrutador Principal')?.first()?.json?.body?.data?.key?.chatId || $('Enrutador Principal')?.first()?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.first()?.json?.body?.payload?.from;
+const safeGet = (fn) => { try { return fn(); } catch (e) { return null; } };
+
+const remitente = $json.remitente ||
+                  $json.body?.payload?.from ||
+                  $json.body?.data?.key?.remoteJid ||
+                  safeGet(() => $('Webhook WAHA')?.first()?.json?.body?.payload?.from) ||
+                  safeGet(() => $('Validar Respuesta de Texto')?.first()?.json?.remitente) ||
+                  safeGet(() => $('Enrutador Principal')?.first()?.json?.body?.data?.key?.chatId) ||
+                  safeGet(() => $('Enrutador Principal')?.first()?.json?.body?.data?.key?.remoteJid) ||
+                  null;
 
 return [{
   json: {
@@ -2230,7 +2251,7 @@ return [{
                 },
                 {
                     name: 'chatId',
-                    value: "={{ ($json.remitente || $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '').replace('@s.whatsapp.net', '@c.us') }}",
+                    value: "={{ ($json.remitente || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '').replace('@s.whatsapp.net', '@c.us') }}",
                 },
                 {
                     name: 'text',
@@ -2381,7 +2402,7 @@ return [{
                 {
                     id: '7b7d8acd-5535-49eb-8cca-eb1e308c1a62',
                     name: 'remitente',
-                    value: "={{ $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.first()?.json?.body?.payload?.from || '' }}",
+                    value: "={{ $json.remitente || $json.body?.data?.key?.remoteJid || $('Webhook WAHA')?.first()?.json?.body?.payload?.from || '' }}",
                     type: 'string',
                 },
                 {
@@ -3034,7 +3055,7 @@ Actualizado:{{ DateTime.local().setZone('America/Mexico_City').toFormat('yyyy-MM
                 },
                 {
                     name: 'chatId',
-                    value: "={{ ($json.remitente || $('Enrutador Principal')?.item?.json?.body?.data?.key?.remoteJid || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '').replace('@s.whatsapp.net', '@c.us') }}",
+                    value: "={{ ($json.remitente || $('Webhook WAHA')?.item?.json?.body?.payload?.from || '').replace('@s.whatsapp.net', '@c.us') }}",
                 },
                 {
                     name: 'text',
@@ -3071,7 +3092,7 @@ Actualizado:{{ DateTime.local().setZone('America/Mexico_City').toFormat('yyyy-MM
   "hr": "{{ $json.hr }}",
   "claverastreo": "{{ $json.claverastreo }}",
   "remitente": "{{ $json.remitente }}",
-  "base64Data": "{{ $('EXTRAE_DATOS')?.first()?.json?.base64 || $('Enrutador Principal')?.item?.json?.body?.data?.message?.base64 || null }}"
+  "base64Data": "{{ $('EXTRAE_DATOS')?.first()?.json?.base64 || $json.base64 || null }}"
 }
 `,
         options: {
