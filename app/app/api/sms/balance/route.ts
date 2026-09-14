@@ -20,9 +20,11 @@ export async function GET(req: NextRequest) {
       create: { cuenta: 'DASO', saldo: Math.floor(apiResult.balance) }
     });
 
+    const roundedApiBalance = apiResult.balance !== undefined ? Number(Number(apiResult.balance).toFixed(2)) : undefined;
+
     return NextResponse.json({
       localBalance: localBalance.saldo,
-      apiBalance: apiResult.balance,
+      apiBalance: roundedApiBalance,
       error: apiResult.error
     });
   } catch (error) {

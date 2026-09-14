@@ -391,9 +391,14 @@ export function SmsDashboard() {
     );
   }, [previewClients, previewSearch]);
 
-  const displayBalance = balance?.apiBalance !== undefined 
-    ? balance.apiBalance 
-    : (balance?.localBalance ?? 0);
+  const numericBalance = Number(
+    balance?.apiBalance !== undefined ? balance.apiBalance : (balance?.localBalance ?? 0)
+  ) || 0;
+  const smsDisponiblesEnteros = Math.floor(numericBalance);
+  const formattedCreditos = numericBalance.toLocaleString('es-MX', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
@@ -421,9 +426,11 @@ export function SmsDashboard() {
               </span>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-2xl font-black text-blue-900 dark:text-white">
-                  {loadingInitial ? '...' : displayBalance.toLocaleString('es-MX')}
+                  {loadingInitial ? '...' : smsDisponiblesEnteros.toLocaleString('es-MX')}
                 </span>
-                <span className="text-lg">💰</span>
+                <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-100/90 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-md" title="Saldo exacto en créditos LabsMobile">
+                  ${formattedCreditos} créditos
+                </span>
                 <Button 
                   variant="ghost" 
                   size="icon" 
