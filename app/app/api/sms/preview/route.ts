@@ -3,47 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { normalizarDiaSemana } from '@/lib/corte-cej-utils';
-
-async function getActivePeriodicidades(): Promise<string[]> {
-  try {
-    // 1. Intentar consultar tabla cobranzaruta si existe
-    try {
-      const rawActive: any[] = await prisma.$queryRawUnsafe(`
-        SELECT periodicidad 
-        FROM cobranzaruta 
-        WHERE status = 'ACTIVO' 
-          AND CURRENT_DATE BETWEEN fecha_inicio_periodo AND fecha_fin_periodo
-      `);
-      if (rawActive && rawActive.length > 0) {
-        return rawActive.map(r => String(r.periodicidad).toLowerCase());
-      }
-    } catch {
-      // Fallback si no existe la tabla directa
-    }
-
-    // 2. Consultar configuracion_sistema
-    const config = await prisma.configuracionSistema.findUnique({
-      where: { clave: 'sms_rutas' }
-    });
-
-    if (config && config.cobranza && Array.isArray((config.cobranza as any)?.rutas)) {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const active = (config.cobranza as any).rutas.filter((r: any) => {
-        return r.status === 'ACTIVO' && 
-               r.fecha_inicio_periodo <= todayStr && 
-               r.fecha_fin_periodo >= todayStr;
-      });
-      if (active.length > 0) {
-        return active.map((r: any) => String(r.periodicidad).toLowerCase());
-      }
-    }
-  } catch (err) {
-    console.warn('Error reading active cobranzaruta:', err);
-  }
-
-  // Fallback por defecto a semanal y quincenal activas
-  return ['semanal', 'quincenal'];
-}
+import { obtenerInfoCalendarioCobranza, getDiasCicloHastaHoy } from '@/lib/calendario-cobranza-utils';
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -51,36 +11,37 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const campaignKey = searchParams.get('campaignKey') || 'no_pagos';
-  const diaCobro = searchParams.get('diaCobro') || 'TODOS'; // TODOS, LUNES, MARTES, etc. o 1, 2...
+  const diaCobro = searchParams.get('diaCobro') || 'TODOS'; // TODOS, LUNES, MARTES, etc.
   const filterByCobrador = searchParams.get('filterByCobrador') === 'true';
 
   const userRole = (session?.user as any)?.role;
   const userId = (session?.user as any)?.id;
 
   try {
-    const activePeriodicidades = await getActivePeriodicidades();
+    // 1. Obtener información de la semana activa desde el Calendario Anual (CalendarioCobranza)
+    const calInfo = await obtenerInfoCalendarioCobranza(prisma);
 
-    // Base query: clientes activos con teléfono válido
+    // 2. Base query: cuentas activas, con clasificación RUTA y teléfono válido
     const whereClause: any = {
       statusCuenta: 'activo',
+      clasificacionCobranza: 'RUTA', // Solo cuentas asignadas a RUTA
       AND: [
         { telefono: { not: null } },
         { telefono: { not: '' } }
       ]
     };
 
-    // Filtro por periodicidad activa en cobranzaruta
-    if (activePeriodicidades.length > 0) {
-      whereClause.periodicidad = { in: activePeriodicidades as any };
+    // Filtrar por periodicidades activas en el Calendario
+    if (calInfo.periodicidadesActivas.length > 0) {
+      whereClause.periodicidad = { in: calInfo.periodicidadesActivas as any };
     }
 
-    // Si es cobrador y solicita explícitamente filtrar por sus clientes
+    // Si es cobrador y solicita filtrar por sus clientes
     if (userRole === 'cobrador' && filterByCobrador) {
       whereClause.cobradorAsignadoId = userId;
     }
 
-    // Lógica específica de campaña:
-    // En el legacy cat_clientes, cc.pagar = '0' indica cliente con saldo pendiente / mora en el periodo
+    // Para campañas de no pagos, requiere tener saldo pendiente
     if (campaignKey === 'no_pagos') {
       whereClause.OR = [
         { saldoVencido: { gt: 0 } },
@@ -107,17 +68,88 @@ export async function GET(req: NextRequest) {
           }
         }
       },
-      take: 1000
+      take: 2000
     });
 
-    // Filtrar por día de cobro si no es TODOS usando normalizarDiaSemana
-    let filtered = allClients;
-    if (diaCobro && diaCobro !== 'TODOS') {
-      const targetDia = normalizarDiaSemana(diaCobro);
-      filtered = allClients.filter(c => normalizarDiaSemana(c.diaPago) === targetDia);
+    // 3. Filtrar por día:
+    // Si es TODOS, aplicar el acumulado del ciclo de cobranza: [Sábado ... Día de Hoy]
+    // Si se especifica un día (ej. MARTES), solo ese día
+    let diasPermitidos: string[];
+    if (!diaCobro || diaCobro === 'TODOS') {
+      diasPermitidos = getDiasCicloHastaHoy();
+    } else {
+      diasPermitidos = [normalizarDiaSemana(diaCobro)];
     }
 
-    // Limpiar teléfonos para asegurar que sean válidos (mínimo 10 dígitos)
+    let filtered = allClients.filter(c => diasPermitidos.includes(normalizarDiaSemana(c.diaPago)));
+
+    // 4. Excluir clientes que ya hayan realizado un pago en la semana de cobranza actual
+    if (campaignKey === 'no_pagos' && filtered.length > 0) {
+      const clientIds = filtered.map(c => c.id);
+      const clientCodes = filtered.map(c => c.codigoCliente);
+
+      // A) Pagos registrados en la semana oficial (fechaInicio a fechaFin)
+      const pagosSemana = await prisma.pago.findMany({
+        where: {
+          clienteId: { in: clientIds },
+          fechaPago: {
+            gte: calInfo.fechaInicio,
+            lte: calInfo.fechaFin
+          },
+          monto: { gt: 0 }
+        },
+        select: { clienteId: true }
+      }).catch(() => []);
+
+      const clienteIdsConPago = new Set<string>(pagosSemana.map(p => p.clienteId));
+
+      // B) Pagos registrados en tickets conciliados de la semana
+      try {
+        const ticketsSemana = await prisma.ticket.findMany({
+          where: {
+            clienteId: { in: clientIds },
+            fecha: {
+              gte: calInfo.fechaInicio,
+              lte: calInfo.fechaFin
+            },
+            conciliado: true
+          },
+          select: { clienteId: true }
+        });
+        ticketsSemana.forEach(t => { if (t.clienteId) clienteIdsConPago.add(t.clienteId); });
+      } catch {}
+
+      // C) Corte semanal activo si existe avance de pagoReal > 0
+      try {
+        const corteActivo = await prisma.corteCobranza.findFirst({
+          where: {
+            anio: calInfo.anio,
+            semana: calInfo.semana
+          },
+          include: {
+            detalles: {
+              where: {
+                codigoCliente: { in: clientCodes },
+                pagoReal: { gt: 0 }
+              },
+              select: { clienteId: true, codigoCliente: true }
+            }
+          }
+        });
+        if (corteActivo?.detalles) {
+          const codeToIdMap = new Map(filtered.map(c => [c.codigoCliente, c.id]));
+          corteActivo.detalles.forEach(d => {
+            if (d.clienteId) clienteIdsConPago.add(d.clienteId);
+            const foundId = codeToIdMap.get(d.codigoCliente);
+            if (foundId) clienteIdsConPago.add(foundId);
+          });
+        }
+      } catch {}
+
+      filtered = filtered.filter(c => !clienteIdsConPago.has(c.id));
+    }
+
+    // 5. Limpiar teléfonos para asegurar que sean válidos (mínimo 10 dígitos)
     const validRecipients = filtered.filter(c => {
       const digits = (c.telefono || '').replace(/\D/g, '');
       return digits.length >= 10;
@@ -140,3 +172,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Error fetching preview data' }, { status: 500 });
   }
 }
+

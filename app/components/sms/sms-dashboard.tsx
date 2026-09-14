@@ -477,7 +477,7 @@ export function SmsDashboard() {
                     Ejecutar Campaña: Recordatorio a No Pagos
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Filtra los clientes que no realizaron su pago dentro de las rutas de cobranza actualmente activas.
+                    Filtra cuentas <strong>RUTA</strong> que no han realizado su pago en la semana de cobranza activa. Si seleccionas <strong>TODOS</strong>, abarca el acumulado desde el <strong>Sábado hasta el día de hoy</strong> y excluye automáticamente a quienes ya abonaron en la semana.
                   </CardDescription>
                 </div>
 
@@ -508,7 +508,7 @@ export function SmsDashboard() {
                       <SelectValue placeholder="Selecciona un día" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="TODOS">TODOS (Todos los días)</SelectItem>
+                      <SelectItem value="TODOS">TODOS (Acumulado Sábado a Hoy)</SelectItem>
                       <SelectItem value="LUNES">Lunes</SelectItem>
                       <SelectItem value="MARTES">Martes</SelectItem>
                       <SelectItem value="MIERCOLES">Miércoles</SelectItem>
@@ -541,7 +541,11 @@ export function SmsDashboard() {
                       <Badge variant="secondary" className="font-semibold text-xs px-2.5 py-0.5">
                         {previewClients.length} encontrados
                       </Badge>
-                      {diaCobro !== 'TODOS' && (
+                      {diaCobro === 'TODOS' ? (
+                        <Badge variant="outline" className="text-xs bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300">
+                          Acumulado: Sábado a Hoy
+                        </Badge>
+                      ) : (
                         <Badge variant="outline" className="text-xs">
                           Día: {diaCobro}
                         </Badge>
@@ -715,7 +719,7 @@ export function SmsDashboard() {
                 Estado de Rutas de Cobranza
               </CardTitle>
               <CardDescription className="text-xs">
-                Configura los periodos de cobro y activa o desactiva periodicidades para la emisión de campañas SMS.
+                Sincronizado automáticamente con el <strong>Calendario Anual de Cobradores</strong> (Ciclo Sábado a Viernes). Activa o desactiva periodicidades para la emisión de campañas SMS.
               </CardDescription>
             </CardHeader>
 

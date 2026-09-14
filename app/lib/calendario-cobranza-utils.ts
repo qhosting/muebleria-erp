@@ -146,3 +146,101 @@ export function formatearFechaCortaMX(fechaInput: Date | string | null | undefin
   const anio = d.getUTCFullYear();
   return `${dia}/${mes}/${anio}`;
 }
+
+/**
+ * Días oficiales de cobranza ordenados conforme al ciclo operativo semanal (Sábado a Viernes)
+ */
+export const DIAS_COBRANZA_CICLO = [
+  'SABADO',
+  'DOMINGO',
+  'LUNES',
+  'MARTES',
+  'MIERCOLES',
+  'JUEVES',
+  'VIERNES',
+] as const;
+
+/**
+ * Devuelve los días transcurridos del ciclo semanal de cobranza desde Sábado hasta el día actual (o fecha indicada).
+ * Por ejemplo, si hoy es MARTES, devuelve ['SABADO', 'DOMINGO', 'LUNES', 'MARTES'].
+ */
+export function getDiasCicloHastaHoy(fechaReferencia?: Date | string): string[] {
+  let date: Date;
+  if (!fechaReferencia) {
+    const nowMexicoStr = new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' });
+    date = new Date(nowMexicoStr);
+  } else if (typeof fechaReferencia === 'string') {
+    date = new Date(fechaReferencia);
+  } else {
+    date = fechaReferencia;
+  }
+
+  // getDay(): 0: Dom, 1: Lun, 2: Mar, 3: Mie, 4: Jue, 5: Vie, 6: Sab
+  const dayOfWeek = date.getDay();
+  const mapDia: Record<number, string> = {
+    6: 'SABADO',
+    0: 'DOMINGO',
+    1: 'LUNES',
+    2: 'MARTES',
+    3: 'MIERCOLES',
+    4: 'JUEVES',
+    5: 'VIERNES',
+  };
+
+  const hoyDia = mapDia[dayOfWeek] || 'SABADO';
+  const idx = DIAS_COBRANZA_CICLO.indexOf(hoyDia as any);
+  if (idx === -1) return [...DIAS_COBRANZA_CICLO];
+
+  return DIAS_COBRANZA_CICLO.slice(0, idx + 1);
+}
+
+/**
+ * Obtiene la información de la semana de cobranza activa consultando CalendarioCobranza (Calendario Anual)
+ * con fallback al cálculo de Sábado a Viernes si aún no está dado de alta.
+ */
+export async function obtenerInfoCalendarioCobranza(prisma: any, fechaReferencia: Date = new Date()) {
+  const { semana, anio } = calcularSemanaCobranzaSabadoViernes(fechaReferencia);
+
+  let cal: any = null;
+  try {
+    cal = await prisma.calendarioCobranza.findUnique({
+      where: {
+        anio_semana: { anio, semana }
+      }
+    });
+  } catch (err) {
+    console.warn('Advertencia al consultar CalendarioCobranza:', err);
+  }
+
+  let fechaInicio: Date;
+  let fechaFin: Date;
+  let periodicidadesActivas: string[];
+
+  if (cal) {
+    fechaInicio = new Date(cal.fechaInicio);
+    fechaFin = new Date(cal.fechaFin);
+    periodicidadesActivas = Array.isArray(cal.periodicidadesActivas) && cal.periodicidadesActivas.length > 0
+      ? (cal.periodicidadesActivas as string[]).map(p => String(p).toLowerCase())
+      : ['semanal', 'quincenal'];
+  } else {
+    const rango = calcularRangoSemanaSabadoViernes(semana, anio);
+    fechaInicio = rango.inicio;
+    fechaFin = rango.fin;
+    periodicidadesActivas = ['semanal', 'quincenal'];
+  }
+
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const formatDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  return {
+    anio,
+    semana,
+    fechaInicio,
+    fechaFin,
+    fechaInicioStr: formatDateStr(fechaInicio),
+    fechaFinStr: formatDateStr(fechaFin),
+    periodicidadesActivas,
+    esDesdeCalendario: !!cal,
+  };
+}
+
