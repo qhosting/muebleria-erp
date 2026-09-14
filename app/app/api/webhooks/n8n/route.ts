@@ -235,17 +235,51 @@ export async function POST(req: Request) {
             const ticketId = body.ticketId || body.id;
             if (!ticketId) return NextResponse.json({ error: "ticketId requerido" }, { status: 400 });
 
-            await prisma.pago.deleteMany({
-                where: { ticketId }
-            });
-            await prisma.ticket.delete({
-                where: { id: ticketId }
+            const ticket = await prisma.ticket.findUnique({
+                where: { id: ticketId },
+                include: { pagos: true }
             });
 
-            return NextResponse.json({
-                success: true,
-                message: `Ticket ${ticketId} eliminado exitosamente`
-            });
+            if (ticket) {
+                let montoRevertido = 0;
+                if (ticket.pagos && ticket.pagos.length > 0) {
+                    montoRevertido = ticket.pagos.reduce((sum, p) => sum + parseFloat(p.monto.toString()), 0);
+                }
+
+                await prisma.$transaction(async (tx) => {
+                    await tx.pago.deleteMany({
+                        where: { ticketId }
+                    });
+                    await tx.ticket.delete({
+                        where: { id: ticketId }
+                    });
+                    if (montoRevertido > 0 && ticket.clienteId) {
+                        await tx.cliente.update({
+                            where: { id: ticket.clienteId },
+                            data: {
+                                saldoActual: {
+                                    increment: montoRevertido
+                                }
+                            }
+                        });
+                    }
+                });
+
+                return NextResponse.json({
+                    success: true,
+                    message: `Ticket ${ticketId} eliminado exitosamente. Se reintegraron $${montoRevertido.toFixed(2)} al saldo del cliente.`
+                });
+            } else {
+                // Si el ticket ya no existe, verificar si quedaron pagos huérfanos con ese ticketId
+                await prisma.pago.deleteMany({
+                    where: { ticketId }
+                });
+
+                return NextResponse.json({
+                    success: true,
+                    message: `Ticket ${ticketId} no encontrado o ya eliminado`
+                });
+            }
         }
 
 
@@ -1271,26 +1305,75 @@ export async function POST(req: Request) {
             });
         }
 
-        // 3. Verificar Duplicado (Ventana de 15 minutos para evitar peticiones/webhooks concurrentes)
+        // 3. Verificar Duplicado
+        // A. Verificar por Hash MD5 de la imagen si ya existe en el Buzón de Tesorería
+        if (base64Data) {
+            const imageHash = crypto.createHash('md5').update(base64Data).digest('hex');
+            const buzonExistente = await prisma.buzonTesoreria.findUnique({
+                where: { hash: imageHash }
+            });
+            const buzonTicketId = (buzonExistente as any)?.metadata?.ticketId;
+            if (buzonTicketId) {
+                const ticketPorBuzon = await prisma.ticket.findUnique({
+                    where: { id: buzonTicketId }
+                });
+                if (ticketPorBuzon) {
+                    const pagoAsociado = await prisma.pago.findFirst({
+                        where: { ticketId: ticketPorBuzon.id }
+                    });
+                    return NextResponse.json({
+                        message: "Ticket ya existe (comprobante idéntico detectado)",
+                        ticketId: ticketPorBuzon.id,
+                        ticket_id: ticketPorBuzon.id,
+                        pagoId: pagoAsociado?.id || null,
+                        idPagoGenerado: pagoAsociado?.id || null,
+                        conciliado: ticketPorBuzon.conciliado,
+                        saldoNuevo: pagoAsociado ? parseFloat(pagoAsociado.saldoNuevo.toString()) : parseFloat(cliente.saldoActual.toString()),
+                        saldo_actual: pagoAsociado ? parseFloat(pagoAsociado.saldoNuevo.toString()) : parseFloat(cliente.saldoActual.toString()),
+                        ya_existe: true,
+                        yaExiste: true,
+                        remitente: remitente || ticketPorBuzon.remitente || cliente.telefono,
+                        contrato: codigoFinal,
+                        cod_cliente: codigoFinal,
+                        mensaje: `⚠️ Este comprobante ya fue registrado anteriormente con ID ${ticketPorBuzon.id}.\n\n📌 *Detalles del Ticket*\n- 🆔 ID: ${ticketPorBuzon.id}\n- 📄 Contrato: ${codigoFinal}\n- 💰 Monto: $${ticketPorBuzon.monto}\n- 📝 Folio: ${ticketPorBuzon.folio || 'N/A'}\n\n⚡ *TICKET YA PROCESADO* ⚡`
+                    });
+                }
+            }
+        }
+
         const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
         const parsedSearchDate = (fecha && fecha !== 'null' && fecha !== 'undefined') ? new Date(fecha) : undefined;
         const safeSearchDate = (parsedSearchDate && !isNaN(parsedSearchDate.getTime())) ? parsedSearchDate : undefined;
         
+        // Rango del día completo para evitar fallos por diferencia de hora/minutos
+        let dayStart: Date | undefined = undefined;
+        let dayEnd: Date | undefined = undefined;
+        if (safeSearchDate) {
+            dayStart = new Date(safeSearchDate);
+            dayStart.setUTCHours(0, 0, 0, 0);
+            dayEnd = new Date(safeSearchDate);
+            dayEnd.setUTCHours(23, 59, 59, 999);
+        }
+
+        // Variaciones de Folio (con #, sin #, limpio)
+        const cleanFolio = (folio && folio !== 'null') ? String(folio).replace(/[^a-zA-Z0-9]/g, '').trim() : null;
+        const folioVariants = cleanFolio ? Array.from(new Set([cleanFolio, `#${cleanFolio}`, String(folio).trim()])) : [];
+        const isFolioValido = Boolean(cleanFolio && cleanFolio.length >= 4);
+
         // Referencias estructuradas (excluyendo números de tarjeta / cuenta destino de la empresa como 1858, 2837, etc.)
         const companyAccounts = ['0228372', '22001022837', '65505732541', '0330253963', '1858', '2837', '5396', '0228'];
         const isCompanyAccountRef = companyAccounts.some(acc => referencia && String(referencia).includes(acc));
-        // Solo considerar referencia única si tiene al menos 7 dígitos y no es cuenta/tarjeta destino común
-        const isNumericRef = Boolean(referencia && referencia !== 'null' && /^\d{7,}$/.test(String(referencia).trim()) && !isCompanyAccountRef);
-        const isNumericFolio = Boolean(folio && folio !== 'null' && /^\d{6,}$/.test(String(folio).trim()));
+        const isNumericRef = Boolean(referencia && referencia !== 'null' && /^\d{6,}$/.test(String(referencia).trim()) && !isCompanyAccountRef);
         const forzarCreacion = Boolean(body.forzar || body.force);
+
         const existingTicket = forzarCreacion ? null : await prisma.ticket.findFirst({
             where: {
                 clienteId: cliente.id,
                 OR: [
                     (legacyIdNum) ? { legacyId: legacyIdNum } : { id: 'none' },
-                    (claverastreo && claverastreo !== 'null' && claverastreo.length >= 12) ? { claveRastreo: claverastreo } : { id: 'none' },
-                    (isNumericRef && safeSearchDate) ? { referencia: String(referencia).trim(), fecha: safeSearchDate } : { id: 'none' },
-                    (isNumericFolio && safeSearchDate) ? { folio: String(folio).trim(), fecha: safeSearchDate } : { id: 'none' },
+                    (claverastreo && claverastreo !== 'null' && claverastreo.length >= 6) ? { claveRastreo: claverastreo } : { id: 'none' },
+                    (isFolioValido) ? { folio: { in: folioVariants } } : { id: 'none' },
+                    (isNumericRef && dayStart && dayEnd) ? { referencia: String(referencia).trim(), fecha: { gte: dayStart, lte: dayEnd } } : { id: 'none' },
                     {
                         monto: parseFloat(monto || '0'),
                         creadoEn: { gte: fifteenMinutesAgo }

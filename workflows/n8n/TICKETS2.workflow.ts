@@ -156,7 +156,6 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 //                                  → PrepararMensajeDeNotificacion
 //                                    → EnviarPorWaha
 //                              → AsignaGestor
-//                            → NextjsErpWebhook
 //                 .out(1) → BuscarClientePorTelefono
 //                    → ClienteEncontrado
 //                      → UnirDatosDeBusqueda
@@ -3091,7 +3090,6 @@ Actualizado:{{ DateTime.local().setZone('America/Mexico_City').toFormat('yyyy-MM
         this.InsertarTicket.out(0).to(this.Mensaje.in(0));
         this.InsertarTicket.out(0).to(this.AsignaGestor.in(0));
         this.ExtraeDatos.out(0).to(this.InsertarTicket.in(0));
-        this.ExtraeDatos.out(0).to(this.NextjsErpWebhook.in(0));
         this.Mensaje.out(0).to(this.IntentarConciliacionInteligente.in(0));
         this.EnrutadorPrincipal.out(0).to(this.SelectorDeAccion.in(0));
         this.SelectorDeAccion.out(0).to(this.Merge.in(0));
