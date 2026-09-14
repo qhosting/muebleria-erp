@@ -192,19 +192,23 @@ flowchart TD
      - Se reasignó y concilió con su ticket legítimo `VD4K0FB0` del 01/09/2026.
 
 ---
-* **Buscador Dinámico en Modal de Coincidencias SPEI:** Filtrado en tiempo real por Nombre del Cliente, Contrato DP/DQ, Folio o Clave de Rastreo SPEI.
-* **Filtros Rápidos por Prefijo de Contrato:** Botones interactivos `[Todos (N)]`, `[Solo DP (N)]`, `[Solo DQ (N)]`.
-* **Filtros Interactivos por Etiqueta / Método de Coincidencia:** Píldoras con conteo en vivo para ver y aislar:
-  - `[👤 Nombre Cliente (N)]`
-  - `[🔢 Folio / Referencia (N)]`
-  - `[⚡ SPEI Exacto (N)]`
-  - `[📄 Contrato en Leyenda (N)]`
-  - `[🏦 Cuenta Habitual (N)]`
-  - `[📅 Monto y Fecha (N)]`
-* **Selección Directa por Criterio (Marcar Solo):**
-  - Botones de 1 clic: `Por Nombre`, `Por Folio/Ref`, `Por SPEI`, `Por Cuenta`, `Solo DP`, `Solo DQ`.
-  - Botones contextuales de `Seleccionar Visibles (N)` y `Deseleccionar Visibles` que actúan sobre el subconjunto filtrado activo.
-* **Estilos Profesionales de Etiquetas:** Badges con iconos y paleta cromática diferenciada por tipo de match (Púrpura para Nombre, Ámbar para Folio, Esmeralda para SPEI, Cian para Cuenta Habitual).
+
+### 🛡️ Fix 8: Deduplicación Robusta y Prevención de Tickets Duplicados (Caso `DP2608063` / Ticket `30AS2XRQ` - 14/09/2026)
+* **Síntoma:** A las 11:53:02 se registró el ticket legítimo `7YBJZOC2` por $250.00 para la cliente Janeth Cruz Andrade (`DP2608063`). A las 13:58:41 (2 horas y 5 minutos después), al reingresar el mismo comprobante, el sistema generó un ticket duplicado (`30AS2XRQ`) y descontó otros $250.00 de su saldo. Al ser eliminado el ticket duplicado, el saldo del cliente no se reintegró, quedando con un faltante de $250.00 ($2,789.99 en vez de $3,039.99).
+* **Causas Raíz Identificadas:**
+  1. **Expiración de Ventana de 15 Minutos:** La regla de duplicado por monto solo cubría los últimos 15 minutos (`gte: fifteenMinutesAgo`). Como el reenvío ocurrió 2 horas y 5 minutos después, la regla no lo frenó.
+  2. **Discrepancia en Formato de Folio (`#` vs sin `#`):** El primer ticket guardó el folio como `#178009134245` y el segundo llegó sin `#` (`178009134245`), provocando que la búsqueda estricta de string fallara.
+  3. **Igualdad Estricta de Fecha/Hora al Milisegundo:** La búsqueda comparaba `fecha: safeSearchDate` (`00:00:00.000Z`) contra el registro que contenía la hora real (`11:20:00.000Z`), haciendo que no coincidieran.
+  4. **Bifurcación Redundante en n8n (`TICKETS2.workflow.ts`):** El nodo `EXTRAE_DATOS` estaba conectado en paralelo a dos nodos HTTP concurrentes (`Insertar_Ticket` y `NextJS_ERP_Webhook`) disparando llamadas dobles a la misma URL del ERP.
+  5. **Omisión de Reintegro de Saldo en `eliminar_ticket`:** La acción `eliminar_ticket` en `/api/webhooks/n8n` eliminaba el ticket y el pago, pero no reintegraba el saldo en `clientes.saldoActual`.
+* **Soluciones y Blindajes Aplicados:**
+  1. **Deduplicación por Hash MD5 de Imagen:** Ahora se verifica primero si el hash MD5 de la imagen ya existe en `buzon_tesoreria` con un ticket generado, retornándolo de inmediato como duplicado sin importar cuánto tiempo haya transcurrido.
+  2. **Normalización de Folios:** Limpieza de caracteres no alfanuméricos (`#`, guiones, espacios) y búsqueda multi-variante en la base de datos.
+  3. **Rango de Búsqueda por Día Completo:** La búsqueda por fecha abarca desde `00:00:00` hasta `23:59:59` del día de operación.
+  4. **Flexibilización de Clave de Rastreo:** Umbral reducido de $\ge 12$ a $\ge 6$ caracteres para abarcar claves SPEI y fintechs cortas.
+  5. **Desacople en n8n:** Se desconectó `NextjsErpWebhook` de `EXTRAE_DATOS`, eliminando las peticiones paralelas duplicadas.
+  6. **Reintegro Transaccional de Saldo:** Se actualizó `eliminar_ticket` para sumar de vuelta los montos de pagos eliminados al saldo del cliente en la misma transacción Prisma.
+  7. **Saneamiento `DP2608063`:** Saldo corregido a **$3,039.99** (reintegrando los $250.00) y metadatos del buzón re-enlazados al ticket legítimo `7YBJZOC2`.
 
 ---
 
@@ -218,7 +222,7 @@ Fase 1: Estabilización Operativa (COMPLETADA - Sep 2026)
   ├── ✅ Estandarización de mensaje de recepción sin saldo preliminar
   └── ✅ Pausa de cron EnvioDeSaldos
 
-Fase 2: Robustez y Auditoría (En Curso)
+Fase 2: Robustez y Auditoría (COMPLETADA - Sep 2026)
   ├── [x] Auditoría completa de vulnerabilidades y seguridad (Zero Vulnerabilities)
   │   ├── Eliminación de autoregistro público anónimo en /api/signup (restringido a admin)
   │   ├── Eliminación de credencial en texto plano hardcodeada en lib/auth.ts
@@ -250,8 +254,14 @@ Fase 2: Robustez y Auditoría (En Curso)
   │   ├── Respaldo íntegro en JSON de los 128 enlaces (scratch/backup_128_movimientos_desvinculados.json)
   │   ├── Liberación masiva de los 128 movimientos bancarios (ticketId = null) para su conciliación legítima
   │   └── Aseguramiento de 100% de tickets históricos como conciliados/migración (0 pendientes previos al 29/07/2026)
+  ├── [x] Deduplicación Robusta y Prevención de Tickets Duplicados (Caso DP2608063)
+  │   ├── Detección previa por Hash MD5 de la imagen en buzon_tesoreria (rechazo de capturas idénticas)
+  │   ├── Limpieza de folios (caracteres especiales, #, guiones) y búsqueda multi-variante
+  │   ├── Rango de fecha por día completo (00:00:00 a 23:59:59) en lugar de timestamp milimétrico
+  │   ├── Umbral de clave de rastreo reducido a >= 6 caracteres
+  │   ├── Desacople de bifurcación duplicada hacia NextjsErpWebhook en TICKETS2.workflow.ts
+  │   └── Reintegro transaccional automático del saldo al cliente en eliminar_ticket
   ├── [ ] Reintentos automáticos estructurados con Backoff en caso de caída temporal de WAHA
-  ├── [ ] Detección anti-fraude: Hash MD5/SHA256 de imagen para rechazar capturas idénticas
   └── [ ] Sincronización automática de estado de tickets entre Cola de Tesorería y Dashboard
 
 Fase 3: Conciliación en Tiempo Real y Bóveda Digital (Mediano Plazo)

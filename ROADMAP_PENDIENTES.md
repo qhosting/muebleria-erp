@@ -22,7 +22,16 @@ Este documento detalla las características planificadas, mejoras técnicas y nu
 - **Historial de Movimientos:** ✅ Auditoría completa con filtros por tipo (entrada, salida, venta, traspaso) y sucursal.
 - **Sincronización Contpaqi:** ✅ Conector con Contpaqi Comercial / Adminpaq.
 
-#### 4. Pasarela de Pagos en Línea y Portal de Clientes [⏳ PENDIENTE]
+#### 4. Campañas SMS y Módulo SMS Mobile [✅ 100% IMPLEMENTADO]
+- **Dashboard y Rutas Mobile:** ✅ Gestión de campañas, plantillas dinámicas, saldo en vivo y bitácora de mensajes (`/dashboard/cobranza-mobile/sms` y `/mobile/sms`).
+- **Control de Saldo SMS:** ✅ API integrada para recargas, consulta de saldo y registro histórico de consumo.
+
+#### 5. Conciliador Bancario y Deduplicación de Tickets n8n [✅ 100% IMPLEMENTADO]
+- **Auditoría Cero Discrepancias:** ✅ Prohibición estricta de conciliar tickets contra movimientos con monto discordante ($0.01).
+- **Deduplicación Robusta:** ✅ Detección anti-fraude por Hash MD5 de imagen en buzón, tolerancia flexible a prefijos de folio (`#`), búsqueda por día completo y reversión atómica de saldos en cancelaciones.
+- **Desacople en Flujo n8n:** ✅ Eliminación de ramas redundantes concurrentes en `TICKETS2.workflow.ts`.
+
+#### 6. Pasarela de Pagos en Línea y Portal de Clientes [⏳ PENDIENTE]
 - **Portal de Autogestión:** Permitir que los clientes consulten su estado de cuenta y realicen abonos mediante SPEI o tarjeta de débito/crédito.
 - **Fichas de Pago Referenciadas:** Generación de referencias automáticas para tiendas de conveniencia (OXXO, 7-Eleven).
 

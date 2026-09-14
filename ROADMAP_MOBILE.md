@@ -21,6 +21,7 @@ Digitalizar y optimizar la operación de cobranza y ventas en campo, proporciona
 - [x] Envío de recibos y Avisos de Cobro por WhatsApp (generación y compartición local offline de PDF).
 - [x] Captura de gastos de ruta y control de sesión de caja.
 - [x] Identificación y auditoría de depósitos bancarios.
+- [x] Módulo SMS Cobranza Mobile: Envíos personalizados y automatizados a clientes en ruta con consulta de saldo en vivo y plantillas preconfiguradas (`/mobile/sms`).
 
 ### 🟢 Fase 3: Optimización y Navegación en Ruta (100%)
 - [x] Visualización de clientes en mapa interactivo (Leaflet).
