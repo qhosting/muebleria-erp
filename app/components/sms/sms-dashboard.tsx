@@ -410,7 +410,7 @@ export function SmsDashboard() {
             Gestión de Campañas SMS
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Envío masivo y automatizado de recordatorios a clientes (LabsMobile / SMS Nativo)
+            Envío masivo y automatizado de recordatorios a clientes (Servidor / SMS Nativo)
           </p>
         </div>
 
@@ -428,7 +428,7 @@ export function SmsDashboard() {
                 <span className="text-2xl font-black text-blue-900 dark:text-white">
                   {loadingInitial ? '...' : smsDisponiblesEnteros.toLocaleString('es-MX')}
                 </span>
-                <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-100/90 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-md" title="Saldo exacto en créditos LabsMobile">
+                <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-100/90 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-md" title="Saldo exacto en créditos disponibles">
                   ${formattedCreditos} créditos
                 </span>
                 <Button 
@@ -437,7 +437,7 @@ export function SmsDashboard() {
                   className="h-7 w-7 text-blue-700 hover:text-blue-900 hover:bg-blue-100" 
                   onClick={fetchBalance}
                   disabled={syncingBalance}
-                  title="Sincronizar saldo con LabsMobile"
+                  title="Sincronizar saldo de mensajes"
                 >
                   <RefreshCw className={`h-4 w-4 ${syncingBalance ? 'animate-spin' : ''}`} />
                 </Button>
@@ -947,7 +947,7 @@ export function SmsDashboard() {
                       disabled={isSending}
                     >
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      LabsMobile API
+                      SMS Masivo (Servidor)
                     </Button>
                     <Button 
                       type="button"

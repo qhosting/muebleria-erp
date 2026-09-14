@@ -297,8 +297,8 @@ export default function UsuariosPage() {
                   <h3 className="text-sm font-medium">Configuración de SMS</h3>
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
-                      <Label htmlFor="enableLabsMobile">Habilitar LabsMobile</Label>
-                      <p className="text-xs text-gray-500">Permitir envíos usando la API (costo empresa)</p>
+                      <Label htmlFor="enableLabsMobile">Habilitar SMS Masivo (Servidor)</Label>
+                      <p className="text-xs text-gray-500">Permitir envíos masivos usando el servidor / saldo de empresa</p>
                     </div>
                     <Switch
                       id="enableLabsMobile"
