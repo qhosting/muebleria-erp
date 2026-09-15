@@ -17,7 +17,11 @@ import {
   Search,
   Smartphone,
   Info,
-  Clock
+  Clock,
+  UserCheck,
+  Sparkles,
+  User,
+  CheckSquare
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,7 +38,9 @@ import {
   DialogHeader, 
   DialogTitle 
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { sendNativeSMS, canSendSMS } from '@/lib/native/sms';
 
 interface Template {
@@ -75,7 +81,10 @@ interface ClientRecipient {
   saldoVencido: number;
   saldoActual?: number;
   gestor?: string;
+  gestorId?: string | null;
 }
+
+type ModoEnvio = 'nopagos_acumulado' | 'por_gestor' | 'inicio_semana';
 
 export function SmsDashboard() {
   const { data: session } = useSession();
@@ -95,10 +104,17 @@ export function SmsDashboard() {
   const [rutas, setRutas] = useState<RutaCobranza[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignLog[]>([]);
+  const [cobradores, setCobradores] = useState<{ id: string; name: string; codigoGestor?: string }[]>([]);
   
-  // Estado de Campaña No Pagos
+  // 3 Modalidades de Envío: No Pagos Acumulado, Por Gestor, Inicio de Semana
+  const [modoEnvio, setModoEnvio] = useState<ModoEnvio>('nopagos_acumulado');
+  const [selectedGestorId, setSelectedGestorId] = useState<string>('TODOS');
   const [diaCobro, setDiaCobro] = useState<string>('TODOS');
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState<string>('no_pagos');
+  
+  // Clientes previsualizados y selección granular
   const [previewClients, setPreviewClients] = useState<ClientRecipient[]>([]);
+  const [selectedClientIds, setSelectedClientIds] = useState<Set<string>>(new Set());
   const [previewSearch, setPreviewSearch] = useState<string>('');
   const [hasPreviewed, setHasPreviewed] = useState<boolean>(false);
 
@@ -133,12 +149,26 @@ export function SmsDashboard() {
         fetchBalance(),
         fetchRutas(),
         fetchTemplates(),
-        fetchCampaigns()
+        fetchCampaigns(),
+        fetchCobradores()
       ]);
     } catch (err) {
       toast.error('Error al cargar datos del sistema de SMS');
     } finally {
       setLoadingInitial(false);
+    }
+  };
+
+  const fetchCobradores = async () => {
+    try {
+      const res = await fetch('/api/users');
+      if (res.ok) {
+        const users = await res.json();
+        const cobs = users.filter((u: any) => u.role === 'cobrador' || u.codigoGestor);
+        setCobradores(cobs);
+      }
+    } catch (err) {
+      console.error('Error fetching cobradores:', err);
     }
   };
 
@@ -253,79 +283,141 @@ export function SmsDashboard() {
     }));
   };
 
-  // Previsualizar campaña a No Pagos
-  const handlePreviewNoPagos = async () => {
+  // Lista de Gestores / Cobradores disponibles (combinando tabla de usuarios y registros)
+  const gestoresDisponibles = useMemo(() => {
+    const map = new Map<string, string>();
+    cobradores.forEach(c => {
+      map.set(c.id, c.name || c.codigoGestor || 'Cobrador');
+    });
+    previewClients.forEach(c => {
+      if (c.gestorId && c.gestor) {
+        map.set(c.gestorId, c.gestor);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [cobradores, previewClients]);
+
+  // Plantillas de Inicio de Semana
+  const plantillasInicioSemana = useMemo(() => {
+    const list = templates.filter(t => t.campaignKey.startsWith('inicio_semana') || t.name.toLowerCase().includes('inicio'));
+    return list.length > 0 ? list : templates;
+  }, [templates]);
+
+  // Previsualizar según la Modalidad de Envío seleccionada
+  const handlePreview = async () => {
     setLoadingPreview(true);
     setHasPreviewed(true);
     try {
-      const res = await fetch(`/api/sms/preview?campaignKey=no_pagos&diaCobro=${encodeURIComponent(diaCobro)}`);
+      let url = '';
+      if (modoEnvio === 'inicio_semana') {
+        url = `/api/sms/preview?campaignKey=inicio_semana&diaCobro=TODOS`;
+      } else if (modoEnvio === 'por_gestor') {
+        const gestorParam = selectedGestorId && selectedGestorId !== 'TODOS' ? `&gestorId=${encodeURIComponent(selectedGestorId)}` : '';
+        url = `/api/sms/preview?campaignKey=no_pagos&diaCobro=${encodeURIComponent(diaCobro)}${gestorParam}`;
+      } else {
+        // nopagos_acumulado
+        url = `/api/sms/preview?campaignKey=no_pagos&diaCobro=${encodeURIComponent(diaCobro)}`;
+      }
+
+      const res = await fetch(url);
       if (res.ok) {
         const data: ClientRecipient[] = await res.json();
         setPreviewClients(data);
-        toast.success(`${data.length} destinatarios encontrados para día ${diaCobro}`);
+        // Por defecto seleccionar todos los clientes encontrados
+        setSelectedClientIds(new Set(data.map(c => c.id)));
+        toast.success(`${data.length} destinatarios encontrados`);
       } else {
         toast.error('Error al consultar destinatarios');
       }
     } catch {
-      toast.error('Error de red');
+      toast.error('Error de conexión');
     } finally {
       setLoadingPreview(false);
     }
   };
 
-  // Preparar confirmación de campaña No Pagos
-  const openConfirmNoPagos = () => {
-    if (previewClients.length === 0) {
-      toast.error('No hay destinatarios para enviar');
+  // Manejo de Checkboxes de selección de clientes
+  const handleToggleSelectAll = (clientsToToggle: ClientRecipient[]) => {
+    const allChecked = clientsToToggle.length > 0 && clientsToToggle.every(c => selectedClientIds.has(c.id));
+    if (allChecked) {
+      const next = new Set(selectedClientIds);
+      clientsToToggle.forEach(c => next.delete(c.id));
+      setSelectedClientIds(next);
+    } else {
+      const next = new Set(selectedClientIds);
+      clientsToToggle.forEach(c => next.add(c.id));
+      setSelectedClientIds(next);
+    }
+  };
+
+  const handleToggleClient = (clientId: string) => {
+    const next = new Set(selectedClientIds);
+    if (next.has(clientId)) {
+      next.delete(clientId);
+    } else {
+      next.add(clientId);
+    }
+    setSelectedClientIds(next);
+  };
+
+  // Preparar confirmación de campaña (masivo, seleccionados, o individual)
+  const openConfirmCampaign = (clientsToSend: ClientRecipient[], customTitle?: string) => {
+    if (clientsToSend.length === 0) {
+      toast.error('No hay destinatarios seleccionados para enviar');
       return;
     }
-    const template = templates.find(t => t.campaignKey === 'no_pagos') || {
-      id: 'no_pagos',
-      campaignKey: 'no_pagos',
-      name: 'Recordatorio a No Pagos',
-      templateText: 'Estimado [nombre], no recibimos tu pago. Favor de regularizar tu cuenta hoy mismo para evitar cargos.'
+
+    let templateKeyToUse = 'no_pagos';
+    if (modoEnvio === 'inicio_semana') {
+      templateKeyToUse = selectedTemplateKey.startsWith('inicio_semana') ? selectedTemplateKey : 'inicio_semana';
+    } else {
+      templateKeyToUse = 'no_pagos';
+    }
+
+    const template = templates.find(t => t.campaignKey === templateKeyToUse) || templates[0] || {
+      id: templateKeyToUse,
+      campaignKey: templateKeyToUse,
+      name: templateKeyToUse === 'inicio_semana' ? 'Recordatorio Inicio de Semana' : 'Recordatorio a No Pagos',
+      templateText: templateKeyToUse === 'inicio_semana' 
+        ? 'Hola [nombre], te recordamos que tu pago esta proximo. ¡Que tengas excelente semana!'
+        : 'Estimado [nombre], no recibimos tu pago. Favor de regularizar tu cuenta hoy mismo para evitar cargos.'
     };
 
+    const title = customTitle || (
+      modoEnvio === 'inicio_semana'
+        ? `Inicio de Semana (${clientsToSend.length} clientes)`
+        : modoEnvio === 'por_gestor'
+        ? `Por Gestor: ${cobradores.find(c => c.id === selectedGestorId)?.name || 'Todos los Gestores'} (${clientsToSend.length} clientes)`
+        : `No Pagos Acumulado (${clientsToSend.length} clientes)`
+    );
+
     setActiveCampaignToSend({
-      key: 'no_pagos',
-      name: `Recordatorio a No Pagos (${diaCobro})`,
+      key: template.campaignKey,
+      name: title,
       templateText: template.templateText,
-      clients: previewClients
+      clients: clientsToSend
     });
     setSendDialogOpen(true);
   };
 
-  // Ejecutar Campaña Inicio de Semana (1-click como en sms_dashboard.php)
-  const handleRunInicioSemana = async () => {
-    const template = templates.find(t => t.campaignKey === 'inicio_semana') || {
-      id: 'inicio_semana',
-      campaignKey: 'inicio_semana',
-      name: 'Recordatorio Inicio de Semana',
-      templateText: 'Hola [nombre], te recordamos que tu pago esta proximo. ¡Que tengas excelente semana!'
-    };
+  // Enviar a todos los encontrados
+  const handleSendAll = () => {
+    openConfirmCampaign(previewClients);
+  };
 
-    setLoadingPreview(true);
-    try {
-      const res = await fetch('/api/sms/preview?campaignKey=inicio_semana&diaCobro=TODOS');
-      if (res.ok) {
-        const clients: ClientRecipient[] = await res.json();
-        if (clients.length === 0) {
-          toast.info('No hay clientes en rutas activas para esta semana');
-          return;
-        }
-        setActiveCampaignToSend({
-          key: 'inicio_semana',
-          name: 'Recordatorio Inicio de Semana',
-          templateText: template.templateText,
-          clients
-        });
-        setSendDialogOpen(true);
-      }
-    } catch {
-      toast.error('Error al consultar clientes para Inicio de Semana');
-    } finally {
-      setLoadingPreview(false);
+  // Enviar únicamente a los clientes marcados con checkbox
+  const handleSendSelected = () => {
+    const selectedList = previewClients.filter(c => selectedClientIds.has(c.id));
+    if (selectedList.length === 0) {
+      toast.error('Selecciona al menos un cliente con la casilla de verificación');
+      return;
     }
+    openConfirmCampaign(selectedList, `Envío a Seleccionados (${selectedList.length} clientes)`);
+  };
+
+  // Enviar individual (1 a 1) desde la fila de la tabla
+  const handleSendIndividual = (client: ClientRecipient) => {
+    openConfirmCampaign([client], `Recordatorio Individual: ${client.nombreCompleto}`);
   };
 
   // Ejecutar Envío Final
@@ -478,149 +570,406 @@ export function SmsDashboard() {
           </TabsTrigger>
         </TabsList>
 
-        {/* 1. RECORDATORIO A NO PAGOS (Equivalente al bloque central de sms_dashboard.php) */}
+        {/* 1. RECORDATORIO A NO PAGOS & 3 MODALIDADES DE ENVÍO */}
         <TabsContent value="nopagos" className="space-y-4 mt-4">
           <Card className="shadow-sm border-slate-200 dark:border-slate-800">
             <CardHeader className="pb-3">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="text-lg font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-                    <AlertCircle className="h-5 w-5 text-amber-500" />
-                    Ejecutar Campaña: Recordatorio a No Pagos
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Filtra cuentas <strong>RUTA</strong> que no han realizado su pago en la semana de cobranza activa. Si seleccionas <strong>TODOS</strong>, abarca el acumulado desde el <strong>Sábado hasta el día de hoy</strong> y excluye automáticamente a quienes ya abonaron en la semana.
-                  </CardDescription>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-lg font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                      <MessageSquare className="h-5 w-5 text-primary" />
+                      Emisión de Mensajes SMS (3 Modalidades)
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Selecciona la modalidad de envío deseada para filtrar destinatarios, seleccionar clientes específicos o emitir mensajes individuales/masivos.
+                    </CardDescription>
+                  </div>
                 </div>
 
-                {/* Acciones de Previsualización y Envío */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {hasPreviewed && previewClients.length > 0 && (
-                    <Button 
-                      onClick={openConfirmNoPagos} 
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-2 shadow-sm"
-                    >
-                      <Send className="h-4 w-4" />
-                      Confirmar y Enviar ({previewClients.length})
-                    </Button>
-                  )}
+                {/* Selector Visual de las 3 Modalidades */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-1.5 bg-slate-100 dark:bg-slate-800/60 rounded-xl">
+                  {/* Modalidad 1: No Pagos Acumulado */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModoEnvio('nopagos_acumulado');
+                      setHasPreviewed(false);
+                      setPreviewClients([]);
+                      setSelectedClientIds(new Set());
+                    }}
+                    className={cn(
+                      "p-3 rounded-lg text-left transition-all flex items-start gap-3 border",
+                      modoEnvio === 'nopagos_acumulado'
+                        ? "bg-white dark:bg-slate-900 border-amber-500 shadow-sm ring-1 ring-amber-500/20"
+                        : "border-transparent hover:bg-white/60 dark:hover:bg-slate-800/80 text-muted-foreground"
+                    )}
+                  >
+                    <div className={cn(
+                      "p-2 rounded-lg shrink-0",
+                      modoEnvio === 'nopagos_acumulado'
+                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
+                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                    )}>
+                      <AlertCircle className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">
+                        1. No Pagos (Acumulado)
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                        Sábado a Hoy • Envío a todos o individual (1 a 1)
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Modalidad 2: Por Gestor & Selección */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModoEnvio('por_gestor');
+                      setHasPreviewed(false);
+                      setPreviewClients([]);
+                      setSelectedClientIds(new Set());
+                    }}
+                    className={cn(
+                      "p-3 rounded-lg text-left transition-all flex items-start gap-3 border",
+                      modoEnvio === 'por_gestor'
+                        ? "bg-white dark:bg-slate-900 border-blue-500 shadow-sm ring-1 ring-blue-500/20"
+                        : "border-transparent hover:bg-white/60 dark:hover:bg-slate-800/80 text-muted-foreground"
+                    )}
+                  >
+                    <div className={cn(
+                      "p-2 rounded-lg shrink-0",
+                      modoEnvio === 'por_gestor'
+                        ? "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300"
+                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                    )}>
+                      <UserCheck className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">
+                        2. Por Gestor de Cobranza
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                        Filtra por cobrador y selecciona clientes con casillas
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Modalidad 3: Inicio de Semana */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModoEnvio('inicio_semana');
+                      setHasPreviewed(false);
+                      setPreviewClients([]);
+                      setSelectedClientIds(new Set());
+                    }}
+                    className={cn(
+                      "p-3 rounded-lg text-left transition-all flex items-start gap-3 border",
+                      modoEnvio === 'inicio_semana'
+                        ? "bg-white dark:bg-slate-900 border-emerald-500 shadow-sm ring-1 ring-emerald-500/20"
+                        : "border-transparent hover:bg-white/60 dark:hover:bg-slate-800/80 text-muted-foreground"
+                    )}
+                  >
+                    <div className={cn(
+                      "p-2 rounded-lg shrink-0",
+                      modoEnvio === 'inicio_semana'
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300"
+                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                    )}>
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">
+                        3. Inicio de Semana
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                        Elige plantilla de inicio y avisa a la cartera activa
+                      </div>
+                    </div>
+                  </button>
                 </div>
               </div>
             </CardHeader>
 
             <CardContent className="space-y-4">
-              {/* Filtro por Día de Cobro */}
-              <div className="flex flex-col sm:flex-row sm:items-end gap-3 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800">
-                <div className="space-y-1.5 flex-1 max-w-xs">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Filtrar por día de cobro:
-                  </label>
-                  <Select value={diaCobro} onValueChange={setDiaCobro}>
-                    <SelectTrigger className="bg-white dark:bg-slate-900">
-                      <SelectValue placeholder="Selecciona un día" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="TODOS">TODOS (Acumulado Sábado a Hoy)</SelectItem>
-                      <SelectItem value="LUNES">Lunes</SelectItem>
-                      <SelectItem value="MARTES">Martes</SelectItem>
-                      <SelectItem value="MIERCOLES">Miércoles</SelectItem>
-                      <SelectItem value="JUEVES">Jueves</SelectItem>
-                      <SelectItem value="VIERNES">Viernes</SelectItem>
-                      <SelectItem value="SABADO">Sábado</SelectItem>
-                      <SelectItem value="DOMINGO">Domingo</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {/* Controles y Filtros Dinámicos según Modalidad */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="flex flex-col md:flex-row md:items-end gap-3">
+                  {/* MODALIDAD 1: No Pagos Acumulado */}
+                  {modoEnvio === 'nopagos_acumulado' && (
+                    <div className="space-y-1.5 flex-1 max-w-xs">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Día de cobro:
+                      </label>
+                      <Select value={diaCobro} onValueChange={setDiaCobro}>
+                        <SelectTrigger className="bg-white dark:bg-slate-900 text-xs">
+                          <SelectValue placeholder="Selecciona un día" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="TODOS">TODOS (Acumulado Sábado a Hoy)</SelectItem>
+                          <SelectItem value="LUNES">Lunes</SelectItem>
+                          <SelectItem value="MARTES">Martes</SelectItem>
+                          <SelectItem value="MIERCOLES">Miércoles</SelectItem>
+                          <SelectItem value="JUEVES">Jueves</SelectItem>
+                          <SelectItem value="VIERNES">Viernes</SelectItem>
+                          <SelectItem value="SABADO">Sábado</SelectItem>
+                          <SelectItem value="DOMINGO">Domingo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* MODALIDAD 2: Por Gestor */}
+                  {modoEnvio === 'por_gestor' && (
+                    <>
+                      <div className="space-y-1.5 flex-1 max-w-xs">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Selecciona Gestor / Cobrador:
+                        </label>
+                        <Select value={selectedGestorId} onValueChange={setSelectedGestorId}>
+                          <SelectTrigger className="bg-white dark:bg-slate-900 text-xs">
+                            <SelectValue placeholder="Selecciona un gestor" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="TODOS">Todos los Gestores</SelectItem>
+                            {gestoresDisponibles.map(g => (
+                              <SelectItem key={g.id} value={g.id}>
+                                {g.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5 flex-1 max-w-xs">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Día de cobro:
+                        </label>
+                        <Select value={diaCobro} onValueChange={setDiaCobro}>
+                          <SelectTrigger className="bg-white dark:bg-slate-900 text-xs">
+                            <SelectValue placeholder="Selecciona un día" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="TODOS">TODOS (Acumulado Sábado a Hoy)</SelectItem>
+                            <SelectItem value="LUNES">Lunes</SelectItem>
+                            <SelectItem value="MARTES">Martes</SelectItem>
+                            <SelectItem value="MIERCOLES">Miércoles</SelectItem>
+                            <SelectItem value="JUEVES">Jueves</SelectItem>
+                            <SelectItem value="VIERNES">Viernes</SelectItem>
+                            <SelectItem value="SABADO">Sábado</SelectItem>
+                            <SelectItem value="DOMINGO">Domingo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
+
+                  {/* MODALIDAD 3: Inicio de Semana */}
+                  {modoEnvio === 'inicio_semana' && (
+                    <div className="space-y-1.5 flex-1 max-w-md">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Selecciona Plantilla de Inicio de Semana:
+                      </label>
+                      <Select 
+                        value={selectedTemplateKey} 
+                        onValueChange={setSelectedTemplateKey}
+                      >
+                        <SelectTrigger className="bg-white dark:bg-slate-900 text-xs">
+                          <SelectValue placeholder="Selecciona una plantilla" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {plantillasInicioSemana.map(t => (
+                            <SelectItem key={t.campaignKey} value={t.campaignKey}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Botón de Previsualización */}
+                  <Button 
+                    onClick={handlePreview} 
+                    disabled={loadingPreview}
+                    className={cn(
+                      "font-bold gap-2 text-xs",
+                      modoEnvio === 'inicio_semana'
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        : modoEnvio === 'por_gestor'
+                        ? "bg-blue-600 hover:bg-blue-700 text-white"
+                        : "bg-amber-500 hover:bg-amber-600 text-slate-950"
+                    )}
+                  >
+                    <Search className={`h-4 w-4 ${loadingPreview ? 'animate-spin' : ''}`} />
+                    {loadingPreview ? 'Consultando...' : 'Previsualizar Destinatarios'}
+                  </Button>
                 </div>
 
-                <Button 
-                  onClick={handlePreviewNoPagos} 
-                  disabled={loadingPreview}
-                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold gap-2"
-                >
-                  <Search className={`h-4 w-4 ${loadingPreview ? 'animate-spin' : ''}`} />
-                  {loadingPreview ? 'Consultando...' : 'Previsualizar Envío'}
-                </Button>
+                {/* Vista previa de texto de plantilla para Inicio de Semana */}
+                {modoEnvio === 'inicio_semana' && (
+                  <div className="p-2.5 bg-white dark:bg-slate-900 rounded border text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2">
+                    <Info className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold text-slate-900 dark:text-white">Mensaje a emitir: </span>
+                      <span className="font-sans italic">
+                        "{templates.find(t => t.campaignKey === selectedTemplateKey)?.templateText || templates.find(t => t.campaignKey === 'inicio_semana')?.templateText || 'Recordatorio de inicio de semana'}"
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Resultados de la Previsualización */}
               {hasPreviewed && (
                 <div className="space-y-3 pt-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b">
+                    {/* Resumen de contadores y badges */}
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                        Resumen de Destinatarios
+                        Destinatarios:
                       </h3>
                       <Badge variant="secondary" className="font-semibold text-xs px-2.5 py-0.5">
                         {previewClients.length} encontrados
                       </Badge>
-                      {diaCobro === 'TODOS' ? (
-                        <Badge variant="outline" className="text-xs bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300">
-                          Acumulado: Sábado a Hoy
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs">
-                          Día: {diaCobro}
-                        </Badge>
-                      )}
+                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border-blue-300 font-semibold">
+                        {selectedClientIds.size} seleccionados
+                      </Badge>
+                      <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-300 font-bold">
+                        ${(selectedClientIds.size * 0.45).toFixed(2)} MXN estimado
+                      </Badge>
                     </div>
 
-                    {previewClients.length > 0 && (
-                      <div className="relative w-full sm:w-64">
-                        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input 
-                          placeholder="Buscar cliente, contrato o teléfono..."
-                          value={previewSearch}
-                          onChange={e => setPreviewSearch(e.target.value)}
-                          className="pl-8 h-8 text-xs"
-                        />
-                      </div>
-                    )}
+                    {/* Acciones de Envío Masivo y Filtrado */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {previewClients.length > 0 && (
+                        <>
+                          {/* Botón: Enviar a Seleccionados */}
+                          <Button 
+                            onClick={handleSendSelected} 
+                            disabled={selectedClientIds.size === 0}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 text-xs shadow-sm h-8"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            Enviar a Seleccionados ({selectedClientIds.size})
+                          </Button>
+
+                          {/* Botón: Enviar a Todos */}
+                          {selectedClientIds.size !== previewClients.length && (
+                            <Button 
+                              onClick={handleSendAll}
+                              variant="outline"
+                              className="text-xs font-semibold h-8"
+                            >
+                              Enviar a Todos ({previewClients.length})
+                            </Button>
+                          )}
+
+                          {/* Buscador de texto */}
+                          <div className="relative w-full sm:w-56">
+                            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input 
+                              placeholder="Buscar cliente..."
+                              value={previewSearch}
+                              onChange={e => setPreviewSearch(e.target.value)}
+                              className="pl-8 h-8 text-xs"
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {previewClients.length === 0 ? (
                     <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/30 rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
                       <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-50" />
                       <p className="text-sm text-muted-foreground font-medium">
-                        No se encontraron clientes que cumplan con los criterios seleccionados para el día {diaCobro}.
+                        No se encontraron clientes para los criterios seleccionados.
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Verifica que las rutas de cobranza correspondientes estén en estatus ACTIVO y con fechas vigentes.
+                        Verifica que las cuentas pertenezcan a clasificación RUTA y estén activas en el calendario semanal.
                       </p>
                     </div>
                   ) : (
-                    <div className="rounded-lg border overflow-hidden max-h-[420px] overflow-y-auto">
+                    <div className="rounded-lg border overflow-hidden max-h-[440px] overflow-y-auto">
                       <table className="w-full text-xs text-left">
-                        <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold sticky top-0">
+                        <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold sticky top-0 z-10 shadow-sm">
                           <tr>
-                            <th className="p-2.5">Contrato / Código</th>
-                            <th className="p-2.5">Nombre del Cliente</th>
+                            <th className="p-2.5 w-10 text-center">
+                              <Checkbox
+                                checked={
+                                  filteredPreviewClients.length > 0 &&
+                                  filteredPreviewClients.every(c => selectedClientIds.has(c.id))
+                                }
+                                onCheckedChange={() => handleToggleSelectAll(filteredPreviewClients)}
+                                aria-label="Seleccionar todos los clientes"
+                              />
+                            </th>
+                            <th className="p-2.5">Contrato</th>
+                            <th className="p-2.5">Cliente</th>
                             <th className="p-2.5">Teléfono</th>
-                            <th className="p-2.5">Día de Cobro</th>
+                            <th className="p-2.5">Gestor</th>
+                            <th className="p-2.5">Día Cobro</th>
                             <th className="p-2.5 text-right">Saldo Vencido</th>
+                            <th className="p-2.5 text-center w-24">Acción (1 a 1)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
-                          {filteredPreviewClients.map((client) => (
-                            <tr key={client.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                              <td className="p-2.5 font-mono font-semibold text-primary">
-                                {client.codigoCliente}
-                              </td>
-                              <td className="p-2.5 font-medium text-slate-900 dark:text-slate-100">
-                                {client.nombreCompleto}
-                              </td>
-                              <td className="p-2.5 font-mono text-slate-600 dark:text-slate-400">
-                                {client.telefono}
-                              </td>
-                              <td className="p-2.5">
-                                <Badge variant="outline" className="text-[10px] font-medium uppercase">
-                                  {client.diaPago}
-                                </Badge>
-                              </td>
-                              <td className="p-2.5 text-right font-semibold text-rose-600 dark:text-rose-400">
-                                ${client.saldoVencido.toFixed(2)}
-                              </td>
-                            </tr>
-                          ))}
+                          {filteredPreviewClients.map((client) => {
+                            const isSelected = selectedClientIds.has(client.id);
+                            return (
+                              <tr 
+                                key={client.id} 
+                                className={cn(
+                                  "transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50",
+                                  isSelected ? "bg-blue-50/40 dark:bg-blue-950/20" : ""
+                                )}
+                              >
+                                <td className="p-2.5 text-center">
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => handleToggleClient(client.id)}
+                                    aria-label={`Seleccionar ${client.nombreCompleto}`}
+                                  />
+                                </td>
+                                <td className="p-2.5 font-mono font-semibold text-primary">
+                                  {client.codigoCliente}
+                                </td>
+                                <td className="p-2.5 font-medium text-slate-900 dark:text-slate-100">
+                                  {client.nombreCompleto}
+                                </td>
+                                <td className="p-2.5 font-mono text-slate-600 dark:text-slate-400">
+                                  {client.telefono}
+                                </td>
+                                <td className="p-2.5 text-slate-600 dark:text-slate-300 font-medium">
+                                  {client.gestor}
+                                </td>
+                                <td className="p-2.5">
+                                  <Badge variant="outline" className="text-[10px] font-medium uppercase">
+                                    {client.diaPago}
+                                  </Badge>
+                                </td>
+                                <td className="p-2.5 text-right font-semibold text-rose-600 dark:text-rose-400">
+                                  ${client.saldoVencido.toFixed(2)}
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleSendIndividual(client)}
+                                    className="h-7 text-[11px] px-2 gap-1 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 border-emerald-300 dark:border-emerald-800"
+                                    title={`Enviar SMS directo a ${client.nombreCompleto}`}
+                                  >
+                                    <Send className="h-3 w-3" />
+                                    Enviar
+                                  </Button>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -685,7 +1034,7 @@ export function SmsDashboard() {
                           Variable disponible: <code className="text-primary font-semibold">[nombre]</code>
                         </span>
                         <span className={`font-mono font-bold ${isOverLimit ? 'text-rose-600' : 'text-slate-500'}`}>
-                          Caracteres: {charCount}/160 {isOverLimit && '(consumirá 2 créditos)'}
+                          Caracteres: {charCount}/160 {isOverLimit && '(consumirá 2 SMS)'}
                         </span>
                       </div>
                     </div>
@@ -703,10 +1052,10 @@ export function SmsDashboard() {
                       {isSaving ? 'Guardando...' : 'Guardar Plantilla'}
                     </Button>
 
-                    {/* Botón directo de ejecución para inicio_semana (como en sms_dashboard.php) */}
+                    {/* Botón directo de ejecución para inicio_semana */}
                     {template.campaignKey === 'inicio_semana' && (
                       <Button 
-                        onClick={handleRunInicioSemana}
+                        onClick={handleSendAll}
                         disabled={loadingPreview}
                         size="sm"
                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 text-xs shadow-sm"

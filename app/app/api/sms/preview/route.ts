@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   const campaignKey = searchParams.get('campaignKey') || 'no_pagos';
   const diaCobro = searchParams.get('diaCobro') || 'TODOS'; // TODOS, LUNES, MARTES, etc.
   const filterByCobrador = searchParams.get('filterByCobrador') === 'true';
+  const gestorId = searchParams.get('gestorId') || searchParams.get('cobradorId');
 
   const userRole = (session?.user as any)?.role;
   const userId = (session?.user as any)?.id;
@@ -36,8 +37,10 @@ export async function GET(req: NextRequest) {
       whereClause.periodicidad = { in: calInfo.periodicidadesActivas as any };
     }
 
-    // Si es cobrador y solicita filtrar por sus clientes
-    if (userRole === 'cobrador' && filterByCobrador) {
+    // Filtrar por gestor específico si se solicita
+    if (gestorId && gestorId !== 'TODOS') {
+      whereClause.cobradorAsignadoId = gestorId;
+    } else if (userRole === 'cobrador' && filterByCobrador) {
       whereClause.cobradorAsignadoId = userId;
     }
 
@@ -61,8 +64,10 @@ export async function GET(req: NextRequest) {
         saldoVencido: true,
         saldoActual: true,
         periodicidad: true,
+        cobradorAsignadoId: true,
         cobradorAsignado: {
           select: {
+            id: true,
             name: true,
             codigoGestor: true
           }
@@ -163,7 +168,8 @@ export async function GET(req: NextRequest) {
       periodicidad: c.periodicidad,
       saldoVencido: Number(c.saldoVencido) || 0,
       saldoActual: Number(c.saldoActual) || 0,
-      gestor: c.cobradorAsignado?.name || c.cobradorAsignado?.codigoGestor || 'N/A'
+      gestorId: c.cobradorAsignado?.id || c.cobradorAsignadoId || null,
+      gestor: c.cobradorAsignado?.name || c.cobradorAsignado?.codigoGestor || 'Sin Gestor'
     }));
 
     return NextResponse.json(validRecipients);
