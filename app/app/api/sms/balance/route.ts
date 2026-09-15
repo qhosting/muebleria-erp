@@ -5,25 +5,28 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { getLabsMobileBalance } from '@/lib/sms-utils';
 
-// Tasa de conversión oficial del proveedor para SMS estándar en México:
-// 745.54 créditos equivalen exactamente a 2,672 SMS México (~0.27902 créditos por SMS)
-const CREDITOS_POR_SMS_MEXICO = 745.54 / 2672;
-const COSTO_POR_SMS_MXN = 0.45; // Costo por SMS para el ERP en Pesos Mexicanos (MNX)
+// Conversión de créditos a pesos y cálculo de mensajes a $0.45 MNX:
+// En la tarifa de México: 745.54 créditos equivalen a 2,672 SMS.
+// Con costo de $0.45 por SMS, 745.54 créditos = $1,202.40 MXN => 1 crédito = $1.612788 MXN.
+const PESOS_POR_CREDITO = (2672 * 0.45) / 745.54; // $1.612788 MXN por crédito
+const COSTO_POR_SMS_MXN = 0.45; // $0.45 MNX por SMS
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    // 1. Obtener balance real de créditos desde la API
+    // 1. Obtener balance de la API
     const apiResult = await getLabsMobileBalance();
     const rawCredits = Number(apiResult.balance) || 0;
     
-    // 2. Convertir créditos brutos a SMS disponibles para México
-    const smsDisponibles = Math.floor(rawCredits / CREDITOS_POR_SMS_MEXICO);
-    const saldoMxn = Number((smsDisponibles * COSTO_POR_SMS_MXN).toFixed(2));
+    // 2. Conversión de créditos a monto en pesos (MXN)
+    const montoEnPesos = Number((rawCredits * PESOS_POR_CREDITO).toFixed(2));
     
-    // 3. Sincronizar con la tabla local SmsBalance (cuenta DASO) en unidades reales de SMS
+    // 3. Conteo de mensajes reales: Monto en Pesos / 0.45
+    const smsDisponibles = Math.floor(montoEnPesos / COSTO_POR_SMS_MXN);
+    
+    // 4. Sincronizar tabla local SmsBalance con los SMS reales
     const localBalance = await prisma.smsBalance.upsert({
       where: { cuenta: 'DASO' },
       update: { saldo: smsDisponibles },
@@ -33,26 +36,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       localBalance: localBalance.saldo,
       smsDisponibles: smsDisponibles,
-      credits: Number(rawCredits.toFixed(2)),
-      rawCredits: rawCredits,
+      montoEnPesos: montoEnPesos,
+      saldoMxn: montoEnPesos,
       costoPorSmsMxn: COSTO_POR_SMS_MXN,
-      saldoMxn: saldoMxn,
-      apiBalance: smsDisponibles, // Conteo de SMS disponibles para retrocompatibilidad
+      apiBalance: smsDisponibles,
       error: apiResult.error
     });
   } catch (error) {
     // Si falla la conexión con la API, responder con el conteo local
     const local = await prisma.smsBalance.findUnique({ where: { cuenta: 'DASO' } });
     const localSms = local?.saldo || 0;
+    const montoLocal = Number((localSms * COSTO_POR_SMS_MXN).toFixed(2));
     return NextResponse.json({ 
       localBalance: localSms,
       smsDisponibles: localSms,
-      credits: Number((localSms * CREDITOS_POR_SMS_MEXICO).toFixed(2)),
-      rawCredits: localSms * CREDITOS_POR_SMS_MEXICO,
+      montoEnPesos: montoLocal,
+      saldoMxn: montoLocal,
       costoPorSmsMxn: COSTO_POR_SMS_MXN,
-      saldoMxn: Number((localSms * COSTO_POR_SMS_MXN).toFixed(2)),
       apiBalance: localSms,
-      error: 'No se pudo sincronizar el saldo con el proveedor de SMS' 
+      error: 'No se pudo sincronizar el saldo con el servidor de SMS' 
     });
   }
 }

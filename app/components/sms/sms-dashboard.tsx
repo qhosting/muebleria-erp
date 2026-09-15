@@ -87,10 +87,9 @@ export function SmsDashboard() {
     localBalance: number;
     apiBalance?: number;
     smsDisponibles?: number;
-    credits?: number;
-    rawCredits?: number;
-    costoPorSmsMxn?: number;
+    montoEnPesos?: number;
     saldoMxn?: number;
+    costoPorSmsMxn?: number;
     error?: string;
   } | null>(null);
   const [rutas, setRutas] = useState<RutaCobranza[]>([]);
@@ -400,9 +399,8 @@ export function SmsDashboard() {
     );
   }, [previewClients, previewSearch]);
 
-  const smsDisponibles = balance?.smsDisponibles ?? balance?.apiBalance ?? balance?.localBalance ?? 0;
-  const rawCreds = balance?.credits ?? (balance?.rawCredits ? Number(balance.rawCredits.toFixed(2)) : 0);
-  const saldoMxn = balance?.saldoMxn ?? Number((smsDisponibles * 0.45).toFixed(2));
+  const montoEnPesos = balance?.montoEnPesos ?? balance?.saldoMxn ?? 0;
+  const smsDisponibles = balance?.smsDisponibles ?? Math.floor(montoEnPesos / 0.45);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
@@ -418,7 +416,7 @@ export function SmsDashboard() {
           </p>
         </div>
 
-        {/* Caja de Saldo con Conversión de Créditos a SMS y Valor ERP */}
+        {/* Caja de Saldo */}
         <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 border-blue-200 dark:border-slate-700 shadow-sm">
           <CardContent className="p-3.5 flex items-center gap-4">
             <div className="bg-blue-600 text-white p-2.5 rounded-xl shadow-md">
@@ -426,17 +424,14 @@ export function SmsDashboard() {
             </div>
             <div>
               <span className="text-[11px] font-semibold text-blue-800 dark:text-blue-300 uppercase tracking-wider block">
-                SMS Disponibles (México)
+                SMS Disponibles
               </span>
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 <span className="text-2xl font-black text-blue-900 dark:text-white">
                   {loadingInitial ? '...' : smsDisponibles.toLocaleString('es-MX')}
                 </span>
-                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-md" title="Valor estimado en el ERP ($0.45 MNX por SMS)">
-                  ${saldoMxn.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MNX
-                </span>
-                <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-100/90 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-md" title="Créditos base en el proveedor (1 SMS estándar México ≈ 0.279 créditos)">
-                  {rawCreds.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} créditos
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-md" title="Monto disponible en pesos">
+                  ${montoEnPesos.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
                 </span>
                 <Button 
                   variant="ghost" 
@@ -449,10 +444,8 @@ export function SmsDashboard() {
                   <RefreshCw className={`h-4 w-4 ${syncingBalance ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
-              <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
-                <span>Costo ERP: <strong className="text-slate-700 dark:text-slate-300">$0.45 MNX / SMS</strong></span>
-                <span>•</span>
-                <span>Tasa proveedor: <strong className="text-slate-700 dark:text-slate-300">2,672 SMS = 745.54 créditos</strong></span>
+              <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                <span>Costo por mensaje: <strong className="text-slate-700 dark:text-slate-300">$0.45 MXN</strong></span>
               </div>
               {balance?.error && (
                 <span className="text-[10px] text-amber-700 font-medium block mt-1">
