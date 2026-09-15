@@ -93,11 +93,13 @@ export default function CuadrePage() {
             const res = await fetch('/api/users');
             if (res.ok) {
                 const users = await res.json();
-                const cobradores = users.filter((u: any) => 
-                    u.role === 'cobrador' || 
-                    u.role === 'gestor_cobranza' || 
-                    u.codigoGestor
-                );
+                const cobradores = users.filter((u: any) => u.role === 'cobrador');
+                cobradores.sort((a: any, b: any) => {
+                    const codA = a.codigoGestor || '';
+                    const codB = b.codigoGestor || '';
+                    if (codA && codB) return codA.localeCompare(codB);
+                    return (a.name || '').localeCompare(b.name || '');
+                });
                 setGestoresList(cobradores);
             }
         } catch (error) {
@@ -1203,10 +1205,10 @@ export default function CuadrePage() {
                             <label className="text-xs font-bold uppercase text-gray-500">Gestor / Cobrador</label>
                             <Select value={selectedGestor} onValueChange={setSelectedGestor}>
                                 <SelectTrigger className="w-full h-9 text-xs">
-                                    <SelectValue placeholder="-- Todos los Gestores --" />
+                                    <SelectValue placeholder="-- Todos los Cobradores --" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">-- Todos los Gestores --</SelectItem>
+                                    <SelectItem value="all">-- Todos los Cobradores --</SelectItem>
                                     {gestoresList.map(g => (
                                         <SelectItem key={g.id} value={g.id}>{g.codigoGestor ? `${g.codigoGestor} - ${g.name}` : g.name}</SelectItem>
                                     ))}
