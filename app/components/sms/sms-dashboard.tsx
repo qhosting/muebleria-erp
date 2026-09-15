@@ -390,8 +390,8 @@ export function SmsDashboard() {
       modoEnvio === 'inicio_semana'
         ? `Inicio de Semana (${clientsToSend.length} clientes)`
         : modoEnvio === 'por_gestor'
-        ? `Por Gestor: ${cobradores.find(c => c.id === selectedGestorId)?.name || 'Todos los Gestores'} (${clientsToSend.length} clientes)`
-        : `No Pagos Acumulado (${clientsToSend.length} clientes)`
+        ? `Por Cobrador: ${cobradores.find(c => c.id === selectedGestorId)?.name || 'Todos los Cobradores'} (${clientsToSend.length} clientes)`
+        : `Acumulado No Pago (${clientsToSend.length} clientes)`
     );
 
     setActiveCampaignToSend({
@@ -618,10 +618,10 @@ export function SmsDashboard() {
                     </div>
                     <div>
                       <div className="text-xs font-bold text-slate-900 dark:text-white">
-                        1. No Pagos (Acumulado)
+                        1. Acumulado No Pago
                       </div>
                       <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                        Sábado a Hoy • Envío a todos o individual (1 a 1)
+                        Acumulado No Pago • Envío a todos o individual (1 a 1)
                       </div>
                     </div>
                   </button>
@@ -712,7 +712,7 @@ export function SmsDashboard() {
                           <SelectValue placeholder="Selecciona un día" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="TODOS">TODOS (Acumulado Sábado a Hoy)</SelectItem>
+                          <SelectItem value="TODOS">TODOS (Acumulado No Pago)</SelectItem>
                           <SelectItem value="LUNES">Lunes</SelectItem>
                           <SelectItem value="MARTES">Martes</SelectItem>
                           <SelectItem value="MIERCOLES">Miércoles</SelectItem>
@@ -756,7 +756,7 @@ export function SmsDashboard() {
                             <SelectValue placeholder="Selecciona un día" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="TODOS">TODOS (Acumulado Sábado a Hoy)</SelectItem>
+                            <SelectItem value="TODOS">TODOS (Acumulado No Pago)</SelectItem>
                             <SelectItem value="LUNES">Lunes</SelectItem>
                             <SelectItem value="MARTES">Martes</SelectItem>
                             <SelectItem value="MIERCOLES">Miércoles</SelectItem>
