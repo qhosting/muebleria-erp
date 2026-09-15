@@ -161,10 +161,18 @@ export function SmsDashboard() {
 
   const fetchCobradores = async () => {
     try {
-      const res = await fetch('/api/users');
+      const res = await fetch('/api/users?role=cobrador');
       if (res.ok) {
         const users = await res.json();
-        const cobs = users.filter((u: any) => u.role === 'cobrador' || u.codigoGestor);
+        // Filtrar estrictamente solo usuarios con rol 'cobrador'
+        const cobs = users
+          .filter((u: any) => u.role === 'cobrador')
+          .map((u: any) => ({
+            id: u.id,
+            name: u.name || u.codigoGestor || 'Cobrador',
+            codigoGestor: u.codigoGestor
+          }))
+          .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
         setCobradores(cobs);
       }
     } catch (err) {
@@ -283,19 +291,14 @@ export function SmsDashboard() {
     }));
   };
 
-  // Lista de Gestores / Cobradores disponibles (combinando tabla de usuarios y registros)
-  const gestoresDisponibles = useMemo(() => {
+  // Lista de Cobradores disponibles (exclusivamente usuarios con rol cobrador)
+  const cobradoresDisponibles = useMemo(() => {
     const map = new Map<string, string>();
     cobradores.forEach(c => {
       map.set(c.id, c.name || c.codigoGestor || 'Cobrador');
     });
-    previewClients.forEach(c => {
-      if (c.gestorId && c.gestor) {
-        map.set(c.gestorId, c.gestor);
-      }
-    });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-  }, [cobradores, previewClients]);
+  }, [cobradores]);
 
   // Plantillas de Inicio de Semana
   const plantillasInicioSemana = useMemo(() => {
@@ -649,7 +652,7 @@ export function SmsDashboard() {
                     </div>
                     <div>
                       <div className="text-xs font-bold text-slate-900 dark:text-white">
-                        2. Por Gestor de Cobranza
+                        2. Por Cobrador
                       </div>
                       <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
                         Filtra por cobrador y selecciona clientes con casillas
@@ -727,15 +730,15 @@ export function SmsDashboard() {
                     <>
                       <div className="space-y-1.5 flex-1 max-w-xs">
                         <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                          Selecciona Gestor / Cobrador:
+                          Selecciona Cobrador:
                         </label>
                         <Select value={selectedGestorId} onValueChange={setSelectedGestorId}>
                           <SelectTrigger className="bg-white dark:bg-slate-900 text-xs">
-                            <SelectValue placeholder="Selecciona un gestor" />
+                            <SelectValue placeholder="Selecciona un cobrador" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="TODOS">Todos los Gestores</SelectItem>
-                            {gestoresDisponibles.map(g => (
+                            <SelectItem value="TODOS">Todos los Cobradores</SelectItem>
+                            {cobradoresDisponibles.map(g => (
                               <SelectItem key={g.id} value={g.id}>
                                 {g.name}
                               </SelectItem>

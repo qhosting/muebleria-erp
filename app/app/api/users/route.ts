@@ -19,12 +19,14 @@ export async function GET(request: NextRequest) {
     const role = searchParams.get('role');
 
     const userRole = (session.user as any).role;
-    if (!['admin', 'gestor_cobranza', 'direccion'].includes(userRole)) {
+    if (!['admin', 'gestor_cobranza', 'direccion', 'reporte_cobranza', 'cobrador'].includes(userRole)) {
       return NextResponse.json({ error: 'Permisos insuficientes' }, { status: 403 });
     }
 
     const where: any = {};
-    if (role) {
+    if (['cobrador', 'reporte_cobranza'].includes(userRole)) {
+      where.role = 'cobrador';
+    } else if (role) {
       where.role = role;
     }
 
