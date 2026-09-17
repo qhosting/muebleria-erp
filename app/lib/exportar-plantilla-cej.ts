@@ -163,7 +163,9 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
   const rowsComp = [
     { concepto: "Cuentas Asignadas", g: resGlobal.totalCuentas, dq: resDQ.totalCuentas, dp: resDP.totalCuentas, num: true },
     { concepto: "Pago Sugerido (Ppto $)", g: resGlobal.totalSugerido, dq: resDQ.totalSugerido, dp: resDP.totalSugerido, num: true },
-    { concepto: "Cobranza Real Recibida ($)", g: resGlobal.totalCobrado, dq: resDQ.totalCobrado, dp: resDP.totalCobrado, num: true },
+    { concepto: "Cobranza Abonos ($)", g: resGlobal.totalCobrado, dq: resDQ.totalCobrado, dp: resDP.totalCobrado, num: true },
+    { concepto: "Interés Moratorio ($)", g: resGlobal.totalMoratorio ?? 0, dq: resDQ.totalMoratorio ?? 0, dp: resDP.totalMoratorio ?? 0, num: true },
+    { concepto: "Total Recaudado (Abonos + Mora) ($)", g: resGlobal.totalCobradoConMoratorio ?? ((resGlobal.totalCobrado ?? 0) + (resGlobal.totalMoratorio ?? 0)), dq: resDQ.totalCobradoConMoratorio ?? ((resDQ.totalCobrado ?? 0) + (resDQ.totalMoratorio ?? 0)), dp: resDP.totalCobradoConMoratorio ?? ((resDP.totalCobrado ?? 0) + (resDP.totalMoratorio ?? 0)), num: true },
     { concepto: "% Cumplimiento (Sin Dobles)", g: `${resGlobal.porcentajeCtasSinDobles}%`, dq: `${resDQ.porcentajeCtasSinDobles}%`, dp: `${resDP.porcentajeCtasSinDobles}%`, num: false },
     { concepto: "% Cumplimiento (Con Dobles)", g: `${resGlobal.porcentajeCtasConDobles}%`, dq: `${resDQ.porcentajeCtasConDobles}%`, dp: `${resDP.porcentajeCtasConDobles}%`, num: false },
     { concepto: "Cobro en Efectivo (Gestor)", g: resGlobal.cobranzaGestor?.pesos ?? resGlobal.cobranzaEfectivo.pesos, dq: resDQ.cobranzaGestor?.pesos ?? resDQ.cobranzaEfectivo.pesos, dp: resDP.cobranzaGestor?.pesos ?? resDP.cobranzaEfectivo.pesos, num: true },
@@ -192,9 +194,12 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
   setCell(detalleStart + 1, 6, resGlobal.totalSugerido ?? 0, 'n');
   setCell(detalleStart + 1, 7, resGlobal.totalVencido ?? 0, 'n');
   setCell(detalleStart + 1, 9, resGlobal.totalCartera ?? 0, 'n');
+  setCell(detalleStart + 1, 12, resGlobal.totalMoratorio ?? 0, 'n');
   setCell(detalleStart + 1, 14, resGlobal.totalCobrado ?? 0, 'n');
-  setCell(detalleStart + 1, 15, "CUENTAS");
-  setCell(detalleStart + 1, 16, datos.detalles.length, 'n');
+  setCell(detalleStart + 1, 15, "TOTAL REC.");
+  setCell(detalleStart + 1, 16, (resGlobal.totalCobradoConMoratorio ?? ((resGlobal.totalCobrado ?? 0) + (resGlobal.totalMoratorio ?? 0))), 'n');
+  setCell(detalleStart + 1, 17, "CUENTAS");
+  setCell(detalleStart + 1, 18, datos.detalles.length, 'n');
 
   // Resumen de Problemas (Página 2 CEJ)
   setCell(detalleStart + 3, 0, "RESUMEN DE COBRANZA");
@@ -474,10 +479,22 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
               <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #312e81;">${resDP.totalCuentas} ctas ($${resDP.totalSugerido.toLocaleString("es-MX")})</td>
             </tr>
             <tr style="background: #f8fafc;">
-              <td class="font-bold" style="padding: 2.5px 6px;">Cobranza Real Recibida</td>
+              <td class="font-bold" style="padding: 2.5px 6px;">Cobranza Abonos ($)</td>
               <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #166534; font-size: 8.5px;">$${resGlobal.totalCobrado.toLocaleString("es-MX")}</td>
               <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #166534; font-size: 8.5px;">$${resDQ.totalCobrado.toLocaleString("es-MX")}</td>
               <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #166534; font-size: 8.5px;">$${resDP.totalCobrado.toLocaleString("es-MX")}</td>
+            </tr>
+            <tr style="background: #fefce8;">
+              <td class="font-bold" style="padding: 2.5px 6px; color: #854d0e;">⚡ Interés Moratorio Cobrado ($)</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #854d0e; font-size: 8.5px;">$${(resGlobal.totalMoratorio ?? 0).toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #854d0e; font-size: 8.5px;">$${(resDQ.totalMoratorio ?? 0).toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #854d0e; font-size: 8.5px;">$${(resDP.totalMoratorio ?? 0).toLocaleString("es-MX")}</td>
+            </tr>
+            <tr style="background: #ecfdf5;">
+              <td class="font-bold" style="padding: 2.5px 6px; color: #065f46;">💰 Total Recaudado (Abonos + Mora)</td>
+              <td class="text-right font-mono font-black" style="padding: 2.5px 6px; color: #065f46; font-size: 8.5px;">$${(resGlobal.totalCobradoConMoratorio ?? ((resGlobal.totalCobrado ?? 0) + (resGlobal.totalMoratorio ?? 0))).toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-black" style="padding: 2.5px 6px; color: #065f46; font-size: 8.5px;">$${(resDQ.totalCobradoConMoratorio ?? ((resDQ.totalCobrado ?? 0) + (resDQ.totalMoratorio ?? 0))).toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-black" style="padding: 2.5px 6px; color: #065f46; font-size: 8.5px;">$${(resDP.totalCobradoConMoratorio ?? ((resDP.totalCobrado ?? 0) + (resDP.totalMoratorio ?? 0))).toLocaleString("es-MX")}</td>
             </tr>
             <tr>
               <td class="font-bold" style="padding: 2.5px 6px;">% Cumplimiento Metas (Sin Dobles)</td>
@@ -589,9 +606,13 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
             <div class="kpi-row"><span>🤖 BANCOS BOT (Automático / SPEI)</span><span><strong>${resGlobal.cobranzaBancosBot?.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")}</span></div>
             <div class="kpi-row"><span>🏦 BANCOS GESTOR (Depósito Manual)</span><span><strong>${resGlobal.cobranzaBancosGestor?.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")}</span></div>
             <div class="kpi-row" style="background: #eff6ff; font-weight: bold; color: #1e40af;"><span>💳 TOTAL BANCOS (BOT + GESTOR)</span><span><strong>${resGlobal.cobranzaBancos.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancos.pesos ?? 0).toLocaleString("es-MX")}</span></div>
+            <div class="kpi-row" style="background: #fefce8; color: #854d0e; font-weight: bold;">
+              <span>⚡ Interés Moratorio Cobrado</span>
+              <span><strong>$${(resGlobal.totalMoratorio ?? 0).toLocaleString("es-MX")}</strong></span>
+            </div>
             <div class="kpi-row highlight" style="background: #dcfce7; color: #14532d; font-weight: 900;">
-              <span>💰 TOTAL COBRANZA RECIBIDA</span>
-              <span><strong>$${(resGlobal.totalCobrado ?? 0).toLocaleString("es-MX")}</strong></span>
+              <span>💰 TOTAL RECAUDADO (ABONOS + MORA)</span>
+              <span><strong>$${(resGlobal.totalCobradoConMoratorio ?? ((resGlobal.totalCobrado ?? 0) + (resGlobal.totalMoratorio ?? 0))).toLocaleString("es-MX")}</strong></span>
             </div>
             <div class="kpi-row"><span>Pagos Dobles Registrados</span><span>$${(resGlobal.totalPagosDobles ?? 0).toLocaleString("es-MX")}</span></div>
             <div class="kpi-row"><span>Recuperado Periodos Vencidos (PV)</span><span>$${(resGlobal.totalRecuperadoPv ?? 0).toLocaleString("es-MX")}</span></div>

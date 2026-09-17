@@ -695,6 +695,8 @@ export default function ListaCobranzaPage() {
   const totalSaldoVencido = clientesFiltrados.reduce((acc, curr) => acc + (curr.saldoVencido || 0), 0);
   const totalSaldo = clientesFiltrados.reduce((acc, curr) => acc + (curr.saldoActual || 0), 0);
   const totalCobradoReal = clientesFiltrados.reduce((acc, curr) => acc + (curr.pagoReal || 0), 0);
+  const totalMoratorioReal = clientesFiltrados.reduce((acc, curr) => acc + (curr.moratorio || 0), 0);
+  const totalCobradoConMoratorioReal = totalCobradoReal + totalMoratorioReal;
 
   return (
     <DashboardLayout>
@@ -974,63 +976,75 @@ export default function ListaCobranzaPage() {
 
         {/* KPIs Principales de Cobranza */}
         {searched && clientes.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
-              <CardContent className="p-4 flex items-center justify-between">
+              <CardContent className="p-3.5 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-bold uppercase text-slate-500">Cuentas en Cartera</p>
-                  <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{clientesFiltrados.length}</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-500">Cuentas Cartera</p>
+                  <p className="text-xl font-black text-slate-900 dark:text-white mt-0.5">{clientesFiltrados.length}</p>
                 </div>
-                <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl text-indigo-600">
-                  <Users className="w-5 h-5" />
+                <div className="p-2 bg-indigo-50 dark:bg-indigo-950/50 rounded-lg text-indigo-600">
+                  <Users className="w-4 h-4" />
                 </div>
               </CardContent>
             </Card>
 
             <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
-              <CardContent className="p-4 flex items-center justify-between">
+              <CardContent className="p-3.5 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-bold uppercase text-slate-500">Pago Sugerido (Ppto)</p>
-                  <p className="text-2xl font-black font-mono text-blue-600 dark:text-blue-400 mt-0.5">{formatCurrency(totalCobrar)}</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-500">Pago Sugerido (Ppto)</p>
+                  <p className="text-xl font-black font-mono text-blue-600 dark:text-blue-400 mt-0.5">{formatCurrency(totalCobrar)}</p>
                 </div>
-                <div className="p-2.5 bg-blue-50 dark:bg-blue-950/50 rounded-xl text-blue-600">
-                  <DollarSign className="w-5 h-5" />
+                <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-lg text-blue-600">
+                  <DollarSign className="w-4 h-4" />
                 </div>
               </CardContent>
             </Card>
 
             <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
-              <CardContent className="p-4 flex items-center justify-between">
+              <CardContent className="p-3.5 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-bold uppercase text-slate-500">Cobranza Real Recibida</p>
-                  <p className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">{formatCurrency(totalCobradoReal)}</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-500">Cobranza Abonos</p>
+                  <p className="text-xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">{formatCurrency(totalCobradoReal)}</p>
                 </div>
-                <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 rounded-xl text-emerald-600">
-                  <TrendingUp className="w-5 h-5" />
+                <div className="p-2 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg text-emerald-600">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-amber-200/60 dark:border-amber-900/40 bg-amber-50/20 dark:bg-amber-950/10 shadow-sm">
+              <CardContent className="p-3.5 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-amber-700 dark:text-amber-400">Int. Moratorio</p>
+                  <p className="text-xl font-black font-mono text-amber-600 dark:text-amber-400 mt-0.5">{formatCurrency(totalMoratorioReal)}</p>
+                </div>
+                <div className="p-2 bg-amber-100 dark:bg-amber-950/60 rounded-lg text-amber-700 dark:text-amber-300">
+                  <DollarSign className="w-4 h-4" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/30 dark:bg-emerald-950/20 shadow-sm">
+              <CardContent className="p-3.5 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-emerald-800 dark:text-emerald-300">Total Recaudado</p>
+                  <p className="text-xl font-black font-mono text-emerald-700 dark:text-emerald-400 mt-0.5">{formatCurrency(totalCobradoConMoratorioReal)}</p>
+                </div>
+                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/60 rounded-lg text-emerald-700 dark:text-emerald-300">
+                  <TrendingUp className="w-4 h-4" />
                 </div>
               </CardContent>
             </Card>
 
             <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
-              <CardContent className="p-4 flex items-center justify-between">
+              <CardContent className="p-3.5 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-bold uppercase text-slate-500">Saldo Vencido</p>
-                  <p className="text-2xl font-black font-mono text-rose-600 dark:text-rose-400 mt-0.5">{formatCurrency(totalSaldoVencido)}</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-500">Saldo Vencido</p>
+                  <p className="text-xl font-black font-mono text-rose-600 dark:text-rose-400 mt-0.5">{formatCurrency(totalSaldoVencido)}</p>
                 </div>
-                <div className="p-2.5 bg-rose-50 dark:bg-rose-950/50 rounded-xl text-rose-600">
-                  <AlertCircle className="w-5 h-5" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-bold uppercase text-slate-500">Cartera Total</p>
-                  <p className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-0.5">{formatCurrency(totalSaldo)}</p>
-                </div>
-                <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-700 dark:text-slate-300">
-                  <BarChart3 className="w-5 h-5" />
+                <div className="p-2 bg-rose-50 dark:bg-rose-950/50 rounded-lg text-rose-600">
+                  <AlertCircle className="w-4 h-4" />
                 </div>
               </CardContent>
             </Card>
@@ -1126,6 +1140,7 @@ export default function ListaCobranzaPage() {
                           <th className="px-3 py-2.5 text-right border border-slate-700">SALDO ACT.</th>
                           <th className="px-3 py-2.5 text-center border border-slate-700">GESTOR</th>
                           <th className="px-3 py-2.5 text-center border border-slate-700">SUP</th>
+                          <th className="px-3 py-2.5 text-right border border-slate-700 bg-amber-950/70 text-amber-300">MORATORIO</th>
                           <th className={`px-3 py-2.5 text-center border border-slate-700 ${esCorteGuardado ? "bg-indigo-950/90 text-indigo-200" : ""}`}>
                             <div className="flex items-center justify-center gap-1">
                               PROBLEMA {esCorteGuardado && <span className="text-[8px] bg-indigo-500/40 text-indigo-100 px-1 py-0.5 rounded font-bold tracking-tight">EDITABLE</span>}
@@ -1178,6 +1193,9 @@ export default function ListaCobranzaPage() {
                             </td>
                             <td className="px-3 py-2 text-center font-mono text-slate-600 border border-gray-100 dark:border-slate-800">
                               {c.sup}
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono font-bold text-amber-600 dark:text-amber-400 border border-gray-100 dark:border-slate-800">
+                              {c.moratorio > 0 ? formatCurrency(c.moratorio) : "-"}
                             </td>
                             <td className="px-2 py-1 text-center border border-gray-100 dark:border-slate-800">
                               {esCorteGuardado && corteIdActivo && c.id ? (
@@ -1258,9 +1276,16 @@ export default function ListaCobranzaPage() {
                           <td className="px-3 py-3 text-right font-mono text-slate-950 dark:text-white border border-gray-200 dark:border-slate-700">
                             {formatCurrency(totalSaldo)}
                           </td>
-                          <td colSpan={3} className="px-3 py-3 text-center border border-gray-200 dark:border-slate-700">-</td>
+                          <td colSpan={2} className="px-3 py-3 text-center border border-gray-200 dark:border-slate-700">-</td>
+                          <td className="px-3 py-3 text-right font-mono font-bold text-amber-700 dark:text-amber-300 border border-gray-200 dark:border-slate-700">
+                            {formatCurrency(totalMoratorioReal)}
+                          </td>
+                          <td className="px-3 py-3 text-center border border-gray-200 dark:border-slate-700">-</td>
                           <td className="px-3 py-3 text-right font-mono text-emerald-700 dark:text-emerald-300 border border-gray-200 dark:border-slate-700">
-                            {formatCurrency(totalCobradoReal)}
+                            <div>{formatCurrency(totalCobradoReal)}</div>
+                            {totalMoratorioReal > 0 && (
+                              <div className="text-[10px] font-normal text-slate-500">Rec: {formatCurrency(totalCobradoConMoratorioReal)}</div>
+                            )}
                           </td>
                           <td colSpan={5} className="px-3 py-3 text-center border border-gray-200 dark:border-slate-700">-</td>
                         </tr>
@@ -1505,18 +1530,46 @@ export default function ListaCobranzaPage() {
                             {resDPActivo?.totalCuentas ?? 0} <span className="text-[11px] font-normal text-slate-500">({formatCurrency(resDPActivo?.totalSugerido ?? 0)})</span>
                           </td>
                         </tr>
-                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 bg-emerald-50/40 dark:bg-emerald-950/20">
-                          <td className="px-4 py-2 font-bold text-emerald-900 dark:text-emerald-300 border border-gray-100 dark:border-slate-800">
-                            Cobranza Real Recibida ($)
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-2 font-bold text-slate-800 dark:text-slate-200 border border-gray-100 dark:border-slate-800">
+                            Cobranza Abonos ($)
                           </td>
-                          <td className="px-4 py-2 text-right font-mono font-black text-emerald-700 dark:text-emerald-300 border border-gray-100 dark:border-slate-800">
+                          <td className="px-4 py-2 text-right font-mono font-bold text-emerald-700 dark:text-emerald-300 border border-gray-100 dark:border-slate-800">
                             {formatCurrency(resGlobalActivo?.totalCobrado ?? 0)}
                           </td>
-                          <td className="px-4 py-2 text-right font-mono font-black text-emerald-700 dark:text-emerald-300 border border-gray-100 dark:border-slate-800">
+                          <td className="px-4 py-2 text-right font-mono font-bold text-emerald-700 dark:text-emerald-300 border border-gray-100 dark:border-slate-800">
                             {formatCurrency(resDQActivo?.totalCobrado ?? 0)}
                           </td>
-                          <td className="px-4 py-2 text-right font-mono font-black text-emerald-700 dark:text-emerald-300 border border-gray-100 dark:border-slate-800">
+                          <td className="px-4 py-2 text-right font-mono font-bold text-emerald-700 dark:text-emerald-300 border border-gray-100 dark:border-slate-800">
                             {formatCurrency(resDPActivo?.totalCobrado ?? 0)}
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 bg-amber-50/40 dark:bg-amber-950/20">
+                          <td className="px-4 py-2 font-bold text-amber-900 dark:text-amber-300 border border-gray-100 dark:border-slate-800">
+                            ⚡ Interés Moratorio Cobrado ($)
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-amber-600 dark:text-amber-400 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resGlobalActivo?.totalMoratorio ?? 0)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-amber-600 dark:text-amber-400 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDQActivo?.totalMoratorio ?? 0)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-amber-600 dark:text-amber-400 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDPActivo?.totalMoratorio ?? 0)}
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 bg-emerald-50/50 dark:bg-emerald-950/30">
+                          <td className="px-4 py-2 font-black text-emerald-950 dark:text-emerald-200 border border-gray-100 dark:border-slate-800">
+                            💰 Total Recaudado (Abonos + Mora)
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-black text-emerald-700 dark:text-emerald-300 border border-gray-100 dark:border-slate-800 text-sm">
+                            {formatCurrency(resGlobalActivo?.totalCobradoConMoratorio ?? ((resGlobalActivo?.totalCobrado ?? 0) + (resGlobalActivo?.totalMoratorio ?? 0)))}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-black text-emerald-700 dark:text-emerald-300 border border-gray-100 dark:border-slate-800 text-sm">
+                            {formatCurrency(resDQActivo?.totalCobradoConMoratorio ?? ((resDQActivo?.totalCobrado ?? 0) + (resDQActivo?.totalMoratorio ?? 0)))}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-black text-emerald-700 dark:text-emerald-300 border border-gray-100 dark:border-slate-800 text-sm">
+                            {formatCurrency(resDPActivo?.totalCobradoConMoratorio ?? ((resDPActivo?.totalCobrado ?? 0) + (resDPActivo?.totalMoratorio ?? 0)))}
                           </td>
                         </tr>
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
@@ -1890,11 +1943,20 @@ export default function ListaCobranzaPage() {
                       </div>
 
                       <div className="flex items-center gap-2 sm:border-l sm:border-slate-300 dark:sm:border-slate-600 sm:pl-3">
+                        <span className="text-[11px] font-black uppercase text-amber-700 dark:text-amber-400">
+                          ⚡ MORATORIOS:
+                        </span>
+                        <span className="font-mono font-bold text-xs text-amber-700 dark:text-amber-400">
+                          {formatCurrency(resumenActivo?.totalMoratorio ?? 0)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 sm:border-l sm:border-slate-300 dark:sm:border-slate-600 sm:pl-3">
                         <span className="text-[11px] font-black uppercase text-slate-900 dark:text-white">
-                          🌐 TOTAL COBRANZA:
+                          🌐 TOTAL RECAUDADO:
                         </span>
                         <span className="font-mono font-black text-sm text-emerald-700 dark:text-emerald-400">
-                          {formatCurrency(resumenActivo?.totalCobrado ?? 0)}
+                          {formatCurrency(resumenActivo?.totalCobradoConMoratorio ?? ((resumenActivo?.totalCobrado ?? 0) + (resumenActivo?.totalMoratorio ?? 0)))}
                         </span>
                       </div>
                     </div>
@@ -2077,7 +2139,11 @@ export default function ListaCobranzaPage() {
             <div className="space-y-3 py-2 text-xs">
               <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-xl space-y-1 text-slate-700 dark:text-slate-300">
                 <div className="flex justify-between"><span>Total Sugerido:</span><span className="font-mono font-bold">{formatCurrency(totalCobrar)}</span></div>
-                <div className="flex justify-between"><span>Cobrado Registrado:</span><span className="font-mono font-bold text-emerald-600">{formatCurrency(totalCobradoReal)}</span></div>
+                <div className="flex justify-between"><span>Cobrado Abonos:</span><span className="font-mono font-bold text-emerald-600">{formatCurrency(totalCobradoReal)}</span></div>
+                {totalMoratorioReal > 0 && (
+                  <div className="flex justify-between"><span>Interés Moratorio:</span><span className="font-mono font-bold text-amber-600">{formatCurrency(totalMoratorioReal)}</span></div>
+                )}
+                <div className="flex justify-between border-t border-blue-200 dark:border-blue-900 pt-1 font-bold"><span>Total Recaudado:</span><span className="font-mono text-emerald-600 font-black">{formatCurrency(totalCobradoConMoratorioReal)}</span></div>
                 <div className="flex justify-between"><span>Saldo Vencido:</span><span className="font-mono font-bold text-rose-600">{formatCurrency(totalSaldoVencido)}</span></div>
               </div>
 
@@ -2121,7 +2187,11 @@ export default function ListaCobranzaPage() {
               <div className="p-3 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl space-y-1.5 text-amber-900 dark:text-amber-200">
                 <div className="flex justify-between"><span>Cobrador / Gestor:</span><span className="font-bold">{getSelectedCobradorName()}</span></div>
                 <div className="flex justify-between"><span>Total Cuentas Cartera:</span><span className="font-mono font-bold">{clientes.length}</span></div>
-                <div className="flex justify-between"><span>Cobrado Registrado:</span><span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(totalCobradoReal)}</span></div>
+                <div className="flex justify-between"><span>Cobrado Abonos:</span><span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(totalCobradoReal)}</span></div>
+                {totalMoratorioReal > 0 && (
+                  <div className="flex justify-between"><span>Interés Moratorio:</span><span className="font-mono font-bold text-amber-600 dark:text-amber-400">{formatCurrency(totalMoratorioReal)}</span></div>
+                )}
+                <div className="flex justify-between border-t border-amber-200 dark:border-amber-800/60 pt-1 font-bold"><span>Total Recaudado:</span><span className="font-mono font-black text-emerald-700 dark:text-emerald-400">{formatCurrency(totalCobradoConMoratorioReal)}</span></div>
                 <div className="flex justify-between"><span>Sugerido de Semana:</span><span className="font-mono font-bold">{formatCurrency(totalCobrar)}</span></div>
                 <div className="flex justify-between"><span>Saldo Vencido:</span><span className="font-mono font-bold text-rose-700 dark:text-rose-400">{formatCurrency(totalSaldoVencido)}</span></div>
               </div>

@@ -322,9 +322,10 @@ export async function GET(request: NextRequest) {
         if (folio && !entry.serie.includes(folio)) {
           entry.serie = entry.serie ? `${entry.serie}, ${folio}` : folio;
         }
-        if (canal === "BANCOS_BOT") entry.montoBot += m;
-        else if (canal === "BANCOS_GESTOR") entry.montoBancosGestor += m;
-        else entry.montoGestor += m;
+        const mora = Number(p.interesMoratorio) || 0;
+        if (canal === "BANCOS_BOT") entry.montoBot += (m + mora);
+        else if (canal === "BANCOS_GESTOR") entry.montoBancosGestor += (m + mora);
+        else entry.montoGestor += (m + mora);
 
         // Canal dominante
         if (entry.montoBot >= entry.montoBancosGestor && entry.montoBot >= entry.montoGestor && entry.montoBot > 0) {
@@ -347,6 +348,7 @@ export async function GET(request: NextRequest) {
         const cod = d.codigoCliente.toUpperCase().trim();
         const pagoInfo = pagosMap.get(cod);
         const pagoReal = pagoInfo ? pagoInfo.monto : 0;
+        const moratorio = pagoInfo ? pagoInfo.moratorio : parseFloat(d.moratorio.toString());
         const pagoSugerido = parseFloat(d.pagoSugerido.toString());
         const saldoVencido = parseFloat(d.saldoVencido.toString());
         const saldoActual = parseFloat(d.saldoActual.toString());
@@ -371,10 +373,12 @@ export async function GET(request: NextRequest) {
 
         // Detectar si varió respecto a la BD para persistir
         const pagoPrevio = parseFloat(d.pagoReal.toString());
-        if (pagoPrevio !== pagoReal || d.problema !== problema || d.tipoCobro !== tipoCobro) {
+        const moratorioPrevio = parseFloat(d.moratorio.toString());
+        if (pagoPrevio !== pagoReal || moratorioPrevio !== moratorio || d.problema !== problema || d.tipoCobro !== tipoCobro) {
           detallesModificadosParaBD.push({
             id: d.id,
             pagoReal,
+            moratorio,
             pagoDoble,
             recuperadoPv,
             comisionAnalista,
@@ -400,7 +404,7 @@ export async function GET(request: NextRequest) {
           saldoActual,
           gestor: d.gestor || "-",
           sup: d.sup,
-          moratorio: parseFloat(d.moratorio.toString()),
+          moratorio: moratorio,
           pvr,
           pagoReal,
           diaPago: normalizarDiaSemana(d.diaPago || d.pagoAnalista),
@@ -444,6 +448,7 @@ export async function GET(request: NextRequest) {
             : 0;
 
         const pagoReal = pagoInfo ? pagoInfo.monto : 0;
+        const moratorio = pagoInfo ? pagoInfo.moratorio : 0;
         const pagoDoble = calcularPagoDoble(pagoReal, montoPagoNum, saldoVencidoNum);
         const recuperadoPv = calcularRecuperadoPV(pagoReal, montoPagoNum, saldoVencidoNum);
         const comisionAnalista = calcularComisionAnalista(pagoReal, c.diaPago);
@@ -473,7 +478,7 @@ export async function GET(request: NextRequest) {
           saldoActual: saldoActualNum,
           gestor: c.cobradorAsignado?.codigoGestor || c.cobradorAsignado?.name || corteGuardado.nombreGestor,
           sup,
-          moratorio: 0,
+          moratorio: moratorio,
           pvr,
           pagoReal,
           diaPago: diaNormalizado,
@@ -514,7 +519,7 @@ export async function GET(request: NextRequest) {
           saldoActual: saldoActualNum,
           gestor: c.cobradorAsignado?.codigoGestor || c.cobradorAsignado?.name || corteGuardado.nombreGestor,
           sup,
-          moratorio: 0,
+          moratorio: moratorio,
           pvr,
           pagoReal,
           diaPago: diaNormalizado,
@@ -568,6 +573,7 @@ export async function GET(request: NextRequest) {
                 where: { id: dm.id },
                 data: {
                   pagoReal: dm.pagoReal,
+                  moratorio: dm.moratorio,
                   pagoDoble: dm.pagoDoble,
                   recuperadoPv: dm.recuperadoPv,
                   comisionAnalista: dm.comisionAnalista,

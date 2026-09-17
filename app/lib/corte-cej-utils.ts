@@ -110,6 +110,8 @@ export interface ResumenCorteCEJ {
   totalCuentas: number;
   totalSugerido: number;
   totalCobrado: number;
+  totalMoratorio: number;
+  totalCobradoConMoratorio: number;
   totalVencido: number;
   totalCartera: number;
   totalPagosDobles: number;
@@ -325,12 +327,13 @@ export function procesarDetallesYResumenCEJ(
     if (p.folio) existing.folio = p.folio;
 
     const canal = clasificarCanalPago(p);
+    const mora = Number(p.moratorio) || 0;
     if (canal === "BANCOS_BOT") {
-      existing.montoBot += monto;
+      existing.montoBot += (monto + mora);
     } else if (canal === "BANCOS_GESTOR") {
-      existing.montoBancosGestor += monto;
+      existing.montoBancosGestor += (monto + mora);
     } else {
-      existing.montoGestor += monto;
+      existing.montoGestor += (monto + mora);
     }
 
     // Determinar canal predominante / etiqueta de tipo
@@ -471,6 +474,7 @@ export function procesarDetallesYResumenCEJ(
 export function calcularResumenCEJDesdeDetalles(detalles: (DetalleCalculadoCEJ | any)[]): ResumenCorteCEJ {
   let totalSugerido = 0;
   let totalCobrado = 0;
+  let totalMoratorio = 0;
   let totalVencido = 0;
   let totalCartera = 0;
   let totalPagosDobles = 0;
@@ -510,6 +514,7 @@ export function calcularResumenCEJDesdeDetalles(detalles: (DetalleCalculadoCEJ |
   detalles.forEach((d) => {
     const pagoSugerido = Number(d.pagoSugerido ?? d.montoPago) || 0;
     const pagoReal = Number(d.pagoReal) || 0;
+    const moratorio = Number(d.moratorio) || 0;
     const saldoVencido = Number(d.saldoVencido) || 0;
     const saldoActual = Number(d.saldoActual) || 0;
     const pagoDoble = Number(d.pagoDoble) || 0;
@@ -517,13 +522,16 @@ export function calcularResumenCEJDesdeDetalles(detalles: (DetalleCalculadoCEJ |
 
     totalSugerido += pagoSugerido;
     totalCobrado += pagoReal;
+    totalMoratorio += moratorio;
     totalVencido += saldoVencido;
     totalCartera += saldoActual;
     totalPagosDobles += pagoDoble;
     totalRecuperadoPv += recuperadoPv;
 
-    if (pagoReal > 0) {
-      ctasCobradas++;
+    if (pagoReal > 0 || moratorio > 0) {
+      if (pagoReal > 0) {
+        ctasCobradas++;
+      }
 
       // Desglose analítico de canales: BANCOS BOT, BANCOS GESTOR, GESTOR
       if (d.montoBot !== undefined || d.montoBancosGestor !== undefined || d.montoGestor !== undefined) {
@@ -546,29 +554,31 @@ export function calcularResumenCEJDesdeDetalles(detalles: (DetalleCalculadoCEJ |
 
         // Fallback de contingencia si no se desglosaron montos
         if (mBot === 0 && mBG === 0 && mG === 0) {
+          const montoConMora = pagoReal + moratorio;
           const canal = clasificarCanalDesdeTipoCobro(d.tipoCobro);
           if (canal === "BANCOS_BOT") {
             cobBancosBotCtas++;
-            cobBancosBotPesos += pagoReal;
+            cobBancosBotPesos += montoConMora;
           } else if (canal === "BANCOS_GESTOR") {
             cobBancosGestorCtas++;
-            cobBancosGestorPesos += pagoReal;
+            cobBancosGestorPesos += montoConMora;
           } else {
             cobGestorCtas++;
-            cobGestorPesos += pagoReal;
+            cobGestorPesos += montoConMora;
           }
         }
       } else {
+        const montoConMora = pagoReal + moratorio;
         const canal = clasificarCanalDesdeTipoCobro(d.tipoCobro);
         if (canal === "BANCOS_BOT") {
           cobBancosBotCtas++;
-          cobBancosBotPesos += pagoReal;
+          cobBancosBotPesos += montoConMora;
         } else if (canal === "BANCOS_GESTOR") {
           cobBancosGestorCtas++;
-          cobBancosGestorPesos += pagoReal;
+          cobBancosGestorPesos += montoConMora;
         } else {
           cobGestorCtas++;
-          cobGestorPesos += pagoReal;
+          cobGestorPesos += montoConMora;
         }
       }
     }
@@ -690,10 +700,14 @@ export function calcularResumenCEJDesdeDetalles(detalles: (DetalleCalculadoCEJ |
   const cobEfectivoCtas = cobGestorCtas;
   const cobEfectivoPesos = cobGestorPesos;
 
+  const totalCobradoConMoratorio = totalCobrado + totalMoratorio;
+
   return {
     totalCuentas: detalles.length,
     totalSugerido,
     totalCobrado,
+    totalMoratorio,
+    totalCobradoConMoratorio,
     totalVencido,
     totalCartera,
     totalPagosDobles,
