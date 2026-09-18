@@ -21,22 +21,7 @@ export async function POST(req: Request) {
         // Recolectar códigos DQ/DP importados (para comparar después)
         const codigosImportados = new Set<string>();
 
-        // ── Fase 1: Obtener códigos DQ/DP activos ANTES del upsert (solo si cleanup activo) ──
-        let codigosActivosEnBD: string[] = [];
-        if (enableCleanup) {
-            const clientesActivosDQDP = await prisma.cliente.findMany({
-                where: {
-                    statusCuenta: StatusCuenta.activo,
-                    OR: [
-                        { codigoCliente: { startsWith: 'DQ' } },
-                        { codigoCliente: { startsWith: 'DP' } },
-                    ],
-                },
-                select: { codigoCliente: true },
-            });
-            codigosActivosEnBD = clientesActivosDQDP.map(c => c.codigoCliente);
-        }
-        
+
         // ── Fase 1.5: Obtener mapeo de códigos de gestores a IDs de usuarios ──
         const codigosGestoresUnicos = Array.from(new Set(
             clientes.map((c: any) => c.codigoGestor?.toString().trim()).filter(Boolean)
@@ -113,67 +98,100 @@ export async function POST(req: Request) {
             }
         }
 
-        // ── Fase 3: Depurar clientes DQ/DP que ya no aparecen en el archivo ──
+        // ── Fase 3: Depurar y eliminar clientes DQ/DP que ya no aparecen en el archivo maestro ──
         let deletedCount = 0;
         let deletedClientes: any[] = [];
 
-        if (enableCleanup && codigosActivosEnBD.length > 0) {
-            // Códigos que estaban activos en BD pero NO llegaron en el archivo
-            const codigosAInactivar = codigosActivosEnBD.filter(
-                codigo => !codigosImportados.has(codigo)
-            );
+        if (enableCleanup) {
+            const tieneDQ = Array.from(codigosImportados).some(c => c.toUpperCase().startsWith('DQ'));
+            const tieneDP = Array.from(codigosImportados).some(c => c.toUpperCase().startsWith('DP'));
 
-            if (codigosAInactivar.length > 0) {
-                // Obtener datos completos de los que se van a inactivar (para el reporte)
-                const clientesAInactivar = await prisma.cliente.findMany({
+            const prefixConditions: any[] = [];
+            if (tieneDQ) prefixConditions.push({ codigoCliente: { startsWith: 'DQ' } });
+            if (tieneDP) prefixConditions.push({ codigoCliente: { startsWith: 'DP' } });
+
+            if (prefixConditions.length > 0) {
+                // Obtener todos los clientes en BD de las carteras importadas (activos o inactivos)
+                const clientesEnBD = await prisma.cliente.findMany({
                     where: {
-                        codigoCliente: { in: codigosAInactivar },
+                        OR: prefixConditions,
                     },
-                    include: {
+                    select: {
+                        id: true,
+                        codigoCliente: true,
+                        nombreCompleto: true,
+                        saldoActual: true,
+                        montoPago: true,
+                        diasVencidos: true,
+                        saldoVencido: true,
                         cobradorAsignado: {
                             select: { name: true, codigoGestor: true },
                         },
                     },
                 });
 
-                const fechaInactivacion = new Date();
-
-                // Inactivar en lote
-                await prisma.cliente.updateMany({
-                    where: {
-                        codigoCliente: { in: codigosAInactivar },
-                    },
-                    data: {
-                        statusCuenta: StatusCuenta.inactivo,
-                        fechaInactivacion,
-                    },
-                });
-
-                deletedCount = codigosAInactivar.length;
-                deletedClientes = clientesAInactivar.map(c => ({
-                    codigoCliente: c.codigoCliente,
-                    nombreCompleto: c.nombreCompleto,
-                    saldoActual: parseFloat(c.saldoActual.toString()),
-                    montoPago: parseFloat(c.montoPago.toString()),
-                    diasVencidos: c.diasVencidos,
-                    saldoVencido: parseFloat(c.saldoVencido.toString()),
-                    cobrador: c.cobradorAsignado?.name || null,
-                    codigoGestor: c.cobradorAsignado?.codigoGestor || null,
-                    fechaInactivacion: fechaInactivacion.toISOString(),
-                }));
-
-                // ── Crear leads de recompra para los clientes inactivados ──
-                // Se ejecuta en paralelo sin bloquear la respuesta si alguno falla
-                const leadsPromises = clientesAInactivar.map(c =>
-                    RecomprasService.crearLeadPorLiquidacion(
-                        c.id,
-                        'Cuenta inactivada en importación masiva de clientes'
-                    ).catch(err => {
-                        console.warn(`[Recompras] No se pudo crear lead para ${c.codigoCliente}:`, err);
-                    })
+                // Clientes que están en BD pero NO llegaron en el archivo actual
+                const clientesAEliminar = clientesEnBD.filter(
+                    c => !codigosImportados.has(c.codigoCliente)
                 );
-                await Promise.allSettled(leadsPromises);
-                console.log(`[Recompras] Leads creados para ${clientesAInactivar.length} clientes inactivados.`);
+
+                if (clientesAEliminar.length > 0) {
+                    const idsAEliminar = clientesAEliminar.map(c => c.id);
+                    const codigosAEliminar = clientesAEliminar.map(c => c.codigoCliente);
+
+                    // 1. Crear leads de recompra antes de eliminar (para no perder el historial de oportunidad)
+                    const leadsPromises = clientesAEliminar.map(c =>
+                        RecomprasService.crearLeadPorLiquidacion(
+                            c.id,
+                            'Cuenta retirada de cartera en importación masiva'
+                        ).catch(err => {
+                            console.warn(`[Recompras] No se pudo crear lead para ${c.codigoCliente}:`, err);
+                        })
+                    );
+                    await Promise.allSettled(leadsPromises);
+
+                    // 2. Eliminar en cascada transaccional para evitar fallos de claves foráneas
+                    await prisma.$transaction([
+                        prisma.smsLog.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
+                        prisma.avisoCobro.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
+                        prisma.cuentaBancariaCliente.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
+                        prisma.verificacionDomiciliaria.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
+                        prisma.convenioPago.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
+                        prisma.ticket.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
+                        prisma.pago.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
+                        prisma.motarario.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
+                        prisma.movimientoBancario.updateMany({ where: { clienteId: { in: idsAEliminar } }, data: { clienteId: null } }),
+                        prisma.movimientoBanorte0330253963.updateMany({ where: { clienteId: { in: idsAEliminar } }, data: { clienteId: null } }),
+                        prisma.movimientoSantander22001022837.updateMany({ where: { clienteId: { in: idsAEliminar } }, data: { clienteId: null } }),
+                        prisma.movimientoSantander65505732541.updateMany({ where: { clienteId: { in: idsAEliminar } }, data: { clienteId: null } }),
+                        // Quitar de los detalles de cortes de cobranza para que no figuren en la lista de cobranza ni sin pago
+                        prisma.corteCobranzaDetalle.deleteMany({
+                            where: {
+                                OR: [
+                                    { clienteId: { in: idsAEliminar } },
+                                    { codigoCliente: { in: codigosAEliminar } }
+                                ]
+                            }
+                        }),
+                        // Eliminar definitivamente los clientes
+                        prisma.cliente.deleteMany({ where: { id: { in: idsAEliminar } } }),
+                    ]);
+
+                    const fechaEliminacion = new Date().toISOString();
+                    deletedCount = clientesAEliminar.length;
+                    deletedClientes = clientesAEliminar.map(c => ({
+                        codigoCliente: c.codigoCliente,
+                        nombreCompleto: c.nombreCompleto,
+                        saldoActual: parseFloat(c.saldoActual.toString()),
+                        montoPago: parseFloat(c.montoPago.toString()),
+                        diasVencidos: c.diasVencidos,
+                        saldoVencido: parseFloat(c.saldoVencido.toString()),
+                        cobrador: c.cobradorAsignado?.name || null,
+                        codigoGestor: c.cobradorAsignado?.codigoGestor || null,
+                        fechaInactivacion: fechaEliminacion,
+                        fechaEliminacion,
+                    }));
+                }
             }
         }
 

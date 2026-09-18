@@ -343,8 +343,21 @@ export async function GET(request: NextRequest) {
       });
 
       // 4. Actualizar detalles existentes conservando problemas manuales (K, IT, DL, AD)
+      // Excluir clientes que ya no están activos en la cartera si no tuvieron abono en la semana
+      const codigosActivosSet = new Set(clientesActivos.map((c) => c.codigoCliente.toUpperCase().trim()));
+      const detallesValidosCorte = corteGuardado.detalles.filter((d) => {
+        const cod = d.codigoCliente.toUpperCase().trim();
+        const pagoInfo = pagosMap.get(cod);
+        const pagoReal = pagoInfo ? pagoInfo.monto : 0;
+        return codigosActivosSet.has(cod) || pagoReal > 0;
+      });
+
+      const idsDetallesAEliminar = corteGuardado.detalles
+        .filter((d) => !detallesValidosCorte.some((vd) => vd.id === d.id))
+        .map((d) => d.id);
+
       const detallesModificadosParaBD: any[] = [];
-      const detallesSerializados = corteGuardado.detalles.map((d) => {
+      const detallesSerializados = detallesValidosCorte.map((d) => {
         const cod = d.codigoCliente.toUpperCase().trim();
         const pagoInfo = pagosMap.get(cod);
         const pagoReal = pagoInfo ? pagoInfo.monto : 0;
@@ -583,6 +596,12 @@ export async function GET(request: NextRequest) {
                   tipoCobro: dm.tipoCobro,
                   problema: dm.problema
                 }
+              });
+            }
+
+            if (idsDetallesAEliminar.length > 0) {
+              await tx.corteCobranzaDetalle.deleteMany({
+                where: { id: { in: idsDetallesAEliminar } }
               });
             }
 

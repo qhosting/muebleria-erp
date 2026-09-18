@@ -57,7 +57,7 @@ export function ImportarClientesModal({
   const [result, setResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [cleanupEnabled, setCleanupEnabled] = useState(false);
+  const [cleanupEnabled, setCleanupEnabled] = useState(true);
 
   const downloadTemplate = () => {
     setLoading(true);
@@ -574,7 +574,7 @@ export function ImportarClientesModal({
       'Días Vencidos',
       'Saldo Vencido',
       'Cobrador',
-      'Fecha Inactivación'
+      'Fecha Eliminación'
     ];
 
     const data = result.deletedClientes.map(c => [
@@ -585,15 +585,15 @@ export function ImportarClientesModal({
       c.diasVencidos,
       c.saldoVencido,
       c.cobrador || 'N/A',
-      c.fechaInactivacion
+      c.fechaEliminacion || c.fechaInactivacion
     ]);
 
     const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Clientes Depurados");
+    XLSX.utils.book_append_sheet(wb, ws, "Clientes Eliminados");
     
-    XLSX.writeFile(wb, `reporte_depuracion_${new Date().toISOString().split('T')[0]}.xlsx`);
-    toast.success('Reporte de depuración descargado');
+    XLSX.writeFile(wb, `reporte_eliminados_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Reporte de cuentas eliminadas descargado');
   };
 
   const importClientes = async () => {
@@ -874,7 +874,7 @@ export function ImportarClientesModal({
                                 </div>
                                 <div>
                                   <Label htmlFor="cleanup-switch" className="text-amber-900 font-bold cursor-pointer">
-                                    Depuración Inteligente
+                                    Depuración y Eliminación Inteligente
                                   </Label>
                                   <p className="text-[10px] text-amber-700 opacity-80 uppercase tracking-wider font-semibold">
                                     Solo códigos DQ/DP
@@ -891,7 +891,7 @@ export function ImportarClientesModal({
                             
                             {cleanupEnabled && (
                               <p className="text-xs text-amber-800 leading-relaxed bg-white/50 p-2 rounded-lg border border-amber-200/50">
-                                Los clientes DQ/DP que **no estén** en este archivo serán marcados como inactivos automáticamente.
+                                Los clientes DQ/DP que **no estén** en este archivo serán eliminados definitivamente del sistema para que no aparezcan en la lista de cobranza ni en reportes de no pago.
                               </p>
                             )}
                           </div>
@@ -957,10 +957,10 @@ export function ImportarClientesModal({
                     <div className="relative z-10">
                       <div className="flex items-center gap-2 text-amber-400 font-bold mb-1">
                         <Trash2 className="h-4 w-4" />
-                        Depuración Completada
+                        Depuración y Eliminación Completada
                       </div>
                       <p className="text-slate-400 text-sm max-w-md">
-                        Se han inactivado **{result.deleted}** clientes que ya no estaban en el archivo maestro.
+                        Se han eliminado definitivamente **{result.deleted}** clientes que ya no estaban en el archivo maestro.
                       </p>
                     </div>
                     <Button 
