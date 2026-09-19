@@ -337,6 +337,98 @@ export async function POST(req: Request) {
             });
         }
 
+        // --- ACCIÓN: EXISTENCIA DE CARTERA (MUEBLERIA-ERP) ---
+        if (action === "existencia_cartera" || action === "existencia") {
+            const cartera = (body.cartera || body.tipo || "DQ").trim().toUpperCase(); // "DQ" o "DP"
+
+            // Consultar clientes activos con código que comience con el prefijo indicado
+            const clientes = await prisma.cliente.findMany({
+                where: {
+                    codigoCliente: { startsWith: cartera, mode: 'insensitive' },
+                    statusCuenta: 'activo'
+                },
+                select: {
+                    codigoCliente: true,
+                    periodicidad: true,
+                    vendedor: true,
+                    cobradorAsignado: {
+                        select: {
+                            codigoGestor: true,
+                            name: true
+                        }
+                    }
+                }
+            });
+
+            // Agrupar por gestor y periodicidad
+            const agrupado: Record<string, { GESTOR: string; SEM: number; CAT: number; QUI: number; MEN: number; TOTAL: number }> = {};
+            const sumTotales = { SEM: 0, CAT: 0, QUI: 0, MEN: 0, TOTAL: 0 };
+
+            for (const c of clientes) {
+                const gestor = (c.cobradorAsignado?.codigoGestor || c.cobradorAsignado?.name || c.vendedor || "SIN_ASIGNAR").trim().toUpperCase();
+                if (!agrupado[gestor]) {
+                    agrupado[gestor] = { GESTOR: gestor, SEM: 0, CAT: 0, QUI: 0, MEN: 0, TOTAL: 0 };
+                }
+
+                const p = String(c.periodicidad || '').toLowerCase();
+                if (p === 'semanal') {
+                    agrupado[gestor].SEM++;
+                    sumTotales.SEM++;
+                } else if (p === 'catorcenal') {
+                    agrupado[gestor].CAT++;
+                    sumTotales.CAT++;
+                } else if (p === 'quincenal') {
+                    agrupado[gestor].QUI++;
+                    sumTotales.QUI++;
+                } else if (p === 'mensual') {
+                    agrupado[gestor].MEN++;
+                    sumTotales.MEN++;
+                }
+
+                agrupado[gestor].TOTAL++;
+                sumTotales.TOTAL++;
+            }
+
+            const items = Object.values(agrupado).sort((a, b) => a.GESTOR.localeCompare(b.GESTOR));
+
+            // Formatear fecha y hora para México
+            const fechaHora = new Date().toLocaleString("es-MX", {
+                timeZone: "America/Mexico_City",
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            });
+
+            const titulo = cartera === 'DQ' ? '📋 **EXISTENCIA DASO**' : '📋 **DASO PLUS CARTERA**';
+            const lines = [
+                titulo,
+                `📅 Fecha: ${fechaHora}`,
+                '```',
+                'GESTOR  | SEM  | CAT | QUI | MEN | TOTAL',
+                '--------|------|-----|-----|-----|------'
+            ];
+
+            for (const item of items) {
+                const g = item.GESTOR.padEnd(7, ' ').slice(0, 7);
+                lines.push(`${g} | ${item.SEM.toString().padStart(4)} | ${item.CAT.toString().padStart(3)} | ${item.QUI.toString().padStart(3)} | ${item.MEN.toString().padStart(3)} | ${item.TOTAL.toString().padStart(5)}`);
+            }
+
+            lines.push('--------|------|-----|-----|-----|------');
+            lines.push(`TOTAL   | ${sumTotales.SEM.toString().padStart(4)} | ${sumTotales.CAT.toString().padStart(3)} | ${sumTotales.QUI.toString().padStart(3)} | ${sumTotales.MEN.toString().padStart(3)} | ${sumTotales.TOTAL.toString().padStart(5)}`);
+            lines.push('```');
+
+            const mensajeFormateado = lines.join('\n');
+
+            return NextResponse.json({
+                success: true,
+                cartera,
+                totalClientes: clientes.length,
+                items,
+                totales: sumTotales,
+                mensaje: mensajeFormateado
+            });
+        }
+
+
         // --- ACCIÓN: ACTUALIZAR FECHA / HORA DE TICKET ---
         if (action === "actualizar_fecha_ticket") {
             const ticketId = body.ticketId || body.id;
