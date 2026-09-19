@@ -313,7 +313,9 @@ export function SmsDashboard() {
     try {
       let url = '';
       if (modoEnvio === 'inicio_semana') {
-        url = `/api/sms/preview?campaignKey=inicio_semana&diaCobro=TODOS`;
+        const gestorParam = selectedGestorId && selectedGestorId !== 'TODOS' ? `&gestorId=${encodeURIComponent(selectedGestorId)}` : '';
+        const diaParam = diaCobro ? `&diaCobro=${encodeURIComponent(diaCobro)}` : '&diaCobro=TODOS';
+        url = `/api/sms/preview?campaignKey=inicio_semana${diaParam}${gestorParam}`;
       } else if (modoEnvio === 'por_gestor') {
         const gestorParam = selectedGestorId && selectedGestorId !== 'TODOS' ? `&gestorId=${encodeURIComponent(selectedGestorId)}` : '';
         url = `/api/sms/preview?campaignKey=no_pagos&diaCobro=${encodeURIComponent(diaCobro)}${gestorParam}`;
@@ -689,7 +691,7 @@ export function SmsDashboard() {
                         3. Inicio de Semana
                       </div>
                       <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                        Elige plantilla de inicio y avisa a la cartera activa
+                        Todas las cuentas en ruta según la semana de cobro y su periodicidad
                       </div>
                     </div>
                   </button>
@@ -772,26 +774,68 @@ export function SmsDashboard() {
 
                   {/* MODALIDAD 3: Inicio de Semana */}
                   {modoEnvio === 'inicio_semana' && (
-                    <div className="space-y-1.5 flex-1 max-w-md">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        Selecciona Plantilla de Inicio de Semana:
-                      </label>
-                      <Select 
-                        value={selectedTemplateKey} 
-                        onValueChange={setSelectedTemplateKey}
-                      >
-                        <SelectTrigger className="bg-white dark:bg-slate-900 text-xs">
-                          <SelectValue placeholder="Selecciona una plantilla" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {plantillasInicioSemana.map(t => (
-                            <SelectItem key={t.campaignKey} value={t.campaignKey}>
-                              {t.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <>
+                      <div className="space-y-1.5 flex-1 max-w-xs">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Cobrador:
+                        </label>
+                        <Select value={selectedGestorId} onValueChange={setSelectedGestorId}>
+                          <SelectTrigger className="bg-white dark:bg-slate-900 text-xs">
+                            <SelectValue placeholder="Todos los Cobradores" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="TODOS">Todos los Cobradores</SelectItem>
+                            {cobradoresDisponibles.map(g => (
+                              <SelectItem key={g.id} value={g.id}>
+                                {g.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5 flex-1 max-w-xs">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Día de cobro:
+                        </label>
+                        <Select value={diaCobro} onValueChange={setDiaCobro}>
+                          <SelectTrigger className="bg-white dark:bg-slate-900 text-xs">
+                            <SelectValue placeholder="Toda la semana" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="TODOS">TODOS (Toda la Semana)</SelectItem>
+                            <SelectItem value="LUNES">Lunes</SelectItem>
+                            <SelectItem value="MARTES">Martes</SelectItem>
+                            <SelectItem value="MIERCOLES">Miércoles</SelectItem>
+                            <SelectItem value="JUEVES">Jueves</SelectItem>
+                            <SelectItem value="VIERNES">Viernes</SelectItem>
+                            <SelectItem value="SABADO">Sábado</SelectItem>
+                            <SelectItem value="DOMINGO">Domingo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5 flex-1 max-w-md">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Plantilla Inicio de Semana:
+                        </label>
+                        <Select 
+                          value={selectedTemplateKey} 
+                          onValueChange={setSelectedTemplateKey}
+                        >
+                          <SelectTrigger className="bg-white dark:bg-slate-900 text-xs">
+                            <SelectValue placeholder="Selecciona una plantilla" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {plantillasInicioSemana.map(t => (
+                              <SelectItem key={t.campaignKey} value={t.campaignKey}>
+                                {t.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
                   )}
 
                   {/* Botón de Previsualización */}
@@ -817,10 +861,11 @@ export function SmsDashboard() {
                   <div className="p-2.5 bg-white dark:bg-slate-900 rounded border text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2">
                     <Info className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-semibold text-slate-900 dark:text-white">Mensaje a emitir: </span>
-                      <span className="font-sans italic">
+                      <span className="font-semibold text-slate-900 dark:text-white">Inicio de Semana (Ruta Completa): </span>
+                      <span>Se incluyen todas las cuentas activas en ruta para toda la semana oficial conforme a la semana de cobro y sus periodicidades activas en el Calendario.</span>
+                      <div className="mt-1 font-sans italic text-slate-600 dark:text-slate-400">
                         "{templates.find(t => t.campaignKey === selectedTemplateKey)?.templateText || templates.find(t => t.campaignKey === 'inicio_semana')?.templateText || 'Recordatorio de inicio de semana'}"
-                      </span>
+                      </div>
                     </div>
                   </div>
                 )}

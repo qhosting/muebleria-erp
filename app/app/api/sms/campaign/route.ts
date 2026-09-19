@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { sendSMS } from '@/lib/sms-utils';
 import { normalizarDiaSemana } from '@/lib/corte-cej-utils';
-import { obtenerInfoCalendarioCobranza, getDiasCicloHastaHoy } from '@/lib/calendario-cobranza-utils';
+import { obtenerInfoCalendarioCobranza, getDiasCicloHastaHoy, DIAS_COBRANZA_CICLO } from '@/lib/calendario-cobranza-utils';
 
 const COSTO_POR_SMS = 0.45; // MXN estimado
 
@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
       const whereClause: any = {
         statusCuenta: 'activo',
         clasificacionCobranza: 'RUTA', // Solo cuentas asignadas a RUTA
+        saldoActual: { gt: 0 },
         AND: [
           { telefono: { not: null } },
           { telefono: { not: '' } }
@@ -61,8 +62,7 @@ export async function POST(req: NextRequest) {
       if (campaignKey === 'no_pagos') {
         whereClause.OR = [
           { saldoVencido: { gt: 0 } },
-          { diasVencidos: { gt: 0 } },
-          { saldoActual: { gt: 0 } }
+          { diasVencidos: { gt: 0 } }
         ];
       }
 
@@ -77,15 +77,25 @@ export async function POST(req: NextRequest) {
           saldoVencido: true,
           saldoActual: true,
         },
-        take: 2000
+        take: 10000
       });
 
-      // Filtrar por día: si es TODOS, aplicar acumulado [Sábado ... Hoy]
+      // Filtrar por día:
+      // Para 'inicio_semana': toda la semana oficial (Sábado a Viernes)
+      // Para 'no_pagos': acumulado desde Sábado hasta hoy
       let diasPermitidos: string[];
-      if (!diaCobro || diaCobro === 'TODOS') {
-        diasPermitidos = getDiasCicloHastaHoy();
+      if (campaignKey.startsWith('inicio_semana')) {
+        if (!diaCobro || diaCobro === 'TODOS') {
+          diasPermitidos = [...DIAS_COBRANZA_CICLO];
+        } else {
+          diasPermitidos = [normalizarDiaSemana(diaCobro)];
+        }
       } else {
-        diasPermitidos = [normalizarDiaSemana(diaCobro)];
+        if (!diaCobro || diaCobro === 'TODOS') {
+          diasPermitidos = getDiasCicloHastaHoy();
+        } else {
+          diasPermitidos = [normalizarDiaSemana(diaCobro)];
+        }
       }
 
       let finalClients = foundClients.filter(c => diasPermitidos.includes(normalizarDiaSemana(c.diaPago)));

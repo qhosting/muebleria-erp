@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { normalizarDiaSemana } from '@/lib/corte-cej-utils';
-import { obtenerInfoCalendarioCobranza, getDiasCicloHastaHoy } from '@/lib/calendario-cobranza-utils';
+import { obtenerInfoCalendarioCobranza, getDiasCicloHastaHoy, DIAS_COBRANZA_CICLO } from '@/lib/calendario-cobranza-utils';
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -22,17 +22,18 @@ export async function GET(req: NextRequest) {
     // 1. Obtener información de la semana activa desde el Calendario Anual (CalendarioCobranza)
     const calInfo = await obtenerInfoCalendarioCobranza(prisma);
 
-    // 2. Base query: cuentas activas, con clasificación RUTA y teléfono válido
+    // 2. Base query: cuentas activas, con clasificación RUTA, saldo pendiente y teléfono válido
     const whereClause: any = {
       statusCuenta: 'activo',
       clasificacionCobranza: 'RUTA', // Solo cuentas asignadas a RUTA
+      saldoActual: { gt: 0 },
       AND: [
         { telefono: { not: null } },
         { telefono: { not: '' } }
       ]
     };
 
-    // Filtrar por periodicidades activas en el Calendario
+    // Filtrar por periodicidades activas en el Calendario de la semana de cobro
     if (calInfo.periodicidadesActivas.length > 0) {
       whereClause.periodicidad = { in: calInfo.periodicidadesActivas as any };
     }
@@ -44,12 +45,11 @@ export async function GET(req: NextRequest) {
       whereClause.cobradorAsignadoId = userId;
     }
 
-    // Para campañas de no pagos, requiere tener saldo pendiente
+    // Para campañas de no pagos, requiere tener saldo vencido o días vencidos
     if (campaignKey === 'no_pagos') {
       whereClause.OR = [
         { saldoVencido: { gt: 0 } },
-        { diasVencidos: { gt: 0 } },
-        { saldoActual: { gt: 0 } }
+        { diasVencidos: { gt: 0 } }
       ];
     }
 
@@ -73,17 +73,25 @@ export async function GET(req: NextRequest) {
           }
         }
       },
-      take: 2000
+      take: 10000
     });
 
     // 3. Filtrar por día:
-    // Si es TODOS, aplicar el acumulado del ciclo de cobranza: [Sábado ... Día de Hoy]
-    // Si se especifica un día (ej. MARTES), solo ese día
+    // Para 'inicio_semana': se incluyen TODAS las cuentas en ruta para toda la semana oficial (Sábado a Viernes)
+    // Para 'no_pagos': acumulado desde el inicio del ciclo (Sábado) hasta el día actual
     let diasPermitidos: string[];
-    if (!diaCobro || diaCobro === 'TODOS') {
-      diasPermitidos = getDiasCicloHastaHoy();
+    if (campaignKey.startsWith('inicio_semana')) {
+      if (!diaCobro || diaCobro === 'TODOS') {
+        diasPermitidos = [...DIAS_COBRANZA_CICLO];
+      } else {
+        diasPermitidos = [normalizarDiaSemana(diaCobro)];
+      }
     } else {
-      diasPermitidos = [normalizarDiaSemana(diaCobro)];
+      if (!diaCobro || diaCobro === 'TODOS') {
+        diasPermitidos = getDiasCicloHastaHoy();
+      } else {
+        diasPermitidos = [normalizarDiaSemana(diaCobro)];
+      }
     }
 
     let filtered = allClients.filter(c => diasPermitidos.includes(normalizarDiaSemana(c.diaPago)));
