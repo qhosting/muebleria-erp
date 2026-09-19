@@ -341,20 +341,25 @@ export async function POST(req: Request) {
         if (action === "existencia_cartera" || action === "existencia") {
             const cartera = (body.cartera || body.tipo || "DQ").trim().toUpperCase(); // "DQ" o "DP"
 
-            // Consultar clientes activos con código que comience con el prefijo indicado
+            // Consultar clientes activos de la cartera indicada asignados exclusivamente a cobradores
             const clientes = await prisma.cliente.findMany({
                 where: {
                     codigoCliente: { startsWith: cartera, mode: 'insensitive' },
-                    statusCuenta: 'activo'
+                    statusCuenta: 'activo',
+                    cobradorAsignado: {
+                        is: {
+                            role: { in: ['cobrador', 'gestor_cobranza'] }
+                        }
+                    }
                 },
                 select: {
                     codigoCliente: true,
                     periodicidad: true,
-                    vendedor: true,
                     cobradorAsignado: {
                         select: {
                             codigoGestor: true,
-                            name: true
+                            name: true,
+                            role: true
                         }
                     }
                 }
@@ -365,7 +370,9 @@ export async function POST(req: Request) {
             const sumTotales = { SEM: 0, CAT: 0, QUI: 0, MEN: 0, TOTAL: 0 };
 
             for (const c of clientes) {
-                const gestor = (c.cobradorAsignado?.codigoGestor || c.cobradorAsignado?.name || c.vendedor || "SIN_ASIGNAR").trim().toUpperCase();
+                const gestor = (c.cobradorAsignado?.codigoGestor || c.cobradorAsignado?.name || '').trim().toUpperCase();
+                if (!gestor) continue;
+
                 if (!agrupado[gestor]) {
                     agrupado[gestor] = { GESTOR: gestor, SEM: 0, CAT: 0, QUI: 0, MEN: 0, TOTAL: 0 };
                 }
