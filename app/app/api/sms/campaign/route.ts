@@ -22,11 +22,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    let { campaignKey, clients: selectedClients, templateText, diaCobro } = body;
+    let { campaignKey, clients: selectedClients, templateText, diaCobro, filtroTipo } = body;
 
     if (!campaignKey) {
       return NextResponse.json({ error: 'Falta el parámetro campaignKey' }, { status: 400 });
     }
+
+    const isNoPagoRuta = filtroTipo === 'no_pago_ruta' || diaCobro === 'NO_PAGO_RUTA' || campaignKey === 'no_pago_ruta';
 
     // 1. Obtener plantilla si no se proporcionó templateText
     const template = await prisma.smsTemplate.findUnique({
@@ -59,7 +61,7 @@ export async function POST(req: NextRequest) {
         whereClause.periodicidad = { in: calInfo.periodicidadesActivas as any };
       }
 
-      if (campaignKey === 'no_pagos') {
+      if (campaignKey === 'no_pagos' && !isNoPagoRuta) {
         whereClause.OR = [
           { saldoVencido: { gt: 0 } },
           { diasVencidos: { gt: 0 } }
@@ -81,11 +83,11 @@ export async function POST(req: NextRequest) {
       });
 
       // Filtrar por día:
-      // Para 'inicio_semana': toda la semana oficial (Sábado a Viernes)
-      // Para 'no_pagos': acumulado desde Sábado hasta hoy
+      // Para 'inicio_semana' o 'no_pago_ruta' con TODOS: toda la semana oficial (Sábado a Viernes)
+      // Para 'no_pagos' acumulado tradicional: acumulado desde Sábado hasta hoy
       let diasPermitidos: string[];
-      if (campaignKey.startsWith('inicio_semana')) {
-        if (!diaCobro || diaCobro === 'TODOS') {
+      if (campaignKey.startsWith('inicio_semana') || isNoPagoRuta) {
+        if (!diaCobro || diaCobro === 'TODOS' || diaCobro === 'NO_PAGO_RUTA') {
           diasPermitidos = [...DIAS_COBRANZA_CICLO];
         } else {
           diasPermitidos = [normalizarDiaSemana(diaCobro)];
@@ -101,7 +103,8 @@ export async function POST(req: NextRequest) {
       let finalClients = foundClients.filter(c => diasPermitidos.includes(normalizarDiaSemana(c.diaPago)));
 
       // Excluir clientes que ya pagaron en la semana de cobranza actual
-      if (campaignKey === 'no_pagos' && finalClients.length > 0) {
+      const esCampaniaNoPagos = campaignKey === 'no_pagos' || isNoPagoRuta;
+      if (esCampaniaNoPagos && finalClients.length > 0) {
         const clientIds = finalClients.map(c => c.id);
         const clientCodes = finalClients.map(c => c.codigoCliente);
 

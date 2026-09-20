@@ -80,6 +80,7 @@ interface ClientRecipient {
   periodicidad?: string;
   saldoVencido: number;
   saldoActual?: number;
+  clasificacionCobranza?: string;
   gestor?: string;
   gestorId?: string | null;
 }
@@ -108,6 +109,7 @@ export function SmsDashboard() {
   
   // 3 Modalidades de Envío: No Pagos Acumulado, Por Gestor, Inicio de Semana
   const [modoEnvio, setModoEnvio] = useState<ModoEnvio>('nopagos_acumulado');
+  const [filtroNoPago, setFiltroNoPago] = useState<'no_pago_ruta' | 'acumulado_hoy'>('no_pago_ruta');
   const [selectedGestorId, setSelectedGestorId] = useState<string>('TODOS');
   const [diaCobro, setDiaCobro] = useState<string>('TODOS');
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string>('no_pagos');
@@ -318,10 +320,10 @@ export function SmsDashboard() {
         url = `/api/sms/preview?campaignKey=inicio_semana${diaParam}${gestorParam}`;
       } else if (modoEnvio === 'por_gestor') {
         const gestorParam = selectedGestorId && selectedGestorId !== 'TODOS' ? `&gestorId=${encodeURIComponent(selectedGestorId)}` : '';
-        url = `/api/sms/preview?campaignKey=no_pagos&diaCobro=${encodeURIComponent(diaCobro)}${gestorParam}`;
+        url = `/api/sms/preview?campaignKey=no_pagos&filtroTipo=${filtroNoPago}&diaCobro=${encodeURIComponent(diaCobro)}${gestorParam}`;
       } else {
         // nopagos_acumulado
-        url = `/api/sms/preview?campaignKey=no_pagos&diaCobro=${encodeURIComponent(diaCobro)}`;
+        url = `/api/sms/preview?campaignKey=no_pagos&filtroTipo=${filtroNoPago}&diaCobro=${encodeURIComponent(diaCobro)}`;
       }
 
       const res = await fetch(url);
@@ -393,6 +395,8 @@ export function SmsDashboard() {
         ? `Inicio de Semana (${clientsToSend.length} clientes)`
         : modoEnvio === 'por_gestor'
         ? `Por Cobrador: ${cobradores.find(c => c.id === selectedGestorId)?.name || 'Todos los Cobradores'} (${clientsToSend.length} clientes)`
+        : filtroNoPago === 'no_pago_ruta'
+        ? `No Pago (Semana en Ruta) (${clientsToSend.length} clientes)`
         : `Acumulado No Pago (${clientsToSend.length} clientes)`
     );
 
@@ -443,7 +447,8 @@ export function SmsDashboard() {
             campaignKey: key,
             clients,
             templateText,
-            diaCobro
+            diaCobro,
+            filtroTipo: filtroNoPago
           }),
         });
 
@@ -623,7 +628,7 @@ export function SmsDashboard() {
                         1. Acumulado No Pago
                       </div>
                       <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                        Acumulado No Pago • Envío a todos o individual (1 a 1)
+                        No Pago en Ruta / Acumulado • Envío masivo o individual (1 a 1)
                       </div>
                     </div>
                   </button>
@@ -705,26 +710,69 @@ export function SmsDashboard() {
                 <div className="flex flex-col md:flex-row md:items-end gap-3">
                   {/* MODALIDAD 1: No Pagos Acumulado */}
                   {modoEnvio === 'nopagos_acumulado' && (
-                    <div className="space-y-1.5 flex-1 max-w-xs">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        Día de cobro:
-                      </label>
-                      <Select value={diaCobro} onValueChange={setDiaCobro}>
-                        <SelectTrigger className="bg-white dark:bg-slate-900 text-xs">
-                          <SelectValue placeholder="Selecciona un día" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="TODOS">TODOS (Acumulado No Pago)</SelectItem>
-                          <SelectItem value="LUNES">Lunes</SelectItem>
-                          <SelectItem value="MARTES">Martes</SelectItem>
-                          <SelectItem value="MIERCOLES">Miércoles</SelectItem>
-                          <SelectItem value="JUEVES">Jueves</SelectItem>
-                          <SelectItem value="VIERNES">Viernes</SelectItem>
-                          <SelectItem value="SABADO">Sábado</SelectItem>
-                          <SelectItem value="DOMINGO">Domingo</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <>
+                      <div className="space-y-1.5 flex-1 max-w-xs">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Filtro de No Pago:
+                        </label>
+                        <Select 
+                          value={filtroNoPago} 
+                          onValueChange={(val: any) => {
+                            setFiltroNoPago(val);
+                            setHasPreviewed(false);
+                          }}
+                        >
+                          <SelectTrigger className="bg-white dark:bg-slate-900 text-xs font-medium border-amber-400/50">
+                            <SelectValue placeholder="Selecciona filtro" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="no_pago_ruta">
+                              <div className="flex items-center gap-1.5 py-0.5">
+                                <span className="h-2 w-2 rounded-full bg-red-500 inline-block" />
+                                <span className="font-bold text-red-600 dark:text-red-400">No Pago (Semana en RUTA)</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="acumulado_hoy">
+                              <div className="flex items-center gap-1.5 py-0.5">
+                                <span className="h-2 w-2 rounded-full bg-amber-500 inline-block" />
+                                <span>Acumulado a la fecha (Sábado a hoy)</span>
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5 flex-1 max-w-xs">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Día de cobro:
+                        </label>
+                        <Select 
+                          value={diaCobro} 
+                          onValueChange={(val) => {
+                            setDiaCobro(val);
+                            setHasPreviewed(false);
+                          }}
+                        >
+                          <SelectTrigger className="bg-white dark:bg-slate-900 text-xs">
+                            <SelectValue placeholder="Selecciona un día" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="TODOS">
+                              {filtroNoPago === 'no_pago_ruta' 
+                                ? 'TODOS (Toda la Semana en RUTA sin pago)' 
+                                : 'TODOS (Acumulado a la fecha)'}
+                            </SelectItem>
+                            <SelectItem value="LUNES">Lunes</SelectItem>
+                            <SelectItem value="MARTES">Martes</SelectItem>
+                            <SelectItem value="MIERCOLES">Miércoles</SelectItem>
+                            <SelectItem value="JUEVES">Jueves</SelectItem>
+                            <SelectItem value="VIERNES">Viernes</SelectItem>
+                            <SelectItem value="SABADO">Sábado</SelectItem>
+                            <SelectItem value="DOMINGO">Domingo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
                   )}
 
                   {/* MODALIDAD 2: Por Gestor */}
@@ -734,7 +782,13 @@ export function SmsDashboard() {
                         <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Selecciona Cobrador:
                         </label>
-                        <Select value={selectedGestorId} onValueChange={setSelectedGestorId}>
+                        <Select 
+                          value={selectedGestorId} 
+                          onValueChange={(val) => {
+                            setSelectedGestorId(val);
+                            setHasPreviewed(false);
+                          }}
+                        >
                           <SelectTrigger className="bg-white dark:bg-slate-900 text-xs">
                             <SelectValue placeholder="Selecciona un cobrador" />
                           </SelectTrigger>
@@ -751,14 +805,49 @@ export function SmsDashboard() {
 
                       <div className="space-y-1.5 flex-1 max-w-xs">
                         <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Filtro de No Pago:
+                        </label>
+                        <Select 
+                          value={filtroNoPago} 
+                          onValueChange={(val: any) => {
+                            setFiltroNoPago(val);
+                            setHasPreviewed(false);
+                          }}
+                        >
+                          <SelectTrigger className="bg-white dark:bg-slate-900 text-xs font-medium">
+                            <SelectValue placeholder="Selecciona filtro" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="no_pago_ruta">
+                              <span className="font-bold text-red-600 dark:text-red-400">No Pago (Semana en RUTA)</span>
+                            </SelectItem>
+                            <SelectItem value="acumulado_hoy">
+                              <span>Acumulado a la fecha</span>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5 flex-1 max-w-xs">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Día de cobro:
                         </label>
-                        <Select value={diaCobro} onValueChange={setDiaCobro}>
+                        <Select 
+                          value={diaCobro} 
+                          onValueChange={(val) => {
+                            setDiaCobro(val);
+                            setHasPreviewed(false);
+                          }}
+                        >
                           <SelectTrigger className="bg-white dark:bg-slate-900 text-xs">
                             <SelectValue placeholder="Selecciona un día" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="TODOS">TODOS (Acumulado No Pago)</SelectItem>
+                            <SelectItem value="TODOS">
+                              {filtroNoPago === 'no_pago_ruta' 
+                                ? 'TODOS (Toda la Semana en RUTA sin pago)' 
+                                : 'TODOS (Acumulado a la fecha)'}
+                            </SelectItem>
                             <SelectItem value="LUNES">Lunes</SelectItem>
                             <SelectItem value="MARTES">Martes</SelectItem>
                             <SelectItem value="MIERCOLES">Miércoles</SelectItem>
@@ -855,6 +944,26 @@ export function SmsDashboard() {
                     {loadingPreview ? 'Consultando...' : 'Previsualizar Destinatarios'}
                   </Button>
                 </div>
+
+                {/* Vista previa y explicación para No Pago Acumulado o Por Gestor */}
+                {(modoEnvio === 'nopagos_acumulado' || modoEnvio === 'por_gestor') && (
+                  <div className="p-2.5 bg-white dark:bg-slate-900 rounded border text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2">
+                    <Info className={cn("h-4 w-4 shrink-0 mt-0.5", filtroNoPago === 'no_pago_ruta' ? "text-red-500" : "text-amber-500")} />
+                    <div>
+                      {filtroNoPago === 'no_pago_ruta' ? (
+                        <>
+                          <span className="font-semibold text-slate-900 dark:text-white">Filtro No Pago (Semana en RUTA): </span>
+                          <span>Busca a todos los clientes de la semana de cobro asignados a <strong>RUTA</strong> que <strong>aún no han realizado su pago</strong> (se excluyen automáticamente quienes ya abonaron en la semana, tienen ticket conciliado o pago en corte semanal).</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-semibold text-slate-900 dark:text-white">Filtro Acumulado a la fecha: </span>
+                          <span>Busca clientes en RUTA con saldo o días vencidos cuyo día de cobro ya transcurrió en el ciclo semanal operativo (Sábado a hoy).</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Vista previa de texto de plantilla para Inicio de Semana */}
                 {modoEnvio === 'inicio_semana' && (
@@ -984,7 +1093,12 @@ export function SmsDashboard() {
                                   />
                                 </td>
                                 <td className="p-2.5 font-mono font-semibold text-primary">
-                                  {client.codigoCliente}
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{client.codigoCliente}</span>
+                                    <span className="text-[9px] px-1.5 py-0.5 font-bold rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/40">
+                                      {client.clasificacionCobranza || 'RUTA'}
+                                    </span>
+                                  </div>
                                 </td>
                                 <td className="p-2.5 font-medium text-slate-900 dark:text-slate-100">
                                   {client.nombreCompleto}

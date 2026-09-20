@@ -11,9 +11,10 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const campaignKey = searchParams.get('campaignKey') || 'no_pagos';
-  const diaCobro = searchParams.get('diaCobro') || 'TODOS'; // TODOS, LUNES, MARTES, etc.
+  const diaCobro = searchParams.get('diaCobro') || 'TODOS'; // TODOS, NO_PAGO_RUTA, LUNES, MARTES, etc.
   const filterByCobrador = searchParams.get('filterByCobrador') === 'true';
   const gestorId = searchParams.get('gestorId') || searchParams.get('cobradorId');
+  const filtroTipo = searchParams.get('filtroTipo') || searchParams.get('tipo'); // 'no_pago_ruta' | 'acumulado_hoy'
 
   const userRole = (session?.user as any)?.role;
   const userId = (session?.user as any)?.id;
@@ -21,6 +22,9 @@ export async function GET(req: NextRequest) {
   try {
     // 1. Obtener información de la semana activa desde el Calendario Anual (CalendarioCobranza)
     const calInfo = await obtenerInfoCalendarioCobranza(prisma);
+
+    // Identificar si se solicita el nuevo filtro específico de "No Pago (Semana en RUTA)"
+    const isNoPagoRuta = filtroTipo === 'no_pago_ruta' || diaCobro === 'NO_PAGO_RUTA' || campaignKey === 'no_pago_ruta';
 
     // 2. Base query: cuentas activas, con clasificación RUTA, saldo pendiente y teléfono válido
     const whereClause: any = {
@@ -45,8 +49,9 @@ export async function GET(req: NextRequest) {
       whereClause.cobradorAsignadoId = userId;
     }
 
-    // Para campañas de no pagos, requiere tener saldo vencido o días vencidos
-    if (campaignKey === 'no_pagos') {
+    // Para campañas de no pagos tradicionales acumuladas, requiere tener saldo vencido o días vencidos.
+    // Para 'no_pago_ruta' (semana en RUTA), se evalúan todos los clientes activos asignados a RUTA de esa semana.
+    if (campaignKey === 'no_pagos' && !isNoPagoRuta) {
       whereClause.OR = [
         { saldoVencido: { gt: 0 } },
         { diasVencidos: { gt: 0 } }
@@ -64,6 +69,7 @@ export async function GET(req: NextRequest) {
         saldoVencido: true,
         saldoActual: true,
         periodicidad: true,
+        clasificacionCobranza: true,
         cobradorAsignadoId: true,
         cobradorAsignado: {
           select: {
@@ -77,11 +83,11 @@ export async function GET(req: NextRequest) {
     });
 
     // 3. Filtrar por día:
-    // Para 'inicio_semana': se incluyen TODAS las cuentas en ruta para toda la semana oficial (Sábado a Viernes)
-    // Para 'no_pagos': acumulado desde el inicio del ciclo (Sábado) hasta el día actual
+    // Para 'inicio_semana' o 'no_pago_ruta' con TODOS: se incluyen TODAS las cuentas en ruta para toda la semana oficial (Sábado a Viernes)
+    // Para 'no_pagos' acumulado tradicional: acumulado desde el inicio del ciclo (Sábado) hasta el día actual
     let diasPermitidos: string[];
-    if (campaignKey.startsWith('inicio_semana')) {
-      if (!diaCobro || diaCobro === 'TODOS') {
+    if (campaignKey.startsWith('inicio_semana') || isNoPagoRuta) {
+      if (!diaCobro || diaCobro === 'TODOS' || diaCobro === 'NO_PAGO_RUTA') {
         diasPermitidos = [...DIAS_COBRANZA_CICLO];
       } else {
         diasPermitidos = [normalizarDiaSemana(diaCobro)];
@@ -97,7 +103,8 @@ export async function GET(req: NextRequest) {
     let filtered = allClients.filter(c => diasPermitidos.includes(normalizarDiaSemana(c.diaPago)));
 
     // 4. Excluir clientes que ya hayan realizado un pago en la semana de cobranza actual
-    if (campaignKey === 'no_pagos' && filtered.length > 0) {
+    const esCampaniaNoPagos = campaignKey === 'no_pagos' || isNoPagoRuta;
+    if (esCampaniaNoPagos && filtered.length > 0) {
       const clientIds = filtered.map(c => c.id);
       const clientCodes = filtered.map(c => c.codigoCliente);
 
@@ -174,6 +181,7 @@ export async function GET(req: NextRequest) {
       diaPago: normalizarDiaSemana(c.diaPago),
       diaPagoRaw: c.diaPago,
       periodicidad: c.periodicidad,
+      clasificacionCobranza: c.clasificacionCobranza || 'RUTA',
       saldoVencido: Number(c.saldoVencido) || 0,
       saldoActual: Number(c.saldoActual) || 0,
       gestorId: c.cobradorAsignado?.id || c.cobradorAsignadoId || null,
