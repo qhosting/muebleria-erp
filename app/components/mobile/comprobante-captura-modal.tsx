@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, Copy, X, Camera, ShieldCheck, DollarSign, Calendar, User, Receipt, Phone } from 'lucide-react';
-import { formatCurrency, copyToClipboard } from '@/lib/utils';
+import { CheckCircle2, Copy, X, Camera, ShieldCheck, DollarSign, Calendar, User, Receipt, Phone, MessageCircle } from 'lucide-react';
+import { formatCurrency, copyToClipboard, formatWhatsAppNumber } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export interface ComprobanteData {
@@ -80,6 +80,30 @@ export function ComprobanteCapturaModal({
     setCopied(true);
     toast.success('Resumen de pago copiado al portapapeles');
     setTimeout(() => setCopied(false), 3000);
+  };
+
+  const handleSendWhatsApp = () => {
+    const text = `*GRUPO MUEBLERO DASO*\n*COMPROBANTE DE PAGO DIGITAL*\n\n` +
+      `📌 *Folio/Recibo:* ${data.numeroRecibo || 'REGISTRADO'}\n` +
+      `📅 *Fecha:* ${fechaFormateada}\n` +
+      `👤 *Cliente:* ${data.clienteNombre} (${data.clienteCodigo})\n` +
+      `👨‍💼 *Cobrador:* ${data.cobradorNombre || 'GESTOR'}\n\n` +
+      `💵 *Monto Abono:* ${formatCurrency(abono)}\n` +
+      (moratorio > 0 ? `⚠️ *Moratorio:* ${formatCurrency(moratorio)}\n` : '') +
+      (gastos > 0 ? `📋 *Gastos Cobranza:* ${formatCurrency(gastos)}\n` : '') +
+      `💰 *TOTAL COBRADO:* ${formatCurrency(total)}\n\n` +
+      `📊 *Saldo Anterior:* ${formatCurrency(data.saldoAnterior)}\n` +
+      `✅ *NUEVO SALDO:* ${formatCurrency(data.saldoNuevo)}\n\n` +
+      `¡Gracias por su pago!`;
+
+    const telefonoLimpio = data.clienteTelefono ? formatWhatsAppNumber(data.clienteTelefono) : '';
+    const url = telefonoLimpio
+      ? `https://wa.me/${telefonoLimpio}?text=${encodeURIComponent(text)}`
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+
+    if (typeof window !== 'undefined') {
+      window.open(url, '_blank');
+    }
   };
 
   return (
@@ -207,23 +231,34 @@ export function ComprobanteCapturaModal({
         </div>
 
         {/* Acciones del Modal */}
-        <div className="p-4 bg-slate-900 border-t border-slate-800 grid grid-cols-2 gap-3">
+        <div className="p-4 bg-slate-900 border-t border-slate-800 space-y-2.5">
           <Button
-            onClick={handleCopySummary}
-            variant="outline"
-            className="w-full border-slate-700 text-slate-200 hover:bg-slate-800 text-xs font-bold h-11"
+            onClick={handleSendWhatsApp}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black h-11 shadow-lg shadow-emerald-950/40"
           >
-            <Copy className="w-4 h-4 mr-1.5" />
-            {copied ? '¡Copiado!' : 'Copiar Resumen'}
+            <MessageCircle className="w-4 h-4 mr-2 text-white" />
+            Enviar Comprobante por WhatsApp
           </Button>
 
-          <Button
-            onClick={onClose}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black h-11"
-          >
-            <X className="w-4 h-4 mr-1.5" />
-            Cerrar
-          </Button>
+          <div className="grid grid-cols-2 gap-2.5">
+            <Button
+              onClick={handleCopySummary}
+              variant="outline"
+              className="w-full border-slate-700 text-slate-200 hover:bg-slate-800 text-xs font-bold h-10"
+            >
+              <Copy className="w-3.5 h-3.5 mr-1.5" />
+              {copied ? '¡Copiado!' : 'Copiar Texto'}
+            </Button>
+
+            <Button
+              onClick={onClose}
+              variant="secondary"
+              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold h-10"
+            >
+              <X className="w-3.5 h-3.5 mr-1.5" />
+              Cerrar
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
