@@ -1120,22 +1120,44 @@ export async function POST(req: Request) {
 
             for (const t of ticketsEfectivo) {
                 if (!t.folio) continue;
+                const folioLimpio = t.folio.trim();
+                if (!folioLimpio) continue;
+
                 const qClause = {
-                    OR: [
-                        { numeroReferencia: { contains: t.folio } },
-                        { descripcionGeneral: { contains: t.folio } }
+                    AND: [
+                        {
+                            OR: [
+                                { referencia: { contains: folioLimpio, mode: 'insensitive' as const } },
+                                { descripcionGeneral: { contains: folioLimpio, mode: 'insensitive' as const } },
+                                { concepto: { contains: folioLimpio, mode: 'insensitive' as const } }
+                            ]
+                        },
+                        {
+                            OR: [
+                                { ticketId: null },
+                                { ticketId: t.id }
+                            ]
+                        }
                     ],
                     abono: t.monto
                 };
 
                 let mov = await prisma.movimientoSantander22001022837.findFirst({ where: qClause });
                 let tabla = 'santander';
+                let subTabla = 'santander_22';
                 if (!mov) {
                     mov = await prisma.movimientoSantander65505732541.findFirst({ where: qClause });
+                    subTabla = 'santander_65';
                 }
                 if (!mov) {
                     mov = await prisma.movimientoBanorte0330253963.findFirst({ where: qClause });
                     tabla = 'banorte';
+                    subTabla = 'banorte_03';
+                }
+                if (!mov) {
+                    mov = await prisma.movimientoBancario.findFirst({ where: qClause });
+                    tabla = (mov?.bancoDestino || 'bancario').toLowerCase();
+                    subTabla = 'bancario_general';
                 }
 
                 if (mov) {
@@ -1147,6 +1169,30 @@ export async function POST(req: Request) {
                         where: { ticketId: t.id },
                         data: { banco: tabla.toUpperCase(), sincronizado: true }
                     });
+
+                    // Vincular el movimiento bancario al ticket y cliente
+                    if (subTabla === 'santander_22') {
+                        await prisma.movimientoSantander22001022837.update({
+                            where: { id: mov.id },
+                            data: { ticketId: t.id, clienteId: t.clienteId, fechaIdentificado: new Date() }
+                        });
+                    } else if (subTabla === 'santander_65') {
+                        await prisma.movimientoSantander65505732541.update({
+                            where: { id: mov.id },
+                            data: { ticketId: t.id, clienteId: t.clienteId, fechaIdentificado: new Date() }
+                        });
+                    } else if (subTabla === 'banorte_03') {
+                        await prisma.movimientoBanorte0330253963.update({
+                            where: { id: mov.id },
+                            data: { ticketId: t.id, clienteId: t.clienteId, fechaIdentificado: new Date() }
+                        });
+                    } else if (subTabla === 'bancario_general') {
+                        await prisma.movimientoBancario.update({
+                            where: { id: mov.id },
+                            data: { ticketId: t.id, clienteId: t.clienteId, fechaIdentificado: new Date() }
+                        });
+                    }
+
                     conciliadosEfectivo.push({
                         ticketId: t.id,
                         contrato: t.cliente?.codigoCliente,
