@@ -21,8 +21,10 @@ import {
   UserCheck,
   Sparkles,
   User,
-  CheckSquare
+  CheckSquare,
+  TrendingUp
 } from 'lucide-react';
+import { SmsProyeccionTab } from '@/components/sms/sms-proyeccion-tab';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -561,10 +563,14 @@ export function SmsDashboard() {
 
       {/* Navegación por pestañas */}
       <Tabs defaultValue="nopagos" className="w-full">
-        <TabsList className="grid grid-cols-2 md:grid-cols-4 w-full h-auto p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+        <TabsList className="grid grid-cols-2 md:grid-cols-5 w-full h-auto p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
           <TabsTrigger value="nopagos" className="py-2.5 text-xs md:text-sm font-semibold flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-amber-500" />
             Recordatorio a No Pagos
+          </TabsTrigger>
+          <TabsTrigger value="proyeccion" className="py-2.5 text-xs md:text-sm font-semibold flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-emerald-500" />
+            Proyección de Gasto
           </TabsTrigger>
           <TabsTrigger value="plantillas" className="py-2.5 text-xs md:text-sm font-semibold flex items-center gap-2">
             <MessageSquare className="h-4 w-4 text-blue-500" />
@@ -1407,6 +1413,15 @@ export function SmsDashboard() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* 5. PROYECCIÓN DE GASTO DE SMS */}
+        <TabsContent value="proyeccion" className="space-y-4 mt-4">
+          <SmsProyeccionTab 
+            cobradores={cobradoresDisponibles} 
+            saldoDisponibleMxn={montoEnPesos}
+            smsDisponibles={smsDisponibles}
+          />
         </TabsContent>
       </Tabs>
 
