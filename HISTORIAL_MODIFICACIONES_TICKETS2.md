@@ -27,6 +27,7 @@ Evitar la recurrencia de errores, documentar los mecanismos de auto-sanación y 
   2. En `/api/webhooks/n8n`: La deduplicación por `folio` ahora **exige coincidir dentro del rango de fecha de la operación** (`fecha: { gte: dayStart, lte: dayEnd }`), evitando falsos positivos de depósitos en semanas/meses distintos.
   3. En `/api/webhooks/n8n`: Se agregó soporte de permutación automática de prefijo `DP <-> DQ` tanto en `buscar_cliente` como en `create`, reconociendo al cliente de inmediato aunque el usuario o gestor se equivoque de letra inicial.
   4. Se procesó y aplicó exitosamente el ticket pendiente del 20-SEP-2026 (Ticket ID: `EP90D9WA`, Pago ID: `cmucz152500cgnv012sm4r4tm`, Nuevo Saldo: $8,388.00) y se envió la confirmación a WhatsApp.
+  5. Se actualizó el motor de visión OCR de n8n del modelo `gpt-4o-mini` al nuevo **`gpt-5.6-luna`** en el nodo `Analyze image`, optimizando la velocidad de respuesta y la precisión en la lectura de números confusos y folios sin elevar los costos de tokens.
 * **Archivos Modificados:**
   * [`app/app/api/webhooks/n8n/route.ts`](file:///c:/Users/AurumArch/Documents/PROYECTOS/muebleria-erp/app/app/api/webhooks/n8n/route.ts)
   * [`workflows/n8n/TICKETS2.workflow.ts`](file:///c:/Users/AurumArch/Documents/PROYECTOS/muebleria-erp/workflows/n8n/TICKETS2.workflow.ts)
