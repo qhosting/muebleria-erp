@@ -294,6 +294,13 @@ export async function POST(req: Request) {
                     where: { codigoCliente: { equals: cod, mode: 'insensitive' } },
                     include: { cobradorAsignado: true }
                 });
+                if (!cliente && (cod.startsWith("DP") || cod.startsWith("DQ"))) {
+                    const alterno = (cod.startsWith("DP") ? "DQ" : "DP") + cod.slice(2);
+                    cliente = await prisma.cliente.findFirst({
+                        where: { codigoCliente: { equals: alterno, mode: 'insensitive' } },
+                        include: { cobradorAsignado: true }
+                    });
+                }
             }
             if (!cliente && telRaw && telRaw.length >= 10) {
                 const tel10 = telRaw.slice(-10);
@@ -1391,6 +1398,19 @@ export async function POST(req: Request) {
             include: { cobradorAsignado: true }
         }) : null;
 
+        // Fallback 1: Si no hay cliente por código directo, probar permutación de serie DP <-> DQ
+        if (!cliente && codigoFinal && (codigoFinal.startsWith("DP") || codigoFinal.startsWith("DQ"))) {
+            const alterno = (codigoFinal.startsWith("DP") ? "DQ" : "DP") + codigoFinal.slice(2);
+            const clienteAlterno = await prisma.cliente.findFirst({
+                where: { codigoCliente: { equals: alterno, mode: 'insensitive' } },
+                include: { cobradorAsignado: true }
+            });
+            if (clienteAlterno) {
+                cliente = clienteAlterno;
+                codigoFinal = clienteAlterno.codigoCliente;
+            }
+        }
+
         // Fallback: Si no hay cliente por código, buscar por teléfono del remitente en muebleria-erp
         if (!cliente && remitente) {
             const telRaw = String(remitente).replace(/\D/g, '');
@@ -1521,7 +1541,7 @@ export async function POST(req: Request) {
                 OR: [
                     (legacyIdNum) ? { legacyId: legacyIdNum } : { id: 'none' },
                     (isClaveRastreoValida) ? { claveRastreo: String(claverastreo).trim() } : { id: 'none' },
-                    (isFolioValido) ? { folio: { in: folioVariants } } : { id: 'none' },
+                    (isFolioValido && dayStart && dayEnd) ? { folio: { in: folioVariants }, fecha: { gte: dayStart, lte: dayEnd } } : (isFolioValido) ? { folio: { in: folioVariants } } : { id: 'none' },
                     (isNumericRef && dayStart && dayEnd) ? { referencia: String(referencia).trim(), fecha: { gte: dayStart, lte: dayEnd } } : { id: 'none' },
                     {
                         monto: parseFloat(monto || '0'),

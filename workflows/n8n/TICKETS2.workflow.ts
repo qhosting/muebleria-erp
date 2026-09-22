@@ -239,10 +239,9 @@ export class Tickets2Workflow {
 -   \`monto\`: El importe exacto del abono o pago principal. Lee los dígitos numéricos con máxima precisión (distinguiendo nítidamente entre 3 y 2, 8 y 0, 5 y 6). Si hay comisiones adicionales de tienda o tienda de conveniencia (ej: $10, $12, $15), ignora la comisión y extrae ÚNICAMENTE el monto abonado a la cuenta. Devolver como número decimal.
 -   \`referencia\`: Busca el número de "REFERENCIA". Si está oculto con asteriscos (ej: \`**********1858\`), extrae solo la parte numérica. Si el campo no existe, el valor es \`null\`.
 -   \`folio\`: **INSTRUCCIÓN ACTUALIZADA:**
-    1.  **Prioridad 1 (Depósitos en efectivo):** Busca un campo etiquetado como "# DE AFILIACION" o "AFILIACION". Este es el valor más importante para los tickets de OXXO o tiendas similares.
-    2.  **Prioridad 2 (Otros comprobantes):** Si no encuentras una afiliación, busca el número de "AUTORIZACION".
-    3.  **Prioridad 3 (Último recurso):** Si ninguno de los anteriores existe, busca "FOLIO DE VENTA".
-    4.  Si no encuentras ninguno de los tres, el valor debe ser \`null\`.
+    1.  **Prioridad 1:** Busca el número de "AUTORIZACION" o "FOLIO DE VENTA" (identificadores únicos de cada transacción).
+    2.  **Prioridad 2 (Último recurso para depósitos en efectivo):** Si no encuentras autorización ni folio de venta, busca "# DE AFILIACION" o "AFILIACION".
+    3.  Si no encuentras ninguno de los anteriores, el valor debe ser \`null\`.
 -   \`fecha\`: La fecha de la operación, formateada obligatoriamente como \`AAAA-MM-DD\`.
 -   \`hr\`: La hora de la operación, formateada obligatoriamente como \`HH:MM:SS\` (completa con \`:00\` si es necesario).
 -   \`claverastreo\`: **INSTRUCCIÓN ACTUALIZADA:** Busca un campo explícitamente llamado "CLAVE DE RASTREO". **Si el valor aparece en dos líneas o párrafos, júntalos en una sola cadena de texto sin espacios ni guiones en medio.** Si el campo no está claramente presente en la imagen, el valor **debe ser \`null\`**.

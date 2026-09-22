@@ -12,6 +12,27 @@ Evitar la recurrencia de errores, documentar los mecanismos de auto-sanación y 
 
 ## 📋 Registro Cronológico de Modificaciones y Soluciones
 
+### 📅 [22-SEP-2026] - Fix: Falsos Duplicados por Afiliación de Tienda OXXO como Folio y Permutación DP/DQ
+* **Incidencia Detectada:**
+  * Al enviar un comprobante nuevo del cliente `DQ2601027` (depósito OXXO de $320 del 20-SEP-2026 a las 10:13), el bot respondió:
+    > *"⚠️ ESTE COMPROBANTE YA FUE REGISTRADO PREVIAMENTE (ID BU8COPGQ)"*
+  * El nuevo ticket no se creaba y el abono no se aplicaba al saldo.
+* **Causa Raíz:**
+  1. En `TICKETS2.workflow.ts`, el prompt de OpenAI priorizaba `# DE AFILIACION` como `folio` para depósitos en efectivo, extrayendo el número de tienda OXXO (`4194562`).
+  2. En `/api/webhooks/n8n`, la deduplicación por `folio` buscaba coincidencias en todo el historial del cliente sin validar coincidencia de fecha de operación (`fecha`).
+  3. Como el cliente había depositado en esa misma tienda en agosto (ticket `BU8COPGQ` con folio `4194562`), el sistema lo marcó como duplicado histórico.
+  4. Adicionalmente, cuando los usuarios ingresan el prefijo invertido (`DP` en lugar de `DQ` o viceversa), la búsqueda directa de cliente no encontraba coincidencia si el remitente utilizaba un identificador `@lid`.
+* **Solución de Raíz Implementada:**
+  1. En `TICKETS2.workflow.ts`: Se actualizó el prompt de OpenAI para priorizar `AUTORIZACION` o `FOLIO DE VENTA` como identificadores únicos de transacción, dejando la afiliación de tienda únicamente como último recurso.
+  2. En `/api/webhooks/n8n`: La deduplicación por `folio` ahora **exige coincidir dentro del rango de fecha de la operación** (`fecha: { gte: dayStart, lte: dayEnd }`), evitando falsos positivos de depósitos en semanas/meses distintos.
+  3. En `/api/webhooks/n8n`: Se agregó soporte de permutación automática de prefijo `DP <-> DQ` tanto en `buscar_cliente` como en `create`, reconociendo al cliente de inmediato aunque el usuario o gestor se equivoque de letra inicial.
+  4. Se procesó y aplicó exitosamente el ticket pendiente del 20-SEP-2026 (Ticket ID: `EP90D9WA`, Pago ID: `cmucz152500cgnv012sm4r4tm`, Nuevo Saldo: $8,388.00) y se envió la confirmación a WhatsApp.
+* **Archivos Modificados:**
+  * [`app/app/api/webhooks/n8n/route.ts`](file:///c:/Users/AurumArch/Documents/PROYECTOS/muebleria-erp/app/app/api/webhooks/n8n/route.ts)
+  * [`workflows/n8n/TICKETS2.workflow.ts`](file:///c:/Users/AurumArch/Documents/PROYECTOS/muebleria-erp/workflows/n8n/TICKETS2.workflow.ts)
+
+---
+
 ### 📅 [31-AGO-2026] - Fix: Falsos Duplicados por Cuentas Destino Recurrentes (ej. OXXO `1858`, `2837`)
 * **Incidencia Detectada:**
   * Al enviar un comprobante nuevo del cliente `DQ2601027` (depósito OXXO de $320), el bot respondió inmediatamente:
