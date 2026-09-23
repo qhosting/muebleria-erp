@@ -26,7 +26,8 @@ import {
     Check,
     CheckSquare,
     Info,
-    Tv
+    Tv,
+    RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -84,6 +85,7 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
     const [loading, setLoading] = useState(false);
     const [compressingPhotos, setCompressingPhotos] = useState(false);
     const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
+    const [buscandoGps, setBuscandoGps] = useState(false);
     const [fotos, setFotos] = useState<string[]>([]);
     const [hasDraft, setHasDraft] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -182,6 +184,44 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
         };
     };
 
+    // Obtener ubicación GPS con alta precisión
+    const getUbicacion = async () => {
+        setBuscandoGps(true);
+        try {
+            const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
+            const pos = (await obtenerUbicacionCobrador(true, 7000)) as any;
+            if (pos?.lat && pos?.lng) {
+                setCoords({
+                    lat: pos.lat,
+                    lng: pos.lng
+                });
+                toast.success("Ubicación GPS obtenida con éxito");
+                return;
+            }
+        } catch (error) {
+            console.warn("Error de geolocalización en ubicación nativa:", error);
+        }
+
+        // Fallback a API nativa del navegador si no se obtuvo vía Capacitor
+        if (typeof navigator !== 'undefined' && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (p) => {
+                    setCoords({
+                        lat: p.coords.latitude,
+                        lng: p.coords.longitude
+                    });
+                    toast.success("Ubicación GPS fijada");
+                },
+                (e) => {
+                    console.warn("Fallo GPS navegador:", e);
+                    toast.error("No se pudo obtener la ubicación GPS");
+                },
+                { enableHighAccuracy: true, timeout: 8000 }
+            );
+        }
+        setBuscandoGps(false);
+    };
+
     // Al abrir el modal, buscar borrador guardado en localStorage para no perder datos si la app se cerró al usar la cámara
     useEffect(() => {
         if (isOpen && cliente?.id) {
@@ -213,21 +253,6 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
                 setHasDraft(false);
             }
             
-            // Obtener ubicación GPS con alta precisión
-            const getUbicacion = async () => {
-                try {
-                    const { obtenerUbicacionCobrador } = await import("@/lib/native/location");
-                    const pos = (await obtenerUbicacionCobrador(true, 5000)) as any;
-                    if (pos?.lat && pos?.lng) {
-                        setCoords({
-                            lat: pos.lat,
-                            lng: pos.lng
-                        });
-                    }
-                } catch (error) {
-                    console.warn("Error de geolocalización en verificación:", error);
-                }
-            };
             getUbicacion();
         }
     }, [isOpen, cliente?.id, session]);
@@ -321,45 +346,73 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
         setLoading(true);
 
         try {
+            const fechaIso = form.fecha 
+                ? (form.fecha.includes("T") ? form.fecha : `${form.fecha}T12:00:00.000Z`) 
+                : new Date().toISOString();
+
             const verificacionData = {
                 clienteId: cliente.id,
                 gestorId: (session?.user as any)?.id || "unknown",
-                fecha: new Date(form.fecha).toISOString(),
+                fecha: fechaIso,
                 detallesExtra: {
                     ...form,
+                    fecha: form.fecha || new Date().toISOString().split("T")[0],
                     latitud: coords?.lat,
                     longitud: coords?.lng,
                     evidencia: fotos 
                 }
             };
 
-            // Importar dinámicamente el servicio de sincronización para IndexedDB
-            const { syncService } = await import("@/lib/sync-service");
-            
-            // Guardar offline primero de forma 100% robusta
-            await syncService.addVerificacionOffline(verificacionData);
-            
+            let guardadoEnServidor = false;
+            // 1. Envío directo al servidor si estamos conectados
+            if (typeof navigator !== 'undefined' && navigator.onLine) {
+                try {
+                    const response = await fetch('/api/clientes/verificaciones', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(verificacionData)
+                    });
+                    if (response.ok) {
+                        guardadoEnServidor = true;
+                    }
+                } catch (netErr) {
+                    console.warn("Fallo envío directo a API, se respaldará en IndexedDB:", netErr);
+                }
+            }
+
+            // 2. Guardar en almacenamiento IndexedDB local para respaldo offline
+            try {
+                const { syncService } = await import("@/lib/sync-service");
+                const { db } = await import("@/lib/offline-db");
+                if (guardadoEnServidor) {
+                    try {
+                        await db.verificaciones.add({
+                            ...verificacionData,
+                            localId: "sync_" + Date.now(),
+                            syncStatus: 'synced',
+                            createdOffline: false
+                        });
+                        await db.clientes.where('id').equals(verificacionData.clienteId).modify({
+                            vdStatus: 'REALIZADA'
+                        });
+                    } catch (_) {}
+                } else {
+                    await syncService.addVerificacionOffline(verificacionData);
+                }
+            } catch (indexedErr) {
+                console.warn("No se pudo persistir en IndexedDB:", indexedErr);
+            }
+
             // Limpiar borrador ya que fue guardado exitosamente
             if (typeof window !== 'undefined' && cliente?.id) {
                 localStorage.removeItem(`vd_draft_${cliente.id}`);
             }
 
-            // Siempre mostrar éxito tras guardar localmente
             toast.success("Verificación domiciliaria guardada", {
-                description: isOnline && navigator.onLine
-                    ? "Sincronizando con el servidor..."
+                description: guardadoEnServidor
+                    ? "Registrada exitosamente en el sistema."
                     : "Guardada offline. Se sincronizará en cuanto tengas señal."
             });
-            
-            // Si está conectado, intentar sincronizar de inmediato en background sin bloquear el UI
-            if (isOnline && navigator.onLine) {
-                const cobradorId = (session?.user as any)?.id;
-                if (cobradorId) {
-                    syncService.syncAll(cobradorId, false).catch(err => {
-                        console.warn("Error en sincronización inmediata de verificación:", err);
-                    });
-                }
-            }
             
             onSuccess();
             onClose();
@@ -470,7 +523,7 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
                         </div>
 
                         {/* DETALLE TIPO CASA */}
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                             {[
                                 { field: "casa2Plantas", label: "2 Plantas" },
                                 { field: "condominioAbierto", label: "Condo. Abierto" },
@@ -480,14 +533,14 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
                                     key={item.field}
                                     type="button"
                                     onClick={() => handleToggle(item.field)}
-                                    className={`h-9 rounded-lg text-[9px] font-bold uppercase transition-all flex items-center justify-center gap-1 ${
+                                    className={`min-h-[42px] px-1 py-1 rounded-lg text-[9px] sm:text-[10px] font-bold uppercase transition-all flex flex-col sm:flex-row items-center justify-center gap-1 text-center ${
                                         (form as any)[item.field]
-                                        ? 'bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 font-black' 
-                                        : 'bg-slate-900 text-slate-500 border border-slate-800'
+                                        ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 font-black' 
+                                        : 'bg-slate-900 text-slate-400 border border-slate-800'
                                     }`}
                                 >
-                                    {(form as any)[item.field] ? <CheckSquare className="w-3.5 h-3.5" /> : <Home className="w-3.5 h-3.5" />}
-                                    {item.label}
+                                    {(form as any)[item.field] ? <CheckSquare className="w-3.5 h-3.5 flex-shrink-0" /> : <Home className="w-3.5 h-3.5 flex-shrink-0" />}
+                                    <span className="leading-tight">{item.label}</span>
                                 </button>
                             ))}
                         </div>
@@ -741,12 +794,12 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
                             </div>
                             <div className="grid grid-cols-4 gap-2">
                                 {fotos.map((foto, idx) => (
-                                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-800 group">
+                                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-800 group shadow-sm">
                                         <img src={foto} className="w-full h-full object-cover" alt="Evidencia" />
                                         <button 
                                             type="button"
                                             onClick={() => removeFoto(idx)}
-                                            className="absolute top-0.5 right-0.5 bg-red-500/95 p-1 rounded-md"
+                                            className="absolute top-1 right-1 bg-red-600 p-1 rounded-md shadow-md active:scale-95 transition-all"
                                         >
                                             <Trash2 className="w-3 h-3 text-white" />
                                         </button>
@@ -756,11 +809,11 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
                                     type="button"
                                     disabled={compressingPhotos}
                                     onClick={() => fileInputRef.current?.click()}
-                                    className={`aspect-square rounded-xl border-2 border-dashed border-slate-800 bg-slate-900/50 flex flex-col items-center justify-center gap-0.5 active:bg-slate-800 transition-colors ${compressingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    className={`aspect-square rounded-xl border-2 border-dashed border-orange-500/40 bg-orange-950/20 flex flex-col items-center justify-center gap-0.5 active:bg-orange-950/40 transition-colors ${compressingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     <Camera className="w-5 h-5 text-orange-500" />
-                                    <span className="text-[7px] font-bold text-slate-500 uppercase">
-                                        {compressingPhotos ? "Procesando" : "Añadir"}
+                                    <span className="text-[8px] font-bold text-orange-400 uppercase">
+                                        {compressingPhotos ? "Procesando" : "Tomar Foto"}
                                     </span>
                                 </button>
                             </div>
@@ -774,6 +827,34 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
                                 className="hidden" 
                             />
                         </div>
+
+                        {/* WIDGET GPS EN PASO 4 */}
+                        <div className={`p-3 rounded-xl border flex items-center justify-between gap-2.5 ${
+                            coords ? 'bg-emerald-600/10 border-emerald-600/30 text-emerald-400' : 'bg-amber-600/10 border-amber-600/30 text-amber-400'
+                        }`}>
+                            <div className="flex items-center gap-2 min-w-0">
+                                <MapPin className="w-4 h-4 flex-shrink-0" />
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-bold uppercase tracking-tight leading-none truncate">
+                                        {coords ? `GPS: ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}` : "Esperando coordenadas GPS..."}
+                                    </p>
+                                    <p className="text-[8px] text-slate-400 mt-0.5 truncate">
+                                        {coords ? "Geolocalización fijada con precisión" : "Activa ubicación para georeferenciar"}
+                                    </p>
+                                </div>
+                            </div>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={buscandoGps}
+                                onClick={getUbicacion}
+                                className="h-7 text-[9px] font-bold uppercase border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 flex-shrink-0 gap-1"
+                            >
+                                <RefreshCw className={`w-3 h-3 ${buscandoGps ? 'animate-spin text-orange-400' : ''}`} />
+                                {buscandoGps ? "Buscando..." : "GPS"}
+                            </Button>
+                        </div>
                     </div>
                 );
             default:
@@ -785,107 +866,109 @@ export function VerificacionModal({ cliente, isOpen, onClose, onSuccess, isOnlin
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-md max-h-[95vh] overflow-y-auto p-0 border-none rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl bg-slate-950">
-                <div className="bg-orange-600 p-5 text-white sticky top-0 z-10 shadow-lg">
+            <DialogContent className="w-[100vw] sm:w-[94vw] max-w-lg h-[100dvh] sm:h-auto sm:max-h-[92vh] max-h-[100dvh] p-0 border-none sm:border sm:border-slate-800 rounded-none sm:rounded-3xl overflow-hidden shadow-2xl bg-slate-950 flex flex-col gap-0 text-white [&>button]:text-white [&>button]:bg-black/30 [&>button]:rounded-full [&>button]:p-1.5 [&>button]:top-3 [&>button]:right-3 z-50">
+                {/* 1. HEADER FIJO */}
+                <div className="bg-gradient-to-r from-orange-600 to-amber-600 p-4 text-white flex-none shadow-md relative pr-12">
                     <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-1.5">
                             <Badge variant="outline" className="border-white/30 text-white bg-white/10 backdrop-blur-sm text-[9px] font-bold uppercase tracking-wider">
-                                VD - Campo
+                                VD - Modo Cobrador
                             </Badge>
                             {hasDraft && (
-                                <Badge className="bg-emerald-500 text-white text-[9px] font-black uppercase">
+                                <Badge className="bg-emerald-500 text-white text-[9px] font-black uppercase shadow-sm">
                                     Borrador Activo
                                 </Badge>
                             )}
                         </div>
-                        <div className="flex items-center gap-2">
-                            {hasDraft && (
-                                <button
-                                    type="button"
-                                    onClick={handleDiscardDraft}
-                                    className="text-[10px] underline text-orange-100 hover:text-white font-medium"
-                                >
-                                    Descartar
-                                </button>
-                            )}
-                            <MapPin className="h-5 w-5" />
+                        {hasDraft && (
+                            <button
+                                type="button"
+                                onClick={handleDiscardDraft}
+                                className="text-[10px] underline text-orange-100 hover:text-white font-medium mr-2"
+                            >
+                                Descartar borrador
+                            </button>
+                        )}
+                    </div>
+                    
+                    <DialogTitle className="text-base sm:text-lg font-black tracking-tight flex items-center gap-1.5">
+                        <MapPin className="h-4 w-4 flex-shrink-0" />
+                        Ficha de Verificación Domiciliaria
+                    </DialogTitle>
+                    
+                    {/* Barra de progreso de 4 pasos */}
+                    <div className="mt-2.5 space-y-1">
+                        <div className="flex justify-between text-[10px] font-bold text-orange-100">
+                            <span>{step === 1 ? '1. Cuenta y Ubicación' : step === 2 ? '2. Vivienda y Servicios' : step === 3 ? '3. Mobiliario' : '4. Auditoría y Evidencia'}</span>
+                            <span>Paso {step} de 4</span>
+                        </div>
+                        <div className="w-full bg-orange-950/40 h-2 rounded-full overflow-hidden border border-orange-500/20">
+                            <div 
+                                className="bg-white h-full transition-all duration-300 rounded-full shadow-sm"
+                                style={{ width: `${(step / 4) * 100}%` }}
+                            />
                         </div>
                     </div>
-                    <DialogTitle className="text-xl font-black">Ficha de Verificación Domiciliaria</DialogTitle>
-                    <DialogDescription className="text-orange-100 font-medium text-[11px]">
-                        Paso {step} de 4 • Captura de auditoría sin pérdida de datos.
-                    </DialogDescription>
                 </div>
 
-                <div className="p-5 space-y-4">
-                    {/* ENCABEZADO DE CLIENTE */}
-                    <div className="bg-slate-900 border border-slate-800/80 p-3 rounded-2xl flex items-center gap-3">
-                        <div className="w-10 h-10 bg-orange-500/20 rounded-xl flex items-center justify-center text-orange-500 font-bold text-sm">
-                            {(cliente.nombreCompleto || cliente.nombre || "C").charAt(0)}
+                {/* 2. BARRA DE CLIENTE RESUMEN */}
+                <div className="bg-slate-900 border-b border-slate-800/80 px-4 py-2.5 flex items-center justify-between flex-none gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 bg-orange-500/20 text-orange-400 rounded-lg flex items-center justify-center font-black text-xs flex-shrink-0">
+                            {(cliente.nombreCompleto || cliente.nombre || "C").charAt(0).toUpperCase()}
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none mb-0.5">Cliente en Proceso</p>
-                            <p className="text-xs font-bold text-white truncate leading-tight">{cliente.nombreCompleto || cliente.nombre || "Sin Nombre"}</p>
-                            <p className="text-[9px] text-slate-400 truncate leading-none mt-0.5">{cliente.direccion || "Sin Dirección"}</p>
-                        </div>
-                    </div>
-
-                    {/* RENDER DEL PASO */}
-                    {renderStep()}
-
-                    {/* ESTATUS GPS */}
-                    {step === 4 && (
-                        <div className={`p-3 rounded-xl border flex items-center gap-2.5 ${
-                            coords ? 'bg-blue-600/10 border-blue-600/20 text-blue-400' : 'bg-amber-600/10 border-amber-600/20 text-amber-500'
-                        }`}>
-                            <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                            <p className="text-[9px] font-bold uppercase tracking-tight leading-none">
-                                {coords ? `GPS Fijado (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})` : "Esperando coordenadas GPS..."}
+                        <div className="min-w-0">
+                            <p className="text-[11px] font-bold text-white truncate leading-tight">
+                                {cliente.nombreCompleto || cliente.nombre || "Cliente"}
+                            </p>
+                            <p className="text-[9px] text-slate-400 truncate leading-none mt-0.5">
+                                {cliente.codigoCliente ? `Cod: ${cliente.codigoCliente} • ` : ''}{cliente.direccion || cliente.direccionCompleta || "Sin dirección"}
                             </p>
                         </div>
-                    )}
-
-                    {/* BOTONES DE NAVEGACIÓN */}
-                    <div className="flex gap-2.5 pt-2">
-                        {step > 1 && (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setStep(prev => prev - 1)}
-                                className="h-12 border-slate-800 bg-slate-900 text-slate-300 font-bold text-xs uppercase px-4 rounded-xl flex items-center gap-1.5 active:scale-95 transition-all"
-                            >
-                                <ArrowLeft className="w-4 h-4" /> Atrás
-                            </Button>
-                        )}
-                        {step < 4 ? (
-                            <Button
-                                type="button"
-                                onClick={() => setStep(prev => prev + 1)}
-                                className="flex-1 h-12 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs uppercase rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md shadow-orange-950/20"
-                            >
-                                Continuar <ArrowRight className="w-4 h-4" />
-                            </Button>
-                        ) : (
-                            <Button
-                                type="button"
-                                disabled={loading}
-                                onClick={handleSubmit}
-                                className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md shadow-emerald-950/20"
-                            >
-                                <Save className="w-4 h-4" />
-                                {loading ? "GUARDANDO..." : "COMPLETAR VD"}
-                            </Button>
-                        )}
                     </div>
+                    {coords && (
+                        <span className="text-[9px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-1.5 py-0.5 rounded flex items-center gap-1 flex-shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> GPS OK
+                        </span>
+                    )}
+                </div>
 
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={onClose}
-                        className="w-full text-[10px] text-slate-500 hover:text-slate-400 font-black uppercase py-1"
-                    >
-                        CANCELAR Y SALIR
-                    </Button>
+                {/* 3. CONTENIDO CON SCROLL SUAVE */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 overscroll-contain">
+                    {renderStep()}
+                </div>
+
+                {/* 4. FOOTER FIJO CON BOTONES DE NAVEGACIÓN */}
+                <div className="flex-none p-3 sm:p-4 bg-slate-900 border-t border-slate-800 flex items-center gap-2 pb-safe-bottom">
+                    {step > 1 && (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setStep(prev => prev - 1)}
+                            className="h-12 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 font-bold text-xs uppercase px-4 rounded-xl flex items-center gap-1 active:scale-95 transition-all"
+                        >
+                            <ArrowLeft className="w-4 h-4" /> Atrás
+                        </Button>
+                    )}
+                    {step < 4 ? (
+                        <Button
+                            type="button"
+                            onClick={() => setStep(prev => prev + 1)}
+                            className="flex-1 h-12 bg-orange-600 hover:bg-orange-500 text-white font-black text-xs uppercase rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md shadow-orange-950/30"
+                        >
+                            Continuar <ArrowRight className="w-4 h-4" />
+                        </Button>
+                    ) : (
+                        <Button
+                            type="button"
+                            disabled={loading}
+                            onClick={handleSubmit}
+                            className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-md shadow-emerald-950/30"
+                        >
+                            <Save className="w-4 h-4" />
+                            {loading ? "GUARDANDO..." : "COMPLETAR VD"}
+                        </Button>
+                    )}
                 </div>
             </DialogContent>
         </Dialog>

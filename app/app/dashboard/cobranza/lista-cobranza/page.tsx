@@ -40,7 +40,10 @@ import {
   CalendarDays,
   ExternalLink,
   Globe,
-  Building2
+  Building2,
+  Layers,
+  CreditCard,
+  AlertTriangle
 } from "lucide-react";
 import { calcularSemanaCobranzaSabadoViernes, calcularRangoSemanaSabadoViernes, formatearFechaCortaMX } from "@/lib/calendario-cobranza-utils";
 import { formatCurrency, getDayName } from "@/lib/utils";
@@ -100,7 +103,7 @@ const OPCIONES_PROBLEMA = [
   { value: "PA", label: "PA (Promesa de Abono)", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/60 dark:text-cyan-300" },
   { value: "PE", label: "PE (Problema Especial / Periodo)", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/60 dark:text-yellow-300" },
   { value: "AD", label: "AD (Adelantado)", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300" },
-  { value: "PS", label: "PS (Pago Semanal)", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300" },
+  { value: "FU", label: "FU (Fuga)", color: "bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300" },
   { value: "IT", label: "IT (Intervención)", color: "bg-pink-100 text-pink-800 dark:bg-pink-900/60 dark:text-pink-300" },
   { value: "DL", label: "DL (Dictamen Legal)", color: "bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300" },
   { value: "K", label: "K (Cancelado)", color: "bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-300" }
@@ -1769,224 +1772,178 @@ export default function ListaCobranzaPage() {
                 </div>
               </div>
 
-              {/* 3. Cuadrícula de 4 Tarjetas de Detalle */}
+              {/* 3. Cuadrícula de Tarjetas de Detalle */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* 1. Clasificación por Problema */}
-                <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
-                  <CardHeader className="py-3 px-4 border-b bg-slate-50 dark:bg-slate-800/60">
-                    <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span>Clasificación de Cartera y Problemas</span>
-                        <Badge className={`text-[10px] font-bold ${
-                          tabResumenEmpresa === "GLOBAL" ? "bg-slate-800 text-white" :
-                          tabResumenEmpresa === "DQ" ? "bg-blue-600 text-white" : "bg-indigo-600 text-white"
-                        }`}>
-                          {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP DASOPLUS"}
-                        </Badge>
-                      </div>
-                      <Badge variant="outline" className="text-[10px] font-bold">Página 2 CEJ</Badge>
+                {/* 1. Clasificación por Problema (Desglose Completo GLOBAL vs DQ vs DP) */}
+                <Card className="border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                  <CardHeader className="py-3 px-4 border-b bg-slate-50 dark:bg-slate-800/60 flex flex-row items-center justify-between">
+                    <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                      <Layers className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Clasificación de Cartera y Problemas</span>
                     </CardTitle>
+                    <Badge variant="outline" className="text-[10px] font-bold">Página 2 CEJ</Badge>
                   </CardHeader>
-                  <CardContent className="p-4 space-y-2 text-xs">
-                    <div className="flex justify-between items-center py-1.5 px-2 bg-slate-100 dark:bg-slate-800 rounded font-bold">
-                      <span>Cuentas Asignadas</span>
-                      <span>
-                        {resumenActivo?.resumenProblemas.totalAsignadas.cuentas ?? 0} ctas •{" "}
-                        {formatCurrency(resumenActivo?.resumenProblemas.totalAsignadas.pesos ?? 0)}
-                      </span>
-                    </div>
-
-                    <div className="space-y-1 pt-1">
-                      <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
-                        <span className="text-slate-600 dark:text-slate-400">CANCELADO (K)</span>
-                        <span className="font-mono">{resumenActivo?.resumenProblemas.canceladoK.cuentas ?? 0} ({formatCurrency(resumenActivo?.resumenProblemas.canceladoK.pesos ?? 0)})</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
-                        <span className="text-slate-600 dark:text-slate-400">INTERVENCION (IT)</span>
-                        <span className="font-mono">{resumenActivo?.resumenProblemas.intervencionIT.cuentas ?? 0} ({formatCurrency(resumenActivo?.resumenProblemas.intervencionIT.pesos ?? 0)})</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
-                        <span className="text-slate-600 dark:text-slate-400">ADELANTADO (AD)</span>
-                        <span className="font-mono">{resumenActivo?.resumenProblemas.adelantadoAD.cuentas ?? 0} ({formatCurrency(resumenActivo?.resumenProblemas.adelantadoAD.pesos ?? 0)})</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
-                        <span className="text-slate-600 dark:text-slate-400">PERIODO (PE)</span>
-                        <span className="font-mono font-bold text-amber-600">{resumenActivo?.resumenProblemas.periodoPE.cuentas ?? 0} ({formatCurrency(resumenActivo?.resumenProblemas.periodoPE.pesos ?? 0)})</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
-                        <span className="text-slate-600 dark:text-slate-400">PAGO SEM (PS)</span>
-                        <span className="font-mono">{resumenActivo?.resumenProblemas.pagoSemPS.cuentas ?? 0} ({formatCurrency(resumenActivo?.resumenProblemas.pagoSemPS.pesos ?? 0)})</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
-                        <span className="text-slate-600 dark:text-slate-400">DICT LEGAL (DL)</span>
-                        <span className="font-mono">{resumenActivo?.resumenProblemas.dictLegalDL.cuentas ?? 0} ({formatCurrency(resumenActivo?.resumenProblemas.dictLegalDL.pesos ?? 0)})</span>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between items-center py-1.5 px-2 bg-rose-50 dark:bg-rose-950/40 text-rose-900 dark:text-rose-300 rounded font-bold">
-                      <span>TOTAL PROBLEMAS</span>
-                      <span>
-                        {resumenActivo?.resumenProblemas.totalProblemas.cuentas ?? 0} ctas •{" "}
-                        {formatCurrency(resumenActivo?.resumenProblemas.totalProblemas.pesos ?? 0)}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-center py-1.5 px-2 bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-300 rounded font-bold mt-2">
-                      <span>Cuentas en RUTA</span>
-                      <span>
-                        {resumenActivo?.resumenProblemas.cuentasRuta.cuentas ?? 0} ctas •{" "}
-                        {formatCurrency(resumenActivo?.resumenProblemas.cuentasRuta.pesos ?? 0)}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
-                      <span className="text-slate-600 dark:text-slate-400">Vencidos en RUTA</span>
-                      <span className="font-mono font-bold text-rose-600">
-                        {resumenActivo?.resumenProblemas.vencidosRuta.cuentas ?? 0} ctas •{" "}
-                        {formatCurrency(resumenActivo?.resumenProblemas.vencidosRuta.pesos ?? 0)}
-                      </span>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left align-middle border-collapse">
+                        <thead className="bg-[#0f172a] text-white text-[10px] font-bold uppercase tracking-wider">
+                          <tr>
+                            <th className="px-3 py-2 border border-slate-700">CONCEPTO / PROBLEMA</th>
+                            <th className="px-2.5 py-2 text-right border border-slate-700 bg-slate-800 text-slate-100 font-bold">🌐 GLOBAL</th>
+                            <th className="px-2.5 py-2 text-right border border-slate-700 bg-blue-950/80 text-blue-300 font-bold">🏢 DQ</th>
+                            <th className="px-2.5 py-2 text-right border border-slate-700 bg-indigo-950/80 text-indigo-300 font-bold">🏬 DP</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-slate-800 bg-white dark:bg-slate-900 text-xs">
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 bg-slate-50/70 dark:bg-slate-800/50 font-bold">
+                            <td className="px-3 py-1.5 border border-gray-100 dark:border-slate-800">Cuentas Asignadas (Cartera)</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-gray-100 dark:border-slate-800">{resGlobalActivo?.resumenProblemas.totalAsignadas.cuentas ?? 0} ({formatCurrency(resGlobalActivo?.resumenProblemas.totalAsignadas.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-blue-600 dark:text-blue-400 border border-gray-100 dark:border-slate-800">{resDQActivo?.resumenProblemas.totalAsignadas.cuentas ?? 0} ({formatCurrency(resDQActivo?.resumenProblemas.totalAsignadas.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-indigo-600 dark:text-indigo-400 border border-gray-100 dark:border-slate-800">{resDPActivo?.resumenProblemas.totalAsignadas.cuentas ?? 0} ({formatCurrency(resDPActivo?.resumenProblemas.totalAsignadas.pesos ?? 0)})</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-1 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">CANCELADO (K)</td>
+                            <td className="px-2.5 py-1 text-right font-mono border border-gray-100 dark:border-slate-800">{resGlobalActivo?.resumenProblemas.canceladoK.cuentas ?? 0} ({formatCurrency(resGlobalActivo?.resumenProblemas.canceladoK.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1 text-right font-mono text-blue-600 border border-gray-100 dark:border-slate-800">{resDQActivo?.resumenProblemas.canceladoK.cuentas ?? 0} ({formatCurrency(resDQActivo?.resumenProblemas.canceladoK.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1 text-right font-mono text-indigo-600 border border-gray-100 dark:border-slate-800">{resDPActivo?.resumenProblemas.canceladoK.cuentas ?? 0} ({formatCurrency(resDPActivo?.resumenProblemas.canceladoK.pesos ?? 0)})</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-1 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">INTERVENCION (IT)</td>
+                            <td className="px-2.5 py-1 text-right font-mono border border-gray-100 dark:border-slate-800">{resGlobalActivo?.resumenProblemas.intervencionIT.cuentas ?? 0} ({formatCurrency(resGlobalActivo?.resumenProblemas.intervencionIT.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1 text-right font-mono text-blue-600 border border-gray-100 dark:border-slate-800">{resDQActivo?.resumenProblemas.intervencionIT.cuentas ?? 0} ({formatCurrency(resDQActivo?.resumenProblemas.intervencionIT.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1 text-right font-mono text-indigo-600 border border-gray-100 dark:border-slate-800">{resDPActivo?.resumenProblemas.intervencionIT.cuentas ?? 0} ({formatCurrency(resDPActivo?.resumenProblemas.intervencionIT.pesos ?? 0)})</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-1 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">ADELANTADO (AD)</td>
+                            <td className="px-2.5 py-1 text-right font-mono border border-gray-100 dark:border-slate-800">{resGlobalActivo?.resumenProblemas.adelantadoAD.cuentas ?? 0} ({formatCurrency(resGlobalActivo?.resumenProblemas.adelantadoAD.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1 text-right font-mono text-blue-600 border border-gray-100 dark:border-slate-800">{resDQActivo?.resumenProblemas.adelantadoAD.cuentas ?? 0} ({formatCurrency(resDQActivo?.resumenProblemas.adelantadoAD.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1 text-right font-mono text-indigo-600 border border-gray-100 dark:border-slate-800">{resDPActivo?.resumenProblemas.adelantadoAD.cuentas ?? 0} ({formatCurrency(resDPActivo?.resumenProblemas.adelantadoAD.pesos ?? 0)})</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-1 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800 font-medium">PERIODO (PE)</td>
+                            <td className="px-2.5 py-1 text-right font-mono text-amber-600 font-bold border border-gray-100 dark:border-slate-800">{resGlobalActivo?.resumenProblemas.periodoPE.cuentas ?? 0} ({formatCurrency(resGlobalActivo?.resumenProblemas.periodoPE.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1 text-right font-mono text-amber-600 font-bold border border-gray-100 dark:border-slate-800">{resDQActivo?.resumenProblemas.periodoPE.cuentas ?? 0} ({formatCurrency(resDQActivo?.resumenProblemas.periodoPE.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1 text-right font-mono text-amber-600 font-bold border border-gray-100 dark:border-slate-800">{resDPActivo?.resumenProblemas.periodoPE.cuentas ?? 0} ({formatCurrency(resDPActivo?.resumenProblemas.periodoPE.pesos ?? 0)})</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 bg-rose-50/20 dark:bg-rose-950/10">
+                            <td className="px-3 py-1 text-slate-700 dark:text-slate-300 border border-gray-100 dark:border-slate-800 font-bold">FUGA (FU)</td>
+                            <td className="px-2.5 py-1 text-right font-mono border border-gray-100 dark:border-slate-800 font-bold text-rose-600">{(resGlobalActivo?.resumenProblemas.fugaFU?.cuentas ?? resGlobalActivo?.resumenProblemas.pagoSemPS?.cuentas) ?? 0} ({formatCurrency((resGlobalActivo?.resumenProblemas.fugaFU?.pesos ?? resGlobalActivo?.resumenProblemas.pagoSemPS?.pesos) ?? 0)})</td>
+                            <td className="px-2.5 py-1 text-right font-mono text-rose-600 border border-gray-100 dark:border-slate-800 font-bold">{(resDQActivo?.resumenProblemas.fugaFU?.cuentas ?? resDQActivo?.resumenProblemas.pagoSemPS?.cuentas) ?? 0} ({formatCurrency((resDQActivo?.resumenProblemas.fugaFU?.pesos ?? resDQActivo?.resumenProblemas.pagoSemPS?.pesos) ?? 0)})</td>
+                            <td className="px-2.5 py-1 text-right font-mono text-rose-600 border border-gray-100 dark:border-slate-800 font-bold">{(resDPActivo?.resumenProblemas.fugaFU?.cuentas ?? resDPActivo?.resumenProblemas.pagoSemPS?.cuentas) ?? 0} ({formatCurrency((resDPActivo?.resumenProblemas.fugaFU?.pesos ?? resDPActivo?.resumenProblemas.pagoSemPS?.pesos) ?? 0)})</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-1 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">DICT LEGAL (DL)</td>
+                            <td className="px-2.5 py-1 text-right font-mono border border-gray-100 dark:border-slate-800">{resGlobalActivo?.resumenProblemas.dictLegalDL.cuentas ?? 0} ({formatCurrency(resGlobalActivo?.resumenProblemas.dictLegalDL.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1 text-right font-mono text-blue-600 border border-gray-100 dark:border-slate-800">{resDQActivo?.resumenProblemas.dictLegalDL.cuentas ?? 0} ({formatCurrency(resDQActivo?.resumenProblemas.dictLegalDL.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1 text-right font-mono text-indigo-600 border border-gray-100 dark:border-slate-800">{resDPActivo?.resumenProblemas.dictLegalDL.cuentas ?? 0} ({formatCurrency(resDPActivo?.resumenProblemas.dictLegalDL.pesos ?? 0)})</td>
+                          </tr>
+                          <tr className="hover:bg-rose-50/60 dark:hover:bg-rose-950/30 bg-rose-50/40 dark:bg-rose-950/20 font-bold text-rose-900 dark:text-rose-300">
+                            <td className="px-3 py-1.5 border border-rose-200 dark:border-rose-900/50">TOTAL PROBLEMAS</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-rose-200 dark:border-rose-900/50">{resGlobalActivo?.resumenProblemas.totalProblemas.cuentas ?? 0} ctas ({formatCurrency(resGlobalActivo?.resumenProblemas.totalProblemas.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-rose-200 dark:border-rose-900/50">{resDQActivo?.resumenProblemas.totalProblemas.cuentas ?? 0} ctas ({formatCurrency(resDQActivo?.resumenProblemas.totalProblemas.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-rose-200 dark:border-rose-900/50">{resDPActivo?.resumenProblemas.totalProblemas.cuentas ?? 0} ctas ({formatCurrency(resDPActivo?.resumenProblemas.totalProblemas.pesos ?? 0)})</td>
+                          </tr>
+                          <tr className="hover:bg-blue-50/60 dark:hover:bg-blue-950/30 bg-blue-50/40 dark:bg-blue-950/20 font-bold text-blue-900 dark:text-blue-300">
+                            <td className="px-3 py-1.5 border border-blue-200 dark:border-blue-900/50">Cuentas en RUTA</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-blue-200 dark:border-blue-900/50">{resGlobalActivo?.resumenProblemas.cuentasRuta.cuentas ?? 0} ctas ({formatCurrency(resGlobalActivo?.resumenProblemas.cuentasRuta.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-blue-200 dark:border-blue-900/50">{resDQActivo?.resumenProblemas.cuentasRuta.cuentas ?? 0} ctas ({formatCurrency(resDQActivo?.resumenProblemas.cuentasRuta.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-blue-200 dark:border-blue-900/50">{resDPActivo?.resumenProblemas.cuentasRuta.cuentas ?? 0} ctas ({formatCurrency(resDPActivo?.resumenProblemas.cuentasRuta.pesos ?? 0)})</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 font-bold text-rose-600 dark:text-rose-400">
+                            <td className="px-3 py-1.5 border border-gray-100 dark:border-slate-800">Vencidos en RUTA</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-gray-100 dark:border-slate-800">{resGlobalActivo?.resumenProblemas.vencidosRuta.cuentas ?? 0} ctas ({formatCurrency(resGlobalActivo?.resumenProblemas.vencidosRuta.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-gray-100 dark:border-slate-800">{resDQActivo?.resumenProblemas.vencidosRuta.cuentas ?? 0} ctas ({formatCurrency(resDQActivo?.resumenProblemas.vencidosRuta.pesos ?? 0)})</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-gray-100 dark:border-slate-800">{resDPActivo?.resumenProblemas.vencidosRuta.cuentas ?? 0} ctas ({formatCurrency(resDPActivo?.resumenProblemas.vencidosRuta.pesos ?? 0)})</td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* 2. Canales de Recaudación y Cumplimiento */}
-                <Card className="border-gray-100 dark:border-slate-800 shadow-sm">
-                  <CardHeader className="py-3 px-4 border-b bg-slate-50 dark:bg-slate-800/60">
-                    <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span>Canales de Cobro y Cumplimiento de Metas</span>
-                        <Badge className={`text-[10px] font-bold ${
-                          tabResumenEmpresa === "GLOBAL" ? "bg-slate-800 text-white" :
-                          tabResumenEmpresa === "DQ" ? "bg-blue-600 text-white" : "bg-indigo-600 text-white"
-                        }`}>
-                          {tabResumenEmpresa === "GLOBAL" ? "GLOBAL" : tabResumenEmpresa === "DQ" ? "DQ QUERÉTARO" : "DP DASOPLUS"}
-                        </Badge>
-                      </div>
+                {/* 2. Canales de Recaudación y Cumplimiento (Desglose Completo GLOBAL vs DQ vs DP) */}
+                <Card className="border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                  <CardHeader className="py-3 px-4 border-b bg-slate-50 dark:bg-slate-800/60 flex flex-row items-center justify-between">
+                    <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                      <CreditCard className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Canales de Recaudación y Cumplimiento</span>
                     </CardTitle>
+                    <Badge variant="outline" className="text-[10px] font-bold">Página 2 CEJ</Badge>
                   </CardHeader>
-                  <CardContent className="p-4 space-y-3 text-xs">
-                    {/* Canales de Cobro Separados (BANCOS BOT, BANCOS GESTOR, GESTOR) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      {/* 1. GESTOR (Efectivo) */}
-                      <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-900 flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between">
-                            <p className="text-[10px] font-black uppercase text-emerald-800 dark:text-emerald-300 tracking-wider">
-                              💵 GESTOR
-                            </p>
-                            <span className="text-[9px] bg-emerald-200/80 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 px-1.5 py-0.5 rounded font-bold">
-                              Efectivo Ruta
-                            </span>
-                          </div>
-                          <p className="text-lg font-black font-mono text-emerald-700 dark:text-emerald-400 mt-1">
-                            {formatCurrency(resumenActivo?.cobranzaGestor?.pesos ?? resumenActivo?.cobranzaEfectivo?.pesos ?? 0)}
-                          </p>
-                        </div>
-                        <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
-                          {resumenActivo?.cobranzaGestor?.cuentas ?? resumenActivo?.cobranzaEfectivo?.cuentas ?? 0} cuentas
-                        </p>
-                      </div>
-
-                      {/* 2. BANCOS BOT */}
-                      <div className="p-3 bg-indigo-50/70 dark:bg-indigo-950/30 rounded-xl border border-indigo-200 dark:border-indigo-900 flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between">
-                            <p className="text-[10px] font-black uppercase text-indigo-800 dark:text-indigo-300 tracking-wider">
-                              🤖 BANCOS BOT
-                            </p>
-                            <span className="text-[9px] bg-indigo-200/80 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 px-1.5 py-0.5 rounded font-bold">
-                              Auto / WhatsApp
-                            </span>
-                          </div>
-                          <p className="text-lg font-black font-mono text-indigo-700 dark:text-indigo-400 mt-1">
-                            {formatCurrency(resumenActivo?.cobranzaBancosBot?.pesos ?? 0)}
-                          </p>
-                        </div>
-                        <p className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 mt-1">
-                          {resumenActivo?.cobranzaBancosBot?.cuentas ?? 0} cuentas
-                        </p>
-                      </div>
-
-                      {/* 3. BANCOS GESTOR */}
-                      <div className="p-3 bg-purple-50/70 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-900 flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between">
-                            <p className="text-[10px] font-black uppercase text-purple-800 dark:text-purple-300 tracking-wider">
-                              📱 BANCOS GESTOR
-                            </p>
-                            <span className="text-[9px] bg-purple-200/80 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 px-1.5 py-0.5 rounded font-bold">
-                              Manual / Depósito
-                            </span>
-                          </div>
-                          <p className="text-lg font-black font-mono text-purple-700 dark:text-purple-400 mt-1">
-                            {formatCurrency(resumenActivo?.cobranzaBancosGestor?.pesos ?? 0)}
-                          </p>
-                        </div>
-                        <p className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 mt-1">
-                          {resumenActivo?.cobranzaBancosGestor?.cuentas ?? 0} cuentas
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Fila de Totales de Canales */}
-                    <div className="p-2.5 bg-slate-100/90 dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-black uppercase text-slate-700 dark:text-slate-300">
-                          🏦 TOTAL BANCOS:
-                        </span>
-                        <span className="font-mono font-bold text-xs text-blue-700 dark:text-blue-300">
-                          {formatCurrency(resumenActivo?.cobranzaBancos?.pesos ?? 0)}
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-medium">
-                          ({resumenActivo?.cobranzaBancos?.cuentas ?? 0} cuentas)
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 sm:border-l sm:border-slate-300 dark:sm:border-slate-600 sm:pl-3">
-                        <span className="text-[11px] font-black uppercase text-amber-700 dark:text-amber-400">
-                          ⚡ MORATORIOS:
-                        </span>
-                        <span className="font-mono font-bold text-xs text-amber-700 dark:text-amber-400">
-                          {formatCurrency(resumenActivo?.totalMoratorio ?? 0)}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 sm:border-l sm:border-slate-300 dark:sm:border-slate-600 sm:pl-3">
-                        <span className="text-[11px] font-black uppercase text-slate-900 dark:text-white">
-                          🌐 TOTAL RECAUDADO:
-                        </span>
-                        <span className="font-mono font-black text-sm text-emerald-700 dark:text-emerald-400">
-                          {formatCurrency(resumenActivo?.totalCobradoConMoratorio ?? ((resumenActivo?.totalCobrado ?? 0) + (resumenActivo?.totalMoratorio ?? 0)))}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-slate-100 dark:bg-slate-800/80 rounded-xl space-y-1.5">
-                      <div className="flex justify-between font-bold text-slate-900 dark:text-white">
-                        <span>% Cumplimiento Cuentas (Sin Dobles)</span>
-                        <span className="font-mono">{resumenActivo?.porcentajeCtasSinDobles ?? 0}%</span>
-                      </div>
-                      <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                        <span>% Cumplimiento Cuentas (Con Dobles)</span>
-                        <span className="font-mono">{resumenActivo?.porcentajeCtasConDobles ?? 0}%</span>
-                      </div>
-                      <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                        <span className="font-bold text-xs">Regla de Pago de Comisiones:</span>
-                        <Badge variant={resumenActivo?.pagarConPorcentajeSinDobles ? "destructive" : "default"} className="font-bold">
-                          {resumenActivo?.pagarConPorcentajeSinDobles ? "PAGAR CON % SIN DOBLES (<81%)" : "OBJETIVO CUMPLIDO (>=81%)"}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5 pt-1 text-slate-600 dark:text-slate-400">
-                      <div className="flex justify-between">
-                        <span>Pagos Dobles Registrados:</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(resumenActivo?.totalPagosDobles ?? 0)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Recuperado Periodos Vencidos (PV):</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(resumenActivo?.totalRecuperadoPv ?? 0)}</span>
-                      </div>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left align-middle border-collapse">
+                        <thead className="bg-[#0f172a] text-white text-[10px] font-bold uppercase tracking-wider">
+                          <tr>
+                            <th className="px-3 py-2 border border-slate-700">CANAL / INDICADOR</th>
+                            <th className="px-2.5 py-2 text-right border border-slate-700 bg-slate-800 text-slate-100 font-bold">🌐 GLOBAL</th>
+                            <th className="px-2.5 py-2 text-right border border-slate-700 bg-blue-950/80 text-blue-300 font-bold">🏢 DQ</th>
+                            <th className="px-2.5 py-2 text-right border border-slate-700 bg-indigo-950/80 text-indigo-300 font-bold">🏬 DP</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-slate-800 bg-white dark:bg-slate-900 text-xs">
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 bg-emerald-50/30 dark:bg-emerald-950/20">
+                            <td className="px-3 py-1.5 font-bold text-emerald-800 dark:text-emerald-300 border border-gray-100 dark:border-slate-800">💵 GESTOR (Efectivo Ruta)</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400 border border-gray-100 dark:border-slate-800">{formatCurrency(resGlobalActivo?.cobranzaGestor?.pesos ?? resGlobalActivo?.cobranzaEfectivo?.pesos ?? 0)} <span className="text-[10px] font-normal text-slate-500">({resGlobalActivo?.cobranzaGestor?.cuentas ?? resGlobalActivo?.cobranzaEfectivo?.cuentas ?? 0} ctas)</span></td>
+                            <td className="px-2.5 py-1.5 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400 border border-gray-100 dark:border-slate-800">{formatCurrency(resDQActivo?.cobranzaGestor?.pesos ?? resDQActivo?.cobranzaEfectivo?.pesos ?? 0)} <span className="text-[10px] font-normal text-slate-500">({resDQActivo?.cobranzaGestor?.cuentas ?? resDQActivo?.cobranzaEfectivo?.cuentas ?? 0} ctas)</span></td>
+                            <td className="px-2.5 py-1.5 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400 border border-gray-100 dark:border-slate-800">{formatCurrency(resDPActivo?.cobranzaGestor?.pesos ?? resDPActivo?.cobranzaEfectivo?.pesos ?? 0)} <span className="text-[10px] font-normal text-slate-500">({resDPActivo?.cobranzaGestor?.cuentas ?? resDPActivo?.cobranzaEfectivo?.cuentas ?? 0} ctas)</span></td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-1.5 text-indigo-700 dark:text-indigo-300 border border-gray-100 dark:border-slate-800 font-medium">🤖 BANCOS BOT (Auto / SPEI)</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-gray-100 dark:border-slate-800">{formatCurrency(resGlobalActivo?.cobranzaBancosBot?.pesos ?? 0)} <span className="text-[10px] text-slate-500">({resGlobalActivo?.cobranzaBancosBot?.cuentas ?? 0} ctas)</span></td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-blue-600 border border-gray-100 dark:border-slate-800">{formatCurrency(resDQActivo?.cobranzaBancosBot?.pesos ?? 0)} <span className="text-[10px] text-slate-500">({resDQActivo?.cobranzaBancosBot?.cuentas ?? 0} ctas)</span></td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-indigo-600 border border-gray-100 dark:border-slate-800">{formatCurrency(resDPActivo?.cobranzaBancosBot?.pesos ?? 0)} <span className="text-[10px] text-slate-500">({resDPActivo?.cobranzaBancosBot?.cuentas ?? 0} ctas)</span></td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-1.5 text-purple-700 dark:text-purple-300 border border-gray-100 dark:border-slate-800 font-medium">📱 BANCOS GESTOR (Depósito)</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-gray-100 dark:border-slate-800">{formatCurrency(resGlobalActivo?.cobranzaBancosGestor?.pesos ?? 0)} <span className="text-[10px] text-slate-500">({resGlobalActivo?.cobranzaBancosGestor?.cuentas ?? 0} ctas)</span></td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-blue-600 border border-gray-100 dark:border-slate-800">{formatCurrency(resDQActivo?.cobranzaBancosGestor?.pesos ?? 0)} <span className="text-[10px] text-slate-500">({resDQActivo?.cobranzaBancosGestor?.cuentas ?? 0} ctas)</span></td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-indigo-600 border border-gray-100 dark:border-slate-800">{formatCurrency(resDPActivo?.cobranzaBancosGestor?.pesos ?? 0)} <span className="text-[10px] text-slate-500">({resDPActivo?.cobranzaBancosGestor?.cuentas ?? 0} ctas)</span></td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 bg-blue-50/30 dark:bg-blue-950/20 font-bold">
+                            <td className="px-3 py-1.5 text-blue-800 dark:text-blue-300 border border-gray-100 dark:border-slate-800">🏦 TOTAL BANCOS (BOT+Gestor)</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-blue-700 dark:text-blue-300 border border-gray-100 dark:border-slate-800">{formatCurrency(resGlobalActivo?.cobranzaBancos?.pesos ?? 0)} <span className="text-[10px] font-normal text-slate-500">({resGlobalActivo?.cobranzaBancos?.cuentas ?? 0} ctas)</span></td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-blue-700 dark:text-blue-300 border border-gray-100 dark:border-slate-800">{formatCurrency(resDQActivo?.cobranzaBancos?.pesos ?? 0)} <span className="text-[10px] font-normal text-slate-500">({resDQActivo?.cobranzaBancos?.cuentas ?? 0} ctas)</span></td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-indigo-700 dark:text-indigo-300 border border-gray-100 dark:border-slate-800">{formatCurrency(resDPActivo?.cobranzaBancos?.pesos ?? 0)} <span className="text-[10px] font-normal text-slate-500">({resDPActivo?.cobranzaBancos?.cuentas ?? 0} ctas)</span></td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 bg-amber-50/30 dark:bg-amber-950/20 font-bold text-amber-700 dark:text-amber-400">
+                            <td className="px-3 py-1.5 border border-gray-100 dark:border-slate-800">⚡ MORATORIOS</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-gray-100 dark:border-slate-800">{formatCurrency(resGlobalActivo?.totalMoratorio ?? 0)}</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-gray-100 dark:border-slate-800">{formatCurrency(resDQActivo?.totalMoratorio ?? 0)}</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-gray-100 dark:border-slate-800">{formatCurrency(resDPActivo?.totalMoratorio ?? 0)}</td>
+                          </tr>
+                          <tr className="hover:bg-emerald-50 dark:hover:bg-emerald-950/40 bg-emerald-50/70 dark:bg-emerald-950/30 font-black text-emerald-900 dark:text-emerald-200">
+                            <td className="px-3 py-2 border border-emerald-200 dark:border-emerald-900 text-xs">🌐 TOTAL RECAUDADO (Abono+Mora)</td>
+                            <td className="px-2.5 py-2 text-right font-mono border border-emerald-200 dark:border-emerald-900 text-emerald-700 dark:text-emerald-300 font-black">{formatCurrency(resGlobalActivo?.totalCobradoConMoratorio ?? ((resGlobalActivo?.totalCobrado ?? 0) + (resGlobalActivo?.totalMoratorio ?? 0)))}</td>
+                            <td className="px-2.5 py-2 text-right font-mono border border-emerald-200 dark:border-emerald-900 text-emerald-700 dark:text-emerald-300 font-black">{formatCurrency(resDQActivo?.totalCobradoConMoratorio ?? ((resDQActivo?.totalCobrado ?? 0) + (resDQActivo?.totalMoratorio ?? 0)))}</td>
+                            <td className="px-2.5 py-2 text-right font-mono border border-emerald-200 dark:border-emerald-900 text-emerald-700 dark:text-emerald-300 font-black">{formatCurrency(resDPActivo?.totalCobradoConMoratorio ?? ((resDPActivo?.totalCobrado ?? 0) + (resDPActivo?.totalMoratorio ?? 0)))}</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 font-bold">
+                            <td className="px-3 py-1.5 border border-gray-100 dark:border-slate-800">% Cumplimiento (Sin Dobles)</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-gray-100 dark:border-slate-800">{resGlobalActivo?.porcentajeCtasSinDobles ?? 0}%</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-blue-600 border border-gray-100 dark:border-slate-800">{resDQActivo?.porcentajeCtasSinDobles ?? 0}%</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-indigo-600 border border-gray-100 dark:border-slate-800">{resDPActivo?.porcentajeCtasSinDobles ?? 0}%</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-1.5 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">% Cumplimiento (Con Dobles)</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-gray-100 dark:border-slate-800">{resGlobalActivo?.porcentajeCtasConDobles ?? 0}%</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-blue-600 border border-gray-100 dark:border-slate-800">{resDQActivo?.porcentajeCtasConDobles ?? 0}%</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-indigo-600 border border-gray-100 dark:border-slate-800">{resDPActivo?.porcentajeCtasConDobles ?? 0}%</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-1.5 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">Pagos Dobles Registrados</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-gray-100 dark:border-slate-800">{formatCurrency(resGlobalActivo?.totalPagosDobles ?? 0)}</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-blue-600 border border-gray-100 dark:border-slate-800">{formatCurrency(resDQActivo?.totalPagosDobles ?? 0)}</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-indigo-600 border border-gray-100 dark:border-slate-800">{formatCurrency(resDPActivo?.totalPagosDobles ?? 0)}</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-1.5 text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800">Recuperado Periodos Vencidos (PV)</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono border border-gray-100 dark:border-slate-800">{formatCurrency(resGlobalActivo?.totalRecuperadoPv ?? 0)}</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-blue-600 border border-gray-100 dark:border-slate-800">{formatCurrency(resDQActivo?.totalRecuperadoPv ?? 0)}</td>
+                            <td className="px-2.5 py-1.5 text-right font-mono text-indigo-600 border border-gray-100 dark:border-slate-800">{formatCurrency(resDPActivo?.totalRecuperadoPv ?? 0)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                   </CardContent>
                 </Card>
@@ -2060,7 +2017,7 @@ export default function ListaCobranzaPage() {
                 </Card>
               )}
 
-              {/* 4. Presupuesto Diario Semanal */}
+              {/* 4. Presupuesto Diario Semanal con 3 líneas añadidas */}
               {resumenActivo?.resumenDiario && resumenActivo.resumenDiario.length > 0 && (
                 <Card className="border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
                   <CardHeader className="py-3 px-4 border-b bg-slate-50 dark:bg-slate-800/60 flex flex-row items-center justify-between">
@@ -2115,6 +2072,56 @@ export default function ListaCobranzaPage() {
                           );
                         })()}
                       </table>
+                    </div>
+
+                    {/* 3 LÍNEAS SOLICITADAS DEBAJO DE LA TABLA DE PPTO Y AVANCE DIARIO */}
+                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-700 divide-y divide-slate-200/60 dark:divide-slate-700/60 text-xs">
+                      <div className="flex justify-between items-center py-2 font-bold">
+                        <span className="text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                          PORCENTAJE COMISIÓN
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-emerald-600 dark:text-emerald-400 text-sm font-black">
+                            {resumenActivo?.porcentajeCtasSinDobles ?? 0}%
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            ({resumenActivo?.pagarConPorcentajeSinDobles ? "Pagar con % sin dobles <81%" : "Meta Cumplida >=81%"})
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center py-2 font-bold">
+                        <span className="text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                          PORCENTAJE SALDOS VENCIDOS
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-rose-600 dark:text-rose-400 text-sm font-black">
+                            {resumenActivo?.totalCartera && resumenActivo.totalCartera > 0
+                              ? ((resumenActivo.totalVencido / resumenActivo.totalCartera) * 100).toFixed(1)
+                              : "0.0"}%
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            ({formatCurrency(resumenActivo?.totalVencido ?? 0)} de {formatCurrency(resumenActivo?.totalCartera ?? 0)})
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center py-2 font-bold">
+                        <span className="text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5 text-blue-500" />
+                          VERIFICACIONES
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-blue-600 dark:text-blue-400 text-sm font-black">
+                            {clientes.filter(c => (tabResumenEmpresa === "GLOBAL" || (tabResumenEmpresa === "DQ" ? c.codigoCliente?.startsWith("DQ") : c.codigoCliente?.startsWith("DP"))) && (c.problema === "VD" || (c as any).vdStatus)).length} ctas
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            (VDs asignadas / realizadas en cartera)
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

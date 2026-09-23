@@ -226,9 +226,9 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
   setCell(detalleStart + 8, 2, prob?.periodoPE.cuentas ?? 0, 'n');
   setCell(detalleStart + 8, 3, prob?.periodoPE.pesos ?? 0, 'n');
 
-  setCell(detalleStart + 9, 0, "Cuentas (PAGO SEM PS)");
-  setCell(detalleStart + 9, 2, prob?.pagoSemPS.cuentas ?? 0, 'n');
-  setCell(detalleStart + 9, 3, prob?.pagoSemPS.pesos ?? 0, 'n');
+  setCell(detalleStart + 9, 0, "Cuentas (FUGA FU)");
+  setCell(detalleStart + 9, 2, (prob?.fugaFU?.cuentas ?? prob?.pagoSemPS.cuentas) ?? 0, 'n');
+  setCell(detalleStart + 9, 3, (prob?.fugaFU?.pesos ?? prob?.pagoSemPS.pesos) ?? 0, 'n');
 
   setCell(detalleStart + 10, 0, "Cuentas (DICT LEGAL DL)");
   setCell(detalleStart + 10, 2, prob?.dictLegalDL.cuentas ?? 0, 'n');
@@ -317,8 +317,18 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
     setCell(diarioStart + 4, 5 + 7, totalAvDin, 'n');
   }
 
+  // 3 Líneas requeridas debajo de la tabla de Presupuesto y Avance Diario Semanal
+  setCell(diarioStart + 6, 4, "PORCENTAJE COMISION");
+  setCell(diarioStart + 6, 5, `${resGlobal.porcentajeCtasSinDobles ?? 0}%`);
+  setCell(diarioStart + 7, 4, "PORCENTAJE SALDOS VENCIDOS");
+  const pctVencExcel = resGlobal.totalCartera > 0 ? ((resGlobal.totalVencido / resGlobal.totalCartera) * 100).toFixed(1) : "0.0";
+  setCell(diarioStart + 7, 5, `${pctVencExcel}%`);
+  setCell(diarioStart + 8, 4, "VERIFICACIONES");
+  const ctasVDExcel = datos.detalles.filter(d => d.problema === 'VD' || (d as any).vdStatus).length;
+  setCell(diarioStart + 8, 5, `${ctasVDExcel} ctas`);
+
   // Rango global de la hoja
-  const totalRows = diarioStart + 6;
+  const totalRows = diarioStart + 10;
   ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: totalRows, c: 46 } });
 
   // Anchos de columna optimizados
@@ -381,6 +391,8 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
   const resDP = datos.resumenDP || resCalculados.dp;
 
   const p = resGlobal.resumenProblemas;
+  const pDQ = resDQ.resumenProblemas;
+  const pDP = resDP.resumenProblemas;
   const mPeriodos = resGlobal.matrizPeriodos || [];
   const rDiario = resGlobal.resumenDiario || [];
   const totalCuentas = datos.detalles?.length || resGlobal.totalCuentas || 0;
@@ -572,53 +584,164 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
       <!-- COLUMNA IZQUIERDA -->
       <div>
-        <!-- 1. Clasificación de Cartera y Problemas -->
+        <!-- 1. Clasificación de Cartera y Problemas (GLOBAL • DQ • DP) -->
         <div class="section-card">
-          <div class="card-header">Clasificación de Cartera y Problemas</div>
-          <div class="card-body">
-            <div class="kpi-row highlight"><span>Cuentas Asignadas (Total Cartera)</span><span><strong>${p?.totalAsignadas.cuentas ?? 0} ctas</strong> ($${(p?.totalAsignadas.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row"><span>CANCELADO (K)</span><span>${p?.canceladoK.cuentas ?? 0} ctas ($${(p?.canceladoK.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row"><span>INTERVENCION (IT)</span><span>${p?.intervencionIT.cuentas ?? 0} ctas ($${(p?.intervencionIT.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row"><span>ADELANTADO (AD)</span><span>${p?.adelantadoAD.cuentas ?? 0} ctas ($${(p?.adelantadoAD.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row"><span>PERIODO (PE)</span><span>${p?.periodoPE.cuentas ?? 0} ctas ($${(p?.periodoPE.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row"><span>PAGO SEM (PS)</span><span>${p?.pagoSemPS.cuentas ?? 0} ctas ($${(p?.pagoSemPS.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row"><span>DICT LEGAL (DL)</span><span>${p?.dictLegalDL.cuentas ?? 0} ctas ($${(p?.dictLegalDL.pesos ?? 0).toLocaleString("es-MX")})</span></div>
-            <div class="kpi-row highlight" style="margin-top: 2px;">
-              <span>Total Cuentas Problema</span>
-              <span><strong>${p?.totalProblemas.cuentas ?? 0} ctas</strong> ($${(p?.totalProblemas.pesos ?? 0).toLocaleString("es-MX")})</span>
-            </div>
-            <div class="kpi-row" style="margin-top: 4px; font-weight: bold; color: #1d4ed8;">
-              <span>Cuentas en RUTA</span>
-              <span>${p?.cuentasRuta.cuentas ?? 0} ctas ($${(p?.cuentasRuta.pesos ?? 0).toLocaleString("es-MX")})</span>
-            </div>
-            <div class="kpi-row" style="font-weight: bold; color: #b91c1c;">
-              <span>Vencidos en RUTA</span>
-              <span>${p?.vencidosRuta.cuentas ?? 0} ctas ($${(p?.vencidosRuta.pesos ?? 0).toLocaleString("es-MX")})</span>
-            </div>
+          <div class="card-header">
+            <span>Clasificación de Cartera y Problemas</span>
+            <span style="font-size: 7.5px; font-weight: normal; color: #94a3b8;">GLOBAL • DQ • DP</span>
           </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 7.5px;">
+            <thead>
+              <tr style="background: #0f172a; color: white;">
+                <th style="padding: 2.5px 4px; text-align: left;">PROBLEMA / CARTERA</th>
+                <th style="padding: 2.5px 4px; text-align: right; background: #334155;">GLOBAL</th>
+                <th style="padding: 2.5px 4px; text-align: right; background: #1e3a8a;">DQ</th>
+                <th style="padding: 2.5px 4px; text-align: right; background: #312e81;">DP</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="background: #f1f5f9; font-weight: bold;">
+                <td style="padding: 2px 4px;">Cuentas Asignadas (Cartera)</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${p?.totalAsignadas.cuentas ?? 0} ($${(p?.totalAsignadas.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDQ?.totalAsignadas.cuentas ?? 0} ($${(pDQ?.totalAsignadas.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDP?.totalAsignadas.cuentas ?? 0} ($${(pDP?.totalAsignadas.pesos ?? 0).toLocaleString("es-MX")})</td>
+              </tr>
+              <tr>
+                <td style="padding: 2px 4px;">CANCELADO (K)</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${p?.canceladoK.cuentas ?? 0} ($${(p?.canceladoK.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDQ?.canceladoK.cuentas ?? 0} ($${(pDQ?.canceladoK.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDP?.canceladoK.cuentas ?? 0} ($${(pDP?.canceladoK.pesos ?? 0).toLocaleString("es-MX")})</td>
+              </tr>
+              <tr style="background: #f8fafc;">
+                <td style="padding: 2px 4px;">INTERVENCION (IT)</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${p?.intervencionIT.cuentas ?? 0} ($${(p?.intervencionIT.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDQ?.intervencionIT.cuentas ?? 0} ($${(pDQ?.intervencionIT.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDP?.intervencionIT.cuentas ?? 0} ($${(pDP?.intervencionIT.pesos ?? 0).toLocaleString("es-MX")})</td>
+              </tr>
+              <tr>
+                <td style="padding: 2px 4px;">ADELANTADO (AD)</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${p?.adelantadoAD.cuentas ?? 0} ($${(p?.adelantadoAD.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDQ?.adelantadoAD.cuentas ?? 0} ($${(pDQ?.adelantadoAD.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDP?.adelantadoAD.cuentas ?? 0} ($${(pDP?.adelantadoAD.pesos ?? 0).toLocaleString("es-MX")})</td>
+              </tr>
+              <tr style="background: #f8fafc;">
+                <td style="padding: 2px 4px;">PERIODO (PE)</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${p?.periodoPE.cuentas ?? 0} ($${(p?.periodoPE.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDQ?.periodoPE.cuentas ?? 0} ($${(pDQ?.periodoPE.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDP?.periodoPE.cuentas ?? 0} ($${(pDP?.periodoPE.pesos ?? 0).toLocaleString("es-MX")})</td>
+              </tr>
+              <tr style="background: #fff1f2;">
+                <td style="padding: 2px 4px; font-weight: bold; color: #be123c;">FUGA (FU)</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono font-bold" style="color: #be123c;">${(p?.fugaFU?.cuentas ?? p?.pagoSemPS.cuentas) ?? 0} ($${((p?.fugaFU?.pesos ?? p?.pagoSemPS.pesos) ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono font-bold" style="color: #be123c;">${(pDQ?.fugaFU?.cuentas ?? pDQ?.pagoSemPS.cuentas) ?? 0} ($${((pDQ?.fugaFU?.pesos ?? pDQ?.pagoSemPS.pesos) ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono font-bold" style="color: #be123c;">${(pDP?.fugaFU?.cuentas ?? pDP?.pagoSemPS.cuentas) ?? 0} ($${((pDP?.fugaFU?.pesos ?? pDP?.pagoSemPS.pesos) ?? 0).toLocaleString("es-MX")})</td>
+              </tr>
+              <tr style="background: #f8fafc;">
+                <td style="padding: 2px 4px;">DICT LEGAL (DL)</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${p?.dictLegalDL.cuentas ?? 0} ($${(p?.dictLegalDL.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDQ?.dictLegalDL.cuentas ?? 0} ($${(pDQ?.dictLegalDL.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDP?.dictLegalDL.cuentas ?? 0} ($${(pDP?.dictLegalDL.pesos ?? 0).toLocaleString("es-MX")})</td>
+              </tr>
+              <tr style="background: #fee2e2; font-weight: bold; color: #991b1b;">
+                <td style="padding: 2px 4px;">TOTAL PROBLEMAS</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${p?.totalProblemas.cuentas ?? 0} ($${(p?.totalProblemas.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDQ?.totalProblemas.cuentas ?? 0} ($${(pDQ?.totalProblemas.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDP?.totalProblemas.cuentas ?? 0} ($${(pDP?.totalProblemas.pesos ?? 0).toLocaleString("es-MX")})</td>
+              </tr>
+              <tr style="background: #dbeafe; font-weight: bold; color: #1e40af;">
+                <td style="padding: 2px 4px;">Cuentas en RUTA</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${p?.cuentasRuta.cuentas ?? 0} ($${(p?.cuentasRuta.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDQ?.cuentasRuta.cuentas ?? 0} ($${(pDQ?.cuentasRuta.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDP?.cuentasRuta.cuentas ?? 0} ($${(pDP?.cuentasRuta.pesos ?? 0).toLocaleString("es-MX")})</td>
+              </tr>
+              <tr style="font-weight: bold; color: #b91c1c;">
+                <td style="padding: 2px 4px;">Vencidos en RUTA</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${p?.vencidosRuta.cuentas ?? 0} ($${(p?.vencidosRuta.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDQ?.vencidosRuta.cuentas ?? 0} ($${(pDQ?.vencidosRuta.pesos ?? 0).toLocaleString("es-MX")})</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${pDP?.vencidosRuta.cuentas ?? 0} ($${(pDP?.vencidosRuta.pesos ?? 0).toLocaleString("es-MX")})</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-        <!-- 2. Canales de Cobro y Cumplimiento -->
-        <div class="section-card">
-          <div class="card-header">Canales de Recaudación y Cumplimiento</div>
-          <div class="card-body">
-            <div class="kpi-row"><span>💵 GESTOR (Efectivo Ruta)</span><span><strong>${resGlobal.cobranzaGestor?.cuentas ?? resGlobal.cobranzaEfectivo?.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaGestor?.pesos ?? resGlobal.cobranzaEfectivo?.pesos ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row"><span>🤖 BANCOS BOT (Automático / SPEI)</span><span><strong>${resGlobal.cobranzaBancosBot?.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row"><span>🏦 BANCOS GESTOR (Depósito Manual)</span><span><strong>${resGlobal.cobranzaBancosGestor?.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row" style="background: #eff6ff; font-weight: bold; color: #1e40af;"><span>💳 TOTAL BANCOS (BOT + GESTOR)</span><span><strong>${resGlobal.cobranzaBancos.cuentas ?? 0} ctas</strong> • $${(resGlobal.cobranzaBancos.pesos ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row" style="background: #fefce8; color: #854d0e; font-weight: bold;">
-              <span>⚡ Interés Moratorio Cobrado</span>
-              <span><strong>$${(resGlobal.totalMoratorio ?? 0).toLocaleString("es-MX")}</strong></span>
-            </div>
-            <div class="kpi-row highlight" style="background: #dcfce7; color: #14532d; font-weight: 900;">
-              <span>💰 TOTAL RECAUDADO (ABONOS + MORA)</span>
-              <span><strong>$${(resGlobal.totalCobradoConMoratorio ?? ((resGlobal.totalCobrado ?? 0) + (resGlobal.totalMoratorio ?? 0))).toLocaleString("es-MX")}</strong></span>
-            </div>
-            <div class="kpi-row"><span>Pagos Dobles Registrados</span><span>$${(resGlobal.totalPagosDobles ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row"><span>Recuperado Periodos Vencidos (PV)</span><span>$${(resGlobal.totalRecuperadoPv ?? 0).toLocaleString("es-MX")}</span></div>
-            <div class="kpi-row"><span>% Cumplimiento Metas (Sin Dobles)</span><span><strong>${resGlobal.porcentajeCtasSinDobles ?? 0}%</strong></span></div>
-            <div class="kpi-row"><span>% Cumplimiento Metas (Con Dobles)</span><span><strong>${resGlobal.porcentajeCtasConDobles ?? 0}%</strong></span></div>
+        <!-- 2. Canales de Cobro y Cumplimiento (GLOBAL • DQ • DP) -->
+        <div class="section-card" style="margin-top: 6px;">
+          <div class="card-header">
+            <span>Canales de Recaudación y Cumplimiento</span>
+            <span style="font-size: 7.5px; font-weight: normal; color: #94a3b8;">GLOBAL • DQ • DP</span>
           </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 7.5px;">
+            <thead>
+              <tr style="background: #0f172a; color: white;">
+                <th style="padding: 2.5px 4px; text-align: left;">CANAL / INDICADOR</th>
+                <th style="padding: 2.5px 4px; text-align: right; background: #334155;">GLOBAL</th>
+                <th style="padding: 2.5px 4px; text-align: right; background: #1e3a8a;">DQ</th>
+                <th style="padding: 2.5px 4px; text-align: right; background: #312e81;">DP</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="background: #ecfdf5; font-weight: bold; color: #065f46;">
+                <td style="padding: 2px 4px;">💵 GESTOR (Efectivo)</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resGlobal.cobranzaGestor?.pesos ?? resGlobal.cobranzaEfectivo?.pesos ?? 0).toLocaleString("es-MX")} <span style="font-weight: normal; color: #64748b;">(${resGlobal.cobranzaGestor?.cuentas ?? resGlobal.cobranzaEfectivo?.cuentas ?? 0})</span></td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resDQ.cobranzaGestor?.pesos ?? resDQ.cobranzaEfectivo?.pesos ?? 0).toLocaleString("es-MX")} <span style="font-weight: normal; color: #64748b;">(${resDQ.cobranzaGestor?.cuentas ?? resDQ.cobranzaEfectivo?.cuentas ?? 0})</span></td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resDP.cobranzaGestor?.pesos ?? resDP.cobranzaEfectivo?.pesos ?? 0).toLocaleString("es-MX")} <span style="font-weight: normal; color: #64748b;">(${resDP.cobranzaGestor?.cuentas ?? resDP.cobranzaEfectivo?.cuentas ?? 0})</span></td>
+              </tr>
+              <tr>
+                <td style="padding: 2px 4px; color: #1e3a8a;">🤖 BANCOS BOT (SPEI)</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resGlobal.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")} <span style="color: #64748b;">(${resGlobal.cobranzaBancosBot?.cuentas ?? 0})</span></td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resDQ.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")} <span style="color: #64748b;">(${resDQ.cobranzaBancosBot?.cuentas ?? 0})</span></td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resDP.cobranzaBancosBot?.pesos ?? 0).toLocaleString("es-MX")} <span style="color: #64748b;">(${resDP.cobranzaBancosBot?.cuentas ?? 0})</span></td>
+              </tr>
+              <tr style="background: #f8fafc;">
+                <td style="padding: 2px 4px; color: #4338ca;">📱 BANCOS GESTOR</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resGlobal.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")} <span style="color: #64748b;">(${resGlobal.cobranzaBancosGestor?.cuentas ?? 0})</span></td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resDQ.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")} <span style="color: #64748b;">(${resDQ.cobranzaBancosGestor?.cuentas ?? 0})</span></td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resDP.cobranzaBancosGestor?.pesos ?? 0).toLocaleString("es-MX")} <span style="color: #64748b;">(${resDP.cobranzaBancosGestor?.cuentas ?? 0})</span></td>
+              </tr>
+              <tr style="background: #eff6ff; font-weight: bold; color: #1e40af;">
+                <td style="padding: 2px 4px;">🏦 TOTAL BANCOS</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${resGlobal.cobranzaBancos.pesos.toLocaleString("es-MX")} <span style="font-weight: normal; color: #64748b;">(${resGlobal.cobranzaBancos.cuentas})</span></td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${resDQ.cobranzaBancos.pesos.toLocaleString("es-MX")} <span style="font-weight: normal; color: #64748b;">(${resDQ.cobranzaBancos.cuentas})</span></td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${resDP.cobranzaBancos.pesos.toLocaleString("es-MX")} <span style="font-weight: normal; color: #64748b;">(${resDP.cobranzaBancos.cuentas})</span></td>
+              </tr>
+              <tr style="background: #fefce8; color: #854d0e; font-weight: bold;">
+                <td style="padding: 2px 4px;">⚡ MORATORIOS</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resGlobal.totalMoratorio ?? 0).toLocaleString("es-MX")}</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resDQ.totalMoratorio ?? 0).toLocaleString("es-MX")}</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resDP.totalMoratorio ?? 0).toLocaleString("es-MX")}</td>
+              </tr>
+              <tr style="background: #dcfce7; color: #14532d; font-weight: 900;">
+                <td style="padding: 3px 4px;">💰 TOTAL RECAUDADO</td>
+                <td style="padding: 3px 4px; text-align: right;" class="font-mono">$${(resGlobal.totalCobradoConMoratorio ?? ((resGlobal.totalCobrado ?? 0) + (resGlobal.totalMoratorio ?? 0))).toLocaleString("es-MX")}</td>
+                <td style="padding: 3px 4px; text-align: right;" class="font-mono">$${(resDQ.totalCobradoConMoratorio ?? ((resDQ.totalCobrado ?? 0) + (resDQ.totalMoratorio ?? 0))).toLocaleString("es-MX")}</td>
+                <td style="padding: 3px 4px; text-align: right;" class="font-mono">$${(resDP.totalCobradoConMoratorio ?? ((resDP.totalCobrado ?? 0) + (resDP.totalMoratorio ?? 0))).toLocaleString("es-MX")}</td>
+              </tr>
+              <tr style="font-weight: bold;">
+                <td style="padding: 2px 4px;">% Cumpl. (Sin Dobles)</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${resGlobal.porcentajeCtasSinDobles ?? 0}%</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${resDQ.porcentajeCtasSinDobles ?? 0}%</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${resDP.porcentajeCtasSinDobles ?? 0}%</td>
+              </tr>
+              <tr>
+                <td style="padding: 2px 4px; color: #64748b;">% Cumpl. (Con Dobles)</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${resGlobal.porcentajeCtasConDobles ?? 0}%</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${resDQ.porcentajeCtasConDobles ?? 0}%</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">${resDP.porcentajeCtasConDobles ?? 0}%</td>
+              </tr>
+              <tr>
+                <td style="padding: 2px 4px; color: #64748b;">Pagos Dobles ($)</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resGlobal.totalPagosDobles ?? 0).toLocaleString("es-MX")}</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resDQ.totalPagosDobles ?? 0).toLocaleString("es-MX")}</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resDP.totalPagosDobles ?? 0).toLocaleString("es-MX")}</td>
+              </tr>
+              <tr>
+                <td style="padding: 2px 4px; color: #64748b;">Recuperado PV ($)</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resGlobal.totalRecuperadoPv ?? 0).toLocaleString("es-MX")}</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resDQ.totalRecuperadoPv ?? 0).toLocaleString("es-MX")}</td>
+                <td style="padding: 2px 4px; text-align: right;" class="font-mono">$${(resDP.totalRecuperadoPv ?? 0).toLocaleString("es-MX")}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -708,6 +831,21 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
               </tr>
             </tfoot>
           </table>
+          <!-- 3 líneas adicionales solicitadas por el usuario: PORCENTAJE COMISION, PORCENTAJE SALDOS VENCIDOS, VERIFICACIONES -->
+          <div style="background: #f8fafc; border-top: 1px solid #cbd5e1; padding: 4px 6px; font-size: 7.5px;">
+            <div style="display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 0.5px dashed #e2e8f0;">
+              <span style="font-weight: 700; color: #334155;">PORCENTAJE COMISIÓN:</span>
+              <span class="font-mono font-bold" style="color: #0f172a;">${(resGlobal.porcentajeCtasSinDobles ?? 0) >= 90 ? '12.0%' : (resGlobal.porcentajeCtasSinDobles ?? 0) >= 80 ? '10.0%' : (resGlobal.porcentajeCtasSinDobles ?? 0) >= 70 ? '8.0%' : '0.0%'} (${resGlobal.porcentajeCtasSinDobles ?? 0}% cumpl.)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 0.5px dashed #e2e8f0;">
+              <span style="font-weight: 700; color: #334155;">PORCENTAJE SALDOS VENCIDOS:</span>
+              <span class="font-mono font-bold" style="color: #b91c1c;">${resGlobal.totalCartera > 0 ? (((resGlobal.totalVencido ?? 0) / resGlobal.totalCartera) * 100).toFixed(1) : 0}% ($${(resGlobal.totalVencido ?? 0).toLocaleString("es-MX")})</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 2px 0;">
+              <span style="font-weight: 700; color: #334155;">VERIFICACIONES:</span>
+              <span class="font-mono font-bold" style="color: #1e40af;">${datos.detalles?.filter(d => (d.problema || '').toUpperCase().includes('VD') || (d.problema || '').toUpperCase().includes('VERIF') || Boolean((d as any).vdStatus)).length || 0} ctas</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -238,21 +238,26 @@ export class Tickets2Workflow {
 -   \`monto\`: El importe exacto del abono o pago principal. Lee los dígitos numéricos con máxima precisión (distinguiendo nítidamente entre 3 y 2, 8 y 0, 5 y 6). Si hay comisiones adicionales de tienda o tienda de conveniencia (ej: $10, $12, $15), ignora la comisión y extrae ÚNICAMENTE el monto abonado a la cuenta. Devolver como número decimal.
 -   \`referencia\`: Busca el número de "REFERENCIA". Si está oculto con asteriscos (ej: \`**********1858\`), extrae solo la parte numérica. Si el campo no existe, el valor es \`null\`.
 -   \`folio\`: **INSTRUCCIÓN ACTUALIZADA:**
-    1.  **Prioridad 1:** Busca el número de "AUTORIZACION" o "FOLIO DE VENTA" (identificadores únicos de cada transacción).
-    2.  **Prioridad 2 (Último recurso para depósitos en efectivo):** Si no encuentras autorización ni folio de venta, busca "# DE AFILIACION" o "AFILIACION".
-    3.  Si no encuentras ninguno de los anteriores, el valor debe ser \`null\`.
+    1.  **Prioridad 1:** Busca el número de "AUTORIZACION", "FOLIO DE OPERACION", "FOLIO", "ID DE TRANSFERENCIA" o "FOLIO DE VENTA" (identificadores únicos de cada transacción).
+    2.  **Prioridad 2 (Transferencias Nu / Digitales):** En comprobantes de Nu o transferencias digitales, si no hay autorización, busca "ID de transferencia", "Folio de operación", "Código de operación" o "Identificador".
+    3.  **Prioridad 3 (Depósitos en efectivo OXXO / comercios):** Busca "# DE AFILIACION" o "AFILIACION".
+    4.  Si no encuentras ninguno de los anteriores, el valor debe ser \`null\`.
 -   \`fecha\`: La fecha de la operación, formateada obligatoriamente como \`AAAA-MM-DD\`.
 -   \`hr\`: La hora de la operación, formateada obligatoriamente como \`HH:MM:SS\` (completa con \`:00\` si es necesario).
--   \`claverastreo\`: **INSTRUCCIÓN ACTUALIZADA:** Busca un campo explícitamente llamado "CLAVE DE RASTREO". **Si el valor aparece en dos líneas o párrafos, júntalos en una sola cadena de texto sin espacios ni guiones en medio.** Si el campo no está claramente presente en la imagen, el valor **debe ser \`null\`**.
+-   \`claverastreo\`: **INSTRUCCIÓN ACTUALIZADA:** Busca el identificador de rastreo SPEI o interbancario:
+    1. Busca campos llamados "CLAVE DE RASTREO", "Código de rastreo", "ID de transferencia" o "Rastreo".
+    2. En **Spin by OXXO**, la clave suele iniciar con "SPIN" (ej: \`SPIN-20260922141124USBFVUPK\` o \`SPIN2025...\`). **Si el valor aparece en dos líneas o párrafos, júntalos en una sola cadena de texto sin espacios ni guiones intermediarios.**
+    3. En **Banco Nu (Nu México)**, busca el campo "Código de rastreo", "ID de transferencia" o "Clave de rastreo".
+    4. Si el campo no está claramente presente en la imagen, el valor debe ser \`null\`.
 
 **EJEMPLOS DE RESPUESTAS ESPERADAS:**
 
 1.  **Para un depósito en efectivo (OXXO, con # DE AFILIACION):**
     \`{"contrato":"DQ2506016","monto":500.00,"referencia":"1858","folio":"4090400","fecha":"2025-08-11","hr":"11:25:00","claverastreo":null}\`
 
-2.  **Para una transferencia digital simple (sin folio ni referencia):**
-    \`{"contrato":"DQ2506016","monto":200.00,"referencia":null,"folio":null,"fecha":"2025-08-08","hr":"07:29:09","claverastreo":null}\`
-    
+2.  **Para una transferencia de Banco Nu:**
+    \`{"contrato":"DQ2507055","monto":166.00,"referencia":null,"folio":"202609111250001","fecha":"2026-09-11","hr":"12:50:00","claverastreo":"NU20260911125032890"}\`
+
 3.  **Para una transferencia SPEI de Spin (con clave de rastreo en dos líneas):**
     \`{"contrato":"DQ2411240","monto":460.00,"referencia":"9135156","folio":null,"fecha":"2025-09-06","hr":"18:30:00","claverastreo":"SPIN20250906183029308UEQ0SSPJC"}\`
 

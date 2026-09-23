@@ -24,7 +24,8 @@ import {
     Clock,
     AlertCircle,
     CheckCircle2,
-    Users
+    Users,
+    Plus
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { formatDate, formatCurrency } from "@/lib/utils";
@@ -43,6 +44,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { VerificacionModal } from "@/components/mobile/verificacion-modal";
 
 export default function VerificacionesReportPage() {
     const [verificaciones, setVerificaciones] = useState<any[]>([]);
@@ -71,6 +73,56 @@ export default function VerificacionesReportPage() {
     const [selectedVerificacion, setSelectedVerificacion] = useState<any>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
+
+    // Estados para Captura de Nueva VD en Modo Cobrador
+    const [vdModalOpen, setVdModalOpen] = useState(false);
+    const [clienteVd, setClienteVd] = useState<any>(null);
+    const [showNuevoVdDialog, setShowNuevoVdDialog] = useState(false);
+    const [searchClienteTerm, setSearchClienteTerm] = useState("");
+    const [clientesEncontrados, setClientesEncontrados] = useState<any[]>([]);
+    const [buscandoClientes, setBuscandoClientes] = useState(false);
+
+    const handleIniciarVerificacion = (v: any) => {
+        const c = v.cliente || {};
+        const d = v.detallesExtra || {};
+        const clienteData = {
+            id: v.clienteId || c.id || (typeof v.id === 'string' ? v.id.replace('pending-', '') : v.id),
+            nombreCompleto: c.nombreCompleto || d.nombreCliente || "Cliente",
+            nombre: c.nombreCompleto || d.nombreCliente || "Cliente",
+            codigoCliente: c.codigoCliente || d.codigoCliente || "-",
+            numContrato: c.numContrato || d.contrato || "",
+            direccionCompleta: c.direccionCompleta || d.direccion || "",
+            direccion: c.direccionCompleta || d.direccion || "",
+            telefono: c.telefono || d.telefono || "",
+            ciudad: d.municipio || "",
+            montoAcordado: d.montoPago || 0,
+            diaPago: d.diaPago || "LUNES",
+        };
+        setClienteVd(clienteData);
+        setIsModalOpen(false);
+        setShowNuevoVdDialog(false);
+        setVdModalOpen(true);
+    };
+
+    const buscarClientesParaVd = async (term: string) => {
+        setSearchClienteTerm(term);
+        if (!term || term.trim().length < 2) {
+            setClientesEncontrados([]);
+            return;
+        }
+        setBuscandoClientes(true);
+        try {
+            const res = await fetch(`/api/clientes?search=${encodeURIComponent(term)}&limit=10`);
+            if (res.ok) {
+                const data = await res.json();
+                setClientesEncontrados(data.clientes || []);
+            }
+        } catch (e) {
+            console.error("Error buscando clientes:", e);
+        } finally {
+            setBuscandoClientes(false);
+        }
+    };
 
     useEffect(() => {
         fetchCobradores();
@@ -774,18 +826,28 @@ export default function VerificacionesReportPage() {
         <DashboardLayout>
             <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-white">
-                    <div className="bg-blue-600 p-6 rounded-xl w-full shadow-lg border border-blue-400">
-                        <div className="flex items-center gap-4">
-                            <div className="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
-                                <UserCheck className="h-8 w-8 text-white" />
+                    <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 p-4 sm:p-6 rounded-2xl w-full shadow-lg border border-blue-400/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 sm:gap-4">
+                            <div className="bg-white/20 p-2.5 sm:p-3 rounded-xl backdrop-blur-sm flex-shrink-0">
+                                <UserCheck className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                             </div>
                             <div>
-                                <h1 className="text-3xl font-bold tracking-tight">Verificaciones Domiciliarias</h1>
-                                <p className="text-blue-100 mt-1">
-                                    Historial y control de visitas domiciliarias de cuentas nuevas realizadas por el equipo de cobranza.
+                                <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Verificaciones Domiciliarias</h1>
+                                <p className="text-blue-100 text-xs sm:text-sm mt-0.5 sm:mt-1">
+                                    Historial y control de visitas domiciliarias de cuentas nuevas (VD).
                                 </p>
                             </div>
                         </div>
+                        <Button
+                            onClick={() => {
+                                setSearchClienteTerm("");
+                                setClientesEncontrados([]);
+                                setShowNuevoVdDialog(true);
+                            }}
+                            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wide px-4 py-3 h-auto rounded-xl shadow-lg shadow-amber-950/20 flex items-center justify-center gap-2 self-stretch sm:self-auto active:scale-95 transition-all"
+                        >
+                            <UserCheck className="h-4 w-4" /> + Realizar VD Nueva
+                        </Button>
                     </div>
                 </div>
 
@@ -916,13 +978,25 @@ export default function VerificacionesReportPage() {
                                 <Input type="date" value={fechaHasta} onChange={(e: any) => setFechaHasta(e.target.value)} className="border-gray-200" />
                             </div>
                         </div>
-                        <div className="mt-4 flex justify-end gap-2">
-                            <Button onClick={handlePrintList} variant="outline" className="border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm" disabled={loading || verificaciones.length === 0}>
-                                <Printer className="mr-2 h-4 w-4 text-blue-500" /> Visualizar / Imprimir PDF
+                        <div className="mt-4 flex flex-wrap justify-between items-center gap-2">
+                            <Button
+                                onClick={() => {
+                                    setSearchClienteTerm("");
+                                    setClientesEncontrados([]);
+                                    setShowNuevoVdDialog(true);
+                                }}
+                                className="bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs uppercase shadow-sm flex items-center gap-1.5 h-9 px-3.5 rounded-xl"
+                            >
+                                <UserCheck className="h-4 w-4" /> + Nueva VD
                             </Button>
-                            <Button onClick={exportarExcel} variant="outline" className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 shadow-sm font-bold" disabled={loading || verificaciones.length === 0}>
-                                <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" /> Exportar a Excel (.xlsx)
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button onClick={handlePrintList} variant="outline" className="border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm text-xs h-9 px-3 rounded-xl" disabled={loading || verificaciones.length === 0}>
+                                    <Printer className="mr-1.5 h-3.5 w-3.5 text-blue-500" /> PDF
+                                </Button>
+                                <Button onClick={exportarExcel} variant="outline" className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 shadow-sm font-bold text-xs h-9 px-3 rounded-xl" disabled={loading || verificaciones.length === 0}>
+                                    <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5 text-emerald-600" /> Excel
+                                </Button>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
@@ -1021,18 +1095,28 @@ export default function VerificacionesReportPage() {
                                                 </td>
                                                 <td className="px-6 py-4 text-center">
                                                     {v.estatus === 'PENDIENTE' ? (
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="h-8 text-[11px] font-bold uppercase tracking-tight border-amber-300 text-amber-700 hover:bg-amber-50"
-                                                            onClick={() => {
-                                                                setSelectedVerificacion(v);
-                                                                setIsModalOpen(true);
-                                                            }}
-                                                        >
-                                                            <Info className="w-3.5 h-3.5 mr-1 text-amber-600" />
-                                                            Ficha VD
-                                                        </Button>
+                                                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                                            <Button
+                                                                size="sm"
+                                                                className="h-8 text-[11px] font-black uppercase tracking-tight bg-orange-600 hover:bg-orange-500 text-white shadow-sm flex items-center gap-1 px-2.5 rounded-lg active:scale-95 transition-all"
+                                                                onClick={() => handleIniciarVerificacion(v)}
+                                                            >
+                                                                <UserCheck className="w-3.5 h-3.5" />
+                                                                Realizar VD
+                                                            </Button>
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-8 text-[11px] font-bold uppercase tracking-tight border-amber-300 text-amber-700 hover:bg-amber-50 px-2 rounded-lg"
+                                                                onClick={() => {
+                                                                    setSelectedVerificacion(v);
+                                                                    setIsModalOpen(true);
+                                                                }}
+                                                            >
+                                                                <Info className="w-3.5 h-3.5 mr-0.5 text-amber-600" />
+                                                                Ficha
+                                                            </Button>
+                                                        </div>
                                                     ) : (
                                                         <Button
                                                             variant="outline"
@@ -1113,9 +1197,9 @@ export default function VerificacionesReportPage() {
 
                 return (
                     <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 border-none rounded-2xl overflow-hidden shadow-2xl bg-white text-slate-800">
+                        <DialogContent className="w-[96vw] sm:w-full max-w-4xl max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto p-0 border-none rounded-2xl overflow-hidden shadow-2xl bg-white text-slate-800 gap-0 [&>button]:text-white [&>button]:bg-black/30 [&>button]:rounded-full [&>button]:p-1.5 [&>button]:top-3 [&>button]:right-3">
                             {/* Header */}
-                            <div className={`${v.estatus === 'PENDIENTE' ? 'bg-amber-950' : 'bg-slate-900'} p-6 text-white sticky top-0 z-10 shadow-md`}>
+                            <div className={`${v.estatus === 'PENDIENTE' ? 'bg-amber-950' : 'bg-slate-900'} p-4 sm:p-6 pr-12 text-white sticky top-0 z-10 shadow-md`}>
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="flex gap-2">
                                         <Badge className={`${v.estatus === 'PENDIENTE' ? 'bg-amber-600' : 'bg-blue-600'} text-white font-bold tracking-widest text-[9px] uppercase border-none px-2 py-0.5`}>
@@ -1133,12 +1217,12 @@ export default function VerificacionesReportPage() {
                                     </div>
                                     <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
                                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                                        {v.estatus === 'PENDIENTE' ? 'Registrado / Asignado:' : 'Capturado:'} {formatDate(v.fecha)}
+                                        {v.estatus === 'PENDIENTE' ? 'Registrado:' : 'Capturado:'} {formatDate(v.fecha)}
                                     </span>
                                 </div>
-                                <DialogTitle className="text-2xl font-black tracking-tight flex items-center gap-2">
-                                    <UserCheck className={`h-6 w-6 ${v.estatus === 'PENDIENTE' ? 'text-amber-500' : 'text-blue-500'}`} /> 
-                                    {v.cliente?.nombreCompleto || d.nombreCliente || "Cliente Desconocido"}
+                                <DialogTitle className="text-lg sm:text-2xl font-black tracking-tight flex items-center gap-2">
+                                    <UserCheck className={`h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0 ${v.estatus === 'PENDIENTE' ? 'text-amber-500' : 'text-blue-500'}`} /> 
+                                    <span className="truncate">{v.cliente?.nombreCompleto || d.nombreCliente || "Cliente Desconocido"}</span>
                                 </DialogTitle>
                                 <DialogDescription className="text-slate-300 font-semibold text-xs mt-1.5 flex items-center gap-2 flex-wrap">
                                     <span className="px-2 py-0.5 bg-blue-600 text-white font-mono font-black rounded text-[11px] shadow-sm">
@@ -1149,24 +1233,31 @@ export default function VerificacionesReportPage() {
                             </div>
 
                             {v.estatus === 'PENDIENTE' ? (
-                                <div className="p-6 space-y-6">
-                                    <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl">
+                                <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+                                    <div className="bg-amber-50 border border-amber-200 p-4 sm:p-5 rounded-2xl space-y-3">
                                         <div className="flex items-start gap-3">
-                                            <div className="p-2 bg-amber-100 rounded-xl text-amber-700">
-                                                <Clock className="w-6 h-6" />
+                                            <div className="p-2 bg-amber-100 rounded-xl text-amber-700 flex-shrink-0">
+                                                <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
                                             </div>
                                             <div>
-                                                <h4 className="font-black text-amber-900 text-sm uppercase tracking-wide">
+                                                <h4 className="font-black text-amber-900 text-xs sm:text-sm uppercase tracking-wide">
                                                     Verificación Domiciliaria en Espera de Visita
                                                 </h4>
-                                                <p className="text-amber-800 text-xs mt-1 leading-relaxed">
+                                                <p className="text-amber-800 text-[11px] sm:text-xs mt-1 leading-relaxed">
                                                     Esta cuenta ingresó mediante <strong>Importación con Bienvenida</strong> y se clasificó automáticamente como <strong>VD (Verificación Domiciliaria)</strong>.
                                                 </p>
-                                                <p className="text-amber-800 text-xs mt-1 leading-relaxed">
-                                                    El gestor asignado <strong>{v.gestor?.name || "Sin gestor asignado"}</strong> {v.gestor?.codigoGestor ? `(${v.gestor.codigoGestor})` : ""} debe realizar la visita física al domicilio del cliente y capturar el cuestionario de auditoría de 35 campos con fotografía de fachada en su aplicación móvil.
+                                                <p className="text-amber-800 text-[11px] sm:text-xs mt-1 leading-relaxed">
+                                                    El gestor asignado <strong>{v.gestor?.name || "Sin gestor asignado"}</strong> {v.gestor?.codigoGestor ? `(${v.gestor.codigoGestor})` : ""} debe realizar la visita física y capturar la auditoría.
                                                 </p>
                                             </div>
                                         </div>
+
+                                        <Button
+                                            onClick={() => handleIniciarVerificacion(v)}
+                                            className="w-full h-12 bg-orange-600 hover:bg-orange-500 text-white font-black text-xs uppercase rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-orange-950/20 active:scale-98 transition-all"
+                                        >
+                                            <UserCheck className="w-4 h-4" /> CAPTURAR / REALIZAR VD AHORA
+                                        </Button>
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1504,6 +1595,136 @@ export default function VerificacionesReportPage() {
                         </div>
                     </DialogContent>
                 </Dialog>
+            )}
+
+            {/* Modal para Buscar Cliente y Realizar VD Nueva */}
+            <Dialog open={showNuevoVdDialog} onOpenChange={setShowNuevoVdDialog}>
+                <DialogContent className="w-[96vw] sm:w-full max-w-lg max-h-[90dvh] p-0 border border-slate-200 rounded-2xl overflow-hidden shadow-2xl bg-white text-slate-800 flex flex-col gap-0 [&>button]:top-3 [&>button]:right-3">
+                    <div className="bg-gradient-to-r from-orange-600 to-amber-600 p-4 text-white flex-none pr-12">
+                        <Badge className="bg-white/20 text-white font-bold text-[9px] uppercase border-none mb-1">
+                            Cobranza en Campo
+                        </Badge>
+                        <DialogTitle className="text-base sm:text-lg font-black tracking-tight flex items-center gap-2">
+                            <UserCheck className="h-5 w-5" /> Nueva Verificación Domiciliaria (VD)
+                        </DialogTitle>
+                        <DialogDescription className="text-orange-100 text-xs mt-0.5">
+                            Busca un cliente para realizar la visita y cuestionario de auditoría domiciliaria.
+                        </DialogDescription>
+                    </div>
+
+                    <div className="p-4 border-b border-slate-100 bg-slate-50 flex-none space-y-2">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <Input
+                                placeholder="Buscar por nombre, código o teléfono..."
+                                value={searchClienteTerm}
+                                onChange={(e: any) => buscarClientesParaVd(e.target.value)}
+                                className="pl-9 bg-white border-slate-200 text-xs h-10"
+                                autoFocus
+                            />
+                        </div>
+                        {buscandoClientes && (
+                            <p className="text-[11px] text-orange-600 font-medium animate-pulse flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-orange-600 animate-ping" /> Buscando clientes...
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 divide-y divide-slate-100 overscroll-contain">
+                        {searchClienteTerm.trim().length >= 2 ? (
+                            clientesEncontrados.length === 0 ? (
+                                <div className="py-8 text-center text-slate-400">
+                                    <AlertCircle className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                                    <p className="font-semibold text-xs text-slate-600">No se encontraron clientes</p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">Verifica el nombre o código ingresado</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Resultados de búsqueda</p>
+                                    {clientesEncontrados.map((cli: any) => (
+                                        <div
+                                            key={cli.id}
+                                            onClick={() => handleIniciarVerificacion({ cliente: cli })}
+                                            className="p-3 rounded-xl border border-slate-200 hover:border-orange-500 hover:bg-orange-50/50 cursor-pointer transition-all flex items-center justify-between group"
+                                        >
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-bold text-slate-900 text-xs truncate group-hover:text-orange-600 transition-colors">
+                                                        {cli.nombreCompleto || cli.nombre}
+                                                    </p>
+                                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-100 text-blue-800">
+                                                        {cli.codigoCliente || "-"}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                                                    {cli.direccionCompleta || cli.direccion || "Sin dirección"}
+                                                </p>
+                                            </div>
+                                            <Button size="sm" className="h-7 text-[10px] font-bold bg-orange-600 hover:bg-orange-700 text-white ml-2 flex-shrink-0">
+                                                Seleccionar
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )
+                        ) : (
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-black text-amber-700 uppercase tracking-wider flex items-center gap-1">
+                                    <Clock className="w-3.5 h-3.5" /> Cuentas Pendientes de Verificación (VD)
+                                </p>
+                                {verificaciones.filter(v => v.estatus === 'PENDIENTE').length === 0 ? (
+                                    <p className="text-xs text-slate-400 italic py-4 text-center">
+                                        No hay cuentas pendientes de VD actualmente. Escribe en el buscador para verificar a cualquier otro cliente.
+                                    </p>
+                                ) : (
+                                    verificaciones.filter(v => v.estatus === 'PENDIENTE').slice(0, 15).map(v => (
+                                        <div
+                                            key={v.id}
+                                            onClick={() => handleIniciarVerificacion(v)}
+                                            className="p-3 rounded-xl border border-amber-200 bg-amber-50/30 hover:border-orange-500 hover:bg-orange-50/70 cursor-pointer transition-all flex items-center justify-between group"
+                                        >
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-bold text-slate-900 text-xs truncate group-hover:text-orange-600 transition-colors">
+                                                        {v.cliente?.nombreCompleto || v.detallesExtra?.nombreCliente}
+                                                    </p>
+                                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-100 text-blue-800">
+                                                        {v.cliente?.codigoCliente || v.detallesExtra?.codigoCliente || "-"}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                                                    {v.cliente?.direccionCompleta || v.detallesExtra?.direccion || "Sin dirección"}
+                                                </p>
+                                            </div>
+                                            <Button size="sm" className="h-7 text-[10px] font-bold bg-orange-600 hover:bg-orange-700 text-white ml-2 flex-shrink-0">
+                                                Iniciar VD
+                                            </Button>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Captura de Verificación Domiciliaria (VD) */}
+            {clienteVd && (
+                <VerificacionModal
+                    cliente={clienteVd}
+                    isOpen={vdModalOpen}
+                    onClose={() => {
+                        setVdModalOpen(false);
+                        setClienteVd(null);
+                    }}
+                    onSuccess={() => {
+                        setVdModalOpen(false);
+                        setClienteVd(null);
+                        fetchVerificaciones();
+                        toast.success("Verificación domiciliaria guardada exitosamente");
+                    }}
+                    isOnline={typeof navigator !== 'undefined' ? navigator.onLine : true}
+                />
             )}
         </DashboardLayout>
     );

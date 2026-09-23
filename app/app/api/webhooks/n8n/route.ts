@@ -1149,7 +1149,7 @@ export async function POST(req: Request) {
                     abono: t.monto
                 };
 
-                let mov = await prisma.movimientoSantander22001022837.findFirst({ where: qClause });
+                let mov: any = await prisma.movimientoSantander22001022837.findFirst({ where: qClause });
                 let tabla = 'santander';
                 let subTabla = 'santander_22';
                 if (!mov) {
@@ -1535,21 +1535,62 @@ export async function POST(req: Request) {
         const isNumericRef = Boolean(referencia && referencia !== 'null' && /^\d{6,}$/.test(String(referencia).trim()) && !isCompanyAccountRef);
         const forzarCreacion = Boolean(body.forzar || body.force);
 
-        const existingTicket = forzarCreacion ? null : await prisma.ticket.findFirst({
-            where: {
-                clienteId: cliente.id,
-                OR: [
-                    (legacyIdNum) ? { legacyId: legacyIdNum } : { id: 'none' },
-                    (isClaveRastreoValida) ? { claveRastreo: String(claverastreo).trim() } : { id: 'none' },
-                    (isFolioValido && dayStart && dayEnd) ? { folio: { in: folioVariants }, fecha: { gte: dayStart, lte: dayEnd } } : (isFolioValido) ? { folio: { in: folioVariants } } : { id: 'none' },
-                    (isNumericRef && dayStart && dayEnd) ? { referencia: String(referencia).trim(), fecha: { gte: dayStart, lte: dayEnd } } : { id: 'none' },
-                    {
-                        monto: parseFloat(monto || '0'),
-                        creadoEn: { gte: fifteenMinutesAgo }
-                    }
-                ]
+        let existingTicket: any = null;
+
+        if (!forzarCreacion) {
+            // 1. Si viene con legacyId específico
+            if (legacyIdNum) {
+                existingTicket = await prisma.ticket.findFirst({
+                    where: { legacyId: legacyIdNum }
+                });
             }
-        });
+
+            // 2. Si tiene clave de rastreo bancaria válida (SPEI, Spin, Nu, STP)
+            // La clave de rastreo es un identificador único en el sistema bancario nacional
+            if (!existingTicket && isClaveRastreoValida) {
+                existingTicket = await prisma.ticket.findFirst({
+                    where: {
+                        claveRastreo: String(claverastreo).trim()
+                    }
+                });
+            }
+
+            // 3. Si tiene folio válido (depósitos en efectivo, OXXO, transferencias con folio)
+            if (!existingTicket && isFolioValido) {
+                existingTicket = await prisma.ticket.findFirst({
+                    where: {
+                        clienteId: cliente.id,
+                        folio: { in: folioVariants },
+                        ...(dayStart && dayEnd ? { fecha: { gte: dayStart, lte: dayEnd } } : {})
+                    }
+                });
+            }
+
+            // 4. Si tiene referencia numérica única
+            if (!existingTicket && isNumericRef) {
+                existingTicket = await prisma.ticket.findFirst({
+                    where: {
+                        clienteId: cliente.id,
+                        referencia: String(referencia).trim(),
+                        ...(dayStart && dayEnd ? { fecha: { gte: dayStart, lte: dayEnd } } : {})
+                    }
+                });
+            }
+
+            // 5. SOLO si NO cuenta con NINGÚN identificador único (ni clave de rastreo, ni folio, ni referencia),
+            // aplicamos una ventana de debounce anti-duplicados por reintentos accidentales (últimos 5 minutos)
+            const tieneIdentificadorUnico = Boolean(legacyIdNum || isClaveRastreoValida || isFolioValido || isNumericRef);
+            if (!existingTicket && !tieneIdentificadorUnico && parseFloat(monto || '0') > 0) {
+                const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+                existingTicket = await prisma.ticket.findFirst({
+                    where: {
+                        clienteId: cliente.id,
+                        monto: parseFloat(monto || '0'),
+                        creadoEn: { gte: fiveMinutesAgo }
+                    }
+                });
+            }
+        }
 
         if (existingTicket) {
             // Si la fecha o hora enviada es válida y el ticket NO está ya conciliado ni es histórico, actualizar fecha

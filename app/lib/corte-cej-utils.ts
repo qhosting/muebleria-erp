@@ -80,7 +80,8 @@ export interface ResumenProblemasCEJ {
   intervencionIT: { cuentas: number; pesos: number };
   adelantadoAD: { cuentas: number; pesos: number };
   periodoPE: { cuentas: number; pesos: number };
-  pagoSemPS: { cuentas: number; pesos: number };
+  fugaFU: { cuentas: number; pesos: number };
+  pagoSemPS: { cuentas: number; pesos: number }; // Alias por retrocompatibilidad
   dictLegalDL: { cuentas: number; pesos: number };
   totalProblemas: { cuentas: number; pesos: number };
   cuentasRuta: { cuentas: number; pesos: number };
@@ -485,6 +486,7 @@ export function calcularResumenCEJDesdeDetalles(detalles: (DetalleCalculadoCEJ |
     intervencionIT: { cuentas: 0, pesos: 0 },
     adelantadoAD: { cuentas: 0, pesos: 0 },
     periodoPE: { cuentas: 0, pesos: 0 },
+    fugaFU: { cuentas: 0, pesos: 0 },
     pagoSemPS: { cuentas: 0, pesos: 0 },
     dictLegalDL: { cuentas: 0, pesos: 0 },
     cuentasRuta: { cuentas: 0, pesos: 0 },
@@ -597,7 +599,9 @@ export function calcularResumenCEJDesdeDetalles(detalles: (DetalleCalculadoCEJ |
     } else if (prob.includes("PE") || prob === "PERIODO") {
       problemasAgg.periodoPE.cuentas++;
       problemasAgg.periodoPE.pesos += pagoSugerido;
-    } else if (prob.includes("PS") || prob === "PAGO SEM") {
+    } else if (prob.includes("FU") || prob.includes("FUGA") || prob.includes("PS") || prob === "PAGO SEM") {
+      problemasAgg.fugaFU.cuentas++;
+      problemasAgg.fugaFU.pesos += pagoSugerido;
       problemasAgg.pagoSemPS.cuentas++;
       problemasAgg.pagoSemPS.pesos += pagoSugerido;
     } else if (prob.includes("DL") || prob.includes("DICT")) {
