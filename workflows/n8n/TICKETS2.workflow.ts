@@ -226,8 +226,9 @@ export class Tickets2Workflow {
         operation: 'analyze',
         modelId: {
             __rl: true,
-            value: 'gpt-5.6-luna',
-            mode: 'id',
+            value: 'gpt-4o-mini',
+            mode: 'list',
+            cachedResultName: 'GPT-4O-MINI',
         },
         text: `=Tu única función es actuar como un API de extracción de datos de recibos de pago y comprobantes digitales. Analiza la imagen y devuelve **exclusivamente un objeto JSON válido**. Si un campo no se encuentra, su valor debe ser \`null\`. No inventes datos ni incluyas texto adicional.
 
