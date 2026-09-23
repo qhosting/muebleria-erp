@@ -89,10 +89,26 @@ export async function POST(request: NextRequest) {
             id: true,
             name: true,
             email: true,
+            codigoGestor: true,
           },
         },
       },
     });
+
+    // Sincronizar gestor en corte de semana actual si se actualizó el cobrador
+    if (cobradorId !== undefined) {
+      try {
+        const { syncClienteGestorEnCorteActual } = await import('@/lib/sync-corte-gestor');
+        await syncClienteGestorEnCorteActual(
+          clienteActualizado.id,
+          clienteActualizado.codigoCliente,
+          cobradorId || null,
+          clienteExistente.cobradorAsignadoId
+        );
+      } catch (sError) {
+        console.error('Error sincronizando gestor en bulk-update:', sError);
+      }
+    }
 
     // Convert Decimal fields to numbers for JSON serialization
     const clienteSerializado = {

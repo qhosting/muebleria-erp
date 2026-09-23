@@ -181,7 +181,7 @@ export async function PUT(
     // Detectar si se asignó un nuevo cobrador para notificarle
     const clienteActual = await prisma.cliente.findUnique({
       where: { id: params.id },
-      select: { cobradorAsignadoId: true, statusCuenta: true }
+      select: { cobradorAsignadoId: true, statusCuenta: true, codigoCliente: true }
     });
 
     const cliente = await prisma.cliente.update({
@@ -250,10 +250,26 @@ export async function PUT(
             id: true,
             name: true,
             email: true,
+            codigoGestor: true,
           },
         },
       },
     });
+
+    // SINCRONIZAR GESTOR ASIGNADO EN LISTA DE COBRANZA (SÓLO SEMANA ACTUAL)
+    if (cobradorAsignadoId !== undefined) {
+      try {
+        const { syncClienteGestorEnCorteActual } = await import('@/lib/sync-corte-gestor');
+        await syncClienteGestorEnCorteActual(
+          params.id,
+          cliente.codigoCliente,
+          cobradorAsignadoId || null,
+          clienteActual?.cobradorAsignadoId
+        );
+      } catch (sError) {
+        console.error('Error sincronizando gestor en corte de semana actual:', sError);
+      }
+    }
 
     // NOTIFICAR AL COBRADOR ASIGNADO
     if (cobradorAsignadoId && cobradorAsignadoId !== clienteActual?.cobradorAsignadoId) {

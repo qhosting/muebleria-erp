@@ -556,7 +556,7 @@ export default function ClientesPage() {
                           </span>
                         ) : (
                           <>
-                            <span className="font-mono text-sm">{cliente.codigoCliente}</span>
+                            <span className="font-mono text-xs font-black bg-blue-600 text-white px-2 py-0.5 rounded shadow-sm tracking-wide">{cliente.codigoCliente}</span>
                             {getStatusBadge(cliente.statusCuenta)}
                           </>
                         )}

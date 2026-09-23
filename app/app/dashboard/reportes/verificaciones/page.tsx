@@ -19,12 +19,14 @@ import {
     ExternalLink, 
     Image as ImageIcon,
     FileText,
+    FileSpreadsheet,
     Printer,
     Clock,
     AlertCircle,
     CheckCircle2,
     Users
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -128,41 +130,97 @@ export default function VerificacionesReportPage() {
         return val === true || val === "true" || val === "SI" || val === 1 ? "SI" : "NO";
     };
 
-    const formatCSVCell = (val: any) => {
-        if (val === undefined || val === null) return '""';
-        const str = String(val);
-        return `"${str.replace(/"/g, '""')}"`;
-    };
-
     const exportarExcel = () => {
-        if (verificaciones.length === 0) return;
+        if (verificaciones.length === 0) {
+            toast.error("No hay registros para exportar");
+            return;
+        }
 
-        const headers = [
-            "ID", "Estatus", "Fecha Registro", "Codigo Cliente", "Nombre Cliente", "Gestor", "Contrato",
-            "Calles de Referencia", "Municipio", "Direccion Detalle",
-            "Tipo Casa", "Casa 2 Plantas", "Condominio Abierto", "Condominio Cerrado",
-            "Gas", "Luz", "Agua", "Telefono", "Terraceria", "Zona Cobertura",
-            "Calificacion Vivienda", "Estructura Material", "Estructura Madera", "Estructura Lamina",
-            "Calificacion Mobiliario", "Computadora", "Sala", "Comedor", "Refrigerador", "Estufa", "DVD",
-            "Recomendacion Vecinos", "Enganche", "Plazo", "Abono", "Dia Pago",
-            "Codigo Gestor", "Fecha Visita", "Latitud", "Longitud", "Observaciones"
-        ];
+        const toastId = toast.loading("Generando Excel oficial de verificaciones...");
 
-        const csvContent = [
-            headers,
-            ...verificaciones.map((v: any) => {
+        try {
+            const wb = XLSX.utils.book_new();
+
+            const titleRows = [
+                ["GRUPO MUEBLERO DASO SA DE CV"],
+                ["REPORTE OFICIAL DE VERIFICACIONES DOMICILIARIAS"],
+                [
+                    `Período: ${fechaDesde} al ${fechaHasta}`,
+                    "",
+                    `Gestor: ${selectedGestor === 'TODOS' ? 'TODOS LOS GESTORES' : selectedGestor}`,
+                    "",
+                    `Total Cuentas: ${verificaciones.length}`,
+                    "",
+                    `Fecha Emisión: ${new Date().toLocaleDateString("es-MX")}`
+                ],
+                [] // Separador
+            ];
+
+            const headers = [
+                "#",
+                "ID Registro",
+                "Estatus",
+                "Fecha Registro",
+                "Fecha Visita",
+                "Código Cliente",
+                "Nombre Cliente",
+                "Gestor Asignado",
+                "Código Gestor",
+                "Teléfono",
+                "Dirección Validada",
+                "Municipio",
+                "Calles de Referencia",
+                "Zona Cobertura",
+                "Latitud GPS",
+                "Longitud GPS",
+                "Tipo Vivienda",
+                "Casa 2 Plantas",
+                "Condominio Abierto",
+                "Condominio Cerrado",
+                "Servicio Gas",
+                "Servicio Luz",
+                "Servicio Agua",
+                "Servicio Teléfono",
+                "Calle Terracería",
+                "Calificación Vivienda",
+                "Estructura Material",
+                "Estructura Madera",
+                "Estructura Lámina",
+                "Calificación Mobiliario",
+                "Tiene Sala",
+                "Tiene Comedor",
+                "Tiene Refrigerador",
+                "Tiene Estufa",
+                "Tiene Computadora",
+                "Tiene DVD",
+                "Dictamen Vecinos",
+                "Enganche ($)",
+                "Plazo (Semanas)",
+                "Abono Sugerido ($)",
+                "Día Pago",
+                "Contrato",
+                "Observaciones"
+            ];
+
+            const rows = verificaciones.map((v: any, index: number) => {
                 const d = v.detallesExtra || {};
                 return [
+                    index + 1,
                     v.id,
                     v.estatus || "EFECTUADA",
                     v.fecha ? v.fecha.split("T")[0] : "-",
+                    d.fecha || (v.fecha ? v.fecha.split("T")[0] : "-"),
                     v.cliente?.codigoCliente || d.codigoCliente || "-",
                     v.cliente?.nombreCompleto || d.nombreCliente || "-",
                     v.gestor?.name || "-",
-                    d.contrato || "-",
-                    d.refCalles || "-",
-                    d.municipio || "-",
+                    d.codigoGestor || v.gestor?.codigoGestor || "-",
+                    v.cliente?.telefono || d.telefono || "-",
                     d.direccion || v.cliente?.direccionCompleta || "-",
+                    d.municipio || "-",
+                    d.refCalles || "-",
+                    d.zona || "DENTRO DE ZONA",
+                    d.latitud || "-",
+                    d.longitud || "-",
                     d.tipoCasa || "CASA",
                     getBoolText(d.casa2Plantas),
                     getBoolText(d.condominioAbierto),
@@ -172,39 +230,87 @@ export default function VerificacionesReportPage() {
                     getBoolText(d.agua),
                     getBoolText(d.telefono),
                     getBoolText(d.terraceria),
-                    d.zona || "DENTRO DE ZONA",
                     d.vivienda || "BUENO",
                     getBoolText(d.material !== undefined ? d.material : true),
                     getBoolText(d.madera),
                     getBoolText(d.lamina),
                     d.condicionMobiliario || "BUENO",
-                    getBoolText(d.computadora),
                     getBoolText(d.sala !== undefined ? d.sala : true),
                     getBoolText(d.comedor !== undefined ? d.comedor : true),
                     getBoolText(d.refrigerador !== undefined ? d.refrigerador : true),
                     getBoolText(d.estufa !== undefined ? d.estufa : true),
+                    getBoolText(d.computadora),
                     getBoolText(d.dvd),
                     d.infoVecinos || "LO RECOMIENDA",
-                    d.enganche || "-",
-                    d.plazo || "-",
-                    d.abono || "-",
+                    d.enganche ? Number(d.enganche) : 0,
+                    d.plazo ? Number(d.plazo) : 0,
+                    d.abono ? Number(d.abono) : 0,
                     d.diaPago || "-",
-                    d.codigoGestor || "-",
-                    d.fecha || "-",
-                    d.latitud || "-",
-                    d.longitud || "-",
+                    d.contrato || "-",
                     d.observacion || "-"
-                ].map(formatCSVCell);
-            })
-        ].map(e => e.join(",")).join("\n");
+                ];
+            });
 
-        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: "text/csv;charset=utf-8;" });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `Reporte-Verificaciones-${fechaDesde}.csv`;
-        a.click();
-        toast.success("Descarga de reporte iniciada");
+            const sheetData = [...titleRows, headers, ...rows];
+            const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+            // Anchos de columna automáticos
+            ws['!cols'] = [
+                { wch: 5 },  // #
+                { wch: 25 }, // ID
+                { wch: 14 }, // Estatus
+                { wch: 14 }, // Fecha Registro
+                { wch: 14 }, // Fecha Visita
+                { wch: 18 }, // Código Cliente
+                { wch: 32 }, // Nombre Cliente
+                { wch: 24 }, // Gestor Asignado
+                { wch: 14 }, // Código Gestor
+                { wch: 16 }, // Teléfono
+                { wch: 38 }, // Dirección
+                { wch: 20 }, // Municipio
+                { wch: 25 }, // Calles
+                { wch: 18 }, // Zona
+                { wch: 14 }, // Latitud
+                { wch: 14 }, // Longitud
+                { wch: 14 }, // Tipo Vivienda
+                { wch: 14 }, // 2 Plantas
+                { wch: 16 }, // Condo Abierto
+                { wch: 16 }, // Condo Cerrado
+                { wch: 12 }, // Gas
+                { wch: 12 }, // Luz
+                { wch: 12 }, // Agua
+                { wch: 14 }, // Teléfono
+                { wch: 14 }, // Terracería
+                { wch: 18 }, // Calificación Vivienda
+                { wch: 16 }, // Material
+                { wch: 14 }, // Madera
+                { wch: 14 }, // Lámina
+                { wch: 18 }, // Mobiliario
+                { wch: 12 }, // Sala
+                { wch: 12 }, // Comedor
+                { wch: 14 }, // Refrigerador
+                { wch: 12 }, // Estufa
+                { wch: 16 }, // Computadora
+                { wch: 12 }, // DVD
+                { wch: 20 }, // Vecinos
+                { wch: 14 }, // Enganche
+                { wch: 14 }, // Plazo
+                { wch: 14 }, // Abono
+                { wch: 12 }, // Día Pago
+                { wch: 14 }, // Contrato
+                { wch: 40 }  // Observaciones
+            ];
+
+            XLSX.utils.book_append_sheet(wb, ws, "VERIFICACIONES");
+            XLSX.writeFile(wb, `Reporte-Verificaciones-${fechaDesde}-al-${fechaHasta}.xlsx`);
+
+            toast.dismiss(toastId);
+            toast.success("Excel (.xlsx) generado y descargado con éxito");
+        } catch (error) {
+            console.error("Error al exportar Excel:", error);
+            toast.dismiss(toastId);
+            toast.error("Error al generar el archivo Excel");
+        }
     };
 
     const handlePrintList = () => {
@@ -814,8 +920,8 @@ export default function VerificacionesReportPage() {
                             <Button onClick={handlePrintList} variant="outline" className="border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm" disabled={loading || verificaciones.length === 0}>
                                 <Printer className="mr-2 h-4 w-4 text-blue-500" /> Visualizar / Imprimir PDF
                             </Button>
-                            <Button onClick={exportarExcel} variant="outline" className="border-blue-200 text-blue-700 hover:bg-blue-50 shadow-sm" disabled={loading || verificaciones.length === 0}>
-                                <Download className="mr-2 h-4 w-4" /> Exportar CSV (35 Campos)
+                            <Button onClick={exportarExcel} variant="outline" className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 shadow-sm font-bold" disabled={loading || verificaciones.length === 0}>
+                                <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" /> Exportar a Excel (.xlsx)
                             </Button>
                         </div>
                     </CardContent>
@@ -861,8 +967,10 @@ export default function VerificacionesReportPage() {
                                                     {formatDate(v.fecha).split(' ')[0]}
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <p className="font-bold text-gray-900 leading-none mb-1 group-hover:text-blue-600 transition-colors">{v.cliente?.nombreCompleto || v.detallesExtra?.nombreCliente || "Desconocido"}</p>
-                                                    <p className="text-[10px] text-gray-400 font-mono tracking-widest">{v.cliente?.codigoCliente || v.detallesExtra?.codigoCliente || "-"}</p>
+                                                    <p className="font-bold text-gray-900 leading-none mb-1.5 group-hover:text-blue-600 transition-colors">{v.cliente?.nombreCompleto || v.detallesExtra?.nombreCliente || "Desconocido"}</p>
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-black bg-blue-600 text-white shadow-sm tracking-wide">
+                                                        {v.cliente?.codigoCliente || v.detallesExtra?.codigoCliente || "-"}
+                                                    </span>
                                                 </td>
                                                 <td className="px-6 py-4 max-w-xs">
                                                     <p className="truncate text-gray-700 text-xs font-medium mb-1" title={v.cliente?.direccionCompleta || v.detallesExtra?.direccion}>
@@ -1032,8 +1140,11 @@ export default function VerificacionesReportPage() {
                                     <UserCheck className={`h-6 w-6 ${v.estatus === 'PENDIENTE' ? 'text-amber-500' : 'text-blue-500'}`} /> 
                                     {v.cliente?.nombreCompleto || d.nombreCliente || "Cliente Desconocido"}
                                 </DialogTitle>
-                                <DialogDescription className="text-slate-300 font-semibold text-xs mt-1">
-                                    Código: {v.cliente?.codigoCliente || d.codigoCliente || "-"} • Contrato: {d.contrato || "Sin Contrato"} • Gestor Asignado: {v.gestor?.name || "Sin asignar"}
+                                <DialogDescription className="text-slate-300 font-semibold text-xs mt-1.5 flex items-center gap-2 flex-wrap">
+                                    <span className="px-2 py-0.5 bg-blue-600 text-white font-mono font-black rounded text-[11px] shadow-sm">
+                                        {v.cliente?.codigoCliente || d.codigoCliente || "-"}
+                                    </span>
+                                    <span>• Contrato: {d.contrato || "Sin Contrato"} • Gestor Asignado: {v.gestor?.name || "Sin asignar"}</span>
                                 </DialogDescription>
                             </div>
 

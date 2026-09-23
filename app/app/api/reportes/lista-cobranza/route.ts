@@ -16,7 +16,7 @@ import {
   clasificarCanalPago,
   clasificarCanalDesdeTipoCobro
 } from "@/lib/corte-cej-utils";
-import { calcularRangoSemanaSabadoViernes } from "@/lib/calendario-cobranza-utils";
+import { calcularRangoSemanaSabadoViernes, calcularSemanaCobranzaSabadoViernes } from "@/lib/calendario-cobranza-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +44,9 @@ export async function GET(request: NextRequest) {
 
     const semana = parseInt(semanaStr);
     const anio = anioStr ? parseInt(anioStr) : new Date().getFullYear();
+
+    const semActual = calcularSemanaCobranzaSabadoViernes(new Date());
+    const esSemanaActual = (anio === semActual.anio && semana === semActual.semana);
 
     // 1. Obtener calendario para determinar periodicidades activas y fechas oficiales
     const calendario = await prisma.calendarioCobranza.findUnique({
@@ -96,7 +99,7 @@ export async function GET(request: NextRequest) {
     if (corteGuardado) {
       const debeRecalcular = corteGuardado.estatus === "abierto" || forzarEnVivo;
 
-      // Cargar mapa de domicilios de los clientes del corte
+      // Cargar mapa de domicilios y cobradores actuales de los clientes del corte
       const codigosCorte = corteGuardado.detalles.map((d) => d.codigoCliente);
       const clientesDirs = await prisma.cliente.findMany({
         where: { codigoCliente: { in: codigosCorte } },
@@ -106,7 +109,10 @@ export async function GET(request: NextRequest) {
           calle: true,
           numeroExterior: true,
           colonia: true,
-          ciudad: true
+          ciudad: true,
+          cobradorAsignado: {
+            select: { id: true, name: true, codigoGestor: true }
+          }
         }
       });
       const dirMap = new Map(
@@ -115,47 +121,62 @@ export async function GET(request: NextRequest) {
           c.direccionCompleta || [c.calle, c.numeroExterior, c.colonia, c.ciudad].filter(Boolean).join(" ") || "-"
         ])
       );
+      const infoMap = new Map(
+        clientesDirs.map((c) => [
+          c.codigoCliente.toUpperCase().trim(),
+          c
+        ])
+      );
 
       if (!debeRecalcular) {
         // Corte cerrado y no forzado en vivo: devolver corte histórico estático
-        const detallesSerializados = corteGuardado.detalles.map((d) => ({
-          id: d.id,
-          clienteId: d.clienteId,
-          codigoCliente: d.codigoCliente,
-          numContrato: d.numContrato || "-",
-          periodoInicial: d.periodoInicial ? d.periodoInicial.toISOString().split("T")[0] : "-",
-          nombreCompleto: d.nombreCliente,
-          periodicidad: d.periodicidad,
-          montoPago: parseFloat(d.pagoSugerido.toString()),
-          saldoVencido: parseFloat(d.saldoVencido.toString()),
-          pv: d.pv,
-          saldoActual: parseFloat(d.saldoActual.toString()),
-          gestor: d.gestor || "-",
-          sup: d.sup,
-          moratorio: parseFloat(d.moratorio.toString()),
-          pvr: d.pvr ? parseFloat(d.pvr.toString()) : 0,
-          pagoReal: parseFloat(d.pagoReal.toString()),
-          diaPago: normalizarDiaSemana(d.diaPago || d.pagoAnalista),
-          tipoCobro: d.tipoCobro || "0",
-          telefono: d.telefono || "-",
-          telefonoTrabajo: d.telefono2 || "-",
-          c: d.c,
-          pagoAnalista: normalizarDiaSemana(d.diaPago || d.pagoAnalista),
-          problema: d.problema,
-          pagoDoble: parseFloat(d.pagoDoble.toString()),
-          numPagosDobles: d.numPagosDobles,
-          recuperadoPv: parseFloat(d.recuperadoPv.toString()),
-          numPagosDobles2: d.numPagosDobles2,
-          comisionAnalista: parseFloat(d.comisionAnalista.toString()),
-          fechaPago: d.fechaPago ? d.fechaPago.toISOString() : null,
-          serie: d.serie || "",
-          tipCob: d.tipCob || "0",
-          canalCobro: clasificarCanalDesdeTipoCobro(d.tipoCobro || ""),
-          montoBot: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "BANCOS_BOT" ? parseFloat(d.pagoReal.toString()) : 0,
-          montoBancosGestor: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "BANCOS_GESTOR" ? parseFloat(d.pagoReal.toString()) : 0,
-          montoGestor: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "GESTOR" ? parseFloat(d.pagoReal.toString()) : 0,
-          domicilio: dirMap.get(d.codigoCliente.toUpperCase().trim()) || "-"
-        }));
+        const detallesSerializados = corteGuardado.detalles.map((d) => {
+          const cod = d.codigoCliente.toUpperCase().trim();
+          const cInfo = infoMap.get(cod);
+          let gestor = d.gestor || "-";
+          if (esSemanaActual && cInfo?.cobradorAsignado) {
+            gestor = cInfo.cobradorAsignado.codigoGestor || cInfo.cobradorAsignado.name || gestor;
+          }
+
+          return {
+            id: d.id,
+            clienteId: d.clienteId,
+            codigoCliente: d.codigoCliente,
+            numContrato: d.numContrato || "-",
+            periodoInicial: d.periodoInicial ? d.periodoInicial.toISOString().split("T")[0] : "-",
+            nombreCompleto: d.nombreCliente,
+            periodicidad: d.periodicidad,
+            montoPago: parseFloat(d.pagoSugerido.toString()),
+            saldoVencido: parseFloat(d.saldoVencido.toString()),
+            pv: d.pv,
+            saldoActual: parseFloat(d.saldoActual.toString()),
+            gestor,
+            sup: d.sup,
+            moratorio: parseFloat(d.moratorio.toString()),
+            pvr: d.pvr ? parseFloat(d.pvr.toString()) : 0,
+            pagoReal: parseFloat(d.pagoReal.toString()),
+            diaPago: normalizarDiaSemana(d.diaPago || d.pagoAnalista),
+            tipoCobro: d.tipoCobro || "0",
+            telefono: d.telefono || "-",
+            telefonoTrabajo: d.telefono2 || "-",
+            c: d.c,
+            pagoAnalista: normalizarDiaSemana(d.diaPago || d.pagoAnalista),
+            problema: d.problema,
+            pagoDoble: parseFloat(d.pagoDoble.toString()),
+            numPagosDobles: d.numPagosDobles,
+            recuperadoPv: parseFloat(d.recuperadoPv.toString()),
+            numPagosDobles2: d.numPagosDobles2,
+            comisionAnalista: parseFloat(d.comisionAnalista.toString()),
+            fechaPago: d.fechaPago ? d.fechaPago.toISOString() : null,
+            serie: d.serie || "",
+            tipCob: d.tipCob || "0",
+            canalCobro: clasificarCanalDesdeTipoCobro(d.tipoCobro || ""),
+            montoBot: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "BANCOS_BOT" ? parseFloat(d.pagoReal.toString()) : 0,
+            montoBancosGestor: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "BANCOS_GESTOR" ? parseFloat(d.pagoReal.toString()) : 0,
+            montoGestor: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "GESTOR" ? parseFloat(d.pagoReal.toString()) : 0,
+            domicilio: dirMap.get(cod) || "-"
+          };
+        });
 
         let resumenDiario = corteGuardado.resumenDiario as any[];
         const totalPptoDiario = Array.isArray(resumenDiario)
@@ -384,10 +405,24 @@ export async function GET(request: NextRequest) {
           problema = "RUTA";
         }
 
+        // Determinar gestor: si es semana actual y se cambió el cobrador, reflejarlo
+        const cInfo = infoMap.get(cod);
+        let gestor = d.gestor || "-";
+        if (esSemanaActual && cInfo?.cobradorAsignado) {
+          gestor = cInfo.cobradorAsignado.codigoGestor || cInfo.cobradorAsignado.name || gestor;
+        }
+
         // Detectar si varió respecto a la BD para persistir
         const pagoPrevio = parseFloat(d.pagoReal.toString());
         const moratorioPrevio = parseFloat(d.moratorio.toString());
-        if (pagoPrevio !== pagoReal || moratorioPrevio !== moratorio || d.problema !== problema || d.tipoCobro !== tipoCobro) {
+        const gestorPrevio = d.gestor || "-";
+        if (
+          pagoPrevio !== pagoReal ||
+          moratorioPrevio !== moratorio ||
+          d.problema !== problema ||
+          d.tipoCobro !== tipoCobro ||
+          (esSemanaActual && gestorPrevio !== gestor)
+        ) {
           detallesModificadosParaBD.push({
             id: d.id,
             pagoReal,
@@ -399,7 +434,8 @@ export async function GET(request: NextRequest) {
             fechaPago: fechaPago ? new Date(fechaPago) : null,
             serie,
             tipoCobro,
-            problema
+            problema,
+            gestor
           });
         }
 
@@ -415,7 +451,7 @@ export async function GET(request: NextRequest) {
           saldoVencido,
           pv: d.pv,
           saldoActual,
-          gestor: d.gestor || "-",
+          gestor,
           sup: d.sup,
           moratorio: moratorio,
           pvr,
@@ -594,7 +630,8 @@ export async function GET(request: NextRequest) {
                   fechaPago: dm.fechaPago,
                   serie: dm.serie,
                   tipoCobro: dm.tipoCobro,
-                  problema: dm.problema
+                  problema: dm.problema,
+                  ...(dm.gestor ? { gestor: dm.gestor } : {})
                 }
               });
             }

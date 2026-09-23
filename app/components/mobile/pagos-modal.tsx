@@ -478,7 +478,7 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
                             {cliente.nombreCompleto || cliente.nombre || "Sin Nombre"}
                           </CardTitle>
                           <span 
-                            className="font-mono bg-blue-100 text-blue-900 font-bold px-2 py-0.5 rounded text-xs select-all flex items-center gap-1 cursor-copy border border-blue-200 active:bg-blue-200"
+                            className="font-mono bg-blue-600 text-white font-black px-2.5 py-1 rounded-md text-xs select-all flex items-center gap-1.5 cursor-copy border border-blue-700 shadow-sm active:bg-blue-700"
                             onClick={async (e) => {
                               e.stopPropagation();
                               const code = cliente.codigoCliente || cliente.numContrato || cliente.id;
@@ -494,7 +494,7 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
                             title="Tocar para copiar código"
                           >
                             {cliente.codigoCliente || cliente.numContrato || cliente.id}
-                            <Copy className="w-3 h-3 text-blue-700 inline flex-shrink-0" />
+                            <Copy className="w-3.5 h-3.5 text-blue-100 inline flex-shrink-0" />
                           </span>
                         </div>
                       </CardHeader>

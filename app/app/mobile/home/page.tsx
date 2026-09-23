@@ -482,11 +482,11 @@ export default function MobileHome() {
                                     <p className="text-sm font-bold text-slate-200 truncate">{c.nombre}</p>
                                     <div className="flex items-center gap-1.5 mt-0.5">
                                         {c.codigo && (
-                                            <span className="flex items-center gap-0.5 text-[10px] text-slate-500 font-mono">
-                                                <Hash className="w-2.5 h-2.5" />{c.codigo}
+                                            <span className="flex items-center gap-0.5 text-[10px] text-white bg-blue-600 font-mono font-bold px-1.5 py-0.5 rounded shadow-sm">
+                                                <Hash className="w-2.5 h-2.5 text-blue-100" />{c.codigo}
                                             </span>
                                         )}
-                                        <span className="text-[10px] text-slate-600">{c.direccion?.slice(0, 30)}</span>
+                                        <span className="text-[10px] text-slate-400">{c.direccion?.slice(0, 30)}</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">

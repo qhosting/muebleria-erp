@@ -101,17 +101,17 @@ export function ProfileModal({ cliente, onClose, onAviso }: ProfileModalProps) {
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1">
                                 <span 
-                                    className="font-mono bg-blue-900/80 text-blue-200 font-bold px-2.5 py-1 rounded text-xs select-all flex items-center gap-1.5 cursor-copy border border-blue-600/60 active:bg-blue-800"
+                                    className="font-mono bg-blue-600 text-white font-black px-2.5 py-1 rounded-md text-xs select-all flex items-center gap-1.5 cursor-copy border border-blue-500 shadow-sm active:bg-blue-700"
                                     onClick={() => handleCopyText(codigoVal, "Código de cliente")}
                                     onTouchEnd={() => handleCopyText(codigoVal, "Código de cliente")}
                                     title="Tocar para copiar código"
                                 >
                                     Código: {codigoVal}
-                                    <Copy className="w-3.5 h-3.5 text-blue-300 inline" />
+                                    <Copy className="w-3.5 h-3.5 text-blue-100 inline" />
                                 </span>
                                 {cliente.numContrato && cliente.numContrato !== codigoVal && (
                                     <span 
-                                        className="font-mono bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded text-xs select-all flex items-center gap-1.5 cursor-copy border border-slate-700 active:bg-slate-700"
+                                        className="font-mono bg-slate-800 text-white font-bold px-2 py-0.5 rounded text-xs select-all flex items-center gap-1.5 cursor-copy border border-slate-700 shadow-sm active:bg-slate-700"
                                         onClick={() => handleCopyText(cliente.numContrato!, "Contrato")}
                                         onTouchEnd={() => handleCopyText(cliente.numContrato!, "Contrato")}
                                         title="Tocar para copiar contrato"

@@ -990,7 +990,7 @@ function MobileClientes() {
                                 {(cliente.numContrato || cliente.codigoCliente) && (
                                     <div className="flex items-center gap-1.5">
                                         <span 
-                                            className="text-[10px] text-sky-300 bg-sky-950/80 font-mono px-2 py-0.5 rounded border border-sky-700/60 select-all cursor-copy flex items-center gap-1 active:bg-sky-900"
+                                            className="text-[11px] text-white bg-blue-600 font-mono font-black px-2 py-0.5 rounded-md border border-blue-700 shadow-sm select-all cursor-copy flex items-center gap-1 active:bg-blue-700"
                                             onClick={async (e) => {
                                                 e.stopPropagation();
                                                 const code = cliente.numContrato || cliente.codigoCliente;
@@ -1006,7 +1006,7 @@ function MobileClientes() {
                                             title="Tocar para copiar código/contrato"
                                         >
                                             {cliente.numContrato || cliente.codigoCliente}
-                                            <Copy className="w-2.5 h-2.5 text-sky-400 inline flex-shrink-0" />
+                                            <Copy className="w-2.5 h-2.5 text-blue-100 inline flex-shrink-0" />
                                         </span>
                                     </div>
                                 )}
@@ -1117,7 +1117,7 @@ function MobileClientes() {
                                     {(detailCliente.numContrato || detailCliente.codigoCliente) ? (
                                         <div className="flex items-center gap-2 mt-1.5">
                                             <span
-                                                className="text-xs font-mono font-bold text-sky-300 bg-sky-950/80 px-2.5 py-1 rounded-md border border-sky-700/60 select-all cursor-copy flex items-center gap-1.5 active:bg-sky-900"
+                                                className="text-xs font-mono font-black text-white bg-blue-600 px-2.5 py-1 rounded-md border border-blue-700 shadow-sm select-all cursor-copy flex items-center gap-1.5 active:bg-blue-700"
                                                 onClick={async () => {
                                                     const code = detailCliente.numContrato || detailCliente.codigoCliente;
                                                     const success = await copyToClipboard(code);
@@ -1131,7 +1131,7 @@ function MobileClientes() {
                                                 title="Tocar para copiar código/contrato"
                                             >
                                                 {detailCliente.numContrato || detailCliente.codigoCliente}
-                                                <Copy className="w-3 h-3 text-sky-400 inline" />
+                                                <Copy className="w-3 h-3 text-blue-100 inline" />
                                             </span>
                                         </div>
                                     ) : null}

@@ -147,13 +147,13 @@ export function ClientCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span 
-                className="font-mono bg-blue-100 text-blue-900 font-bold px-2 py-0.5 rounded text-xs select-all flex items-center gap-1.5 cursor-copy border border-blue-200 active:bg-blue-200"
+                className="font-mono bg-blue-600 text-white font-black px-2.5 py-1 rounded-md text-xs select-all flex items-center gap-1.5 cursor-copy border border-blue-700 shadow-sm active:bg-blue-700"
                 onClick={(e) => handleCopy(e, codigoClienteVal, "Código / Contrato")}
                 onTouchEnd={(e) => handleCopy(e, codigoClienteVal, "Código / Contrato")}
                 title="Tocar para copiar código/contrato"
               >
                 {codigoClienteVal}
-                <Copy className="w-3.5 h-3.5 text-blue-700 inline flex-shrink-0" />
+                <Copy className="w-3.5 h-3.5 text-blue-100 inline flex-shrink-0" />
               </span>
               <h3 
                 className="font-bold text-lg leading-tight truncate select-text"
@@ -177,13 +177,13 @@ export function ClientCard({
               <span>{getDayName(cliente.diaPago)} - {formatCurrency(cliente.montoAcordado)}</span>
               {cliente.numContrato && cliente.numContrato !== codigoClienteVal && (
                 <span 
-                  className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold text-slate-600 dark:text-slate-300 select-all cursor-copy border border-slate-300 flex items-center gap-1 active:bg-slate-200"
+                  className="px-2 py-0.5 bg-slate-800 text-white rounded text-[11px] font-bold select-all cursor-copy border border-slate-700 shadow-sm flex items-center gap-1 active:bg-slate-700"
                   onClick={(e) => handleCopy(e, cliente.numContrato!, "Número de Contrato")}
                   onTouchEnd={(e) => handleCopy(e, cliente.numContrato!, "Número de Contrato")}
                   title="Tocar para copiar contrato"
                 >
                   Contrato: {cliente.numContrato}
-                  <Copy className="w-3 h-3 text-slate-500 inline flex-shrink-0" />
+                  <Copy className="w-3 h-3 text-slate-300 inline flex-shrink-0" />
                 </span>
               )}
             </p>
