@@ -57,6 +57,7 @@ export default async function PublicReceiptPage({ params }: PublicReceiptPagePro
                         telefono: true,
                         direccionCompleta: true,
                         diaPago: true,
+                        saldoVencido: true,
                     }
                 },
                 cobrador: {
@@ -97,7 +98,8 @@ export default async function PublicReceiptPage({ params }: PublicReceiptPagePro
             },
             saldos: {
                 anterior: parseFloat(pago.saldoAnterior.toString()),
-                nuevo: parseFloat(pago.saldoNuevo.toString())
+                nuevo: parseFloat(pago.saldoNuevo.toString()),
+                vencido: (pago.cliente as any)?.saldoVencido ? parseFloat((pago.cliente as any).saldoVencido.toString()) : 0
             },
             empresa: {
                 nombre: 'Muebles Daso',

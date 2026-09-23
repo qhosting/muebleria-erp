@@ -31,6 +31,7 @@ export interface TicketData {
     anterior: number;
     nuevo: number;
     consolidado?: number;
+    vencido?: number;
   };
   empresa: {
     nombre: string;
@@ -208,6 +209,13 @@ export function VisualizarTicketModal({
                 <span>Saldo Actual:</span>
                 <span>{formatCurrency(ticketData.saldos.nuevo)}</span>
               </div>
+
+              {(ticketData.saldos.vencido !== undefined && ticketData.saldos.vencido !== null) && (
+                <div className="flex justify-between font-bold text-rose-700">
+                  <span>Saldo Vencido:</span>
+                  <span>{formatCurrency(ticketData.saldos.vencido)}</span>
+                </div>
+              )}
 
               {ticketData.saldos.consolidado && ticketData.saldos.consolidado > ticketData.saldos.nuevo && (
                 <div className="mt-1 pt-1 border-t border-dotted border-slate-300 text-center space-y-0.5">

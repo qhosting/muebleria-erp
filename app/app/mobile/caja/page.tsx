@@ -247,6 +247,9 @@ export default function MobileCaja() {
                 saldos: {
                     anterior: data.saldoAnterior,
                     nuevo: data.saldoNuevo,
+                    vencido: (data.cliente?.saldoVencido !== undefined && data.cliente?.saldoVencido !== null)
+                        ? Number(data.cliente.saldoVencido)
+                        : undefined
                 },
                 empresa: {
                     nombre: 'Grupo Mueblero DASO',
@@ -298,6 +301,9 @@ export default function MobileCaja() {
                 saldos: {
                     anterior: pago.saldoAnterior,
                     nuevo: pago.saldoNuevo,
+                    vencido: (pago.cliente?.saldoVencido !== undefined && pago.cliente?.saldoVencido !== null)
+                        ? Number(pago.cliente.saldoVencido)
+                        : undefined
                 },
                 empresa: {
                     nombre: 'Grupo Mueblero DASO',

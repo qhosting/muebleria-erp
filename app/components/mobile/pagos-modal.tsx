@@ -95,6 +95,7 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
       montoTotal: Number(pago.monto || 0) + Number((pago as any).interesMoratorio || 0) + Number((pago as any).gastosCobranza || 0),
       saldoAnterior: Number(pago.saldoAnterior || 0),
       saldoNuevo: Number(pago.saldoNuevo || 0),
+      saldoVencido: cliente.saldoVencido !== undefined && cliente.saldoVencido !== null ? Number(cliente.saldoVencido) : undefined,
       metodoPago: pago.metodoPago || 'GESTOR',
       concepto: pago.concepto || 'Abono Regular',
       cobradorNombre: pago.cobrador?.name || (session?.user as any)?.name || 'Gestor'
@@ -245,7 +246,10 @@ export function PagosModal({ cliente, isOpen, onClose, isOnline }: PagosModalPro
       },
       saldos: {
         anterior: pago.saldoAnterior,
-        nuevo: pago.saldoNuevo
+        nuevo: pago.saldoNuevo,
+        vencido: (cliente.saldoVencido !== undefined && cliente.saldoVencido !== null)
+          ? Number(cliente.saldoVencido)
+          : (pago as any).saldoVencido !== undefined ? Number((pago as any).saldoVencido) : undefined
       },
       empresa: {
         nombre: 'Grupo Mueblero DASO',

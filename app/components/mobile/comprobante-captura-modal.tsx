@@ -20,6 +20,7 @@ export interface ComprobanteData {
   montoTotal: number;
   saldoAnterior: number;
   saldoNuevo: number;
+  saldoVencido?: number;
   metodoPago?: string;
   concepto?: string;
   cobradorNombre?: string;
@@ -71,10 +72,10 @@ export function ComprobanteCapturaModal({
       `💵 *Monto Abono:* ${formatCurrency(abono)}\n` +
       (moratorio > 0 ? `⚠️ *Moratorio:* ${formatCurrency(moratorio)}\n` : '') +
       (gastos > 0 ? `📋 *Gastos Cobranza:* ${formatCurrency(gastos)}\n` : '') +
-      `💰 *TOTAL COBRADO:* ${formatCurrency(total)}\n\n` +
       `📊 *Saldo Anterior:* ${formatCurrency(data.saldoAnterior)}\n` +
-      `✅ *NUEVO SALDO:* ${formatCurrency(data.saldoNuevo)}\n\n` +
-      `¡Gracias por su pago!`;
+      `✅ *NUEVO SALDO:* ${formatCurrency(data.saldoNuevo)}\n` +
+      (data.saldoVencido !== undefined && data.saldoVencido !== null ? `⚠️ *Saldo Vencido:* ${formatCurrency(data.saldoVencido)}\n` : '') +
+      `\n¡Gracias por su pago!`;
 
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -91,10 +92,10 @@ export function ComprobanteCapturaModal({
       `💵 *Monto Abono:* ${formatCurrency(abono)}\n` +
       (moratorio > 0 ? `⚠️ *Moratorio:* ${formatCurrency(moratorio)}\n` : '') +
       (gastos > 0 ? `📋 *Gastos Cobranza:* ${formatCurrency(gastos)}\n` : '') +
-      `💰 *TOTAL COBRADO:* ${formatCurrency(total)}\n\n` +
       `📊 *Saldo Anterior:* ${formatCurrency(data.saldoAnterior)}\n` +
-      `✅ *NUEVO SALDO:* ${formatCurrency(data.saldoNuevo)}\n\n` +
-      `¡Gracias por su pago!`;
+      `✅ *NUEVO SALDO:* ${formatCurrency(data.saldoNuevo)}\n` +
+      (data.saldoVencido !== undefined && data.saldoVencido !== null ? `⚠️ *Saldo Vencido:* ${formatCurrency(data.saldoVencido)}\n` : '') +
+      `\n¡Gracias por su pago!`;
 
     const telefonoLimpio = data.clienteTelefono ? formatWhatsAppNumber(data.clienteTelefono) : '';
     const url = telefonoLimpio
@@ -153,7 +154,7 @@ export function ComprobanteCapturaModal({
               <div className="text-sm font-bold text-white flex items-center justify-between">
                 <span className="truncate select-text">{data.clienteNombre}</span>
                 <span 
-                  className="font-mono bg-blue-900/80 text-blue-200 px-2 py-0.5 rounded text-[11px] select-all flex items-center gap-1 cursor-copy border border-blue-700/60 active:bg-blue-800"
+                  className="font-mono bg-blue-600 text-white font-black px-2.5 py-0.5 rounded text-[11px] select-all flex items-center gap-1 cursor-copy border border-blue-700 shadow-sm active:bg-blue-700"
                   onClick={async (e) => {
                     e.stopPropagation();
                     const success = await copyToClipboard(data.clienteCodigo);
@@ -167,7 +168,7 @@ export function ComprobanteCapturaModal({
                   title="Tocar para copiar código"
                 >
                   {data.clienteCodigo}
-                  <Copy className="w-3 h-3 text-blue-300 inline flex-shrink-0" />
+                  <Copy className="w-3 h-3 text-blue-100 inline flex-shrink-0" />
                 </span>
               </div>
             </div>
@@ -213,15 +214,21 @@ export function ComprobanteCapturaModal({
           </div>
 
           {/* Estado de Cuenta */}
-          <div className="bg-gradient-to-r from-slate-900 to-slate-900/80 rounded-2xl p-4 border border-slate-800/90 grid grid-cols-2 gap-3 text-center">
+          <div className={`bg-gradient-to-r from-slate-900 to-slate-900/80 rounded-2xl p-4 border border-slate-800/90 grid ${data.saldoVencido !== undefined && data.saldoVencido !== null ? 'grid-cols-3' : 'grid-cols-2'} gap-2 text-center`}>
             <div>
               <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">Saldo Anterior</p>
-              <p className="text-sm font-bold text-slate-300">{formatCurrency(data.saldoAnterior)}</p>
+              <p className="text-xs sm:text-sm font-bold text-slate-300">{formatCurrency(data.saldoAnterior)}</p>
             </div>
-            <div className="border-l border-slate-800 pl-3">
+            <div className="border-l border-slate-800 pl-2">
               <p className="text-[10px] text-emerald-400 uppercase font-bold tracking-wider mb-1">Nuevo Saldo</p>
-              <p className="text-lg font-black text-emerald-400">{formatCurrency(data.saldoNuevo)}</p>
+              <p className="text-sm sm:text-base font-black text-emerald-400">{formatCurrency(data.saldoNuevo)}</p>
             </div>
+            {data.saldoVencido !== undefined && data.saldoVencido !== null && (
+              <div className="border-l border-slate-800 pl-2">
+                <p className="text-[10px] text-rose-400 uppercase font-bold tracking-wider mb-1">Vencido</p>
+                <p className="text-sm sm:text-base font-black text-rose-400">{formatCurrency(data.saldoVencido)}</p>
+              </div>
+            )}
           </div>
 
           {/* Pie de comprobante */}

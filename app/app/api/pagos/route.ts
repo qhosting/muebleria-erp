@@ -71,6 +71,7 @@ export async function GET(request: NextRequest) {
               codigoCliente: true,
               nombreCompleto: true,
               saldoActual: true,
+              saldoVencido: true,
               diaPago: true,
               telefono: true,
               direccionCompleta: true,
@@ -138,6 +139,7 @@ export async function GET(request: NextRequest) {
         cliente: pago.cliente ? {
           ...pago.cliente,
           saldoActual: pago.cliente.saldoActual ? parseFloat(pago.cliente.saldoActual.toString()) : 0,
+          saldoVencido: (pago.cliente as any).saldoVencido ? parseFloat((pago.cliente as any).saldoVencido.toString()) : 0,
         } : null,
       };
     });
@@ -357,6 +359,8 @@ export async function POST(request: NextRequest) {
             select: {
               codigoCliente: true,
               nombreCompleto: true,
+              saldoActual: true,
+              saldoVencido: true,
             },
           },
           cobrador: {

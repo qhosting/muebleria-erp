@@ -26,6 +26,7 @@ export async function GET(
             direccionCompleta: true,
             diaPago: true,
             saldoActual: true,
+            saldoVencido: true,
             codigoCliente: true,
           }
         },
@@ -78,6 +79,7 @@ export async function GET(
       cliente: {
         ...pagoAny.cliente,
         saldoActual: saldoCli,
+        saldoVencido: pagoAny.cliente?.saldoVencido ? parseFloat(pagoAny.cliente.saldoVencido.toString()) : 0,
       }
     };
 

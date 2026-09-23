@@ -141,15 +141,21 @@ export function ReceiptClientPage({ ticketData, expiresAt }: ReceiptClientPagePr
                     {/* Estado de Cuenta */}
                     <div className="space-y-3">
                         <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Estado de Cuenta</h2>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className={`grid ${(ticketData.saldos as any).vencido !== undefined && (ticketData.saldos as any).vencido !== null ? 'grid-cols-3' : 'grid-cols-2'} gap-2.5`}>
                             <div className="bg-slate-950/60 border border-slate-800 p-3.5 rounded-2xl">
                                 <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">Saldo Anterior</p>
-                                <p className="text-base font-bold font-mono text-slate-400">{formatCurrency(ticketData.saldos.anterior)}</p>
+                                <p className="text-sm sm:text-base font-bold font-mono text-slate-400">{formatCurrency(ticketData.saldos.anterior)}</p>
                             </div>
                             <div className="bg-slate-950/60 border border-slate-800 p-3.5 rounded-2xl">
-                                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">Nuevo Saldo</p>
-                                <p className="text-base font-black font-mono text-emerald-400">{formatCurrency(ticketData.saldos.nuevo)}</p>
+                                <p className="text-[10px] text-emerald-400 uppercase font-bold tracking-wider mb-1">Nuevo Saldo</p>
+                                <p className="text-sm sm:text-base font-black font-mono text-emerald-400">{formatCurrency(ticketData.saldos.nuevo)}</p>
                             </div>
+                            {(ticketData.saldos as any).vencido !== undefined && (ticketData.saldos as any).vencido !== null && (
+                                <div className="bg-slate-950/60 border border-slate-800 p-3.5 rounded-2xl">
+                                    <p className="text-[10px] text-rose-400 uppercase font-bold tracking-wider mb-1">Vencido</p>
+                                    <p className="text-sm sm:text-base font-black font-mono text-rose-400">{formatCurrency((ticketData.saldos as any).vencido)}</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 

@@ -420,6 +420,9 @@ export default function PagosPage() {
         saldos: {
           anterior: sAnt > 0 ? sAnt : sNvo + abono,
           nuevo: sNvo,
+          vencido: (pago.cliente as any)?.saldoVencido !== undefined && (pago.cliente as any)?.saldoVencido !== null
+            ? Number((pago.cliente as any).saldoVencido)
+            : undefined,
         },
         empresa: {
           nombre: 'Grupo Mueblero DASO',
@@ -515,8 +518,8 @@ export default function PagosPage() {
             ${Number(t.pago.gastosCobranza || 0) > 0 ? `<div class="row"><span>Gastos Cobranza:</span><span>$${t.pago.gastosCobranza?.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>` : ''}
             <div class="divider"></div>
             <div class="row bold"><span>TOTAL RECIBIDO:</span><span>$${totalRecibido.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>
-            <div class="divider"></div>
             <div class="row bold"><span>SALDO ACTUAL:</span><span>$${t.saldos.nuevo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>
+            ${(t.saldos.vencido !== undefined && t.saldos.vencido !== null) ? `<div class="row bold" style="color: #b91c1c;"><span>SALDO VENCIDO:</span><span>$${Number(t.saldos.vencido).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span></div>` : ''}
             ${t.saldos.nuevo <= 0 ? `<div class="center bold" style="margin-top: 6px;">*** CLIENTE AL DIA ***</div>` : ''}
             <div class="divider"></div>
             <div><span class="bold">Cobrador:</span> ${t.cobrador.nombre}</div>

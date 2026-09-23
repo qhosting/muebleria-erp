@@ -93,7 +93,8 @@ function MobileClientes() {
                 },
                 saldos: {
                     anterior: selectedCliente.saldo,
-                    nuevo: selectedCliente.saldo - parseFloat(montoCobrar)
+                    nuevo: selectedCliente.saldo - parseFloat(montoCobrar),
+                    vencido: selectedCliente.saldoVencido ? Number(selectedCliente.saldoVencido) : 0
                 },
                 empresa: {
                     nombre: 'Grupo Mueblero DASO',
@@ -145,6 +146,7 @@ function MobileClientes() {
                 saldos: {
                     anterior: Number(pago.saldoAnterior || 0),
                     nuevo: Number(pago.saldoNuevo || 0),
+                    vencido: clienteActivo.saldoVencido ? Number(clienteActivo.saldoVencido) : 0
                 },
                 empresa: {
                     nombre: 'Grupo Mueblero DASO',

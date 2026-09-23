@@ -93,6 +93,7 @@ export interface TicketData {
     anterior: number;
     nuevo: number;
     consolidado?: number;
+    vencido?: number;
   };
   empresa: {
     nombre: string;
@@ -937,6 +938,11 @@ class BluetoothPrinterService {
       ticket += this.createDivider() + this.LF;
       ticket += this.COMMANDS.BOLD_ON;
       ticket += 'Saldo Actual:' + this.rightAlignText(this.formatCurrency(ticketData.saldos.nuevo)) + this.LF;
+
+      const saldoVencidoVal = ticketData.saldos.vencido ?? (ticketData.cliente as any)?.saldoVencido;
+      if (saldoVencidoVal !== undefined && saldoVencidoVal !== null) {
+        ticket += 'Saldo Vencido:' + this.rightAlignText(this.formatCurrency(saldoVencidoVal)) + this.LF;
+      }
       
       if (ticketData.saldos.consolidado && ticketData.saldos.consolidado > ticketData.saldos.nuevo) {
         ticket += this.createDivider('.') + this.LF;

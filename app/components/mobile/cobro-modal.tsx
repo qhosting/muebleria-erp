@@ -144,7 +144,10 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline, onSh
       saldos: {
         anterior: calculatedValues.saldoAnterior,
         nuevo: calculatedValues.saldoNuevo,
-        consolidado: (cliente.saldoConsolidado || cliente.saldoPendiente) - calculatedValues.montoAbono
+        consolidado: (cliente.saldoConsolidado || cliente.saldoPendiente) - calculatedValues.montoAbono,
+        vencido: (cliente.saldoVencido !== undefined && cliente.saldoVencido !== null)
+          ? Math.max(0, Number(cliente.saldoVencido) - calculatedValues.montoAbono)
+          : undefined
       },
       empresa: {
         nombre: 'Grupo Mueblero DASO',
@@ -285,6 +288,10 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline, onSh
 
       // Actualizar el saldo del cliente en la DB local (Dexie) para que se refleje inmediatamente en el dashboard
       const clienteLocal = await db.clientes.get(cliente.id);
+      let nuevoVencido = Number(clienteLocal?.saldoVencido ?? cliente.saldoVencido ?? 0);
+      if (['regular', 'abono', 'liquidacion'].includes(tipoPago)) {
+        nuevoVencido = Math.max(0, nuevoVencido - calculatedValues.montoAbono);
+      }
       if (clienteLocal) {
         let nuevoSaldo = Number(clienteLocal.saldoPendiente || clienteLocal.saldo || 0);
         if (['regular', 'abono', 'liquidacion'].includes(tipoPago)) {
@@ -292,6 +299,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline, onSh
         }
         await db.clientes.update(cliente.id, {
           saldoPendiente: nuevoSaldo,
+          saldoVencido: nuevoVencido,
           fechaUltimoPago: pagoData.fechaPago,
           syncStatus: onlineSuccess ? 'synced' : 'pending'
         });
@@ -309,6 +317,7 @@ export function CobroModal({ cliente, isOpen, onClose, onSuccess, isOnline, onSh
         montoTotal: calculatedValues.montoTotal,
         saldoAnterior: calculatedValues.saldoAnterior,
         saldoNuevo: calculatedValues.saldoNuevo,
+        saldoVencido: nuevoVencido,
         metodoPago: metodoPago,
         concepto: concepto || 'Abono Regular',
         cobradorNombre: (session?.user as any)?.name || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_name') : null) || 'Cobrador'

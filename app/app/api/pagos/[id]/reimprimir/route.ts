@@ -34,6 +34,7 @@ export async function POST(
             ciudad: true,
             diaPago: true,
             saldoActual: true,
+            saldoVencido: true,
           },
         },
         cobrador: {
@@ -100,6 +101,7 @@ export async function POST(
       saldos: {
         anterior: saldoAnt > 0 ? saldoAnt : saldoNvo + abonoNum,
         nuevo: saldoNvo,
+        vencido: (pago.cliente as any)?.saldoVencido ? parseFloat((pago.cliente as any).saldoVencido.toString()) : 0,
       },
       empresa: {
         nombre: 'Grupo Mueblero DASO',

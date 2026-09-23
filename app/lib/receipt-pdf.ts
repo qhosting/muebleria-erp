@@ -155,11 +155,15 @@ export async function generateReceiptPdf(ticketData: any) {
   doc.text(formatCurrency(total), width - 6, currentY + 4.5, { align: 'right' });
 
   // 4. Estado Contable (Saldos)
+  const saldoVencidoVal = ticketData.saldos?.vencido ?? (ticketData.cliente as any)?.saldoVencido;
+  const hasVencido = saldoVencidoVal !== undefined && saldoVencidoVal !== null;
+  const boxHeight = hasVencido ? 18 : 14;
+
   currentY += 11;
   doc.setFillColor(254, 242, 242); // Rojo muy claro
-  doc.rect(4, currentY, width - 8, 14, 'F');
+  doc.rect(4, currentY, width - 8, boxHeight, 'F');
   doc.setDrawColor(252, 165, 165); // Borde rojo claro
-  doc.rect(4, currentY, width - 8, 14, 'D');
+  doc.rect(4, currentY, width - 8, boxHeight, 'D');
 
   doc.setTextColor(185, 28, 28); // Rojo oscuro
   doc.setFont('helvetica', 'bold');
@@ -168,14 +172,21 @@ export async function generateReceiptPdf(ticketData: any) {
   
   doc.setFont('helvetica', 'normal');
   doc.text('Saldo Anterior:', 6, currentY + 9.5);
-  doc.text(formatCurrency(Number(ticketData.saldos?.anterior || 0)), 35, currentY + 9.5);
+  doc.text(formatCurrency(Number(ticketData.saldos?.anterior || 0)), 32, currentY + 9.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('NUEVO SALDO:', 55, currentY + 9.5);
-  doc.text(formatCurrency(Number(ticketData.saldos?.nuevo || 0)), 82, currentY + 9.5);
+  doc.text('NUEVO SALDO:', 50, currentY + 9.5);
+  doc.text(formatCurrency(Number(ticketData.saldos?.nuevo || 0)), 72, currentY + 9.5);
+
+  if (hasVencido) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(185, 28, 28);
+    doc.text('SALDO VENCIDO:', 6, currentY + 14.5);
+    doc.text(formatCurrency(Number(saldoVencidoVal)), 32, currentY + 14.5);
+  }
 
   // 5. Pie de Página y Decoración de Seguridad (Código QR / Barcode simulado)
-  currentY += 20;
+  currentY += hasVencido ? 24 : 20;
   
   // Línea decorativa
   doc.setDrawColor(226, 232, 240);
