@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import Link from "next/link";
 import { toast } from "sonner";
+import { ApkUpdateModal } from "@/components/mobile/apk-update-modal";
 
 interface CobradorLayoutProps {
     children: React.ReactNode;
@@ -261,6 +262,9 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
                     </div>
                 </nav>
             )}
+
+            {/* MODAL DE ACTUALIZACIÓN DEL APK CON VALIDACIÓN WI-FI */}
+            <ApkUpdateModal />
         </div>
     );
 }
