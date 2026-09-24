@@ -125,25 +125,50 @@ function CobranzaSemanalContenido() {
     const c = searchParams?.get("cartera")?.toUpperCase();
     return c === "DQ" ? "DQ" : c === "GLOBAL" || c === "TODAS" ? "GLOBAL" : "DP";
   });
-  const [diaFiltro, setDiaFiltro] = useState<string>("TODOS");
-  const [semana, setSemana] = useState<number | null>(null);
-  const [anio, setAnio] = useState<number | null>(null);
+  const [diaFiltro, setDiaFiltro] = useState<string>(() => {
+    return searchParams?.get("dia")?.toUpperCase() || "TODOS";
+  });
+  const [semana, setSemana] = useState<number | null>(() => {
+    const s = searchParams?.get("semana");
+    return s ? parseInt(s, 10) : null;
+  });
+  const [anio, setAnio] = useState<number | null>(() => {
+    const a = searchParams?.get("anio");
+    return a ? parseInt(a, 10) : null;
+  });
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReporteData | null>(null);
 
+  // Sincronizar URL para que siempre refleje la semana y filtros consultados
+  const sincronizarUrl = (sem?: number | null, yr?: number | null, cart?: string, dia?: string) => {
+    const p = new URLSearchParams();
+    if (sem) p.set("semana", sem.toString());
+    if (yr) p.set("anio", yr.toString());
+    if (cart) p.set("cartera", cart);
+    if (dia && dia !== "TODOS") p.set("dia", dia);
+    const qs = p.toString();
+    router.replace(qs ? `/dashboard/reportes/cobranza-semanal?${qs}` : "/dashboard/reportes/cobranza-semanal", { scroll: false });
+  };
+
   // Cargar datos
-  const cargarReporte = async (targetSemana?: number, targetAnio?: number, targetCartera?: string, targetDia?: string) => {
+  const cargarReporte = async (
+    targetSemana?: number | null,
+    targetAnio?: number | null,
+    targetCartera?: string,
+    targetDia?: string
+  ) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      const sem = targetSemana ?? semana;
-      const yr = targetAnio ?? anio;
+      // Si se pasa explícitamente null, consultará la semana actual por defecto en el backend
+      const sem = targetSemana !== undefined ? targetSemana : semana;
+      const yr = targetAnio !== undefined ? targetAnio : anio;
       const cart = targetCartera ?? cartera;
       const dia = targetDia ?? diaFiltro;
 
-      if (sem) params.set("semana", sem.toString());
-      if (yr) params.set("anio", yr.toString());
+      if (sem !== null && sem !== undefined) params.set("semana", sem.toString());
+      if (yr !== null && yr !== undefined) params.set("anio", yr.toString());
       params.set("cartera", cart);
       params.set("dia", dia);
 
@@ -155,6 +180,7 @@ function CobranzaSemanalContenido() {
       setData(json);
       setSemana(json.semana);
       setAnio(json.anio);
+      sincronizarUrl(json.semana, json.anio, cart, dia);
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Error al cargar reporte");
@@ -165,30 +191,39 @@ function CobranzaSemanalContenido() {
 
   useEffect(() => {
     const carteraQuery = searchParams?.get("cartera")?.toUpperCase();
+    let currentCartera: "DP" | "DQ" | "GLOBAL" = cartera;
     if (carteraQuery === "DP" || carteraQuery === "DQ" || carteraQuery === "GLOBAL" || carteraQuery === "TODAS") {
-      setCartera(carteraQuery === "TODAS" ? "GLOBAL" : (carteraQuery as "DP" | "DQ" | "GLOBAL"));
+      currentCartera = carteraQuery === "TODAS" ? "GLOBAL" : (carteraQuery as "DP" | "DQ" | "GLOBAL");
+      setCartera(currentCartera);
     }
-    const diaQuery = searchParams?.get("dia")?.toUpperCase();
-    if (diaQuery) {
-      setDiaFiltro(diaQuery);
-    }
-    cargarReporte();
-  }, [searchParams]);
+    const diaQuery = searchParams?.get("dia")?.toUpperCase() || "TODOS";
+    setDiaFiltro(diaQuery);
+
+    const semQuery = searchParams?.get("semana");
+    const anioQuery = searchParams?.get("anio");
+    const parsedSem = semQuery ? parseInt(semQuery, 10) : null;
+    const parsedAnio = anioQuery ? parseInt(anioQuery, 10) : null;
+    if (parsedSem) setSemana(parsedSem);
+    if (parsedAnio) setAnio(parsedAnio);
+
+    cargarReporte(parsedSem, parsedAnio, currentCartera, diaQuery);
+  }, []);
 
   const cambiarCartera = (nuevaCartera: "DP" | "DQ" | "GLOBAL") => {
     setCartera(nuevaCartera);
-    cargarReporte(semana ?? undefined, anio ?? undefined, nuevaCartera, diaFiltro);
+    cargarReporte(semana, anio, nuevaCartera, diaFiltro);
   };
 
   const cambiarDiaFiltro = (nuevoDia: string) => {
     setDiaFiltro(nuevoDia);
-    cargarReporte(semana ?? undefined, anio ?? undefined, cartera, nuevoDia);
+    cargarReporte(semana, anio, cartera, nuevoDia);
   };
 
   const navegarSemana = (delta: number) => {
-    if (!semana || !anio) return;
-    let nuevaSemana = semana + delta;
-    let nuevoAnio = anio;
+    const curSem = data?.semana ?? semana ?? 1;
+    const curAnio = data?.anio ?? anio ?? new Date().getFullYear();
+    let nuevaSemana = curSem + delta;
+    let nuevoAnio = curAnio;
     if (nuevaSemana < 1) {
       nuevaSemana = 52;
       nuevoAnio -= 1;
@@ -204,7 +239,7 @@ function CobranzaSemanalContenido() {
   const irSemanaActual = () => {
     setSemana(null);
     setAnio(null);
-    cargarReporte(undefined, undefined, cartera, diaFiltro);
+    cargarReporte(null, null, cartera, diaFiltro);
   };
 
   // Exportar a Excel
@@ -272,10 +307,10 @@ function CobranzaSemanalContenido() {
 
     // Hoja 2: Proyección Diaria
     const wsDiarioData = [
-      [`PROYECCIÓN Y LOGRO DIARIO - ${data.cartera}`],
-      [`Semana: ${data.semana}`, `Período: ${data.rangoSemana.label}`],
+      [`PROYECCIÓN Y LOGRO DIARIO - ${data.cartera} (SEMANA ${data.semana})`],
+      [`Semana Consultada: ${data.semana}`, `Período: ${data.rangoSemana.label}`],
       [""],
-      ["DÍA", "PROYECCIÓN", "LOGRO", "DIFERENCIA", "% CUMPLIMIENTO", "CTAS COBRADAS"],
+      [`SEMANA ${data.semana}`, "PROYECCIÓN", "LOGRO", "DIFERENCIA", "% CUMPLIMIENTO", "CTAS COBRADAS"],
       ...data.proyeccionDiaria.filas.map((d) => [
         d.dia,
         d.proyeccion,
@@ -306,7 +341,7 @@ function CobranzaSemanalContenido() {
         {/* Cabecera Principal */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b pb-4">
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl lg:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                 Cobranza Semanal
               </h1>
@@ -321,6 +356,11 @@ function CobranzaSemanalContenido() {
               >
                 {cartera === "DP" ? "CARTERA DP" : cartera === "DQ" ? "CARTERA DQ" : "CARTERA GLOBAL (DP + DQ)"}
               </Badge>
+              {data && (
+                <Badge variant="outline" className="font-mono text-xs font-bold border-slate-300 dark:border-slate-700">
+                  Semana {data.semana} ({data.anio})
+                </Badge>
+              )}
               {data?.esSemanaActual && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -329,7 +369,17 @@ function CobranzaSemanalContenido() {
               )}
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              Seguimiento de presupuestos, metas de cuentas y avance de cobranza diaria y por gestor.
+              {data ? (
+                <>
+                  Seguimiento de presupuestos y cobranza para la{" "}
+                  <strong className="text-slate-900 dark:text-white font-bold">
+                    Semana {data.semana}
+                  </strong>{" "}
+                  ({data.rangoSemana.label}).
+                </>
+              ) : (
+                "Seguimiento de presupuestos, metas de cuentas y avance de cobranza diaria y por gestor."
+              )}
             </p>
           </div>
 
@@ -416,7 +466,7 @@ function CobranzaSemanalContenido() {
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <div className="px-3 text-center">
+              <div className="px-3 text-center min-w-[130px]">
                 <div className="text-xs font-black text-slate-800 dark:text-slate-200">
                   Semana {data?.semana ?? "--"} ({data?.anio ?? "--"})
                 </div>
@@ -435,12 +485,33 @@ function CobranzaSemanalContenido() {
               </Button>
             </div>
 
+            {/* Selector desplegable directo de semanas */}
+            <Select
+              value={semana ? semana.toString() : data?.semana?.toString() || ""}
+              onValueChange={(val) => {
+                const s = parseInt(val, 10);
+                setSemana(s);
+                cargarReporte(s, anio ?? undefined, cartera, diaFiltro);
+              }}
+            >
+              <SelectTrigger className="w-32 h-8 text-xs font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                <SelectValue placeholder="Semana..." />
+              </SelectTrigger>
+              <SelectContent className="max-h-64">
+                {Array.from({ length: 52 }, (_, i) => 52 - i).map((s) => (
+                  <SelectItem key={s} value={s.toString()} className="text-xs">
+                    Semana {s} {data?.esSemanaActual && s === data?.semana ? "(Actual)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             {!data?.esSemanaActual && (
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={irSemanaActual}
-                className="text-xs font-bold gap-1.5"
+                className="text-xs font-bold gap-1.5 h-8"
               >
                 <CalendarCheck className="w-3.5 h-3.5 text-emerald-600" />
                 Semana Actual
@@ -611,8 +682,8 @@ function CobranzaSemanalContenido() {
                   Ciclo operativo de Sábado a Viernes ({data.rangoSemana.label})
                 </CardDescription>
               </div>
-              <Badge variant="outline" className="font-mono text-xs">
-                {cartera}
+              <Badge variant="outline" className="font-mono text-xs font-bold">
+                Semana {data.semana} &bull; {cartera}
               </Badge>
             </CardHeader>
             <CardContent className="p-0">
@@ -620,8 +691,9 @@ function CobranzaSemanalContenido() {
                 <table className="w-full text-xs text-left align-middle border-collapse">
                   <thead className="bg-[#0f172a] text-white text-[11px] font-bold uppercase tracking-wider">
                     <tr>
-                      <th className="px-4 py-2.5 border border-slate-700 text-center w-24">
-                        {data.semana}
+                      <th className="px-3 py-2 border border-slate-700 text-center w-28 bg-slate-950">
+                        <span className="block text-[9px] text-slate-400 font-normal leading-tight">DÍA</span>
+                        <span className="text-xs font-black text-amber-400 leading-tight">SEM. {data.semana}</span>
                       </th>
                       <th className="px-4 py-2.5 border border-slate-700 text-right">Proyección</th>
                       <th className="px-4 py-2.5 border border-slate-700 text-right bg-emerald-950/80 text-emerald-300">
@@ -736,19 +808,24 @@ function CobranzaSemanalContenido() {
               <div>
                 <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
                   <Users className="w-4 h-4 text-blue-600" />
-                  Concentrado de Cobranza por Gestor - {cartera === "GLOBAL" ? "GLOBAL (DP + DQ)" : cartera}
+                  Concentrado de Cobranza por Gestor - {cartera === "GLOBAL" ? "GLOBAL (DP + DQ)" : cartera} (Semana {data.semana})
                 </CardTitle>
                 <CardDescription className="text-xs mt-0.5">
                   {diaFiltro === "TODOS"
-                    ? `Metas y avance acumulado de la semana ${data.semana}`
-                    : `Mostrando cuentas programadas y cobros correspondientes a: ${diaFiltro}`}
+                    ? `Metas y avance acumulado de la semana ${data.semana} (${data.rangoSemana.label})`
+                    : `Mostrando cuentas programadas y cobros correspondientes a: ${diaFiltro} de la semana ${data.semana}`}
                 </CardDescription>
               </div>
-              {diaFiltro !== "TODOS" && (
-                <Badge className="bg-amber-500 text-white font-bold text-xs">
-                  Filtro activo: {diaFiltro}
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="font-mono text-xs font-bold">
+                  Semana {data.semana}
                 </Badge>
-              )}
+                {diaFiltro !== "TODOS" && (
+                  <Badge className="bg-amber-500 text-white font-bold text-xs">
+                    Filtro activo: {diaFiltro}
+                  </Badge>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">

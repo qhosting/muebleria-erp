@@ -104,11 +104,21 @@ export async function GET(req: NextRequest) {
       return cartera === 'DP' ? isDP : !isDP;
     });
 
-    // 3. Obtener pagos de la semana
+    // 3. Obtener pagos de la semana (por semana/año asignados o por rango de fecha oficial)
     const pagos = await prisma.pago.findMany({
       where: {
-        semanaCobranza: semana,
-        anioCobranza: anio
+        OR: [
+          {
+            semanaCobranza: semana,
+            anioCobranza: anio
+          },
+          {
+            fechaPago: {
+              gte: rangoSemana.inicio,
+              lte: rangoSemana.fin
+            }
+          }
+        ]
       },
       select: {
         id: true,
