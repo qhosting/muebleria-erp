@@ -264,8 +264,45 @@ export async function GET(req: NextRequest) {
     const totalDiferencia = totalLogro - totalProyeccion;
     const totalPorcentaje = totalProyeccion > 0 ? Math.round((totalLogro / totalProyeccion) * 1000) / 10 : 0;
 
-    // 6. Construir tabla de Gestores (Imagen 1)
-    // Se filtran los clientes si hay un día seleccionado (diaFiltro !== 'TODOS')
+    // 6. Construir tabla de Gestores (Imagen 1) completamente dinámica por semana
+    // Helper para normalizar el nombre y código del gestor
+    const resolverGestor = (u?: { id?: string | null; name?: string | null; codigoGestor?: string | null } | null) => {
+      if (!u) {
+        return {
+          key: 'SIN ASIGNAR',
+          id: 'SIN_ASIGNAR',
+          codigoGestor: 'SIN_ASIGNAR',
+          nombre: 'SIN ASIGNAR'
+        };
+      }
+      const rawCode = (u.codigoGestor || u.name || '').toUpperCase().trim();
+      const alias = GESTORES_ALIAS[rawCode] || u.name || rawCode || 'SIN ASIGNAR';
+      const key = alias.toUpperCase().trim();
+      return {
+        key,
+        id: u.id || key,
+        codigoGestor: u.codigoGestor || rawCode || key,
+        nombre: key
+      };
+    };
+
+    // Obtener cobradores registrados en el sistema
+    const usuariosGestores = await prisma.user.findMany({
+      where: {
+        OR: [
+          { role: 'cobrador' },
+          { role: 'gestor_cobranza' },
+          { codigoGestor: { not: null } }
+        ],
+        isActive: true
+      },
+      select: {
+        id: true,
+        name: true,
+        codigoGestor: true
+      }
+    });
+
     const gestoresMap = new Map<
       string,
       {
@@ -280,24 +317,26 @@ export async function GET(req: NextRequest) {
       }
     >();
 
-    // Inicializar los gestores conocidos para mantener consistencia con los reportes oficiales
-    const gestoresBase = ['ADRIAN GONZALEZ', 'RENE', 'JOSE SILVA', 'MISAEL DE JESUS', 'CEJ', 'BOT', 'SULEN RUIZ'];
-    gestoresBase.forEach((g) => {
-      gestoresMap.set(g, {
-        gestorId: g,
-        codigoGestor: g,
-        nombreDisplay: g,
-        carteraAsig: 0,
-        ruta: 0,
-        presupuesto: 0,
-        acCtas: 0,
-        acumulado: 0
-      });
+    // Inicializar mapa con cobradores activos
+    usuariosGestores.forEach((u) => {
+      const g = resolverGestor(u);
+      if (!gestoresMap.has(g.key)) {
+        gestoresMap.set(g.key, {
+          gestorId: g.id,
+          codigoGestor: g.codigoGestor,
+          nombreDisplay: g.nombre,
+          carteraAsig: 0,
+          ruta: 0,
+          presupuesto: 0,
+          acCtas: 0,
+          acumulado: 0
+        });
+      }
     });
 
-    // Recorrer clientes para acumular cuentas y presupuestos
+    // 1) Asignar cartera, ruta y presupuesto de los clientes
     clientesCartera.forEach((c) => {
-      // Si hay filtro de día activo, comprobar si el día de pago del cliente coincide
+      // Si hay filtro de día activo, comprobar si el día de pago del cliente coincide con la meta del día
       if (diaFiltro !== 'TODOS') {
         const diaNorm = normalizarDiaSemana(c.diaPago);
         const diaTarget = diaNorm === 'DOMINGO' ? 'SABADO' : diaNorm;
@@ -306,22 +345,20 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      const rawCode = (c.cobradorAsignado?.codigoGestor || c.cobradorAsignado?.name || '').toUpperCase().trim();
-      const alias = GESTORES_ALIAS[rawCode] || c.cobradorAsignado?.name || rawCode || 'SIN ASIGNAR';
-
-      let item = gestoresMap.get(alias);
+      const g = resolverGestor(c.cobradorAsignado);
+      let item = gestoresMap.get(g.key);
       if (!item) {
         item = {
-          gestorId: c.cobradorAsignadoId || alias,
-          codigoGestor: rawCode,
-          nombreDisplay: alias,
+          gestorId: g.id,
+          codigoGestor: g.codigoGestor,
+          nombreDisplay: g.nombre,
           carteraAsig: 0,
           ruta: 0,
           presupuesto: 0,
           acCtas: 0,
           acumulado: 0
         };
-        gestoresMap.set(alias, item);
+        gestoresMap.set(g.key, item);
       }
 
       item.carteraAsig++;
@@ -330,36 +367,63 @@ export async function GET(req: NextRequest) {
         item.ruta++;
       }
       item.presupuesto += Number(c.montoPago || 0);
-
-      // Revisar si tuvo pago
-      const pagoCli = pagosPorCliente.get(c.id);
-      if (pagoCli && pagoCli.total > 0) {
-        if (diaFiltro === 'TODOS') {
-          item.acCtas++;
-          item.acumulado += pagoCli.total;
-        } else {
-          // Filtrar pagos que ocurrieron en el día seleccionado
-          const pagosDia = pagoCli.pagos.filter((p) => {
-            const f = new Date(p.fechaPago);
-            const dName = dayIndexToName[f.getUTCDay()];
-            const dTarget = dName === 'DOMINGO' ? 'SABADO' : dName;
-            return dTarget === diaFiltro;
-          });
-          if (pagosDia.length > 0) {
-            item.acCtas++;
-            const subtotalDia = pagosDia.reduce(
-              (acc, p) => acc + (Number(p.monto || 0) + Number(p.interesMoratorio || 0)),
-              0
-            );
-            item.acumulado += subtotalDia;
-          }
-        }
-      }
     });
 
-    // Transformar a lista de gestores con métricas y porcentajes exactos
+    // 2) Atribuir los cobros y cuentas cobradas de la semana al gestor real que cobró
+    const ctasCobradasPorGestor = new Map<string, Set<string>>();
+
+    pagosCartera.forEach((p) => {
+      const f = new Date(p.fechaPago);
+      const dayName = dayIndexToName[f.getUTCDay()];
+      const diaPagoTarget = dayName === 'DOMINGO' ? 'SABADO' : dayName;
+
+      // Si hay filtro de día activo, solo contabilizar cobros recaudados en ese día
+      if (diaFiltro !== 'TODOS' && diaPagoTarget !== diaFiltro) {
+        return;
+      }
+
+      // El cobrador real que realizó la cobranza (o el asignado al cliente en su defecto)
+      const cobradorReal = p.cobrador || p.cliente?.cobradorAsignado;
+      const g = resolverGestor(cobradorReal);
+
+      let item = gestoresMap.get(g.key);
+      if (!item) {
+        item = {
+          gestorId: g.id,
+          codigoGestor: g.codigoGestor,
+          nombreDisplay: g.nombre,
+          carteraAsig: 0,
+          ruta: 0,
+          presupuesto: 0,
+          acCtas: 0,
+          acumulado: 0
+        };
+        gestoresMap.set(g.key, item);
+      }
+
+      const monto = Number(p.monto || 0) + Number(p.interesMoratorio || 0);
+      item.acumulado += monto;
+
+      // Cuentas únicas cobradas por este gestor
+      let setCtas = ctasCobradasPorGestor.get(g.key);
+      if (!setCtas) {
+        setCtas = new Set<string>();
+        ctasCobradasPorGestor.set(g.key, setCtas);
+      }
+      setCtas.add(p.clienteId);
+    });
+
+    // Asignar conteo de cuentas cobradas por gestor
+    gestoresMap.forEach((item, key) => {
+      const setCtas = ctasCobradasPorGestor.get(key);
+      item.acCtas = setCtas ? setCtas.size : 0;
+    });
+
+    // 3) Filtrar gestores reales: solo los que tengan cartera O movimientos en la semana consultada
+    const gestoresOrdenOficial = ['ADRIAN GONZALEZ', 'RENE', 'JOSE SILVA', 'MISAEL DE JESUS', 'CEJ', 'BOT', 'SULEN RUIZ'];
+
     const filasGestores = Array.from(gestoresMap.values())
-      .filter((g) => g.carteraAsig > 0 || g.acumulado > 0 || gestoresBase.includes(g.nombreDisplay))
+      .filter((g) => g.carteraAsig > 0 || g.acumulado > 0 || g.acCtas > 0)
       .map((g) => {
         const p87 = Math.round(g.ruta * 0.87);
         const p85 = Math.round(g.ruta * 0.85);
@@ -367,8 +431,8 @@ export async function GET(req: NextRequest) {
         const difRuta = g.carteraAsig - g.ruta;
         const difCuentas = g.ruta - g.acCtas;
         const diferencia = g.presupuesto - g.acumulado;
-        const porcCuentas = g.ruta > 0 ? Math.round((g.acCtas / g.ruta) * 100) : 0;
-        const porcDinero = g.presupuesto > 0 ? Math.round((g.acumulado / g.presupuesto) * 100) : 0;
+        const porcCuentas = g.ruta > 0 ? Math.round((g.acCtas / g.ruta) * 100) : (g.acCtas > 0 ? 100 : 0);
+        const porcDinero = g.presupuesto > 0 ? Math.round((g.acumulado / g.presupuesto) * 100) : (g.acumulado > 0 ? 100 : 0);
 
         return {
           gestor: g.nombreDisplay,
@@ -389,14 +453,16 @@ export async function GET(req: NextRequest) {
         };
       });
 
-    // Ordenar respetando el orden oficial de la imagen si coincide, luego por cartera
+    // Ordenar: orden oficial si coincide, luego por recaudación, y SIN ASIGNAR siempre al final
     filasGestores.sort((a, b) => {
-      const idxA = gestoresBase.indexOf(a.gestor);
-      const idxB = gestoresBase.indexOf(b.gestor);
+      if (a.gestor === 'SIN ASIGNAR') return 1;
+      if (b.gestor === 'SIN ASIGNAR') return -1;
+      const idxA = gestoresOrdenOficial.indexOf(a.gestor);
+      const idxB = gestoresOrdenOficial.indexOf(b.gestor);
       if (idxA !== -1 && idxB !== -1) return idxA - idxB;
       if (idxA !== -1) return -1;
       if (idxB !== -1) return 1;
-      return b.carteraAsig - a.carteraAsig;
+      return b.acumulado - a.acumulado || b.carteraAsig - a.carteraAsig;
     });
 
     // Totales Gestores
