@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
@@ -97,7 +97,25 @@ const DIAS_FILTRO = [
   { key: "VIERNES", label: "Viernes", short: "Vie" },
 ];
 
+export const dynamic = "force-dynamic";
+
 export default function CobranzaSemanalPage() {
+  return (
+    <Suspense
+      fallback={
+        <DashboardLayout>
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <RefreshCw className="w-8 h-8 animate-spin text-indigo-600" />
+          </div>
+        </DashboardLayout>
+      }
+    >
+      <CobranzaSemanalContenido />
+    </Suspense>
+  );
+}
+
+function CobranzaSemanalContenido() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
