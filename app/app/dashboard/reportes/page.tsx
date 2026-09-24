@@ -278,18 +278,10 @@ export default function ReportesPage() {
             <Button
               variant="outline"
               className="flex items-center gap-2 border-indigo-500 text-indigo-600 hover:bg-indigo-50 font-bold"
-              onClick={() => window.location.href = '/dashboard/reportes/cobranza-semanal?cartera=DP'}
+              onClick={() => window.location.href = '/dashboard/reportes/cobranza-semanal'}
             >
               <TrendingUp className="h-4 w-4" />
-              Proyección DP
-            </Button>
-            <Button
-              variant="outline"
-              className="flex items-center gap-2 border-blue-500 text-blue-600 hover:bg-blue-50 font-bold"
-              onClick={() => window.location.href = '/dashboard/reportes/cobranza-semanal?cartera=DQ'}
-            >
-              <Calendar className="h-4 w-4" />
-              Proyección DQ
+              Proyección Semanal (DP / DQ / Global)
             </Button>
             <Button
               variant="outline"

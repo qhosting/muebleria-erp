@@ -120,8 +120,7 @@ const navigation: NavItem[] = [
     roles: ['admin', 'gestor_cobranza', 'reporte_cobranza', 'direccion'],
     subItems: [
       { name: 'General', href: '/dashboard/reportes', icon: FileText },
-      { name: 'Proyección DP (Semanal)', href: '/dashboard/reportes/cobranza-semanal?cartera=DP', icon: TrendingUp },
-      { name: 'Proyección DQ (Semanal)', href: '/dashboard/reportes/cobranza-semanal?cartera=DQ', icon: CalendarDays },
+      { name: 'Proyección Semanal', href: '/dashboard/reportes/cobranza-semanal', icon: TrendingUp },
       { name: 'Pagos Gestor (Clientes DP/DQ)', href: '/dashboard/reportes/pagos-gestor', icon: Users },
       { name: 'Verificaciones', href: '/dashboard/reportes/verificaciones', icon: UserCheck },
       { name: 'Convenios de Pago', href: '/dashboard/reportes/convenios', icon: FileText },

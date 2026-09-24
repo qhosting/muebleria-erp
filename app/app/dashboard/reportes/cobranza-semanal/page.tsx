@@ -70,7 +70,7 @@ interface ReporteData {
     finStr: string;
     label: string;
   };
-  cartera: "DP" | "DQ" | "TODAS";
+  cartera: "DP" | "DQ" | "GLOBAL" | "TODAS";
   diaFiltro: string;
   proyeccionDiaria: {
     filas: FilaDiaria[];
@@ -121,9 +121,9 @@ function CobranzaSemanalContenido() {
   const router = useRouter();
 
   // Estados de control
-  const [cartera, setCartera] = useState<"DP" | "DQ">(() => {
+  const [cartera, setCartera] = useState<"DP" | "DQ" | "GLOBAL">(() => {
     const c = searchParams?.get("cartera")?.toUpperCase();
-    return c === "DQ" ? "DQ" : "DP";
+    return c === "DQ" ? "DQ" : c === "GLOBAL" || c === "TODAS" ? "GLOBAL" : "DP";
   });
   const [diaFiltro, setDiaFiltro] = useState<string>("TODOS");
   const [semana, setSemana] = useState<number | null>(null);
@@ -165,8 +165,8 @@ function CobranzaSemanalContenido() {
 
   useEffect(() => {
     const carteraQuery = searchParams?.get("cartera")?.toUpperCase();
-    if (carteraQuery === "DP" || carteraQuery === "DQ") {
-      setCartera(carteraQuery);
+    if (carteraQuery === "DP" || carteraQuery === "DQ" || carteraQuery === "GLOBAL" || carteraQuery === "TODAS") {
+      setCartera(carteraQuery === "TODAS" ? "GLOBAL" : (carteraQuery as "DP" | "DQ" | "GLOBAL"));
     }
     const diaQuery = searchParams?.get("dia")?.toUpperCase();
     if (diaQuery) {
@@ -175,7 +175,7 @@ function CobranzaSemanalContenido() {
     cargarReporte();
   }, [searchParams]);
 
-  const cambiarCartera = (nuevaCartera: "DP" | "DQ") => {
+  const cambiarCartera = (nuevaCartera: "DP" | "DQ" | "GLOBAL") => {
     setCartera(nuevaCartera);
     cargarReporte(semana ?? undefined, anio ?? undefined, nuevaCartera, diaFiltro);
   };
@@ -314,10 +314,12 @@ function CobranzaSemanalContenido() {
                 className={`text-xs px-2.5 py-1 font-bold ${
                   cartera === "DP"
                     ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                    : "bg-blue-600 hover:bg-blue-700 text-white"
+                    : cartera === "DQ"
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "bg-emerald-600 hover:bg-emerald-700 text-white"
                 }`}
               >
-                {cartera === "DP" ? "CARTERA DP" : "CARTERA DQ"}
+                {cartera === "DP" ? "CARTERA DP" : cartera === "DQ" ? "CARTERA DQ" : "CARTERA GLOBAL (DP + DQ)"}
               </Badge>
               {data?.esSemanaActual && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
@@ -355,14 +357,14 @@ function CobranzaSemanalContenido() {
           </div>
         </div>
 
-        {/* Barra de Control: Tabs DP/DQ + Selector de Semana */}
+        {/* Barra de Control: Tabs DP / DQ / GLOBAL + Selector de Semana */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center bg-white dark:bg-slate-900 p-3 rounded-xl border shadow-sm">
-          {/* Selector de Cartera DP / DQ */}
-          <div className="lg:col-span-4 flex items-center gap-2">
+          {/* Selector de Cartera DP / DQ / GLOBAL */}
+          <div className="lg:col-span-5 flex items-center gap-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:inline">
               Cartera:
             </span>
-            <div className="grid grid-cols-2 w-full p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+            <div className="grid grid-cols-3 w-full p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
               <button
                 type="button"
                 onClick={() => cambiarCartera("DP")}
@@ -372,8 +374,8 @@ function CobranzaSemanalContenido() {
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                 }`}
               >
-                <Building2 className="w-4 h-4" />
-                Proyección DP
+                <Building2 className="w-3.5 h-3.5" />
+                DP
               </button>
               <button
                 type="button"
@@ -384,14 +386,26 @@ function CobranzaSemanalContenido() {
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                 }`}
               >
-                <Building2 className="w-4 h-4" />
-                Proyección DQ
+                <Building2 className="w-3.5 h-3.5" />
+                DQ
+              </button>
+              <button
+                type="button"
+                onClick={() => cambiarCartera("GLOBAL")}
+                className={`py-2 text-xs sm:text-sm font-black rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                  cartera === "GLOBAL"
+                    ? "bg-emerald-600 text-white shadow"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                GLOBAL
               </button>
             </div>
           </div>
 
           {/* Selector y Navegación de Semana */}
-          <div className="lg:col-span-8 flex flex-wrap items-center justify-start lg:justify-end gap-2">
+          <div className="lg:col-span-7 flex flex-wrap items-center justify-start lg:justify-end gap-2">
             <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
               <Button
                 variant="ghost"
@@ -591,7 +605,7 @@ function CobranzaSemanalContenido() {
               <div>
                 <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-indigo-600" />
-                  Proyección vs Logro Diario - {cartera} (Semana {data.semana})
+                  Proyección vs Logro Diario - {cartera === "GLOBAL" ? "GLOBAL (DP + DQ)" : cartera} (Semana {data.semana})
                 </CardTitle>
                 <CardDescription className="text-xs mt-0.5">
                   Ciclo operativo de Sábado a Viernes ({data.rangoSemana.label})
@@ -722,7 +736,7 @@ function CobranzaSemanalContenido() {
               <div>
                 <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
                   <Users className="w-4 h-4 text-blue-600" />
-                  Concentrado de Cobranza por Gestor - {cartera}
+                  Concentrado de Cobranza por Gestor - {cartera === "GLOBAL" ? "GLOBAL (DP + DQ)" : cartera}
                 </CardTitle>
                 <CardDescription className="text-xs mt-0.5">
                   {diaFiltro === "TODOS"

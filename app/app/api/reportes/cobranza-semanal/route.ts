@@ -11,7 +11,7 @@ import { normalizarDiaSemana } from '@/lib/corte-cej-utils';
 
 export const dynamic = 'force-dynamic';
 
-export const GESTORES_ALIAS: Record<string, string> = {
+const GESTORES_ALIAS: Record<string, string> = {
   DQR1M: 'ADRIAN GONZALEZ',
   DQRLC: 'RENE',
   DQJSP: 'JOSE SILVA',
@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
     };
 
     const clientesCartera = clientes.filter((c) => {
-      if (cartera === 'TODAS') return true;
+      if (cartera === 'TODAS' || cartera === 'GLOBAL') return true;
       const isDP = esDPFn(c);
       return cartera === 'DP' ? isDP : !isDP;
     });
@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
 
     // Filtrar pagos por cartera
     const pagosCartera = pagos.filter((p) => {
-      if (cartera === 'TODAS') return true;
+      if (cartera === 'TODAS' || cartera === 'GLOBAL') return true;
       if (!p.cliente) return false;
       const isDP = esDPFn(p.cliente);
       return cartera === 'DP' ? isDP : !isDP;
@@ -193,7 +193,15 @@ export async function GET(req: NextRequest) {
     });
 
     // 5. Presupuesto / Proyección por defecto y calculada
-    const defaultProyeccion = cartera === 'DP' ? PROYECCION_DEFAULT_DP : PROYECCION_DEFAULT_DQ;
+    const defaultProyeccion =
+      cartera === 'DP'
+        ? PROYECCION_DEFAULT_DP
+        : cartera === 'DQ'
+        ? PROYECCION_DEFAULT_DQ
+        : DIAS_ORDEN.reduce((acc, d) => {
+            acc[d] = (PROYECCION_DEFAULT_DP[d] || 0) + (PROYECCION_DEFAULT_DQ[d] || 0);
+            return acc;
+          }, {} as Record<string, number>);
 
     // Proyección calculada por diaPago de los clientes en RUTA
     const proyeccionCalculadaPorDia: Record<string, { dinero: number; cuentas: number }> = {
