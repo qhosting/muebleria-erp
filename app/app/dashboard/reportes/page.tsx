@@ -274,14 +274,32 @@ export default function ReportesPage() {
             <Download className="h-4 w-4" />
             Exportar CSV
           </Button>
-          <Button
-            variant="outline"
-            className="flex items-center gap-2 border-red-500 text-red-600 hover:bg-red-50"
-            onClick={() => window.location.href = '/dashboard/reportes/morosidad'}
-          >
-<AlertTriangle className="h-4 w-4" />
-            Morosidad
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 border-indigo-500 text-indigo-600 hover:bg-indigo-50 font-bold"
+              onClick={() => window.location.href = '/dashboard/reportes/cobranza-semanal?cartera=DP'}
+            >
+              <TrendingUp className="h-4 w-4" />
+              Proyección DP
+            </Button>
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 border-blue-500 text-blue-600 hover:bg-blue-50 font-bold"
+              onClick={() => window.location.href = '/dashboard/reportes/cobranza-semanal?cartera=DQ'}
+            >
+              <Calendar className="h-4 w-4" />
+              Proyección DQ
+            </Button>
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 border-red-500 text-red-600 hover:bg-red-50"
+              onClick={() => window.location.href = '/dashboard/reportes/morosidad'}
+            >
+              <AlertTriangle className="h-4 w-4" />
+              Morosidad
+            </Button>
+          </div>
         </div>
 
         {/* Filtros */}
