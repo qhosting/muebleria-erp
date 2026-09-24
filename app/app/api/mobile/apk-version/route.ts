@@ -8,7 +8,7 @@ export async function GET() {
         const versionCode = parseInt(process.env.LATEST_APK_VERSION_CODE || '44', 10);
         const versionName = process.env.LATEST_APK_VERSION_NAME || '2.9.40';
         const minVersionCode = parseInt(process.env.MIN_APK_VERSION_CODE || '40', 10);
-        const apkUrl = process.env.LATEST_APK_URL || '/app-release.apk';
+        const apkUrl = process.env.LATEST_APK_URL || '/CobranzaDASO.apk';
         const fileSize = process.env.LATEST_APK_FILE_SIZE || '63 MB';
         const isMandatory = process.env.LATEST_APK_MANDATORY === 'true';
         const requireWifi = process.env.LATEST_APK_REQUIRE_WIFI !== 'false'; // Por defecto requiere WiFi
