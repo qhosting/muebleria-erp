@@ -31,7 +31,7 @@ interface ApkVersionData {
 export function ApkUpdateModal() {
     const [isOpen, setIsOpen] = useState(false);
     const [updateData, setUpdateData] = useState<ApkVersionData | null>(null);
-    const [currentVersion, setCurrentVersion] = useState({ name: '2.9.41', build: 45 });
+    const [currentVersion, setCurrentVersion] = useState({ name: '2.9.42', build: 46 });
     const [networkStatus, setNetworkStatus] = useState<NetworkStatusResult>({
         connected: true,
         connectionType: 'wifi'
@@ -70,8 +70,8 @@ export function ApkUpdateModal() {
                 }
 
                 // Obtener info nativa si estamos en Android / Capacitor
-                let localBuild = 45;
-                let localVersionName = '2.9.41';
+                let localBuild = 46;
+                let localVersionName = '2.9.42';
 
                 if (Capacitor.isNativePlatform()) {
                     try {
