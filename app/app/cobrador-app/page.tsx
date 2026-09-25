@@ -45,14 +45,10 @@ export default function CobradorAppPage() {
                 setMessage('Sincronizando datos...');
 
                 setTimeout(() => {
-                    if (isMobileMode) {
+                    if (isMobileMode || isNative || userRole === 'cobrador') {
                         router.push('/mobile/home');
                     } else {
-                        if (userRole === 'cobrador') {
-                            router.push('/dashboard/cobranza-mobile');
-                        } else {
-                            router.push('/dashboard');
-                        }
+                        router.push('/dashboard');
                     }
                 }, 1000);
             }

@@ -40,6 +40,7 @@ export async function GET() {
             fileSize,
             isMandatory,
             requireWifi,
+            releaseNotes,
             timestamp: Date.now()
         });
     } catch (error: any) {

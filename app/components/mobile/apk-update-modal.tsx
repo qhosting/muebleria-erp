@@ -228,7 +228,7 @@ export function ApkUpdateModal() {
                             Novedades de la versión:
                         </h4>
                         <ul className="space-y-1.5 text-xs text-slate-300">
-                            {updateData.releaseNotes.map((note, idx) => (
+                            {(Array.isArray(updateData.releaseNotes) ? updateData.releaseNotes : []).map((note, idx) => (
                                 <li key={idx} className="flex items-start gap-2">
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
                                     <span>{note}</span>

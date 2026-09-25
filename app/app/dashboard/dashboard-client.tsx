@@ -67,7 +67,7 @@ export function DashboardClient({ session: initialSession }: DashboardClientProp
     const roleRedirects: Record<string, string> = {
       'gestor_cobranza': '/dashboard/clientes',
       'reporte_cobranza': '/dashboard/reportes',
-      'cobrador': '/cobrador-app'
+      'cobrador': '/mobile/home'
     };
 
     const redirectPath = roleRedirects[userRole];

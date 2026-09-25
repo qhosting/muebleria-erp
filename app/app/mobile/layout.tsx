@@ -17,6 +17,7 @@ interface CobradorLayoutProps {
 export default function CobradorLayout({ children }: CobradorLayoutProps) {
     const { isNative } = usePlatform();
     const pathname = usePathname();
+    const currentPath = pathname || '';
     const [pendingCount, setPendingCount] = useState(0);
 
     const [isOnline, setIsOnline] = useState(true);
@@ -198,7 +199,7 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
     return (
         <div className="flex flex-col h-screen h-[100dvh] bg-slate-950 text-slate-100 overflow-hidden relative">
             {/* HEADER NATIVO - Opcional según la página */}
-            {pathname !== '/mobile/home' && !pathname.includes('/mobile/ventas/solicitud') && (
+            {currentPath !== '/mobile/home' && !currentPath.includes('/mobile/ventas/solicitud') && (
                 <header className="flex-none bg-slate-900 border-b border-slate-800 p-4 pt-safe-top z-20 shadow-md">
                 <div className="flex items-center justify-between">
                     <div>
@@ -230,35 +231,35 @@ export default function CobradorLayout({ children }: CobradorLayoutProps) {
             )}
 
             {/* CONTENIDO PRINCIPAL SCROLLEABLE */}
-            <main className={`flex-1 overflow-y-auto px-4 pb-24 z-10 ${pathname === '/mobile/home' ? 'pt-safe-top' : 'pt-2'}`}>
+            <main className={`flex-1 overflow-y-auto px-4 pb-24 z-10 ${currentPath === '/mobile/home' ? 'pt-safe-top' : 'pt-2'}`}>
                 {children}
             </main>
 
             {/* BOTTOM NAVIGATION BAR */}
-            {!pathname.includes('/mobile/ventas/solicitud') && (
+            {!currentPath.includes('/mobile/ventas/solicitud') && (
                 <nav className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 pb-safe-bottom z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.3)]">
                     <div className={`grid ${isDireccion ? 'grid-cols-3' : 'grid-cols-5'} h-16`}>
-                        <NavButton icon="home" label="Inicio" href="/mobile/home" active={pathname === "/mobile/home"} />
+                        <NavButton icon="home" label="Inicio" href="/mobile/home" active={currentPath === "/mobile/home"} />
                         
                         {isDireccion ? (
                             <>
-                                <NavButton icon="shopping-bag" label="Ventas" href="/mobile/ventas" active={pathname === "/mobile/ventas"} />
+                                <NavButton icon="shopping-bag" label="Ventas" href="/mobile/ventas" active={currentPath === "/mobile/ventas"} />
                             </>
                         ) : isVendedor ? (
                             <>
-                                <NavButton icon="shopping-bag" label="Ventas" href="/mobile/ventas" active={pathname === "/mobile/ventas" && !pathname.includes('/prospectos')} />
-                                <NavButton icon="message-square" label="Prospectos" href="/mobile/ventas/prospectos" active={pathname === "/mobile/ventas/prospectos"} />
-                                <NavButton icon="database" label="Bóveda" href="/mobile/ventas/boveda" active={pathname === "/mobile/ventas/boveda"} />
+                                <NavButton icon="shopping-bag" label="Ventas" href="/mobile/ventas" active={currentPath === "/mobile/ventas" && !currentPath.includes('/prospectos')} />
+                                <NavButton icon="message-square" label="Prospectos" href="/mobile/ventas/prospectos" active={currentPath === "/mobile/ventas/prospectos"} />
+                                <NavButton icon="database" label="Bóveda" href="/mobile/ventas/boveda" active={currentPath === "/mobile/ventas/boveda"} />
                             </>
                         ) : (
                             <>
-                                <NavButton icon="users" label="Clientes" href="/mobile/clientes" active={pathname === "/mobile/clientes"} />
-                                <NavButton icon="convenios" label="Convenios" href="/mobile/convenios" active={pathname === "/mobile/convenios"} badge={pendingCount > 0 ? pendingCount : undefined} />
-                                <NavButton icon="dollar" label="Caja" href="/mobile/caja" active={pathname === "/mobile/caja"} />
+                                <NavButton icon="users" label="Clientes" href="/mobile/clientes" active={currentPath === "/mobile/clientes"} />
+                                <NavButton icon="convenios" label="Convenios" href="/mobile/convenios" active={currentPath === "/mobile/convenios"} badge={pendingCount > 0 ? pendingCount : undefined} />
+                                <NavButton icon="dollar" label="Caja" href="/mobile/caja" active={currentPath === "/mobile/caja"} />
                             </>
                         )}
                         
-                        <NavButton icon="menu" label="Menú" href="/mobile/menu" active={pathname === "/mobile/menu"} badge={!isVendedor && pendingCount > 0 ? true : false} />
+                        <NavButton icon="menu" label="Menú" href="/mobile/menu" active={currentPath === "/mobile/menu"} badge={!isVendedor && pendingCount > 0 ? true : false} />
                     </div>
                 </nav>
             )}

@@ -124,20 +124,20 @@ export async function GET() {
         },
         proximosClientes: proximosClientes.map(c => ({
           id: c.id,
-          nombre: c.nombreCompleto,
-          direccion: c.direccionCompleta,
-          saldo: parseFloat(c.saldoActual.toString()),
-          vencido: parseFloat(c.saldoVencido.toString()),
-          diaPago: c.diaPago
+          nombre: c.nombreCompleto || 'Cliente',
+          direccion: c.direccionCompleta || '',
+          saldo: c.saldoActual != null ? parseFloat(c.saldoActual.toString()) : 0,
+          vencido: c.saldoVencido != null ? parseFloat(c.saldoVencido.toString()) : 0,
+          diaPago: c.diaPago || ''
         })),
         clientesVdPendientes: clientesVdPendientes.map(c => ({
           id: c.id,
-          nombre: c.nombreCompleto,
-          codigo: c.codigoCliente,
-          direccion: c.direccionCompleta,
-          saldo: parseFloat(c.saldoActual.toString()),
-          diasVencidos: c.diasVencidos,
-          fechaVenta: c.fechaVenta.toISOString(),
+          nombre: c.nombreCompleto || 'Cliente',
+          codigo: c.codigoCliente || '',
+          direccion: c.direccionCompleta || '',
+          saldo: c.saldoActual != null ? parseFloat(c.saldoActual.toString()) : 0,
+          diasVencidos: c.diasVencidos || 0,
+          fechaVenta: c.fechaVenta ? (typeof c.fechaVenta === 'string' ? c.fechaVenta : c.fechaVenta.toISOString()) : new Date().toISOString(),
         }))
       });
     } catch (dbError) {

@@ -26,14 +26,21 @@ export default function Error({
         </div>
         
         <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Ups! Algo salió mal</h2>
-        <p className="text-gray-600 mb-8">
-          Ha ocurrido un error inesperado en la aplicación. 
-          {error && error.digest && (
-            <span className="block mt-2 text-xs font-mono text-gray-400">
-              ID del error: {error.digest}
-            </span>
-          )}
+        <p className="text-gray-600 mb-4">
+          Ha ocurrido un error inesperado en la aplicación.
         </p>
+
+        {error && error.message && (
+          <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-xl text-left">
+            <p className="text-xs font-mono text-red-600 break-all">{error.message}</p>
+          </div>
+        )}
+
+        {error && error.digest && (
+          <span className="block mb-6 text-xs font-mono text-gray-400">
+            ID del error: {error.digest}
+          </span>
+        )}
         
         <div className="flex flex-col gap-3">
           <Button 
