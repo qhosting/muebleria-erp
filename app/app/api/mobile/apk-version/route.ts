@@ -5,18 +5,18 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     try {
         // Obtenemos los valores desde variables de entorno o valores por defecto
-        const versionCode = parseInt(process.env.LATEST_APK_VERSION_CODE || '44', 10);
-        const versionName = process.env.LATEST_APK_VERSION_NAME || '2.9.40';
+        const versionCode = parseInt(process.env.LATEST_APK_VERSION_CODE || '45', 10);
+        const versionName = process.env.LATEST_APK_VERSION_NAME || '2.9.41';
         const minVersionCode = parseInt(process.env.MIN_APK_VERSION_CODE || '40', 10);
         const apkUrl = process.env.LATEST_APK_URL || '/CobranzaDASO.apk';
-        const fileSize = process.env.LATEST_APK_FILE_SIZE || '63 MB';
+        const fileSize = process.env.LATEST_APK_FILE_SIZE || '9.1 MB';
         const isMandatory = process.env.LATEST_APK_MANDATORY === 'true';
         const requireWifi = process.env.LATEST_APK_REQUIRE_WIFI !== 'false'; // Por defecto requiere WiFi
 
         let releaseNotes: string[] = [
+            'Botón de actualización directa de APK desde Mi Perfil.',
             'Optimización en sincronización y cobranza offline.',
-            'Mejoras en el escaneo y captura de tickets de pago.',
-            'Mayor estabilidad de conexión en ruta.',
+            'Mayor estabilidad de conexión en ruta y mejoras generales.',
         ];
 
         if (process.env.LATEST_APK_RELEASE_NOTES) {

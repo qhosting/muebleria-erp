@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { signOut, useSession } from 'next-auth/react';
-import { Settings, Printer, LogOut, RefreshCw, Bell, BellOff, WifiOff, Globe, Sun } from 'lucide-react';
+import { Settings, Printer, LogOut, RefreshCw, Bell, BellOff, WifiOff, Globe, Sun, Download, Smartphone, Sparkles, CheckCircle2 } from 'lucide-react';
 import { db } from '@/lib/offline-db';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -18,6 +18,74 @@ export default function MobilePerfilPage() {
     const [preferOffline, setPreferOffline] = useState(false);
     const [modoSol, setModoSol] = useState(false);
     const [showPrinterConfig, setShowPrinterConfig] = useState(false);
+
+    // Estado para verificación de actualización del APK
+    const [installedVersion, setInstalledVersion] = useState({ name: '2.9.41', build: 45 });
+    const [apkUpdateData, setApkUpdateData] = useState<any>(null);
+    const [apkUpdateAvailable, setApkUpdateAvailable] = useState(false);
+    const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+
+    const checkApkUpdate = async (manual = false) => {
+        setIsCheckingUpdate(true);
+        try {
+            let localBuild = 45;
+            let localVersionName = '2.9.41';
+
+            if (Capacitor.isNativePlatform()) {
+                try {
+                    const { App } = await import('@capacitor/app');
+                    const info = await App.getInfo();
+                    localBuild = parseInt(info.build || '0', 10);
+                    localVersionName = info.version || '2.9.41';
+                } catch (e) {
+                    console.warn('No se pudo obtener App.getInfo() nativo:', e);
+                }
+            } else {
+                // Modo prueba en navegador web
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('test_update') === '1') {
+                    localBuild = 1;
+                }
+            }
+
+            setInstalledVersion({ name: localVersionName, build: localBuild });
+
+            const res = await fetch('/api/mobile/apk-version', { cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.versionCode > localBuild) {
+                    setApkUpdateData(data);
+                    setApkUpdateAvailable(true);
+                    if (manual) {
+                        toast.success(`¡Nueva versión v${data.versionName} disponible!`);
+                    }
+                } else {
+                    setApkUpdateAvailable(false);
+                    if (manual) {
+                        toast.info(`Tu aplicación ya está actualizada a la última versión (v${localVersionName}).`);
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('Error al consultar versión de APK:', error);
+            if (manual) toast.error('No se pudo verificar la versión en este momento.');
+        } finally {
+            setIsCheckingUpdate(false);
+        }
+    };
+
+    const handleTriggerUpdate = () => {
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem('vertex_apk_update_snooze');
+            window.dispatchEvent(new CustomEvent('open-apk-update-modal', {
+                detail: { updateData: apkUpdateData }
+            }));
+        }
+    };
+
+    useEffect(() => {
+        checkApkUpdate(false);
+    }, []);
 
     useEffect(() => {
         const loadPending = async () => {
@@ -104,6 +172,42 @@ export default function MobilePerfilPage() {
                 </CardContent>
             </Card>
 
+            {/* BOTÓN DE ACTUALIZACIÓN DEL APK (Visible cuando existe nueva versión) */}
+            {apkUpdateAvailable && apkUpdateData && (
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/90 via-slate-900 to-slate-950 border border-emerald-500/50 shadow-xl shadow-emerald-950/60 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-start justify-between gap-3 mb-2.5">
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-inner">
+                                <Sparkles className="w-5 h-5 animate-pulse" />
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-bold tracking-wider uppercase text-emerald-400">
+                                    Actualización Disponible
+                                </span>
+                                <h4 className="text-base font-bold text-white leading-tight">
+                                    VertexERP Móvil v{apkUpdateData.versionName}
+                                </h4>
+                            </div>
+                        </div>
+                        <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold">
+                            b{apkUpdateData.versionCode}
+                        </span>
+                    </div>
+
+                    <p className="text-xs text-slate-300 mb-3 leading-relaxed">
+                        Hay una nueva versión del APK lista para descargar con mejoras de rendimiento y estabilidad en ruta.
+                    </p>
+
+                    <Button
+                        onClick={handleTriggerUpdate}
+                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-12 shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                    >
+                        <Download className="w-5 h-5 animate-bounce" />
+                        Actualizar APK a v{apkUpdateData.versionName}
+                    </Button>
+                </div>
+            )}
+
             <div className="space-y-3">
                 <div className="text-xs text-slate-500 uppercase font-bold ml-1">Configuración</div>
 
@@ -177,6 +281,43 @@ export default function MobilePerfilPage() {
                 >
                     <Printer className="w-5 h-5 mr-3 text-slate-400" />
                     Configurar Impresora
+                </Button>
+
+                <Button
+                    onClick={() => {
+                        if (apkUpdateAvailable) {
+                            handleTriggerUpdate();
+                        } else {
+                            checkApkUpdate(true);
+                        }
+                    }}
+                    className={`w-full bg-slate-900 border border-slate-800 hover:bg-slate-800 text-white justify-between h-13 ${apkUpdateAvailable ? 'border-emerald-500/40 shadow-sm shadow-emerald-900/20' : ''}`}
+                    variant="outline"
+                >
+                    <div className="flex items-center">
+                        <Smartphone className="w-5 h-5 mr-3 text-slate-400" />
+                        <div className="text-left">
+                            <p className="text-sm">Versión de la App (APK)</p>
+                            <p className="text-[10px] text-slate-500">v{installedVersion.name} (Build {installedVersion.build})</p>
+                        </div>
+                    </div>
+                    {apkUpdateAvailable ? (
+                        <span className="bg-emerald-600 text-[10px] font-bold px-2.5 py-1 rounded-full text-white flex items-center gap-1 animate-pulse">
+                            <Download className="w-3 h-3" />
+                            Actualizar
+                        </span>
+                    ) : (
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                            {isCheckingUpdate ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                            ) : (
+                                <>
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                                    <span>Al día</span>
+                                </>
+                            )}
+                        </div>
+                    )}
                 </Button>
 
                 <Button
@@ -298,7 +439,7 @@ export default function MobilePerfilPage() {
                 </Button>
 
                 <div className="text-center text-xs text-slate-600 pt-4 flex flex-col gap-1">
-                    <p>VertexERP Muebles</p>
+                    <p>VertexERP Muebles • APK v{installedVersion.name} (Build {installedVersion.build})</p>
                     <p className="opacity-50">© {new Date().getFullYear()} Aurum Capital Holding</p>
                 </div>
             </div>

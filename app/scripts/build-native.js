@@ -75,6 +75,29 @@ try {
 
     console.log('✅ Build de Next.js completado.');
 
+    // 2.5 Eliminar archivos APK de la carpeta out/ y assets/public/ para evitar APKs anidados recursivamente
+    const outDir = path.join(rootDir, 'out');
+    if (fs.existsSync(outDir)) {
+        const outFiles = fs.readdirSync(outDir);
+        for (const file of outFiles) {
+            if (file.endsWith('.apk')) {
+                fs.unlinkSync(path.join(outDir, file));
+                console.log(`🧹 Removido ${file} de out/ para evitar APK recursivo.`);
+            }
+        }
+    }
+
+    const assetsPublicDir = path.join(rootDir, 'android', 'app', 'src', 'main', 'assets', 'public');
+    if (fs.existsSync(assetsPublicDir)) {
+        const assetFiles = fs.readdirSync(assetsPublicDir);
+        for (const file of assetFiles) {
+            if (file.endsWith('.apk')) {
+                fs.unlinkSync(path.join(assetsPublicDir, file));
+                console.log(`🧹 Removido ${file} de assets/public.`);
+            }
+        }
+    }
+
 } catch (error) {
     console.error('❌ Error durante el build:', error.message);
     process.exit(1);

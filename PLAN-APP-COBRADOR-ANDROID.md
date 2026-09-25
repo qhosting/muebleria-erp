@@ -1,7 +1,7 @@
 # 📱 App Nativa Android - VertexERP Cobrador
 
-**Versión:** 2.9.31 ✅ APK Release generado  
-**Fecha:** 2026-06-04  
+**Versión:** 2.9.41 (build 45) ✅ APK Release generado  
+**Fecha:** 2026-09-25  
 **Alcance:** Aplicación exclusiva para cobradores en campo  
 **Plataforma:** Android 5.0+ (API 21+)
 
@@ -711,5 +711,5 @@ Al iniciar la aplicación por primera vez en el dispositivo o emulador:
 
 **Creado por:** DeepAgent  
 **Fecha:** 2026-02-07  
-**Versión:** 2.9.34  
-**Última actualización:** 2026-06-04 — Integrado Firebase Cloud Messaging (FCM) y compilado APK Release firmado v2.9.34 con soporte para notificaciones push.
+**Versión:** 2.9.41  
+**Última actualización:** 2026-09-25 — Agregado botón de actualización directa de APK desde Mi Perfil en modo cobrador y compilado APK Release firmado v2.9.41 (build 45).

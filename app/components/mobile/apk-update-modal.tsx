@@ -31,7 +31,7 @@ interface ApkVersionData {
 export function ApkUpdateModal() {
     const [isOpen, setIsOpen] = useState(false);
     const [updateData, setUpdateData] = useState<ApkVersionData | null>(null);
-    const [currentVersion, setCurrentVersion] = useState({ name: '2.9.39', build: 43 });
+    const [currentVersion, setCurrentVersion] = useState({ name: '2.9.41', build: 45 });
     const [networkStatus, setNetworkStatus] = useState<NetworkStatusResult>({
         connected: true,
         connectionType: 'wifi'
@@ -58,25 +58,27 @@ export function ApkUpdateModal() {
         });
 
         // 2. Verificar versión al montar el componente
-        const checkAppVersion = async () => {
+        const checkAppVersion = async (ignoreSnooze = false) => {
             try {
-                // Verificar si se pospuso recientemente en esta sesión (si no es obligatoria)
-                const snoozeUntil = localStorage.getItem('vertex_apk_update_snooze');
-                if (snoozeUntil && Date.now() < parseInt(snoozeUntil, 10)) {
-                    // Está pospuesta temporalmente
-                    return;
+                // Verificar si se pospuso recientemente en esta sesión (si no es obligatoria y no se fuerza apertura)
+                if (!ignoreSnooze) {
+                    const snoozeUntil = localStorage.getItem('vertex_apk_update_snooze');
+                    if (snoozeUntil && Date.now() < parseInt(snoozeUntil, 10)) {
+                        // Está pospuesta temporalmente
+                        return;
+                    }
                 }
 
                 // Obtener info nativa si estamos en Android / Capacitor
-                let localBuild = 43;
-                let localVersionName = '2.9.39';
+                let localBuild = 45;
+                let localVersionName = '2.9.41';
 
                 if (Capacitor.isNativePlatform()) {
                     try {
                         const { App } = await import('@capacitor/app');
                         const info = await App.getInfo();
                         localBuild = parseInt(info.build || '0', 10);
-                        localVersionName = info.version || '2.9.39';
+                        localVersionName = info.version || '2.9.41';
                     } catch (e) {
                         console.warn('No se pudo obtener App.getInfo() nativo:', e);
                     }
@@ -86,12 +88,14 @@ export function ApkUpdateModal() {
                     if (urlParams.get('test_update') === '1') {
                         localBuild = 1; // Forzar para pruebas
                     } else {
-                        // En web normal no mostramos la alerta de APK nativo
-                        return;
+                        // En web normal no mostramos la alerta de APK nativo salvo que se fuerce
+                        if (!ignoreSnooze) return;
                     }
                 }
 
-                setCurrentVersion({ name: localVersionName, build: localBuild });
+                if (isMounted) {
+                    setCurrentVersion({ name: localVersionName, build: localBuild });
+                }
 
                 // Consultar versión más reciente del servidor
                 const res = await fetch('/api/mobile/apk-version', { cache: 'no-store' });
@@ -99,10 +103,12 @@ export function ApkUpdateModal() {
 
                 const data: ApkVersionData = await res.json();
 
-                // ¿El servidor tiene un build superior al instalado?
-                if (data.versionCode > localBuild) {
-                    setUpdateData(data);
-                    setIsOpen(true);
+                // ¿El servidor tiene un build superior al instalado o se forzó?
+                if (data.versionCode > localBuild || ignoreSnooze) {
+                    if (isMounted) {
+                        setUpdateData(data);
+                        setIsOpen(true);
+                    }
                 }
             } catch (err) {
                 console.warn('Error al verificar versión de APK:', err);
@@ -111,9 +117,23 @@ export function ApkUpdateModal() {
 
         checkAppVersion();
 
+        // 3. Listener para abrir el modal desde el botón de Perfil u otras vistas
+        const handleOpenModal = (event: any) => {
+            localStorage.removeItem('vertex_apk_update_snooze');
+            if (event?.detail?.updateData) {
+                setUpdateData(event.detail.updateData);
+                setIsOpen(true);
+            } else {
+                checkAppVersion(true);
+            }
+        };
+
+        window.addEventListener('open-apk-update-modal', handleOpenModal);
+
         return () => {
             isMounted = false;
             unregisterNetwork();
+            window.removeEventListener('open-apk-update-modal', handleOpenModal);
         };
     }, []);
 
