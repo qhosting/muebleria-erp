@@ -680,6 +680,37 @@ model CorteCobranzaDetalle {
   @@map("cortes_cobranza_detalles")
 }
 
+model CorteCuadre {
+  id                    String    @id @default(cuid())
+  anio                  Int
+  semana                Int
+  fechaInicio           DateTime
+  fechaFin              DateTime
+  fechaInicioStr        String?
+  fechaFinStr           String?
+  estatus               String    @default("guardado") // "guardado", "cerrado"
+  totalGeneral          Decimal   @default(0) @db.Decimal(12, 2)
+  totalBot              Decimal   @default(0) @db.Decimal(12, 2)
+  totalCobranza         Decimal   @default(0) @db.Decimal(12, 2)
+  totalBancosGestor     Decimal   @default(0) @db.Decimal(12, 2)
+  
+  resumenDQ             Json?
+  resumenDP             Json?
+  otrasDiscrepancias    Json?
+  totales               Json?
+  tablas                Json?
+  auditoriaResumen      Json?
+  
+  observaciones         String?
+  creadoPorId           String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([anio, semana])
+  @@index([anio, semana])
+  @@map("cortes_cuadre")
+}
+
 model SesionCaja {
   id            String    @id @default(cuid())
   userId        String

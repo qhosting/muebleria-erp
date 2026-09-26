@@ -942,6 +942,7 @@ export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): s
   );
 
   const totalCuentas = clientesOrdenados.length;
+  const totalSugerido = clientesOrdenados.reduce((acc, c) => acc + (c.montoPago || 0), 0);
   const totalVencido = clientesOrdenados.reduce((acc, c) => acc + (c.saldoVencido || 0), 0);
 
   // Dividir en páginas de aprox 24 clientes por página para impresión limpia
@@ -981,6 +982,7 @@ export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): s
             <div><span>CICLO OFICIAL:</span> <strong>${datos.fechaInicioStr} al ${datos.fechaFinStr}</strong></div>
             <div><span>GESTOR / COBRADOR:</span> <strong>${datos.codigoGestor} - ${datos.nombreGestor}</strong></div>
             <div><span>TOTAL SIN PAGO:</span> <strong style="color: #b91c1c;">${totalCuentas} cuentas</strong></div>
+            <div><span>PAGO SUG. TOTAL:</span> <strong style="color: #1d4ed8;">$${totalSugerido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong></div>
             <div><span>SALDO VENCIDO TOTAL:</span> <strong style="color: #b91c1c;">$${totalVencido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong></div>
           </div>
 
@@ -990,20 +992,21 @@ export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): s
               <tr>
                 <th style="width: 24px; text-align: center;">#</th>
                 <th style="width: 75px; text-align: center;">CÓDIGO</th>
-                <th style="width: 160px;">NOMBRE COMPLETO</th>
+                <th style="width: 150px;">NOMBRE COMPLETO</th>
                 <th>DOMICILIO</th>
-                <th style="width: 60px; text-align: center;">GESTOR</th>
-                <th style="width: 70px; text-align: center;">TELÉFONO</th>
-                <th style="width: 75px; text-align: right;">SALDO VENCIDO</th>
+                <th style="width: 55px; text-align: center;">GESTOR</th>
+                <th style="width: 65px; text-align: center;">TELÉFONO</th>
+                <th style="width: 65px; text-align: right;">PAGO SUG.</th>
+                <th style="width: 70px; text-align: right;">SALDO VENCIDO</th>
                 <th style="width: 28px; text-align: center;">PV</th>
-                <th style="width: 65px; text-align: center;">PROBLEMA</th>
-                <th style="width: 105px; text-align: center;">NOTAS DE RUTA / FIRMA</th>
+                <th style="width: 60px; text-align: center;">PROBLEMA</th>
+                <th style="width: 100px; text-align: center;">NOTAS DE RUTA / FIRMA</th>
               </tr>
             </thead>
             <tbody>
               ${grupo.length === 0 ? `
                 <tr>
-                  <td colspan="10" style="text-align: center; padding: 20px; font-weight: bold; color: #166534;">
+                  <td colspan="11" style="text-align: center; padding: 20px; font-weight: bold; color: #166534;">
                     ¡Excelente! No hay clientes con saldo pendiente sin abono en este filtro.
                   </td>
                 </tr>
@@ -1037,6 +1040,7 @@ export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): s
                     <td style="font-size: 7px; color: #1e293b; line-height: 1.15;">${c.domicilio || "-"}</td>
                     <td class="text-center font-mono font-bold" style="font-size: 7px; color: #334155;">${c.gestor || "-"}</td>
                     <td class="text-center font-mono" style="font-size: 7px;">${c.telefono || "-"}</td>
+                    <td class="text-right font-mono font-bold" style="color: #1d4ed8;">$${Number(c.montoPago || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
                     <td class="text-right font-mono font-bold" style="color: #b91c1c;">$${Number(c.saldoVencido || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
                     <td class="text-center font-bold">
                       <span style="display: inline-block; padding: 1px 4px; border-radius: 2px; font-size: 7.5px; ${c.pv > 0 ? 'background: #fee2e2; color: #991b1b;' : 'background: #f1f5f9; color: #475569;'}">${c.pv}</span>
@@ -1056,6 +1060,9 @@ export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): s
                 <tr style="background: #f1f5f9; font-weight: bold; border-top: 1.5px solid #0f172a;">
                   <td colspan="6" style="text-align: right; text-transform: uppercase; font-size: 7.5px; padding: 3px 6px;">
                     TOTAL CARTERA SIN PAGO (${totalCuentas} CUENTAS)
+                  </td>
+                  <td class="text-right font-mono font-black" style="color: #1d4ed8; font-size: 8px;">
+                    $${totalSugerido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
                   </td>
                   <td class="text-right font-mono font-black" style="color: #b91c1c; font-size: 8px;">
                     $${totalVencido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}

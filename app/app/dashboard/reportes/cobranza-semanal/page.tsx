@@ -812,8 +812,8 @@ function CobranzaSemanalContenido() {
                 </CardTitle>
                 <CardDescription className="text-xs mt-0.5">
                   {diaFiltro === "TODOS"
-                    ? `Metas y avance acumulado de la semana ${data.semana} (${data.rangoSemana.label})`
-                    : `Mostrando cuentas programadas y cobros correspondientes a: ${diaFiltro} de la semana ${data.semana}`}
+                    ? `Metas y avance acumulado de la semana ${data.semana} (${data.rangoSemana.label}). El Presupuesto ($) se calcula exclusivamente sobre cuentas en RUTA; la Cartera Asignada es informativa.`
+                    : `Mostrando cuentas programadas y cobros correspondientes a: ${diaFiltro} de la semana ${data.semana}. El Presupuesto ($) se calcula exclusivamente sobre cuentas en RUTA.`}
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">

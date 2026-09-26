@@ -12,7 +12,8 @@ import {
     DollarSign, Search, AlertCircle, CheckCircle2, 
     FileSpreadsheet, RefreshCw, Layers, Building2, Receipt,
     Bot, Banknote, Smartphone, Globe, Eye, Filter,
-    AlertTriangle, ArrowRight, ExternalLink, ShieldAlert, Check
+    AlertTriangle, ArrowRight, ExternalLink, ShieldAlert, Check,
+    Lock, Unlock, Save, Zap
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,8 @@ export default function CuadrePage() {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [finalizing, setFinalizing] = useState(false);
+    const [savingCorte, setSavingCorte] = useState(false);
+    const [modoEnVivo, setModoEnVivo] = useState(false);
 
     // Estado para Auditoría General ContPAQi vs ERP
     const [auditoriaData, setAuditoriaData] = useState<any>(null);
@@ -56,11 +59,12 @@ export default function CuadrePage() {
     }, []);
 
     useEffect(() => {
-        fetchCuadre();
+        fetchCuadre(modoEnVivo);
         fetchAuditoria();
     }, [dateStart, dateEnd, selectedGestor]);
 
     const setSemanaActual = () => {
+        setModoEnVivo(false);
         const d = new Date();
         const sab = new Date(d);
         sab.setDate(d.getDate() - ((d.getDay() + 1) % 7));
@@ -71,6 +75,7 @@ export default function CuadrePage() {
     };
 
     const setSemanaAnterior = () => {
+        setModoEnVivo(false);
         const d = new Date();
         const sab = new Date(d);
         sab.setDate(d.getDate() - ((d.getDay() + 1) % 7) - 7);
@@ -81,6 +86,7 @@ export default function CuadrePage() {
     };
 
     const setMesActual = () => {
+        setModoEnVivo(false);
         const d = new Date();
         const primerDia = new Date(d.getFullYear(), d.getMonth(), 1);
         const ultimoDia = new Date(d.getFullYear(), d.getMonth() + 1, 0);
@@ -107,7 +113,7 @@ export default function CuadrePage() {
         }
     };
 
-    const fetchCuadre = async () => {
+    const fetchCuadre = async (enVivo = modoEnVivo) => {
         setLoading(true);
         try {
             const params = new URLSearchParams({
@@ -115,6 +121,9 @@ export default function CuadrePage() {
                 hasta: dateEnd,
                 cobradorId: selectedGestor
             });
+            if (enVivo) {
+                params.set('enVivo', 'true');
+            }
             const res = await fetch(`/api/tesoreria/cuadre?${params.toString()}`);
             if (res.ok) {
                 const result = await res.json();
@@ -148,24 +157,78 @@ export default function CuadrePage() {
         }
     };
 
-    const handleFinalizarCuadre = async () => {
-        if (!confirm("¿Estás seguro de finalizar el cuadre? Esto reactivará a todos los clientes con saldo pendiente para la siguiente ruta de cobranza.")) return;
-        
-        setFinalizing(true);
+    const handleGuardarCorte = async (finalizar = false) => {
+        if (!data) return;
+        const msg = finalizar 
+            ? "¿Estás seguro de finalizar y cerrar el cuadre semanal? Se guardará el histórico oficial inmutable y se reactivarán los clientes con saldo pendiente para la siguiente ruta."
+            : "¿Deseas guardar el corte histórico de esta semana? Esto archivará los montos de forma permanente para consultas futuras sin verse afectado por cambios posteriores.";
+        if (!confirm(msg)) return;
+
+        if (finalizar) setFinalizing(true);
+        setSavingCorte(true);
         try {
-            const res = await fetch('/api/tesoreria/cuadre', { method: 'POST' });
+            const payload = {
+                action: finalizar ? 'finalizar' : 'guardar',
+                semana: data.semana,
+                anio: data.anio,
+                desde: dateStart,
+                hasta: dateEnd,
+                resumenDQ: data.resumenDQ,
+                resumenDP: data.resumenDP,
+                otrasDiscrepancias: data.otrasDiscrepancias,
+                totales: data.totales,
+                tablas: data.tablas,
+                auditoriaResumen: auditoriaData?.resumen,
+                reactivarClientes: finalizar
+            };
+
+            const res = await fetch('/api/tesoreria/cuadre', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
             if (res.ok) {
-                const result = await res.json();
-                toast.success(`Cuadre finalizado. ${result.reactivados} clientes reactivados.`);
-                fetchCuadre();
+                const resData = await res.json();
+                toast.success(finalizar 
+                    ? `Cuadre finalizado y guardado exitosamente. ${resData.reactivados || 0} clientes reactivados.`
+                    : "Corte histórico guardado exitosamente para la semana.");
+                setModoEnVivo(false);
+                fetchCuadre(false);
             } else {
                 const err = await res.json();
-                throw new Error(err.error || "Error al finalizar");
+                throw new Error(err.error || "Error al guardar corte");
             }
         } catch (error: any) {
-            toast.error(error.message || "No se pudo finalizar el cuadre");
+            toast.error(error.message || "Error al guardar el corte histórico");
         } finally {
+            setSavingCorte(false);
             setFinalizing(false);
+        }
+    };
+
+    const handleReabrirCorte = async () => {
+        if (!confirm("¿Deseas reabrir este corte semanal? El estatus pasará a 'abierto' y podrás recalcular en vivo o actualizar los datos.")) return;
+        try {
+            const res = await fetch('/api/tesoreria/cuadre', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'reabrir',
+                    semana: data?.semana,
+                    anio: data?.anio
+                })
+            });
+            if (res.ok) {
+                toast.success("Corte reabierto correctamente.");
+                setModoEnVivo(true);
+                fetchCuadre(true);
+            } else {
+                const err = await res.json();
+                throw new Error(err.error || "Error al reabrir");
+            }
+        } catch (error: any) {
+            toast.error(error.message || "Error al reabrir el corte");
         }
     };
 
@@ -1229,22 +1292,114 @@ export default function CuadrePage() {
                                 <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="pl-10 h-9 text-xs" />
                             </div>
                         </div>
-                        <Button onClick={fetchCuadre} variant="outline" className="lg:w-32 h-9 text-xs font-semibold gap-1.5">
+                        <Button onClick={() => fetchCuadre(modoEnVivo)} variant="outline" className="lg:w-32 h-9 text-xs font-semibold gap-1.5">
                             <Search className="w-4 h-4" />
                             Filtrar
                         </Button>
-                        <Button 
-                            onClick={handleFinalizarCuadre} 
-                            disabled={finalizing}
-                            className="lg:w-48 h-9 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200 dark:shadow-none"
-                        >
-                            {finalizing ? (
-                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                                <CheckCircle2 className="w-4 h-4 mr-2" />
-                            )}
-                            Finalizar Cuadre
-                        </Button>
+                    </div>
+                </div>
+
+                {/* Banner de Estado de Corte Histórico vs En Vivo */}
+                <div className={`p-4 rounded-2xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all shadow-sm ${
+                    data?.esCorteGuardado 
+                        ? 'bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/50' 
+                        : 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/40'
+                }`}>
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2.5 rounded-xl ${
+                            data?.esCorteGuardado 
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300' 
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300'
+                        }`}>
+                            {data?.esCorteGuardado ? <Lock className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="font-bold text-sm text-gray-900 dark:text-white">
+                                    {data?.esCorteGuardado 
+                                        ? `Corte Histórico Guardado · Semana ${data?.semana || ''}, ${data?.anio || ''}` 
+                                        : `Cálculo En Vivo · Semana ${data?.semana || ''}, ${data?.anio || ''}`}
+                                </span>
+                                <Badge className={data?.esCorteGuardado ? "bg-emerald-600 text-white font-mono text-[10px]" : "bg-amber-500 text-white font-mono text-[10px]"}>
+                                    {data?.esCorteGuardado ? (data?.corteEstatus === 'cerrado' ? '🔒 HISTÓRICO CONGELADO' : '📝 ABIERTO') : '⚡ EN VIVO'}
+                                </Badge>
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                {data?.esCorteGuardado 
+                                    ? `Corte archivado en base de datos. Los montos están congelados y no se alteran aunque cambien o se importen clientes futuros.`
+                                    : `Mostrando montos calculados en tiempo real. Puedes guardar este corte para archivarlo de forma permanente por semana.`}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 self-stretch md:self-auto justify-end">
+                        {data?.esCorteGuardado ? (
+                            <>
+                                <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => { setModoEnVivo(true); fetchCuadre(true); }}
+                                    className="h-8 text-xs font-semibold gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
+                                >
+                                    <Zap className="w-3.5 h-3.5 text-indigo-600" />
+                                    Recalcular En Vivo
+                                </Button>
+                                {data?.corteEstatus === 'cerrado' ? (
+                                    <Button 
+                                        size="sm" 
+                                        variant="outline"
+                                        onClick={handleReabrirCorte}
+                                        className="h-8 text-xs font-semibold gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/50"
+                                    >
+                                        <Unlock className="w-3.5 h-3.5 text-amber-600" />
+                                        Reabrir Corte
+                                    </Button>
+                                ) : (
+                                    <Button 
+                                        size="sm" 
+                                        onClick={() => handleGuardarCorte(false)}
+                                        disabled={savingCorte}
+                                        className="h-8 text-xs font-semibold gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+                                    >
+                                        <Save className="w-3.5 h-3.5" />
+                                        Actualizar Histórico
+                                    </Button>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                {modoEnVivo && (
+                                    <Button 
+                                        size="sm" 
+                                        variant="outline"
+                                        onClick={() => { setModoEnVivo(false); fetchCuadre(false); }}
+                                        className="h-8 text-xs font-semibold gap-1.5"
+                                    >
+                                        <Lock className="w-3.5 h-3.5 text-gray-500" />
+                                        Ver Corte Guardado
+                                    </Button>
+                                )}
+                                <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => handleGuardarCorte(false)}
+                                    disabled={savingCorte || !data}
+                                    className="h-8 text-xs font-bold gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                >
+                                    {savingCorte ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5 text-emerald-600" />}
+                                    Guardar Histórico Semanal
+                                </Button>
+                                <Button 
+                                    size="sm" 
+                                    onClick={() => handleGuardarCorte(true)}
+                                    disabled={savingCorte || finalizing || !data}
+                                    className="h-8 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                                >
+                                    {savingCorte ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                    Finalizar y Cerrar Cuadre
+                                </Button>
+                            </>
+                        )}
                     </div>
                 </div>
 

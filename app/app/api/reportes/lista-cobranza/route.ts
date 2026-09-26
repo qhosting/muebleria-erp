@@ -279,14 +279,27 @@ export async function GET(request: NextRequest) {
       const fFinBusqueda = new Date(fechaFin);
       fFinBusqueda.setHours(23, 59, 59, 999);
 
+      const wherePagosCorte: any = {
+        OR: [
+          { semanaCobranza: semana, anioCobranza: anio },
+          { fechaPago: { gte: fInicioBusqueda, lte: fFinBusqueda } }
+        ]
+      };
+
+      if (cobradorId && cobradorId !== "TODOS" && cobradorId !== "all") {
+        wherePagosCorte.AND = [
+          {
+            OR: [
+              { cobradorId: cobradorId },
+              { cliente: { cobradorAsignadoId: cobradorId } },
+              { cliente: { codigoCliente: { in: codigosTodos } } }
+            ]
+          }
+        ];
+      }
+
       const pagos = await prisma.pago.findMany({
-        where: {
-          cliente: { codigoCliente: { in: codigosTodos } },
-          OR: [
-            { semanaCobranza: semana, anioCobranza: anio },
-            { fechaPago: { gte: fInicioBusqueda, lte: fFinBusqueda } }
-          ]
-        },
+        where: wherePagosCorte,
         select: {
           monto: true,
           interesMoratorio: true,
@@ -296,7 +309,47 @@ export async function GET(request: NextRequest) {
           ticketId: true,
           banco: true,
           concepto: true,
-          cliente: { select: { codigoCliente: true } }
+          cliente: {
+            select: {
+              id: true,
+              codigoCliente: true,
+              nombreCompleto: true,
+              statusCuenta: true,
+              numContrato: true,
+              fechaVenta: true,
+              periodicidad: true,
+              montoPago: true,
+              saldoVencido: true,
+              saldoActual: true,
+              diaPago: true,
+              telefono: true,
+              telefonoTrabajo: true,
+              clasificacionCobranza: true,
+              calle: true,
+              numeroExterior: true,
+              colonia: true,
+              ciudad: true,
+              direccionCompleta: true,
+              cobradorAsignado: {
+                select: { id: true, name: true, codigoGestor: true }
+              }
+            }
+          }
+        }
+      });
+
+      // Incluir en clientesActivos a cualquier cliente que haya pagado en la semana y no esté aún en la lista
+      const codigosPresentes = new Set([
+        ...clientesActivos.map((c) => c.codigoCliente.toUpperCase().trim()),
+        ...Array.from(codigosEnCorte)
+      ]);
+      pagos.forEach((p) => {
+        if (p.cliente) {
+          const cod = p.cliente.codigoCliente.toUpperCase().trim();
+          if (!codigosPresentes.has(cod)) {
+            clientesActivos.push(p.cliente as any);
+            codigosPresentes.add(cod);
+          }
         }
       });
 
@@ -690,16 +743,16 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 3. CONSULTA EN VIVO: Obtener clientes asignados (cartera completa activa)
-    const whereClause: any = {
-      statusCuenta: "activo"
-    };
+    // 3. CONSULTA EN VIVO: Rango de búsqueda de pagos según la semana y fechas oficiales
+    const fInicioBusqueda = new Date(fechaInicio);
+    fInicioBusqueda.setHours(0, 0, 0, 0);
+    const fFinBusqueda = new Date(fechaFin);
+    fFinBusqueda.setHours(23, 59, 59, 999);
 
     let nombreGestor = "GENERAL - TODOS LOS COBRADORES";
     let codigoGestor = "TODOS";
 
     if (cobradorId && cobradorId !== "TODOS" && cobradorId !== "all") {
-      whereClause.cobradorAsignadoId = cobradorId;
       const gestorUser = await prisma.user.findUnique({
         where: { id: cobradorId },
         select: { name: true, codigoGestor: true }
@@ -710,8 +763,59 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // 4. Obtener todos los pagos correspondientes a esta semana
+    const wherePagosLive: any = {
+      OR: [
+        { semanaCobranza: semana, anioCobranza: anio },
+        { fechaPago: { gte: fInicioBusqueda, lte: fFinBusqueda } }
+      ]
+    };
+
+    if (cobradorId && cobradorId !== "TODOS" && cobradorId !== "all") {
+      wherePagosLive.AND = [
+        {
+          OR: [
+            { cobradorId: cobradorId },
+            { cliente: { cobradorAsignadoId: cobradorId } }
+          ]
+        }
+      ];
+    }
+
+    const pagos = await prisma.pago.findMany({
+      where: wherePagosLive,
+      select: {
+        monto: true,
+        interesMoratorio: true,
+        fechaPago: true,
+        numeroRecibo: true,
+        metodoPago: true,
+        ticketId: true,
+        banco: true,
+        concepto: true,
+        clienteId: true,
+        cliente: { select: { id: true, codigoCliente: true } }
+      }
+    });
+
+    const clienteIdsConPago = Array.from(new Set(pagos.map((p) => p.clienteId).filter(Boolean))) as string[];
+
+    // 5. Obtener clientes asignados:
+    // Cartera activa asignada a este cobrador (o a todos), MÁS cualquier cliente (incluso inactivo) que haya realizado un pago en esta semana
+    const whereClientesLive: any = {
+      OR: [
+        {
+          statusCuenta: "activo",
+          ...(cobradorId && cobradorId !== "TODOS" && cobradorId !== "all"
+            ? { cobradorAsignadoId: cobradorId }
+            : {})
+        },
+        ...(clienteIdsConPago.length > 0 ? [{ id: { in: clienteIdsConPago } }] : [])
+      ]
+    };
+
     const clientes = await prisma.cliente.findMany({
-      where: whereClause,
+      where: whereClientesLive,
       include: {
         cobradorAsignado: {
           select: {
@@ -724,35 +828,6 @@ export async function GET(request: NextRequest) {
       orderBy: [
         { codigoCliente: "asc" }
       ]
-    });
-
-    // 4. Obtener pagos de la semana para los clientes
-    const fInicioBusqueda = new Date(fechaInicio);
-    fInicioBusqueda.setHours(0, 0, 0, 0);
-    const fFinBusqueda = new Date(fechaFin);
-    fFinBusqueda.setHours(23, 59, 59, 999);
-
-    const codigosClientes = clientes.map((c) => c.codigoCliente);
-
-    const pagos = await prisma.pago.findMany({
-      where: {
-        cliente: { codigoCliente: { in: codigosClientes } },
-        OR: [
-          { semanaCobranza: semana, anioCobranza: anio },
-          { fechaPago: { gte: fInicioBusqueda, lte: fFinBusqueda } }
-        ]
-      },
-      select: {
-        monto: true,
-        interesMoratorio: true,
-        fechaPago: true,
-        numeroRecibo: true,
-        metodoPago: true,
-        ticketId: true,
-        banco: true,
-        concepto: true,
-        cliente: { select: { codigoCliente: true } }
-      }
     });
 
     const pagosRaw: PagoCorteRaw[] = pagos.map((p) => ({

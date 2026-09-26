@@ -202,6 +202,33 @@ export async function GET(req: NextRequest) {
       }
     });
 
+    // 4.1 Buscar si existe un corte guardado oficial para esta semana y año (para reflejar clasificaciones exactas de RUTA/Problemas)
+    const corteSemanal = await prisma.corteCobranza.findFirst({
+      where: {
+        semana,
+        anio,
+        cobradorId: 'TODOS'
+      },
+      include: {
+        detalles: {
+          select: {
+            codigoCliente: true,
+            problema: true,
+            pagoSugerido: true
+          }
+        }
+      }
+    });
+
+    const problemasCorteMap = new Map<string, string>();
+    if (corteSemanal?.detalles) {
+      corteSemanal.detalles.forEach((d) => {
+        if (d.codigoCliente) {
+          problemasCorteMap.set(d.codigoCliente.toUpperCase().trim(), (d.problema || 'RUTA').toUpperCase().trim());
+        }
+      });
+    }
+
     // 5. Presupuesto / Proyección por defecto y calculada
     const defaultProyeccion =
       cartera === 'DP'
@@ -225,7 +252,9 @@ export async function GET(req: NextRequest) {
     };
 
     clientesCartera.forEach((c) => {
-      const isRuta = (c.clasificacionCobranza || 'RUTA') === 'RUTA';
+      const cod = (c.codigoCliente || '').toUpperCase().trim();
+      const prob = problemasCorteMap.get(cod) || (c.clasificacionCobranza || 'RUTA').toUpperCase().trim();
+      const isRuta = prob === 'RUTA';
       if (isRuta) {
         const diaNorm = normalizarDiaSemana(c.diaPago);
         const targetDia = diaNorm === 'DOMINGO' ? 'SABADO' : diaNorm;
@@ -361,12 +390,16 @@ export async function GET(req: NextRequest) {
         gestoresMap.set(g.key, item);
       }
 
+      // Cartera Asignada es informativa
       item.carteraAsig++;
-      const isRuta = (c.clasificacionCobranza || 'RUTA') === 'RUTA';
+      const cod = (c.codigoCliente || '').toUpperCase().trim();
+      const prob = problemasCorteMap.get(cod) || (c.clasificacionCobranza || 'RUTA').toUpperCase().trim();
+      const isRuta = prob === 'RUTA';
       if (isRuta) {
         item.ruta++;
+        // El presupuesto semanal contempla exclusivamente cuentas en RUTA
+        item.presupuesto += Number(c.montoPago || 0);
       }
-      item.presupuesto += Number(c.montoPago || 0);
     });
 
     // 2) Atribuir los cobros y cuentas cobradas de la semana al gestor real que cobró

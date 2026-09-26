@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { checkPermission } from '@/lib/permissions';
+import { calcularSemanaCobranzaSabadoViernes, calcularRangoSemanaSabadoViernes } from '@/lib/calendario-cobranza-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,10 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const dateStartParam = searchParams.get('desde');
         const dateEndParam = searchParams.get('hasta');
+        const semanaParam = searchParams.get('semana');
+        const anioParam = searchParams.get('anio');
         const cobradorId = searchParams.get('cobradorId');
+        const forzarEnVivo = searchParams.get('enVivo') === 'true';
 
         // Configuración de fechas (Medianoche a fin de día)
         const now = new Date();
@@ -41,22 +45,86 @@ export async function GET(request: NextRequest) {
         endDate.setDate(startDate.getDate() + 6); // Next Friday
         endDate.setHours(23, 59, 59, 999);
 
-        if (dateStartParam) {
+        let semana: number;
+        let anio: number;
+
+        if (semanaParam) {
+            semana = parseInt(semanaParam, 10);
+            anio = anioParam ? parseInt(anioParam, 10) : new Date().getFullYear();
+            const rango = calcularRangoSemanaSabadoViernes(semana, anio);
+            startDate = rango.inicio;
+            endDate = rango.fin;
+        } else if (dateStartParam) {
             startDate = new Date(dateStartParam + 'T00:00:00');
+            if (dateEndParam) {
+                endDate = new Date(dateEndParam + 'T23:59:59');
+            }
+            const semInfo = calcularSemanaCobranzaSabadoViernes(startDate);
+            semana = semInfo.semana;
+            anio = semInfo.anio;
+        } else {
+            const semInfo = calcularSemanaCobranzaSabadoViernes(startDate);
+            semana = semInfo.semana;
+            anio = semInfo.anio;
         }
-        if (dateEndParam) {
-            endDate = new Date(dateEndParam + 'T23:59:59');
+
+        // 0. Si no se fuerza en vivo ni se filtra por gestor individual, consultar si existe corte oficial guardado
+        const corteGuardado = await prisma.corteCuadre.findUnique({
+            where: {
+                anio_semana: {
+                    anio,
+                    semana
+                }
+            }
+        });
+
+        if (corteGuardado && !forzarEnVivo && (!cobradorId || cobradorId === 'all')) {
+            return NextResponse.json({
+                esCorteGuardado: true,
+                corteId: corteGuardado.id,
+                corteEstatus: corteGuardado.estatus,
+                corteGuardadoAt: corteGuardado.createdAt,
+                semana: corteGuardado.semana,
+                anio: corteGuardado.anio,
+                fechaInicioStr: corteGuardado.fechaInicioStr || toCdmxDateString(corteGuardado.fechaInicio),
+                fechaFinStr: corteGuardado.fechaFinStr || toCdmxDateString(corteGuardado.fechaFin),
+                resumenDQ: corteGuardado.resumenDQ,
+                resumenDP: corteGuardado.resumenDP,
+                otrasDiscrepancias: corteGuardado.otrasDiscrepancias,
+                totales: corteGuardado.totales || {
+                    totalBot: Number(corteGuardado.totalBot),
+                    totalCobranza: Number(corteGuardado.totalCobranza),
+                    totalBancosGestor: Number(corteGuardado.totalBancosGestor),
+                    totalGeneral: Number(corteGuardado.totalGeneral),
+                },
+                tablas: corteGuardado.tablas,
+                totalGeneral: Number(corteGuardado.totalGeneral),
+                auditoriaResumen: corteGuardado.auditoriaResumen,
+                observaciones: corteGuardado.observaciones
+            });
         }
 
         const wherePagos: any = {
-            fechaPago: {
-                gte: startDate,
-                lte: endDate,
-            },
+            OR: [
+                { semanaCobranza: semana, anioCobranza: anio },
+                {
+                    fechaPago: {
+                        gte: startDate,
+                        lte: endDate,
+                    }
+                }
+            ]
         };
 
         if (cobradorId && cobradorId !== 'all') {
-            wherePagos.cobradorId = cobradorId;
+            wherePagos.AND = [
+                {
+                    OR: [
+                        { cobradorId: cobradorId },
+                        { cliente: { cobradorAsignadoId: cobradorId } }
+                    ]
+                }
+            ];
         }
 
         // 1. Obtener pagos para desglose por gestor
@@ -71,6 +139,10 @@ export async function GET(request: NextRequest) {
                         id: true, 
                         codigoCliente: true, 
                         nombreCompleto: true,
+                        statusCuenta: true,
+                        cobradorAsignado: {
+                            select: { id: true, name: true, codigoGestor: true }
+                        },
                         cuentasBancarias: true,
                         movimientosSantander22001022837: true,
                         movimientosSantander65505732541: true,
@@ -238,9 +310,9 @@ export async function GET(request: NextRequest) {
 
         // Procesar todos los pagos para los 3 canales y el resumen consolidado
         pagosAll.forEach(pago => {
-            const cid = pago.cobradorId || 'sin_asignar';
-            const cobradorNombre = pago.cobrador?.name || 'Sin Asignar';
-            const codigoGestor = pago.cobrador?.codigoGestor || '-';
+            const cid = pago.cobradorId || (pago.cliente as any)?.cobradorAsignado?.id || 'sin_asignar';
+            const cobradorNombre = pago.cobrador?.name || (pago.cliente as any)?.cobradorAsignado?.name || 'Sin Asignar';
+            const codigoGestor = pago.cobrador?.codigoGestor || (pago.cliente as any)?.cobradorAsignado?.codigoGestor || '-';
 
             const abono = Number(pago.monto || 0);
             const mora = Number(pago.interesMoratorio || 0);
@@ -424,6 +496,14 @@ export async function GET(request: NextRequest) {
         const totalGeneral = totalBot + totalCobranza + totalBancosGestor;
 
         return NextResponse.json({
+            esCorteGuardado: false,
+            corteGuardadoExistenteId: corteGuardado?.id || null,
+            corteEstatus: corteGuardado?.estatus || null,
+            corteGuardadoAt: corteGuardado?.createdAt || null,
+            semana,
+            anio,
+            fechaInicioStr: toCdmxDateString(startDate),
+            fechaFinStr: toCdmxDateString(endDate),
             resumenDQ: calcResumen('DQ'),
             resumenDP: calcResumen('DP'),
             otrasDiscrepancias: { abonosSinAsignar },
@@ -459,27 +539,127 @@ export async function POST(request: NextRequest) {
 
         const userRole = (session.user as any).role;
         if (!await checkPermission(userRole, 'tesoreria')) {
-            return NextResponse.json({ error: 'Solo administradores, gestores y dirección pueden finalizar el cuadre' }, { status: 403 });
+            return NextResponse.json({ error: 'Solo administradores, gestores y dirección pueden gestionar el cuadre' }, { status: 403 });
         }
 
-        // Reactivar todos los clientes con saldo pendiente
-        const result = await prisma.cliente.updateMany({
+        const body = await request.json().catch(() => ({}));
+        const { 
+            action = 'guardar',
+            semana: semanaReq, 
+            anio: anioReq, 
+            desde, 
+            hasta,
+            resumenDQ, 
+            resumenDP, 
+            otrasDiscrepancias, 
+            totales, 
+            tablas, 
+            auditoriaResumen, 
+            observaciones,
+            reactivarClientes = true 
+        } = body;
+
+        let semana = semanaReq;
+        let anio = anioReq;
+
+        if (!semana || !anio) {
+            const fechaRef = desde ? new Date(desde + 'T00:00:00') : new Date();
+            const semInfo = calcularSemanaCobranzaSabadoViernes(fechaRef);
+            semana = semInfo.semana;
+            anio = semInfo.anio;
+        }
+
+        const rango = calcularRangoSemanaSabadoViernes(semana, anio);
+        const fechaInicio = desde ? new Date(desde + 'T00:00:00') : rango.inicio;
+        const fechaFin = hasta ? new Date(hasta + 'T23:59:59') : rango.fin;
+        const fechaInicioStr = desde || rango.inicioStr;
+        const fechaFinStr = hasta || rango.finStr;
+
+        if (action === 'reabrir') {
+            await prisma.corteCuadre.update({
+                where: {
+                    anio_semana: { anio, semana }
+                },
+                data: {
+                    estatus: 'abierto'
+                }
+            });
+            return NextResponse.json({
+                success: true,
+                message: `Cuadre de la semana ${semana} (${anio}) reabierto para edición.`
+            });
+        }
+
+        // Guardar o congelar el corte de cuadre semanal oficial
+        const corteGuardado = await prisma.corteCuadre.upsert({
             where: {
-                saldoActual: { gt: 0 },
-                statusCuenta: 'inactivo'
+                anio_semana: { anio, semana }
             },
-            data: {
-                statusCuenta: 'activo'
+            update: {
+                fechaInicio,
+                fechaFin,
+                fechaInicioStr,
+                fechaFinStr,
+                estatus: action === 'finalizar' ? 'cerrado' : 'guardado',
+                totalGeneral: totales?.totalGeneral || 0,
+                totalBot: totales?.totalBot || 0,
+                totalCobranza: totales?.totalCobranza || 0,
+                totalBancosGestor: totales?.totalBancosGestor || 0,
+                resumenDQ,
+                resumenDP,
+                otrasDiscrepancias,
+                totales,
+                tablas,
+                auditoriaResumen,
+                observaciones,
+                creadoPorId: (session.user as any).id
+            },
+            create: {
+                anio,
+                semana,
+                fechaInicio,
+                fechaFin,
+                fechaInicioStr,
+                fechaFinStr,
+                estatus: action === 'finalizar' ? 'cerrado' : 'guardado',
+                totalGeneral: totales?.totalGeneral || 0,
+                totalBot: totales?.totalBot || 0,
+                totalCobranza: totales?.totalCobranza || 0,
+                totalBancosGestor: totales?.totalBancosGestor || 0,
+                resumenDQ,
+                resumenDP,
+                otrasDiscrepancias,
+                totales,
+                tablas,
+                auditoriaResumen,
+                observaciones,
+                creadoPorId: (session.user as any).id
             }
         });
 
+        let reactivadosCount = 0;
+        if (reactivarClientes) {
+            const result = await prisma.cliente.updateMany({
+                where: {
+                    saldoActual: { gt: 0 },
+                    statusCuenta: 'inactivo'
+                },
+                data: {
+                    statusCuenta: 'activo'
+                }
+            });
+            reactivadosCount = result.count;
+        }
+
         return NextResponse.json({ 
-            message: 'Cuadre finalizado y clientes reactivados',
-            reactivados: result.count
+            success: true,
+            message: `Cuadre semanal ${semana} (${anio}) guardado oficialmente con éxito.`,
+            corteId: corteGuardado.id,
+            reactivados: reactivadosCount
         });
 
     } catch (error: any) {
-        console.error('Error al finalizar cuadre:', error);
+        console.error('Error al guardar/finalizar cuadre:', error);
         return NextResponse.json({ error: error.message || 'Error interno del servidor' }, { status: 500 });
     }
 }

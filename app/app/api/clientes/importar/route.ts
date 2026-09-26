@@ -150,34 +150,22 @@ export async function POST(req: Request) {
                     );
                     await Promise.allSettled(leadsPromises);
 
-                    // 2. Eliminar en cascada transaccional para evitar fallos de claves foráneas
-                    await prisma.$transaction([
-                        prisma.smsLog.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
-                        prisma.avisoCobro.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
-                        prisma.cuentaBancariaCliente.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
-                        prisma.verificacionDomiciliaria.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
-                        prisma.convenioPago.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
-                        prisma.ticket.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
-                        prisma.pago.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
-                        prisma.motarario.deleteMany({ where: { clienteId: { in: idsAEliminar } } }),
-                        prisma.movimientoBancario.updateMany({ where: { clienteId: { in: idsAEliminar } }, data: { clienteId: null } }),
-                        prisma.movimientoBanorte0330253963.updateMany({ where: { clienteId: { in: idsAEliminar } }, data: { clienteId: null } }),
-                        prisma.movimientoSantander22001022837.updateMany({ where: { clienteId: { in: idsAEliminar } }, data: { clienteId: null } }),
-                        prisma.movimientoSantander65505732541.updateMany({ where: { clienteId: { in: idsAEliminar } }, data: { clienteId: null } }),
-                        // Quitar de los detalles de cortes de cobranza para que no figuren en la lista de cobranza ni sin pago
-                        prisma.corteCobranzaDetalle.deleteMany({
-                            where: {
-                                OR: [
-                                    { clienteId: { in: idsAEliminar } },
-                                    { codigoCliente: { in: codigosAEliminar } }
-                                ]
-                            }
-                        }),
-                        // Eliminar definitivamente los clientes
-                        prisma.cliente.deleteMany({ where: { id: { in: idsAEliminar } } }),
-                    ]);
+                    // 2. Inactivar cuentas retiradas de cartera masiva SIN eliminar sus pagos, tickets, movimientos bancarios ni historial de auditoría
+                    const fechaInactivacionDate = new Date();
+                    await prisma.cliente.updateMany({
+                        where: { id: { in: idsAEliminar } },
+                        data: {
+                            statusCuenta: StatusCuenta.inactivo,
+                            clasificacionCobranza: ClasificacionCobranza.K,
+                            saldoActual: 0,
+                            saldoVencido: 0,
+                            montoPago: 0,
+                            diasVencidos: 0,
+                            fechaInactivacion: fechaInactivacionDate,
+                        }
+                    });
 
-                    const fechaEliminacion = new Date().toISOString();
+                    const fechaEliminacion = fechaInactivacionDate.toISOString();
                     deletedCount = clientesAEliminar.length;
                     deletedClientes = clientesAEliminar.map(c => ({
                         codigoCliente: c.codigoCliente,
