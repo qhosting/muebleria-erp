@@ -161,8 +161,8 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
   setCell(resumenRowStart, 3, "DP (DASOPLUS)");
 
   const rowsComp = [
-    { concepto: "Cuentas Asignadas", g: resGlobal.totalCuentas, dq: resDQ.totalCuentas, dp: resDP.totalCuentas, num: true },
-    { concepto: "Pago Sugerido (Ppto $)", g: resGlobal.totalSugerido, dq: resDQ.totalSugerido, dp: resDP.totalSugerido, num: true },
+    { concepto: "Cuentas Asignadas (Cartera)", g: resGlobal.totalCuentas, dq: resDQ.totalCuentas, dp: resDP.totalCuentas, num: true },
+    { concepto: "Cuentas Asignadas en $ (Pago Sugerido)", g: resGlobal.totalSugerido, dq: resDQ.totalSugerido, dp: resDP.totalSugerido, num: true },
     { concepto: "Cobranza Abonos ($)", g: resGlobal.totalCobrado, dq: resDQ.totalCobrado, dp: resDP.totalCobrado, num: true },
     { concepto: "Interés Moratorio ($)", g: resGlobal.totalMoratorio ?? 0, dq: resDQ.totalMoratorio ?? 0, dp: resDP.totalMoratorio ?? 0, num: true },
     { concepto: "Total Recaudado (Abonos + Mora) ($)", g: resGlobal.totalCobradoConMoratorio ?? ((resGlobal.totalCobrado ?? 0) + (resGlobal.totalMoratorio ?? 0)), dq: resDQ.totalCobradoConMoratorio ?? ((resDQ.totalCobrado ?? 0) + (resDQ.totalMoratorio ?? 0)), dp: resDP.totalCobradoConMoratorio ?? ((resDP.totalCobrado ?? 0) + (resDP.totalMoratorio ?? 0)), num: true },
@@ -486,9 +486,15 @@ export function generarHTMLPlantillaCEJ(datos: DatosExportacionCEJ): string {
           <tbody>
             <tr>
               <td class="font-bold" style="padding: 2.5px 6px;">Cuentas Asignadas (Cartera)</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px;">${resGlobal.totalCuentas} ctas ($${resGlobal.totalSugerido.toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #1e3a8a;">${resDQ.totalCuentas} ctas ($${resDQ.totalSugerido.toLocaleString("es-MX")})</td>
-              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #312e81;">${resDP.totalCuentas} ctas ($${resDP.totalSugerido.toLocaleString("es-MX")})</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px;">${resGlobal.totalCuentas} ctas</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #1e3a8a;">${resDQ.totalCuentas} ctas</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #312e81;">${resDP.totalCuentas} ctas</td>
+            </tr>
+            <tr style="background: #f8fafc;">
+              <td class="font-bold" style="padding: 2.5px 6px;">Cuentas Asignadas en $ (Pago Sugerido)</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px;">$${(resGlobal.totalSugerido ?? 0).toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #1e3a8a;">$${(resDQ.totalSugerido ?? 0).toLocaleString("es-MX")}</td>
+              <td class="text-right font-mono font-bold" style="padding: 2.5px 6px; color: #312e81;">$${(resDP.totalSugerido ?? 0).toLocaleString("es-MX")}</td>
             </tr>
             <tr style="background: #f8fafc;">
               <td class="font-bold" style="padding: 2.5px 6px;">Cobranza Abonos ($)</td>

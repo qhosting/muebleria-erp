@@ -1531,13 +1531,27 @@ export default function ListaCobranzaPage() {
                             Cuentas Asignadas (Cartera)
                           </td>
                           <td className="px-4 py-2 text-right font-mono font-bold text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800">
-                            {resGlobalActivo?.totalCuentas ?? 0} <span className="text-[11px] font-normal text-slate-500">({formatCurrency(resGlobalActivo?.totalSugerido ?? 0)})</span>
+                            {resGlobalActivo?.totalCuentas ?? 0} <span className="text-[11px] font-normal text-slate-500">ctas</span>
                           </td>
                           <td className="px-4 py-2 text-right font-mono font-bold text-blue-700 dark:text-blue-300 border border-gray-100 dark:border-slate-800">
-                            {resDQActivo?.totalCuentas ?? 0} <span className="text-[11px] font-normal text-slate-500">({formatCurrency(resDQActivo?.totalSugerido ?? 0)})</span>
+                            {resDQActivo?.totalCuentas ?? 0} <span className="text-[11px] font-normal text-slate-500">ctas</span>
                           </td>
                           <td className="px-4 py-2 text-right font-mono font-bold text-indigo-700 dark:text-indigo-300 border border-gray-100 dark:border-slate-800">
-                            {resDPActivo?.totalCuentas ?? 0} <span className="text-[11px] font-normal text-slate-500">({formatCurrency(resDPActivo?.totalSugerido ?? 0)})</span>
+                            {resDPActivo?.totalCuentas ?? 0} <span className="text-[11px] font-normal text-slate-500">ctas</span>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 bg-slate-50/50 dark:bg-slate-800/30">
+                          <td className="px-4 py-2 font-bold text-slate-800 dark:text-slate-200 border border-gray-100 dark:border-slate-800">
+                            Cuentas Asignadas en $ (Pago Sugerido)
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resGlobalActivo?.totalSugerido ?? 0)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-blue-700 dark:text-blue-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDQActivo?.totalSugerido ?? 0)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono font-bold text-indigo-700 dark:text-indigo-300 border border-gray-100 dark:border-slate-800">
+                            {formatCurrency(resDPActivo?.totalSugerido ?? 0)}
                           </td>
                         </tr>
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
