@@ -45,10 +45,15 @@ import {
   CreditCard,
   AlertTriangle
 } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 import { calcularSemanaCobranzaSabadoViernes, calcularRangoSemanaSabadoViernes, formatearFechaCortaMX } from "@/lib/calendario-cobranza-utils";
-import { formatCurrency, getDayName } from "@/lib/utils";
-import { descargarExcelCEJ, imprimirPDFCEJ, imprimirPDFClientesSinPago } from "@/lib/exportar-plantilla-cej";
-import { ResumenCorteCEJ, separarYCalcularResumenesCEJ } from "@/lib/corte-cej-utils";
+import {
+  descargarExcelCEJ,
+  imprimirPDFCEJ,
+  imprimirPDFCarteraEnRuta,
+  imprimirPDFClientesSiPago,
+  imprimirPDFClientesSinPago
+} from "@/lib/exportar-plantilla-cej";
 
 interface User {
   id: string;
@@ -638,6 +643,85 @@ export default function ListaCobranzaPage() {
     }
   };
 
+  // Exportar / Imprimir PDF de Cartera en Ruta
+  const handleExportarPDFCartera = () => {
+    if (clientesFiltrados.length === 0) {
+      toast.error("No hay datos para exportar");
+      return;
+    }
+
+    const fInicio = calendario
+      ? new Date(calendario.fechaInicio).toLocaleDateString("es-MX")
+      : `Semana ${semana}`;
+    const fFin = calendario
+      ? new Date(calendario.fechaFin).toLocaleDateString("es-MX")
+      : `${anio}`;
+
+    const { blobUrl } = imprimirPDFCarteraEnRuta({
+      anio: parseInt(anio),
+      semana: parseInt(semana),
+      fechaInicioStr: fInicio,
+      fechaFinStr: fFin,
+      nombreGestor: getSelectedCobradorName(),
+      codigoGestor: getSelectedCobradorCodigo(),
+      clientes: clientesFiltrados as any
+    });
+
+    if (blobUrl) {
+      setPdfBlobUrl(blobUrl);
+      setModalPDFOpen(true);
+    }
+  };
+
+  // Exportar / Imprimir PDF de Clientes Sí Pago
+  const handleExportarPDFSiPago = () => {
+    if (clientesSiPago.length === 0) {
+      toast.info("No hay clientes con pago en este filtro");
+      return;
+    }
+
+    const fInicio = calendario
+      ? new Date(calendario.fechaInicio).toLocaleDateString("es-MX")
+      : `Semana ${semana}`;
+    const fFin = calendario
+      ? new Date(calendario.fechaFin).toLocaleDateString("es-MX")
+      : `${anio}`;
+
+    const { blobUrl } = imprimirPDFClientesSiPago({
+      anio: parseInt(anio),
+      semana: parseInt(semana),
+      fechaInicioStr: fInicio,
+      fechaFinStr: fFin,
+      nombreGestor: getSelectedCobradorName(),
+      codigoGestor: getSelectedCobradorCodigo(),
+      clientes: clientesSiPago.map((c) => ({
+        codigoCliente: c.codigoCliente,
+        numContrato: c.numContrato,
+        nombreCompleto: c.nombreCompleto,
+        domicilio: c.domicilio || "-",
+        gestor: c.gestor || "-",
+        telefono: c.telefono || "-",
+        periodicidad: c.periodicidad,
+        pagoSugerido: c.montoPago || 0,
+        pagoReal: c.pagoReal || 0,
+        moratorio: c.moratorio || 0,
+        totalRecaudado: (c.pagoReal || 0) + (c.moratorio || 0),
+        tipoCobro: c.tipoCobro || "EFECTIVO",
+        canalCobro: c.canalCobro,
+        fechaPago: c.fechaPago,
+        diaPago: c.diaPago,
+        problema: c.problema || "RUTA",
+        pagoDoble: c.pagoDoble,
+        recuperadoPv: c.recuperadoPv
+      }))
+    });
+
+    if (blobUrl) {
+      setPdfBlobUrl(blobUrl);
+      setModalPDFOpen(true);
+    }
+  };
+
   // Filtrado y ordenamiento en memoria de clientes (por Código de Cliente A-Z)
   const clientesFiltrados = useMemo(() => {
     return clientes
@@ -686,6 +770,34 @@ export default function ListaCobranzaPage() {
   const totalSugeridoSinPago = useMemo(() => {
     return clientesSinPago.reduce((acc, curr) => acc + (curr.montoPago || 0), 0);
   }, [clientesSinPago]);
+
+  // Clientes que sí dieron pago en la semana (pagoReal > 0 || moratorio > 0), ordenados por Código de Cliente A-Z
+  const clientesSiPago = useMemo(() => {
+    return clientesFiltrados
+      .filter((c) => Number(c.pagoReal || 0) > 0 || Number(c.moratorio || 0) > 0)
+      .sort((a, b) =>
+        (a.codigoCliente || "").localeCompare(b.codigoCliente || "", undefined, {
+          numeric: true,
+          sensitivity: "base"
+        })
+      );
+  }, [clientesFiltrados]);
+
+  const totalAbonosSiPago = useMemo(() => {
+    return clientesSiPago.reduce((acc, curr) => acc + (curr.pagoReal || 0), 0);
+  }, [clientesSiPago]);
+
+  const totalMoratorioSiPago = useMemo(() => {
+    return clientesSiPago.reduce((acc, curr) => acc + (curr.moratorio || 0), 0);
+  }, [clientesSiPago]);
+
+  const totalRecaudadoSiPago = useMemo(() => {
+    return totalAbonosSiPago + totalMoratorioSiPago;
+  }, [totalAbonosSiPago, totalMoratorioSiPago]);
+
+  const totalSugeridoSiPago = useMemo(() => {
+    return clientesSiPago.reduce((acc, curr) => acc + (curr.montoPago || 0), 0);
+  }, [clientesSiPago]);
 
   const totalCuentasDQ = clientes.filter(
     (c) => (c.codigoCliente || "").toUpperCase().startsWith("DQ") || (c.numContrato || "").toUpperCase().startsWith("DQ")
@@ -758,14 +870,22 @@ export default function ListaCobranzaPage() {
                   onClick={handleExportarExcelCEJ}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200 dark:shadow-none h-9 text-xs font-bold gap-1.5"
                 >
-                  <Download className="h-4 w-4" /> Excel (Plantilla Lista Cobranza)
+                  <Download className="h-4 w-4" /> Excel Completo (4 Hojas)
                 </Button>
 
                 <Button
                   onClick={handleExportarPDFCEJ}
                   className="bg-slate-800 hover:bg-slate-900 text-white shadow-md h-9 text-xs font-bold gap-1.5"
                 >
-                  <Printer className="h-4 w-4" /> PDF (Plantilla Lista Cobranza)
+                  <Printer className="h-4 w-4" /> PDF Resumen Corte
+                </Button>
+
+                <Button
+                  onClick={handleExportarPDFCartera}
+                  variant="outline"
+                  className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 h-9 text-xs font-bold gap-1.5"
+                >
+                  <Printer className="h-4 w-4 text-blue-600" /> PDF Cartera
                 </Button>
 
                 {!esCorteGuardado ? (
@@ -1060,7 +1180,10 @@ export default function ListaCobranzaPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <TabsList className="bg-slate-200/80 dark:bg-slate-800 p-1">
                 <TabsTrigger value="cartera" className="text-xs font-bold gap-1.5">
-                  <FileText className="w-3.5 h-3.5" /> Cartera en Ruta (Plantilla Lista Cobranza)
+                  <FileText className="w-3.5 h-3.5" /> Cartera en Ruta ({clientesFiltrados.length})
+                </TabsTrigger>
+                <TabsTrigger value="sipago" className="text-xs font-bold gap-1.5 text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Clientes Sí Pago ({clientesSiPago.length})
                 </TabsTrigger>
                 <TabsTrigger value="sinpago" className="text-xs font-bold gap-1.5 text-rose-700 dark:text-rose-400">
                   <AlertCircle className="w-3.5 h-3.5" /> Clientes Sin Pago ({clientesSinPago.length})
@@ -1125,6 +1248,15 @@ export default function ListaCobranzaPage() {
                     <CardDescription className="text-[11px] text-slate-500">
                       Formato oficial CEJ con 18 columnas analíticas, días supuestos y cruce de cobranza semanal.
                     </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={handleExportarPDFCartera}
+                      className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs gap-1.5 shadow-sm h-8"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Descargar PDF Cartera en Ruta</span>
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -1292,6 +1424,158 @@ export default function ListaCobranzaPage() {
                           </td>
                           <td colSpan={5} className="px-3 py-3 text-center border border-gray-200 dark:border-slate-700">-</td>
                         </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* PESTAÑA: LISTA DE CLIENTES SÍ PAGO */}
+            <TabsContent value="sipago" className="m-0 space-y-4">
+              <Card className="border-gray-100 dark:border-slate-800 shadow-md overflow-hidden">
+                <CardHeader className="py-3 px-4 border-b bg-gradient-to-r from-emerald-50 via-white to-emerald-50 dark:from-emerald-950/30 dark:via-slate-900 dark:to-emerald-950/30 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 rounded-lg">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <CardTitle className="text-sm font-black uppercase tracking-wider text-emerald-900 dark:text-emerald-200">
+                        Lista de Clientes Sí Pago ({clientesSiPago.length} cuentas)
+                      </CardTitle>
+                    </div>
+                    <CardDescription className="text-[11px] text-slate-500 mt-0.5">
+                      Cuentas asignadas que registraron abono o pago de moratorio en la Semana {semana} ({anio}).
+                    </CardDescription>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      onClick={handleExportarPDFSiPago}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-sm h-8"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Descargar PDF Sí Pago</span>
+                    </Button>
+                  </div>
+                </CardHeader>
+
+                {/* Banner de Métricas Rápidas Sí Pago */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 bg-slate-50 dark:bg-slate-900/60 border-b border-gray-100 dark:border-slate-800 text-xs">
+                  <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+                    <span className="text-[10px] font-bold uppercase text-slate-500 block">Cuentas con Abono</span>
+                    <strong className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono">{clientesSiPago.length} ctas</strong>
+                  </div>
+                  <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+                    <span className="text-[10px] font-bold uppercase text-slate-500 block">Cobranza Abonos ($)</span>
+                    <strong className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono">{formatCurrency(totalAbonosSiPago)}</strong>
+                  </div>
+                  <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+                    <span className="text-[10px] font-bold uppercase text-slate-500 block">Total Recaudado (Abonos + Mora)</span>
+                    <strong className="text-base font-black text-emerald-700 dark:text-emerald-300 font-mono">{formatCurrency(totalRecaudadoSiPago)}</strong>
+                  </div>
+                  <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
+                    <span className="text-[10px] font-bold uppercase text-slate-500 block">Distribución Cartera</span>
+                    <strong className="text-xs font-black text-slate-800 dark:text-slate-200 font-mono block mt-1">
+                      DQ: {clientesSiPago.filter(c => (c.codigoCliente || "").startsWith("DQ")).length} • DP: {clientesSiPago.filter(c => (c.codigoCliente || "").startsWith("DP")).length}
+                    </strong>
+                  </div>
+                </div>
+
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto max-h-[650px]">
+                    <table className="w-full text-xs text-left align-middle border-collapse">
+                      <thead className="bg-[#0f172a] text-white text-[10px] font-bold uppercase tracking-wider sticky top-0 z-10">
+                        <tr>
+                          <th className="px-3 py-2.5 text-center border border-slate-700">#</th>
+                          <th className="px-3 py-2.5 text-center border border-slate-700">CODIGO</th>
+                          <th className="px-3 py-2.5 border border-slate-700">NOMBRE</th>
+                          <th className="px-3 py-2.5 border border-slate-700">DOMICILIO</th>
+                          <th className="px-3 py-2.5 text-center border border-slate-700">GESTOR</th>
+                          <th className="px-3 py-2.5 text-right border border-slate-700 text-blue-300">PAGO SUG.</th>
+                          <th className="px-3 py-2.5 text-right border border-slate-700 bg-emerald-950/80 text-emerald-300">PAGO REAL ($)</th>
+                          <th className="px-3 py-2.5 text-right border border-slate-700 text-amber-300">MORATORIO</th>
+                          <th className="px-3 py-2.5 text-right border border-slate-700 bg-emerald-900/90 text-white">TOTAL</th>
+                          <th className="px-3 py-2.5 text-center border border-slate-700">TIPO / CANAL</th>
+                          <th className="px-3 py-2.5 text-center border border-slate-700">DÍA PAGO</th>
+                          <th className="px-3 py-2.5 text-center border border-slate-700">PROBLEMA</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-slate-800 bg-white dark:bg-slate-900 text-xs">
+                        {clientesSiPago.length === 0 ? (
+                          <tr>
+                            <td colSpan={12} className="px-4 py-8 text-center text-slate-500 font-bold">
+                              No hay clientes con abono registrado para los filtros actuales.
+                            </td>
+                          </tr>
+                        ) : (
+                          clientesSiPago.map((c, i) => (
+                            <tr key={c.codigoCliente + i} className="hover:bg-emerald-50/40 dark:hover:bg-slate-800/50 transition-colors">
+                              <td className="px-3 py-2 text-center font-mono text-slate-500 border border-gray-100 dark:border-slate-800">
+                                {i + 1}
+                              </td>
+                              <td className="px-3 py-2 text-center font-mono font-bold text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800">
+                                {c.codigoCliente}
+                                {c.numContrato && <div className="text-[10px] font-normal text-slate-400">{c.numContrato}</div>}
+                              </td>
+                              <td className="px-3 py-2 font-semibold text-slate-900 dark:text-white border border-gray-100 dark:border-slate-800">
+                                {c.nombreCompleto}
+                              </td>
+                              <td className="px-3 py-2 text-[11px] text-slate-600 dark:text-slate-400 border border-gray-100 dark:border-slate-800 max-w-xs truncate">
+                                {c.domicilio || "-"}
+                              </td>
+                              <td className="px-3 py-2 text-center border border-gray-100 dark:border-slate-800 font-mono text-[11px]">
+                                {c.gestor}
+                              </td>
+                              <td className="px-3 py-2 text-right font-mono text-blue-600 dark:text-blue-400 border border-gray-100 dark:border-slate-800">
+                                {formatCurrency(c.montoPago)}
+                              </td>
+                              <td className="px-3 py-2 text-right font-mono font-black text-emerald-700 dark:text-emerald-300 border border-gray-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-emerald-950/30">
+                                {formatCurrency(c.pagoReal || 0)}
+                              </td>
+                              <td className="px-3 py-2 text-right font-mono font-bold text-amber-600 dark:text-amber-400 border border-gray-100 dark:border-slate-800">
+                                {c.moratorio > 0 ? formatCurrency(c.moratorio) : "-"}
+                              </td>
+                              <td className="px-3 py-2 text-right font-mono font-black text-emerald-800 dark:text-emerald-200 border border-gray-100 dark:border-slate-800 bg-emerald-100/50 dark:bg-emerald-900/30">
+                                {formatCurrency((c.pagoReal || 0) + (c.moratorio || 0))}
+                              </td>
+                              <td className="px-3 py-2 text-center border border-gray-100 dark:border-slate-800">
+                                <Badge variant="outline" className={`text-[10px] font-bold ${c.tipoCobro === 'BANCOS' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                                  {c.tipoCobro || "EFECTIVO"}
+                                </Badge>
+                              </td>
+                              <td className="px-3 py-2 text-center border border-gray-100 dark:border-slate-800 whitespace-nowrap text-slate-700 dark:text-slate-300">
+                                {c.diaPago ? getDayName(c.diaPago) : "-"}
+                              </td>
+                              <td className="px-3 py-2 text-center border border-gray-100 dark:border-slate-800">
+                                <Badge variant="outline" className="text-[10px] font-black uppercase">
+                                  {c.problema || "RUTA"}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                        {/* Totales Sí Pago */}
+                        {clientesSiPago.length > 0 && (
+                          <tr className="bg-emerald-50/80 dark:bg-emerald-950/40 font-black text-xs text-emerald-950 dark:text-emerald-100 border-t-2 border-emerald-300 dark:border-emerald-700">
+                            <td colSpan={5} className="px-4 py-3 text-right uppercase text-[10px] tracking-wider border border-emerald-200 dark:border-emerald-800">
+                              TOTALES SÍ PAGO ({clientesSiPago.length} cuentas)
+                            </td>
+                            <td className="px-3 py-3 text-right font-mono text-blue-700 dark:text-blue-300 border border-emerald-200 dark:border-emerald-800">
+                              {formatCurrency(totalSugeridoSiPago)}
+                            </td>
+                            <td className="px-3 py-3 text-right font-mono text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              {formatCurrency(totalAbonosSiPago)}
+                            </td>
+                            <td className="px-3 py-3 text-right font-mono text-amber-700 dark:text-amber-300 border border-emerald-200 dark:border-emerald-800">
+                              {formatCurrency(totalMoratorioSiPago)}
+                            </td>
+                            <td className="px-3 py-3 text-right font-mono text-emerald-900 dark:text-emerald-100 border border-emerald-200 dark:border-emerald-800 text-sm">
+                              {formatCurrency(totalRecaudadoSiPago)}
+                            </td>
+                            <td colSpan={3} className="px-3 py-3 text-center border border-emerald-200 dark:border-emerald-800">-</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>

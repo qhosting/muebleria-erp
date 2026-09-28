@@ -146,6 +146,26 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
     setCell(r, 29, d.tipCob);
   });
 
+  // --- 3.1. FILAS DE COBROS Y ABONOS (Columna 32 en adelante) ---
+  const pagosCobradosExcel = detallesOrdenados.filter(d => (d.pagoReal || 0) > 0 || (d.moratorio || 0) > 0);
+  pagosCobradosExcel.forEach((p, idx) => {
+    const pr = 8 + idx;
+    setCell(pr, 32, idx + 1, 'n');
+    setCell(pr, 33, p.fechaPago ? new Date(p.fechaPago).toLocaleDateString("es-MX") : (p.diaPago || "-"));
+    setCell(pr, 34, p.fechaPago ? new Date(p.fechaPago).toLocaleTimeString("es-MX") : "-");
+    setCell(pr, 35, p.codigoCliente);
+    setCell(pr, 36, p.nombreCliente);
+    setCell(pr, 37, p.numContrato || "-");
+    setCell(pr, 38, p.pagoReal, 'n');
+    setCell(pr, 39, p.gestor || datos.codigoGestor);
+    setCell(pr, 40, "ABONO SEMANAL");
+    setCell(pr, 41, p.periodicidad);
+    setCell(pr, 42, p.diaPago || "-");
+    setCell(pr, 43, p.telefono || "-");
+    setCell(pr, 44, p.moratorio || 0, 'n');
+    setCell(pr, 45, p.tipoCobro || p.canalCobro || "EFECTIVO");
+  });
+
   // --- 4. BLOQUE COMPARATIVO Y RESUMEN EJECUTIVO (Fila 500 en adelante) ---
   const resCalculados = separarYCalcularResumenesCEJ(datos.detalles);
   const resGlobal = datos.resumen || resCalculados.global;
@@ -366,6 +386,191 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, "LISTA");
+
+  const pDQ = resDQ.resumenProblemas;
+  const pDP = resDP.resumenProblemas;
+
+  // --- HOJA 2: RESUMEN DE CORTE (EJECUTIVO DEDICADO) ---
+  const filasResumen: any[][] = [
+    ["GRUPO MUEBLERO DASO SA DE CV"],
+    ["PLANTILLA LISTA COBRANZA — RESUMEN EJECUTIVO Y CORTE SEMANAL"],
+    [`Semana ${datos.semana} (${datos.anio}) • Ciclo: ${datos.fechaInicioStr} al ${datos.fechaFinStr} • Cobrador: ${datos.codigoGestor} - ${datos.nombreGestor}`],
+    [],
+    ["1. RESUMEN COMPARATIVO DE CORTE: GLOBAL VS DQ VS DP"],
+    ["INDICADOR CLAVE", "GLOBAL (TOTAL)", "DQ (QUERETARO)", "DP (DASOPLUS)"],
+    ...rowsComp.map((r) => [r.concepto, r.g, r.dq, r.dp]),
+    [],
+    ["2. RESUMEN DE COBRANZA (PROBLEMAS / CLASIFICACIÓN)"],
+    ["CONCEPTO", "GLOBAL CTAS", "GLOBAL $", "DQ CTAS", "DQ $", "DP CTAS", "DP $"],
+    ["Cuentas Asignadas", prob?.totalAsignadas.cuentas ?? datos.detalles.length, prob?.totalAsignadas.pesos ?? resGlobal.totalSugerido ?? 0, pDQ?.totalAsignadas.cuentas ?? 0, pDQ?.totalAsignadas.pesos ?? 0, pDP?.totalAsignadas.cuentas ?? 0, pDP?.totalAsignadas.pesos ?? 0],
+    ["Cancelado K", prob?.canceladoK.cuentas ?? 0, prob?.canceladoK.pesos ?? 0, pDQ?.canceladoK.cuentas ?? 0, pDQ?.canceladoK.pesos ?? 0, pDP?.canceladoK.cuentas ?? 0, pDP?.canceladoK.pesos ?? 0],
+    ["Intervención IT", prob?.intervencionIT.cuentas ?? 0, prob?.intervencionIT.pesos ?? 0, pDQ?.intervencionIT.cuentas ?? 0, pDQ?.intervencionIT.pesos ?? 0, pDP?.intervencionIT.cuentas ?? 0, pDP?.intervencionIT.pesos ?? 0],
+    ["Adelantado AD", prob?.adelantadoAD.cuentas ?? 0, prob?.adelantadoAD.pesos ?? 0, pDQ?.adelantadoAD.cuentas ?? 0, pDQ?.adelantadoAD.pesos ?? 0, pDP?.adelantadoAD.cuentas ?? 0, pDP?.adelantadoAD.pesos ?? 0],
+    ["Período PE", prob?.periodoPE.cuentas ?? 0, prob?.periodoPE.pesos ?? 0, pDQ?.periodoPE.cuentas ?? 0, pDQ?.periodoPE.pesos ?? 0, pDP?.periodoPE.cuentas ?? 0, pDP?.periodoPE.pesos ?? 0],
+    ["Fuga FU", (prob?.fugaFU?.cuentas ?? prob?.pagoSemPS.cuentas) ?? 0, (prob?.fugaFU?.pesos ?? prob?.pagoSemPS.pesos) ?? 0, (pDQ?.fugaFU?.cuentas ?? pDQ?.pagoSemPS.cuentas) ?? 0, (pDQ?.fugaFU?.pesos ?? pDQ?.pagoSemPS.pesos) ?? 0, (pDP?.fugaFU?.cuentas ?? pDP?.pagoSemPS.cuentas) ?? 0, (pDP?.fugaFU?.pesos ?? pDP?.pagoSemPS.pesos) ?? 0],
+    ["Dictamen Legal DL", prob?.dictLegalDL.cuentas ?? 0, prob?.dictLegalDL.pesos ?? 0, pDQ?.dictLegalDL.cuentas ?? 0, pDQ?.dictLegalDL.pesos ?? 0, pDP?.dictLegalDL.cuentas ?? 0, pDP?.dictLegalDL.pesos ?? 0],
+    ["TOTAL PROBLEMAS", prob?.totalProblemas.cuentas ?? 0, prob?.totalProblemas.pesos ?? 0, pDQ?.totalProblemas.cuentas ?? 0, pDQ?.totalProblemas.pesos ?? 0, pDP?.totalProblemas.cuentas ?? 0, pDP?.totalProblemas.pesos ?? 0],
+    ["Cuentas (RUTA)", prob?.cuentasRuta.cuentas ?? 0, prob?.cuentasRuta.pesos ?? 0, pDQ?.cuentasRuta.cuentas ?? 0, pDQ?.cuentasRuta.pesos ?? 0, pDP?.cuentasRuta.cuentas ?? 0, pDP?.cuentasRuta.pesos ?? 0],
+    ["Vencidos (RUTA)", prob?.vencidosRuta.cuentas ?? 0, prob?.vencidosRuta.pesos ?? 0, pDQ?.vencidosRuta.cuentas ?? 0, pDQ?.vencidosRuta.pesos ?? 0, pDP?.vencidosRuta.cuentas ?? 0, pDP?.vencidosRuta.pesos ?? 0],
+    [],
+    ["3. CANALES DE COBRO"],
+    ["CANAL", "GLOBAL $", "GLOBAL CTAS", "DQ $", "DQ CTAS", "DP $", "DP CTAS"],
+    ["Cobro en Efectivo (Gestor)", resGlobal.cobranzaGestor?.pesos ?? resGlobal.cobranzaEfectivo.pesos, resGlobal.cobranzaGestor?.cuentas ?? resGlobal.cobranzaEfectivo.cuentas, resDQ.cobranzaGestor?.pesos ?? resDQ.cobranzaEfectivo.pesos, resDQ.cobranzaGestor?.cuentas ?? resDQ.cobranzaEfectivo.cuentas, resDP.cobranzaGestor?.pesos ?? resDP.cobranzaEfectivo.pesos, resDP.cobranzaGestor?.cuentas ?? resDP.cobranzaEfectivo.cuentas],
+    ["Bancos BOT ($)", resGlobal.cobranzaBancosBot?.pesos ?? 0, resGlobal.cobranzaBancosBot?.cuentas ?? 0, resDQ.cobranzaBancosBot?.pesos ?? 0, resDQ.cobranzaBancosBot?.cuentas ?? 0, resDP.cobranzaBancosBot?.pesos ?? 0, resDP.cobranzaBancosBot?.cuentas ?? 0],
+    ["Bancos Gestor ($)", resGlobal.cobranzaBancosGestor?.pesos ?? 0, resGlobal.cobranzaBancosGestor?.cuentas ?? 0, resDQ.cobranzaBancosGestor?.pesos ?? 0, resDQ.cobranzaBancosGestor?.cuentas ?? 0, resDP.cobranzaBancosGestor?.pesos ?? 0, resDP.cobranzaBancosGestor?.cuentas ?? 0],
+    ["Total Bancos ($)", resGlobal.cobranzaBancos.pesos, resGlobal.cobranzaBancos.cuentas, resDQ.cobranzaBancos.pesos, resDQ.cobranzaBancos.cuentas, resDP.cobranzaBancos.pesos, resDP.cobranzaBancos.cuentas],
+    ["Interés Moratorio ($)", resGlobal.totalMoratorio ?? 0, "-", resDQ.totalMoratorio ?? 0, "-", resDP.totalMoratorio ?? 0, "-"],
+    ["TOTAL RECAUDADO (Abonos + Mora)", resGlobal.totalCobradoConMoratorio ?? ((resGlobal.totalCobrado ?? 0) + (resGlobal.totalMoratorio ?? 0)), "-", resDQ.totalCobradoConMoratorio ?? ((resDQ.totalCobrado ?? 0) + (resDQ.totalMoratorio ?? 0)), "-", resDP.totalCobradoConMoratorio ?? ((resDP.totalCobrado ?? 0) + (resDP.totalMoratorio ?? 0)), "-"],
+    [],
+    ["4. PRESUPUESTO VS COBRANZA POR PERIODICIDAD"],
+    ["PERIODICIDAD", "PPTO CTAS", "PPTO $", "COB CTAS", "COB $", "% CTAS", "% $"],
+    ...(resGlobal.matrizPeriodos || []).map((m) => [m.periodo, m.pptoCtas, m.pptoPesos, m.cobCtas, m.cobPesos, `${m.porcCtas}%`, `${m.porcPesos}%`]),
+    [],
+    ["5. PRESUPUESTO Y AVANCE DIARIO SEMANAL"],
+    ["DIA", "PPTO CTAS", "AVANCE CTAS", "PPTO DINERO", "AVANCE DINERO"],
+    ...(datos.resumen?.resumenDiario || resGlobal.resumenDiario || []).map((d) => [d.dia, d.pptoCuentas, d.avanceCuentas, d.pptoDinero, d.avanceDinero]),
+    [],
+    ["6. INDICADORES COMPLEMENTARIOS"],
+    ["Porcentaje Comisión:", `${resGlobal.porcentajeCtasSinDobles ?? 0}%`],
+    ["Porcentaje Saldos Vencidos:", `${pctVencExcel}%`],
+    ["Verificaciones (VD):", `${ctasVDExcel} cuentas`]
+  ];
+  const wsRes = XLSX.utils.aoa_to_sheet(filasResumen);
+  wsRes['!cols'] = [{ wch: 32 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
+  XLSX.utils.book_append_sheet(wb, wsRes, "RESUMEN DE CORTE");
+
+  // --- HOJA 3: CLIENTES SÍ PAGO (ABONOS) ---
+  const filasSiPago: any[][] = [
+    ["GRUPO MUEBLERO DASO SA DE CV"],
+    ["LISTA DE COBRANZA — CLIENTES CON PAGO (ABONOS RECIBIDOS)"],
+    [`Semana ${datos.semana} (${datos.anio}) • Ciclo: ${datos.fechaInicioStr} al ${datos.fechaFinStr} • Cobrador: ${datos.codigoGestor} - ${datos.nombreGestor}`],
+    [],
+    [
+      "#",
+      "CODIGO",
+      "CONTRATO",
+      "NOMBRE CLIENTE",
+      "DOMICILIO",
+      "TELEFONO",
+      "GESTOR",
+      "PERIODICIDAD",
+      "PAGO SUGERIDO",
+      "PAGO REAL (ABONO)",
+      "MORATORIO",
+      "TOTAL RECAUDADO",
+      "TIPO / CANAL",
+      "DIA PAGO",
+      "FECHA PAGO",
+      "PROBLEMA"
+    ],
+    ...pagosCobradosExcel.map((c, idx) => [
+      idx + 1,
+      c.codigoCliente,
+      c.numContrato || "-",
+      c.nombreCliente,
+      c.domicilio || "-",
+      c.telefono || "-",
+      c.gestor || datos.codigoGestor,
+      c.periodicidad,
+      c.pagoSugerido,
+      c.pagoReal,
+      c.moratorio || 0,
+      (c.pagoReal || 0) + (c.moratorio || 0),
+      c.tipoCobro || c.canalCobro || "EFECTIVO",
+      c.diaPago || "-",
+      c.fechaPago ? new Date(c.fechaPago).toLocaleDateString("es-MX") : "-",
+      c.problema || "RUTA"
+    ]),
+    [],
+    [
+      "TOTALES",
+      `${pagosCobradosExcel.length} cuentas`,
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      pagosCobradosExcel.reduce((a, b) => a + (b.pagoSugerido || 0), 0),
+      pagosCobradosExcel.reduce((a, b) => a + (b.pagoReal || 0), 0),
+      pagosCobradosExcel.reduce((a, b) => a + (b.moratorio || 0), 0),
+      pagosCobradosExcel.reduce((a, b) => a + (b.pagoReal || 0) + (b.moratorio || 0), 0),
+      "",
+      "",
+      "",
+      ""
+    ]
+  ];
+  const wsSiPago = XLSX.utils.aoa_to_sheet(filasSiPago);
+  wsSiPago['!cols'] = [
+    { wch: 6 }, { wch: 14 }, { wch: 14 }, { wch: 32 }, { wch: 30 }, { wch: 14 },
+    { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 16 },
+    { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 12 }
+  ];
+  XLSX.utils.book_append_sheet(wb, wsSiPago, "CLIENTES SÍ PAGO");
+
+  // --- HOJA 4: CLIENTES SIN PAGO (CARTERA PENDIENTE) ---
+  const ctasSinPagoExcel = detallesOrdenados.filter(d => Number(d.pagoReal || 0) === 0);
+  const filasSinPago: any[][] = [
+    ["GRUPO MUEBLERO DASO SA DE CV"],
+    ["LISTA DE COBRANZA — CLIENTES SIN PAGO (CARTERA PENDIENTE)"],
+    [`Semana ${datos.semana} (${datos.anio}) • Ciclo: ${datos.fechaInicioStr} al ${datos.fechaFinStr} • Cobrador: ${datos.codigoGestor} - ${datos.nombreGestor}`],
+    [],
+    [
+      "#",
+      "CODIGO",
+      "CONTRATO",
+      "NOMBRE CLIENTE",
+      "DOMICILIO",
+      "TELEFONO",
+      "GESTOR",
+      "PERIODICIDAD",
+      "PAGO SUGERIDO",
+      "SALDO VENCIDO",
+      "PV",
+      "SALDO ACTUAL",
+      "PROBLEMA"
+    ],
+    ...ctasSinPagoExcel.map((c, idx) => [
+      idx + 1,
+      c.codigoCliente,
+      c.numContrato || "-",
+      c.nombreCliente,
+      c.domicilio || "-",
+      c.telefono || "-",
+      c.gestor || datos.codigoGestor,
+      c.periodicidad,
+      c.pagoSugerido,
+      c.saldoVencido,
+      c.pv,
+      c.saldoActual,
+      c.problema || "RUTA"
+    ]),
+    [],
+    [
+      "TOTALES",
+      `${ctasSinPagoExcel.length} cuentas`,
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ctasSinPagoExcel.reduce((a, b) => a + (b.pagoSugerido || 0), 0),
+      ctasSinPagoExcel.reduce((a, b) => a + (b.saldoVencido || 0), 0),
+      "",
+      ctasSinPagoExcel.reduce((a, b) => a + (b.saldoActual || 0), 0),
+      ""
+    ]
+  ];
+  const wsSinPago = XLSX.utils.aoa_to_sheet(filasSinPago);
+  wsSinPago['!cols'] = [
+    { wch: 6 }, { wch: 14 }, { wch: 14 }, { wch: 32 }, { wch: 30 }, { wch: 14 },
+    { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 8 }, { wch: 16 },
+    { wch: 14 }
+  ];
+  XLSX.utils.book_append_sheet(wb, wsSinPago, "CLIENTES SIN PAGO");
+
   return wb;
 }
 
@@ -1162,6 +1367,527 @@ export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): s
  */
 export function imprimirPDFClientesSinPago(datos: DatosExportacionSinPago): { html: string; blobUrl: string } {
   const html = generarHTMLClientesSinPagoPDF(datos);
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const blobUrl = URL.createObjectURL(blob);
+
+  try {
+    const popup = window.open(blobUrl, "_blank");
+    if (!popup) {
+      console.warn("Ventana emergente no abierta por el navegador. Usando visor modal.");
+    }
+  } catch (err) {
+    console.warn("Error al intentar abrir ventana emergente con Blob URL:", err);
+  }
+
+  return { html, blobUrl };
+}
+
+export interface ClienteSiPagoItem {
+  codigoCliente: string;
+  numContrato?: string;
+  nombreCompleto: string;
+  domicilio?: string;
+  telefono?: string;
+  gestor?: string;
+  periodicidad?: string;
+  pagoSugerido: number;
+  pagoReal: number;
+  moratorio: number;
+  totalRecaudado: number;
+  tipoCobro?: string;
+  canalCobro?: string;
+  fechaPago?: string | null;
+  diaPago?: string;
+  problema: string;
+  pagoDoble?: number;
+  recuperadoPv?: number;
+}
+
+export interface DatosExportacionSiPago {
+  anio: number;
+  semana: number;
+  fechaInicioStr: string;
+  fechaFinStr: string;
+  nombreGestor: string;
+  codigoGestor: string;
+  clientes: ClienteSiPagoItem[];
+}
+
+/**
+ * Genera el documento HTML para la Lista de Cobranza de Clientes Sí Pago (Abonos Recibidos)
+ */
+export function generarHTMLClientesSiPagoPDF(datos: DatosExportacionSiPago): string {
+  const clientesOrdenados = [...datos.clientes].sort((a, b) =>
+    (a.codigoCliente || "").localeCompare(b.codigoCliente || "", undefined, {
+      numeric: true,
+      sensitivity: "base"
+    })
+  );
+
+  const totalCuentas = clientesOrdenados.length;
+  const totalSugerido = clientesOrdenados.reduce((acc, c) => acc + (c.pagoSugerido || 0), 0);
+  const totalCobradoAbonos = clientesOrdenados.reduce((acc, c) => acc + (c.pagoReal || 0), 0);
+  const totalMoratorio = clientesOrdenados.reduce((acc, c) => acc + (c.moratorio || 0), 0);
+  const totalRecaudado = totalCobradoAbonos + totalMoratorio;
+
+  const FILAS_POR_PAGINA = 24;
+  const paginas: ClienteSiPagoItem[][] = [];
+  for (let i = 0; i < clientesOrdenados.length; i += FILAS_POR_PAGINA) {
+    paginas.push(clientesOrdenados.slice(i, i + FILAS_POR_PAGINA));
+  }
+  if (paginas.length === 0) paginas.push([]);
+
+  const totalPaginas = paginas.length;
+
+  const paginasHTML = paginas
+    .map((grupo, pagIdx) => {
+      const inicioIndex = pagIdx * FILAS_POR_PAGINA;
+      const esUltimaPagina = pagIdx === totalPaginas - 1;
+
+      return `
+        <div class="page-container" style="${pagIdx > 0 ? 'page-break-before: always;' : ''}">
+          <!-- ENCABEZADO INSTITUCIONAL -->
+          <div class="header-box">
+            <div>
+              <div class="title-company">Grupo Mueblero DASO SA de CV</div>
+              <div class="subtitle" style="color: #065f46;">Lista de Cobranza — Clientes Sí Pago (Abonos Recibidos en Semana)</div>
+            </div>
+            <div style="text-align: right; font-size: 8px; color: #475569;">
+              <div>SISTEMA ERP MUEBLERÍA DASO</div>
+              <div style="font-weight: bold; color: #0f172a;">FECHA: ${new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" })}</div>
+            </div>
+          </div>
+
+          <!-- BARRA DE METADATOS -->
+          <div class="info-bar">
+            <div><span>SEMANA:</span> <strong>Semana ${datos.semana} (${datos.anio})</strong></div>
+            <div><span>CICLO OFICIAL:</span> <strong>${datos.fechaInicioStr} al ${datos.fechaFinStr}</strong></div>
+            <div><span>GESTOR / COBRADOR:</span> <strong>${datos.codigoGestor} - ${datos.nombreGestor}</strong></div>
+            <div><span>CUENTAS QUE PAGARON:</span> <strong style="color: #065f46;">${totalCuentas} cuentas</strong></div>
+            <div><span>PAGO SUGERIDO:</span> <strong style="color: #1d4ed8;">$${totalSugerido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong></div>
+            <div><span>ABONOS COBRADOS:</span> <strong style="color: #065f46;">$${totalCobradoAbonos.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong></div>
+            ${totalMoratorio > 0 ? `<div><span>MORATORIOS:</span> <strong style="color: #854d0e;">$${totalMoratorio.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong></div>` : ''}
+            <div><span>TOTAL RECAUDADO:</span> <strong style="color: #047857; font-size: 9px;">$${totalRecaudado.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong></div>
+          </div>
+
+          <!-- TABLA DE CLIENTES CON PAGO -->
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 22px; text-align: center;">#</th>
+                <th style="width: 70px; text-align: center;">CÓDIGO</th>
+                <th style="width: 140px;">NOMBRE COMPLETO</th>
+                <th>DOMICILIO</th>
+                <th style="width: 50px; text-align: center;">GESTOR</th>
+                <th style="width: 60px; text-align: center;">TELÉFONO</th>
+                <th style="width: 55px; text-align: right;">PAGO SUG.</th>
+                <th style="width: 60px; text-align: right; background: #064e3b;">ABONO ($)</th>
+                <th style="width: 50px; text-align: right; background: #78350f;">MORA ($)</th>
+                <th style="width: 65px; text-align: right; background: #065f46;">TOTAL ($)</th>
+                <th style="width: 65px; text-align: center;">CANAL / TIPO</th>
+                <th style="width: 60px; text-align: center;">FECHA / DÍA</th>
+                <th style="width: 50px; text-align: center;">PROBLEMA</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${grupo.length === 0 ? `
+                <tr>
+                  <td colspan="13" style="text-align: center; padding: 20px; font-weight: bold; color: #64748b;">
+                    No hay clientes con abono registrado en este filtro.
+                  </td>
+                </tr>
+              ` : grupo.map((c, idx) => {
+                const numFila = inicioIndex + idx + 1;
+                const prob = (c.problema || "RUTA").toUpperCase().trim();
+                return `
+                  <tr>
+                    <td class="text-center font-mono" style="color: #64748b;">${numFila}</td>
+                    <td class="text-center font-mono font-bold" style="white-space: nowrap;">
+                      ${c.codigoCliente}
+                      ${c.numContrato && c.numContrato !== "-" ? `<br/><span style="color: #64748b; font-size: 6.5px;">${c.numContrato}</span>` : ""}
+                    </td>
+                    <td class="font-bold" style="white-space: normal;">${c.nombreCompleto}</td>
+                    <td style="font-size: 7px; color: #1e293b; line-height: 1.15;">${c.domicilio || "-"}</td>
+                    <td class="text-center font-mono font-bold" style="font-size: 7px; color: #334155;">${c.gestor || "-"}</td>
+                    <td class="text-center font-mono" style="font-size: 7px;">${c.telefono || "-"}</td>
+                    <td class="text-right font-mono" style="color: #1d4ed8;">$${Number(c.pagoSugerido || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
+                    <td class="text-right font-mono font-bold" style="color: #065f46; background: #ecfdf5;">$${Number(c.pagoReal || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
+                    <td class="text-right font-mono font-bold" style="color: #854d0e; background: #fefce8;">$${Number(c.moratorio || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
+                    <td class="text-right font-mono font-black" style="color: #064e3b; background: #d1fae5;">$${Number(c.totalRecaudado || ((c.pagoReal || 0) + (c.moratorio || 0))).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
+                    <td class="text-center font-bold" style="font-size: 6.5px;">
+                      <span style="display: inline-block; padding: 1px 3px; border-radius: 2px; ${c.tipoCobro === 'BANCOS' || c.canalCobro?.includes('BANCO') ? 'background: #eff6ff; color: #1d4ed8;' : 'background: #f0fdf4; color: #166534;'}">
+                        ${c.tipoCobro || c.canalCobro || "EFECTIVO"}
+                      </span>
+                    </td>
+                    <td class="text-center font-mono" style="font-size: 6.5px;">
+                      ${c.fechaPago ? new Date(c.fechaPago).toLocaleDateString("es-MX") : (c.diaPago || "-")}
+                    </td>
+                    <td class="text-center font-bold">
+                      <span style="display: inline-block; padding: 1px 4px; border-radius: 2px; font-size: 7px; background: #f1f5f9; color: #334155;">${prob}</span>
+                    </td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+            ${esUltimaPagina ? `
+              <tfoot>
+                <tr style="background: #f1f5f9; font-weight: bold; border-top: 1.5px solid #0f172a;">
+                  <td colspan="6" style="text-align: right; text-transform: uppercase; font-size: 7.5px; padding: 3px 6px;">
+                    TOTAL CLIENTES SÍ PAGO (${totalCuentas} CUENTAS)
+                  </td>
+                  <td class="text-right font-mono font-bold" style="color: #1d4ed8; font-size: 7.5px;">
+                    $${totalSugerido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td class="text-right font-mono font-black" style="color: #065f46; font-size: 8px; background: #ecfdf5;">
+                    $${totalCobradoAbonos.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td class="text-right font-mono font-bold" style="color: #854d0e; font-size: 7.5px; background: #fefce8;">
+                    $${totalMoratorio.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td class="text-right font-mono font-black" style="color: #064e3b; font-size: 8.5px; background: #d1fae5;">
+                    $${totalRecaudado.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td colspan="3">-</td>
+                </tr>
+              </tfoot>
+            ` : ""}
+          </table>
+
+          ${esUltimaPagina ? `
+            <!-- FIRMAS DE AUTORIZACIÓN Y AUDITORÍA -->
+            <div class="signatures-box" style="margin-top: 14px;">
+              <div class="signature-col">
+                <div class="signature-line"></div>
+                <div style="font-weight: bold;">${datos.nombreGestor || "GESTOR DE COBRANZA"}</div>
+                <div style="color: #64748b; font-size: 7px;">Gestor / Cobrador en Ruta</div>
+              </div>
+              <div class="signature-col">
+                <div class="signature-line"></div>
+                <div style="font-weight: bold;">SUPERVISOR DE COBRANZA</div>
+                <div style="color: #64748b; font-size: 7px;">Auditoría y Arqueo de Cobranza</div>
+              </div>
+              <div class="signature-col">
+                <div class="signature-line"></div>
+                <div style="font-weight: bold;">GERENCIA CRÉDITO Y COBRANZA</div>
+                <div style="color: #64748b; font-size: 7px;">Validación de Ingresos Semanales</div>
+              </div>
+            </div>
+          ` : ""}
+
+          <div style="margin-top: 8px; font-size: 7px; color: #64748b; display: flex; justify-content: space-between;">
+            <div>Lista de Cobranza — Clientes Sí Pago • Grupo Mueblero DASO SA de CV</div>
+            <div>Página ${pagIdx + 1} de ${totalPaginas}</div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>LISTA DE COBRANZA - CLIENTES SÍ PAGO - ${datos.codigoGestor} - Semana ${datos.semana}</title>
+  <style>
+    @page { size: letter landscape; margin: 8mm; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; font-size: 7.5px; color: #0f172a; margin: 0; padding: 0; background: #fff; line-height: 1.25; }
+    .header-box { margin-bottom: 6px; border-bottom: 2px solid #0f172a; padding-bottom: 3px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .title-company { font-size: 14px; font-weight: 900; text-transform: uppercase; color: #0f172a; letter-spacing: -0.02em; margin: 0; }
+    .subtitle { font-size: 9.5px; font-weight: 700; color: #065f46; margin: 2px 0 0 0; }
+    .info-bar { display: flex; flex-wrap: wrap; gap: 12px; font-size: 8px; font-weight: bold; background: #f8fafc; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 6px; }
+    .info-bar span { color: #64748b; font-weight: 600; }
+    .info-bar strong { color: #0f172a; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+    th { background: #0f172a; color: #fff; font-size: 7px; font-weight: 700; padding: 3px 4px; border: 0.5px solid #334155; text-transform: uppercase; }
+    td { font-size: 7px; padding: 2px 4px; border: 0.5px solid #cbd5e1; }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .font-bold { font-weight: 700; }
+    .font-black { font-weight: 900; }
+    .font-mono { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+    .signatures-box { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 10px; padding: 4px 10px; }
+    .signature-col { text-align: center; font-size: 7.5px; }
+    .signature-line { border-top: 1px solid #334155; margin-bottom: 4px; width: 80%; margin-left: auto; margin-right: auto; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print { display: none !important; }
+      @page { size: letter landscape; margin: 6mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="padding: 8px 14px; background: #0f172a; color: white; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-radius: 4px;">
+    <div style="font-size: 11px;">
+      <strong>Lista de Cobranza — Clientes Sí Pago</strong> • Semana ${datos.semana} (${datos.codigoGestor}) • <strong>${totalCuentas} cuentas</strong> • Recaudado: <strong>$${totalRecaudado.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button onclick="window.print()" style="background: #059669; color: white; border: none; padding: 5px 12px; border-radius: 4px; font-weight: bold; font-size: 11px; cursor: pointer;">🖨️ Imprimir Lista Sí Pago</button>
+      <button onclick="window.close()" style="background: #475569; color: white; border: none; padding: 5px 12px; border-radius: 4px; font-size: 11px; cursor: pointer;">Cerrar</button>
+    </div>
+  </div>
+
+  ${paginasHTML}
+</body>
+</html>`;
+}
+
+/**
+ * Genera ventana o Blob URL para imprimir la Lista de Clientes Sí Pago
+ */
+export function imprimirPDFClientesSiPago(datos: DatosExportacionSiPago): { html: string; blobUrl: string } {
+  const html = generarHTMLClientesSiPagoPDF(datos);
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const blobUrl = URL.createObjectURL(blob);
+
+  try {
+    const popup = window.open(blobUrl, "_blank");
+    if (!popup) {
+      console.warn("Ventana emergente no abierta por el navegador. Usando visor modal.");
+    }
+  } catch (err) {
+    console.warn("Error al intentar abrir ventana emergente con Blob URL:", err);
+  }
+
+  return { html, blobUrl };
+}
+
+export interface DatosExportacionCarteraPDF {
+  anio: number;
+  semana: number;
+  fechaInicioStr: string;
+  fechaFinStr: string;
+  nombreGestor: string;
+  codigoGestor: string;
+  clientes: DetalleCalculadoCEJ[];
+}
+
+/**
+ * Genera el documento HTML para la Cartera Completa en Ruta
+ */
+export function generarHTMLCarteraEnRutaPDF(datos: DatosExportacionCarteraPDF): string {
+  const clientesOrdenados = [...datos.clientes].sort((a, b) =>
+    (a.codigoCliente || "").localeCompare(b.codigoCliente || "", undefined, {
+      numeric: true,
+      sensitivity: "base"
+    })
+  );
+
+  const totalCuentas = clientesOrdenados.length;
+  const totalSugerido = clientesOrdenados.reduce((acc, c) => acc + (c.pagoSugerido || 0), 0);
+  const totalVencido = clientesOrdenados.reduce((acc, c) => acc + (c.saldoVencido || 0), 0);
+  const totalSaldoActual = clientesOrdenados.reduce((acc, c) => acc + (c.saldoActual || 0), 0);
+  const totalCobradoAbonos = clientesOrdenados.reduce((acc, c) => acc + (c.pagoReal || 0), 0);
+  const totalMoratorio = clientesOrdenados.reduce((acc, c) => acc + (c.moratorio || 0), 0);
+  const totalRecaudado = totalCobradoAbonos + totalMoratorio;
+
+  const FILAS_POR_PAGINA = 24;
+  const paginas: DetalleCalculadoCEJ[][] = [];
+  for (let i = 0; i < clientesOrdenados.length; i += FILAS_POR_PAGINA) {
+    paginas.push(clientesOrdenados.slice(i, i + FILAS_POR_PAGINA));
+  }
+  if (paginas.length === 0) paginas.push([]);
+
+  const totalPaginas = paginas.length;
+
+  const paginasHTML = paginas
+    .map((grupo, pagIdx) => {
+      const inicioIndex = pagIdx * FILAS_POR_PAGINA;
+      const esUltimaPagina = pagIdx === totalPaginas - 1;
+
+      return `
+        <div class="page-container" style="${pagIdx > 0 ? 'page-break-before: always;' : ''}">
+          <!-- ENCABEZADO INSTITUCIONAL -->
+          <div class="header-box">
+            <div>
+              <div class="title-company">Grupo Mueblero DASO SA de CV</div>
+              <div class="subtitle" style="color: #1e3a8a;">Lista de Cobranza — Cartera en Ruta (Formato Oficial CEJ)</div>
+            </div>
+            <div style="text-align: right; font-size: 8px; color: #475569;">
+              <div>SISTEMA ERP MUEBLERÍA DASO</div>
+              <div style="font-weight: bold; color: #0f172a;">FECHA: ${new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" })}</div>
+            </div>
+          </div>
+
+          <!-- BARRA DE METADATOS -->
+          <div class="info-bar">
+            <div><span>SEMANA:</span> <strong>Semana ${datos.semana} (${datos.anio})</strong></div>
+            <div><span>CICLO OFICIAL:</span> <strong>${datos.fechaInicioStr} al ${datos.fechaFinStr}</strong></div>
+            <div><span>GESTOR / COBRADOR:</span> <strong>${datos.codigoGestor} - ${datos.nombreGestor}</strong></div>
+            <div><span>TOTAL CARTERA:</span> <strong style="color: #0f172a;">${totalCuentas} cuentas</strong></div>
+            <div><span>PAGO SUGERIDO:</span> <strong style="color: #1d4ed8;">$${totalSugerido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong></div>
+            <div><span>SALDO VENCIDO:</span> <strong style="color: #b91c1c;">$${totalVencido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong></div>
+            <div><span>SALDO ACTUAL:</span> <strong>$${totalSaldoActual.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong></div>
+            <div><span>TOTAL COBRADO:</span> <strong style="color: #065f46;">$${totalRecaudado.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong></div>
+          </div>
+
+          <!-- TABLA DE CARTERA EN RUTA -->
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 22px; text-align: center;">#</th>
+                <th style="width: 65px; text-align: center;">CÓDIGO</th>
+                <th style="width: 50px; text-align: center;">CONTRATO</th>
+                <th style="width: 140px;">CLIENTE</th>
+                <th style="width: 45px; text-align: center;">PERIODO</th>
+                <th style="width: 55px; text-align: right;">PAGO SUG.</th>
+                <th style="width: 60px; text-align: right;">SALDO VENC.</th>
+                <th style="width: 24px; text-align: center;">PV</th>
+                <th style="width: 60px; text-align: right;">SALDO ACT.</th>
+                <th style="width: 45px; text-align: center;">GESTOR</th>
+                <th style="width: 45px; text-align: right;">MORA ($)</th>
+                <th style="width: 55px; text-align: right; background: #064e3b;">PAGO REAL</th>
+                <th style="width: 50px; text-align: center;">DÍA PAGO</th>
+                <th style="width: 60px; text-align: center;">TELÉFONO</th>
+                <th style="width: 50px; text-align: center;">PROBLEMA</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${grupo.length === 0 ? `
+                <tr>
+                  <td colspan="15" style="text-align: center; padding: 20px; font-weight: bold; color: #64748b;">
+                    No hay cuentas en esta ruta.
+                  </td>
+                </tr>
+              ` : grupo.map((c, idx) => {
+                const numFila = inicioIndex + idx + 1;
+                const prob = (c.problema || "RUTA").toUpperCase().trim();
+                return `
+                  <tr>
+                    <td class="text-center font-mono" style="color: #64748b;">${numFila}</td>
+                    <td class="text-center font-mono font-bold" style="white-space: nowrap;">${c.codigoCliente}</td>
+                    <td class="text-center font-mono" style="font-size: 7px; color: #64748b;">${c.numContrato || "-"}</td>
+                    <td class="font-bold" style="white-space: normal;">${c.nombreCliente}</td>
+                    <td class="text-center font-bold" style="font-size: 6.5px;">${c.periodicidad || "-"}</td>
+                    <td class="text-right font-mono" style="color: #1d4ed8;">$${Number(c.pagoSugerido || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
+                    <td class="text-right font-mono" style="color: #b91c1c;">$${Number(c.saldoVencido || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
+                    <td class="text-center font-bold" style="font-size: 7px;">${c.pv || 0}</td>
+                    <td class="text-right font-mono font-bold">$${Number(c.saldoActual || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
+                    <td class="text-center font-mono" style="font-size: 7px;">${c.gestor || datos.codigoGestor}</td>
+                    <td class="text-right font-mono font-bold" style="color: #854d0e;">${Number(c.moratorio || 0) > 0 ? `$${Number(c.moratorio).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "-"}</td>
+                    <td class="text-right font-mono font-black" style="color: #065f46; background: ${Number(c.pagoReal || 0) > 0 ? '#ecfdf5' : 'transparent'};">
+                      ${Number(c.pagoReal || 0) > 0 ? `$${Number(c.pagoReal).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "-"}
+                    </td>
+                    <td class="text-center font-mono" style="font-size: 6.5px;">${c.diaPago || "-"}</td>
+                    <td class="text-center font-mono" style="font-size: 6.5px;">${c.telefono || "-"}</td>
+                    <td class="text-center font-bold">
+                      <span style="display: inline-block; padding: 1px 4px; border-radius: 2px; font-size: 7px; background: #f1f5f9; color: #334155;">${prob}</span>
+                    </td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+            ${esUltimaPagina ? `
+              <tfoot>
+                <tr style="background: #f1f5f9; font-weight: bold; border-top: 1.5px solid #0f172a;">
+                  <td colspan="5" style="text-align: right; text-transform: uppercase; font-size: 7.5px; padding: 3px 6px;">
+                    TOTALES CARTERA EN RUTA (${totalCuentas} CUENTAS)
+                  </td>
+                  <td class="text-right font-mono font-bold" style="color: #1d4ed8; font-size: 7.5px;">
+                    $${totalSugerido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td class="text-right font-mono font-bold" style="color: #b91c1c; font-size: 7.5px;">
+                    $${totalVencido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td class="text-center">-</td>
+                  <td class="text-right font-mono font-bold" style="font-size: 7.5px;">
+                    $${totalSaldoActual.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td class="text-center">-</td>
+                  <td class="text-right font-mono font-bold" style="color: #854d0e; font-size: 7.5px;">
+                    $${totalMoratorio.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td class="text-right font-mono font-black" style="color: #065f46; font-size: 8px; background: #ecfdf5;">
+                    $${totalCobradoAbonos.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td colspan="3">-</td>
+                </tr>
+              </tfoot>
+            ` : ""}
+          </table>
+
+          ${esUltimaPagina ? `
+            <!-- FIRMAS DE AUTORIZACIÓN Y AUDITORÍA -->
+            <div class="signatures-box" style="margin-top: 14px;">
+              <div class="signature-col">
+                <div class="signature-line"></div>
+                <div style="font-weight: bold;">${datos.nombreGestor || "GESTOR DE COBRANZA"}</div>
+                <div style="color: #64748b; font-size: 7px;">Gestor / Cobrador en Ruta</div>
+              </div>
+              <div class="signature-col">
+                <div class="signature-line"></div>
+                <div style="font-weight: bold;">SUPERVISOR DE COBRANZA</div>
+                <div style="color: #64748b; font-size: 7px;">Auditoría y Validación de Cartera</div>
+              </div>
+              <div class="signature-col">
+                <div class="signature-line"></div>
+                <div style="font-weight: bold;">GERENCIA CRÉDITO Y COBRANZA</div>
+                <div style="color: #64748b; font-size: 7px;">Autorización y Cierre de Semana</div>
+              </div>
+            </div>
+          ` : ""}
+
+          <div style="margin-top: 8px; font-size: 7px; color: #64748b; display: flex; justify-content: space-between;">
+            <div>Lista de Cobranza — Cartera en Ruta • Grupo Mueblero DASO SA de CV</div>
+            <div>Página ${pagIdx + 1} de ${totalPaginas}</div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>LISTA DE COBRANZA - CARTERA EN RUTA - ${datos.codigoGestor} - Semana ${datos.semana}</title>
+  <style>
+    @page { size: letter landscape; margin: 8mm; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; font-size: 7.5px; color: #0f172a; margin: 0; padding: 0; background: #fff; line-height: 1.25; }
+    .header-box { margin-bottom: 6px; border-bottom: 2px solid #0f172a; padding-bottom: 3px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .title-company { font-size: 14px; font-weight: 900; text-transform: uppercase; color: #0f172a; letter-spacing: -0.02em; margin: 0; }
+    .subtitle { font-size: 9.5px; font-weight: 700; color: #1e3a8a; margin: 2px 0 0 0; }
+    .info-bar { display: flex; flex-wrap: wrap; gap: 12px; font-size: 8px; font-weight: bold; background: #f8fafc; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 6px; }
+    .info-bar span { color: #64748b; font-weight: 600; }
+    .info-bar strong { color: #0f172a; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+    th { background: #0f172a; color: #fff; font-size: 7px; font-weight: 700; padding: 3px 4px; border: 0.5px solid #334155; text-transform: uppercase; }
+    td { font-size: 7px; padding: 2px 4px; border: 0.5px solid #cbd5e1; }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .font-bold { font-weight: 700; }
+    .font-black { font-weight: 900; }
+    .font-mono { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+    .signatures-box { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 10px; padding: 4px 10px; }
+    .signature-col { text-align: center; font-size: 7.5px; }
+    .signature-line { border-top: 1px solid #334155; margin-bottom: 4px; width: 80%; margin-left: auto; margin-right: auto; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print { display: none !important; }
+      @page { size: letter landscape; margin: 6mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="padding: 8px 14px; background: #0f172a; color: white; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-radius: 4px;">
+    <div style="font-size: 11px;">
+      <strong>Lista de Cobranza — Cartera en Ruta</strong> • Semana ${datos.semana} (${datos.codigoGestor}) • <strong>${totalCuentas} cuentas</strong> • Ppto: <strong>$${totalSugerido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button onclick="window.print()" style="background: #1e3a8a; color: white; border: none; padding: 5px 12px; border-radius: 4px; font-weight: bold; font-size: 11px; cursor: pointer;">🖨️ Imprimir Cartera en Ruta</button>
+      <button onclick="window.close()" style="background: #475569; color: white; border: none; padding: 5px 12px; border-radius: 4px; font-size: 11px; cursor: pointer;">Cerrar</button>
+    </div>
+  </div>
+
+  ${paginasHTML}
+</body>
+</html>`;
+}
+
+/**
+ * Genera ventana o Blob URL para imprimir la Cartera en Ruta
+ */
+export function imprimirPDFCarteraEnRuta(datos: DatosExportacionCarteraPDF): { html: string; blobUrl: string } {
+  const html = generarHTMLCarteraEnRutaPDF(datos);
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const blobUrl = URL.createObjectURL(blob);
 
