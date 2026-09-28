@@ -45,8 +45,13 @@ import {
   CreditCard,
   AlertTriangle
 } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getDayName } from "@/lib/utils";
 import { calcularSemanaCobranzaSabadoViernes, calcularRangoSemanaSabadoViernes, formatearFechaCortaMX } from "@/lib/calendario-cobranza-utils";
+import {
+  separarYCalcularResumenesCEJ,
+  type ResumenCorteCEJ,
+  type DetalleCalculadoCEJ
+} from "@/lib/corte-cej-utils";
 import {
   descargarExcelCEJ,
   imprimirPDFCEJ,
