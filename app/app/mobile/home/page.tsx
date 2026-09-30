@@ -152,8 +152,12 @@ export default function MobileHome() {
                     .sort((a, b) => (b.saldoVencido || 0) - (a.saldoVencido || 0));
 
                 // 4. Verificaciones VD pendientes en offline
+                const verificacionesLocales = await db.verificaciones.toArray();
+                const clientesConVdLocal = new Set(verificacionesLocales.map(v => v.clienteId));
+
                 const vdsOffline = clientesActivos.filter(c => 
-                    c.vdStatus === 'PENDIENTE' || (c.clasificacionCobranza === 'VD' && c.vdStatus !== 'REALIZADA')
+                    !clientesConVdLocal.has(c.id) &&
+                    (c.vdStatus === 'PENDIENTE' || (c.clasificacionCobranza === 'VD' && c.vdStatus !== 'REALIZADA'))
                 );
                 const vdPendientes = vdsOffline.length;
                 const clientesVdPendientes = vdsOffline.slice(0, 5).map(c => ({
@@ -189,6 +193,19 @@ export default function MobileHome() {
         };
 
         fetchDashboardData();
+
+        const handleSyncEvent = () => {
+            fetchDashboardData();
+        };
+        if (typeof window !== 'undefined') {
+            window.addEventListener('offline_data_synced', handleSyncEvent);
+        }
+
+        return () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('offline_data_synced', handleSyncEvent);
+            }
+        };
     }, [preferOffline, session, isVendedor, isDireccion]);
 
     if (loading) {

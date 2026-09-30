@@ -49,19 +49,19 @@ export async function POST(request: NextRequest) {
             },
         });
 
-        // Enriquecer coordenadas GPS del cliente si se capturaron en la visita
-        if (detallesExtra?.latitud && detallesExtra?.longitud) {
-            try {
-                await prisma.cliente.update({
-                    where: { id: clienteId },
-                    data: {
-                        latitud: String(detallesExtra.latitud),
-                        longitud: String(detallesExtra.longitud),
-                    }
-                });
-            } catch (err) {
-                console.warn('No se pudo actualizar coordenadas en cliente:', err);
+        // Enriquecer coordenadas GPS del cliente si se capturaron y actualizar updatedAt para la sincronización
+        try {
+            const updateData: any = { updatedAt: new Date() };
+            if (detallesExtra?.latitud && detallesExtra?.longitud) {
+                updateData.latitud = String(detallesExtra.latitud);
+                updateData.longitud = String(detallesExtra.longitud);
             }
+            await prisma.cliente.update({
+                where: { id: clienteId },
+                data: updateData
+            });
+        } catch (err) {
+            console.warn('No se pudo actualizar datos/updatedAt en cliente:', err);
         }
 
         return NextResponse.json(verificacion);

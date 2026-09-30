@@ -381,6 +381,10 @@ function MobileClientes() {
                         .map(p => p.clienteId)
                 );
                 
+                // Obtener todas las verificaciones registradas localmente en Dexie (offline o sincronizadas)
+                const verificacionesLocales = await db.verificaciones.toArray();
+                const clientesConVdLocal = new Set(verificacionesLocales.map(v => v.clienteId));
+                
                 // Mapear al formato que espera la UI si es necesario
                 const mapped = allOffline.map(c => {
                     let yaPago = false;
@@ -392,6 +396,9 @@ function MobileClientes() {
                             yaPago = true;
                         }
                     }
+
+                    const yaTieneVd = clientesConVdLocal.has(c.id) || c.vdStatus === 'REALIZADA';
+                    const vdStatusCalculado = yaTieneVd ? 'REALIZADA' : (c.clasificacionCobranza === 'VD' ? 'PENDIENTE' : null);
 
                     return {
                         id: c.id,
@@ -407,7 +414,7 @@ function MobileClientes() {
                         telefono: c.telefono,
                         yaPagoEstaSemana: yaPago,
                         clasificacionCobranza: c.clasificacionCobranza,
-                        vdStatus: c.vdStatus || (c.clasificacionCobranza === 'VD' ? 'PENDIENTE' : 'REALIZADA'),
+                        vdStatus: vdStatusCalculado,
                         // Campos extendidos para perfil
                         descripcionProducto: c.descripcionProducto,
                         vendedorNombre: c.vendedorNombre,
@@ -465,7 +472,20 @@ function MobileClientes() {
         };
 
         const timer = setTimeout(() => fetchClientes(true), 300);
-        return () => clearTimeout(timer);
+
+        const handleSyncEvent = () => {
+            fetchClientes(true);
+        };
+        if (typeof window !== 'undefined') {
+            window.addEventListener('offline_data_synced', handleSyncEvent);
+        }
+
+        return () => {
+            clearTimeout(timer);
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('offline_data_synced', handleSyncEvent);
+            }
+        };
     }, [searchTerm, preferOffline, session]);
 
     // 🚀 NUEVO: Abrir modal automáticamente si viene ID en la URL

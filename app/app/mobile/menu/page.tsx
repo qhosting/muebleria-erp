@@ -31,13 +31,31 @@ export default function MobileMenu() {
                 const clientes = currentUserId
                     ? await db.clientes.where('statusCuenta').equals('activo').filter(c => c.cobradorAsignadoId === currentUserId).toArray()
                     : await db.clientes.where('statusCuenta').equals('activo').toArray();
-                const count = clientes.filter(c => c.vdStatus === 'PENDIENTE' || (c.clasificacionCobranza === 'VD' && c.vdStatus !== 'REALIZADA')).length;
+                const verificacionesLocales = await db.verificaciones.toArray();
+                const clientesConVdLocal = new Set(verificacionesLocales.map(v => v.clienteId));
+                const count = clientes.filter(c => 
+                    !clientesConVdLocal.has(c.id) &&
+                    (c.vdStatus === 'PENDIENTE' || (c.clasificacionCobranza === 'VD' && c.vdStatus !== 'REALIZADA'))
+                ).length;
                 setVdCount(count);
             } catch (err) {
                 console.warn("Error getting VD count in menu:", err);
             }
         };
         getVdCount();
+
+        const handleSyncEvent = () => {
+            getVdCount();
+        };
+        if (typeof window !== 'undefined') {
+            window.addEventListener('offline_data_synced', handleSyncEvent);
+        }
+
+        return () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('offline_data_synced', handleSyncEvent);
+            }
+        };
     }, [session]);
 
     const menuItems = [

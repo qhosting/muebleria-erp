@@ -92,20 +92,25 @@ export class SyncService {
     try {
       if (showToast) toast.info('Sincronizando datos...');
 
-      // 1. Descargar clientes actualizados del servidor
-      await this.downloadClientes(cobradorId);
-
-      // 2. Subir pagos pendientes
+      // 1. Subir pagos pendientes
       await this.uploadPagos(cobradorId);
 
-      // 3. Subir motararios pendientes (si existen)
+      // 2. Subir motararios pendientes (si existen)
       await this.uploadMotararios(cobradorId);
 
-      // 3.5 Subir verificaciones pendientes (si existen)
+      // 3. Subir verificaciones pendientes (si existen)
       await this.uploadVerificaciones(cobradorId);
 
-      // 4. Actualizar timestamp de sincronización
+      // 4. Descargar clientes actualizados del servidor (ahora ya reflejarán pagos y verificaciones subidas)
+      await this.downloadClientes(cobradorId);
+
+      // 5. Actualizar timestamp de sincronización
       await this.updateLastSync(cobradorId);
+
+      // 🚀 Disparar evento para que las vistas activas se refresquen automáticamente
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('offline_data_synced'));
+      }
 
       if (showToast) toast.success('Sincronización completada');
       return true;
@@ -317,6 +322,11 @@ export class SyncService {
           });
 
           await db.syncQueue.where('localId').equals(v.localId).modify({ status: 'completed' });
+
+          // 🚀 Actualizar inmediatamente el estado del cliente localmente a REALIZADA
+          await db.clientes.where('id').equals(v.clienteId).modify({
+            vdStatus: 'REALIZADA'
+          });
         } else {
           const errText = await response.text();
           console.error(`Error al sincronizar verificación ${v.localId}: ${response.status}`, errText);
