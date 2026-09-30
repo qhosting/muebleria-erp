@@ -347,7 +347,7 @@ export async function POST(req: Request) {
         // --- ACCIÓN: CONSULTA DE CLIENTES BOT WHATSAPP (REEMPLAZO DIRECTO DE MYSQL BASESCORE) ---
         if (action === "consulta_clientes_bot" || action === "buscar_cliente_bot") {
             const tipo = (body.tipo || "cliente").trim().toLowerCase(); // "cliente", "ubica", "tel"
-            const valor = (body.valor || "").trim();
+            const valor = (body.valor || body.query || body.search || body.texto || "").trim();
             const limit = parseInt(String(body.limit || "10")) || 10;
 
             let clientes: any[] = [];
