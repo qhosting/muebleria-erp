@@ -146,8 +146,9 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
     setCell(r, 27, d.fechaPago ? new Date(d.fechaPago).toLocaleDateString("es-MX") : "");
     setCell(r, 28, d.serie);
     setCell(r, 29, d.tipCob);
-    setCell(r, 30, d.montoAdelantado ?? 0, 'n');
-    setCell(r, 31, d.cuotasAdelantadas ?? 0, 'n');
+    const esAdelantado = (Number(d.saldoVencido) || 0) <= 0;
+    setCell(r, 30, esAdelantado ? (d.montoAdelantado ?? 0) : 0, 'n');
+    setCell(r, 31, esAdelantado ? (d.cuotasAdelantadas ?? 0) : 0, 'n');
   });
 
   // --- 3.1. FILAS DE COBROS Y ABONOS (Columna 32 en adelante) ---
@@ -553,8 +554,8 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
       c.pv,
       c.saldoActual,
       c.problema || "RUTA",
-      c.montoAdelantado || 0,
-      c.cuotasAdelantadas || 0
+      (Number(c.saldoVencido) || 0) <= 0 ? (c.montoAdelantado || 0) : 0,
+      (Number(c.saldoVencido) || 0) <= 0 ? (c.cuotasAdelantadas || 0) : 0
     ]),
     [],
     [
@@ -571,7 +572,7 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
       "",
       ctasSinPagoExcel.reduce((a, b) => a + (b.saldoActual || 0), 0),
       "",
-      ctasSinPagoExcel.reduce((a, b) => a + (b.montoAdelantado || 0), 0),
+      ctasSinPagoExcel.reduce((a, b) => a + ((Number(b.saldoVencido) || 0) <= 0 ? (b.montoAdelantado || 0) : 0), 0),
       ""
     ]
   ];
@@ -1169,8 +1170,8 @@ export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): s
   const totalCuentas = clientesOrdenados.length;
   const totalSugerido = clientesOrdenados.reduce((acc, c) => acc + (c.montoPago || 0), 0);
   const totalVencido = clientesOrdenados.reduce((acc, c) => acc + (c.saldoVencido || 0), 0);
-  const totalAdelantado = clientesOrdenados.reduce((acc, c) => acc + (c.montoAdelantado || 0), 0);
-  const ctasAdelantadas = clientesOrdenados.filter((c) => (c.montoAdelantado || 0) > 0).length;
+  const totalAdelantado = clientesOrdenados.reduce((acc, c) => acc + ((Number(c.saldoVencido) || 0) <= 0 ? (c.montoAdelantado || 0) : 0), 0);
+  const ctasAdelantadas = clientesOrdenados.filter((c) => (Number(c.saldoVencido) || 0) <= 0 && (c.montoAdelantado || 0) > 0).length;
 
   // Dividir en páginas de aprox 24 clientes por página para impresión limpia
   const FILAS_POR_PAGINA = 24;
@@ -1278,7 +1279,7 @@ export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): s
                     </td>
                     <td class="text-center font-bold">
                       <span style="display: inline-block; padding: 1.5px 5px; border-radius: 3px; font-size: 7.5px; background: ${probBg}; color: ${probColor}; border: 0.5px solid ${probColor}40;">${prob}</span>
-                      ${(c.montoAdelantado || 0) > 0 ? `<br/><span style="color: #047857; font-size: 6.5px; font-weight: bold; white-space: nowrap;">+$${Number(c.montoAdelantado).toLocaleString("es-MX")} (${c.cuotasAdelantadas || 0}s)</span>` : ''}
+                      ${(Number(c.saldoVencido) || 0) <= 0 && (c.montoAdelantado || 0) > 0 ? `<br/><span style="color: #047857; font-size: 6.5px; font-weight: bold; white-space: nowrap;">+$${Number(c.montoAdelantado).toLocaleString("es-MX")} (${c.cuotasAdelantadas || 0}s)</span>` : ''}
                     </td>
                     <td style="border-bottom: 0.5px solid #cbd5e1; height: 18px;">
                       <div style="width: 100%; height: 12px; border-bottom: 0.5px dotted #94a3b8;"></div>
@@ -1792,7 +1793,7 @@ export function generarHTMLCarteraEnRutaPDF(datos: DatosExportacionCarteraPDF): 
                     <td class="text-center font-mono" style="font-size: 6.5px;">${c.telefono || "-"}</td>
                     <td class="text-center font-bold">
                       <span style="display: inline-block; padding: 1px 4px; border-radius: 2px; font-size: 7px; background: ${prob === 'AD' ? '#d1fae5' : '#f1f5f9'}; color: ${prob === 'AD' ? '#047857' : '#334155'}; font-weight: 800;">${prob}</span>
-                      ${(c.montoAdelantado || 0) > 0 ? `<br/><span style="color: #047857; font-size: 6px; font-weight: bold; white-space: nowrap;">+$${Number(c.montoAdelantado).toLocaleString("es-MX")}</span>` : ''}
+                      ${(Number(c.saldoVencido) || 0) <= 0 && (c.montoAdelantado || 0) > 0 ? `<br/><span style="color: #047857; font-size: 6px; font-weight: bold; white-space: nowrap;">+$${Number(c.montoAdelantado).toLocaleString("es-MX")}</span>` : ''}
                     </td>
                   </tr>
                 `;

@@ -294,8 +294,16 @@ export function calcularAdelantoHistorico(params: {
   montoPago: number;
   totalAbonosHistoricos: number;
   fechaInicioSemana: Date;
+  saldoVencido?: number;
 }): { montoAdelantado: number; cuotasAdelantadas: number; cargoHistoricoExigible: number } {
-  const { fechaVenta, periodicidad, montoPago, totalAbonosHistoricos, fechaInicioSemana } = params;
+  const { fechaVenta, periodicidad, montoPago, totalAbonosHistoricos, fechaInicioSemana, saldoVencido } = params;
+
+  // REGLA ESTRICTA DE NEGOCIO:
+  // Si la columna VENCIMIENTO (saldoVencido) es mayor a 0, la cuenta NUNCA puede estar adelantada.
+  if (saldoVencido !== undefined && Number(saldoVencido) > 0) {
+    return { montoAdelantado: 0, cuotasAdelantadas: 0, cargoHistoricoExigible: 0 };
+  }
+
   if (!fechaVenta || montoPago <= 0) {
     return { montoAdelantado: 0, cuotasAdelantadas: 0, cargoHistoricoExigible: 0 };
   }
@@ -444,31 +452,56 @@ export function procesarDetallesYResumenCEJ(
         periodicidad: periodicidadMin,
         montoPago: pagoSugerido,
         totalAbonosHistoricos: Number(c.totalAbonosHistoricos) || 0,
-        fechaInicioSemana: fInicio
+        fechaInicioSemana: fInicio,
+        saldoVencido
       });
       montoAdelantado = calcAd.montoAdelantado;
       cuotasAdelantadas = calcAd.cuotasAdelantadas;
     }
 
+    // REGLA ESTRICTA DE NEGOCIO:
+    // Si la cuenta tiene saldo vencido (saldoVencido > 0), NUNCA puede haber monto ni cuotas adelantadas.
+    if (saldoVencido > 0) {
+      montoAdelantado = 0;
+      cuotasAdelantadas = 0;
+    }
+
     // DETERMINACIÓN AUTOMÁTICA DE PROBLEMA (REGLAS DE NEGOCIO):
-    // 1. Si dio abono en la semana (pagoReal > 0), SIEMPRE es RUTA sin importar su etiqueta previa o PE
-    // 2. Si no dio abono y tiene cuotas adelantadas históricas (cuotasAdelantadas >= 1) y saldoVencido <= 0 -> AD (Adelantado)
-    // 3. Si no dio abono y NO le toca pago su periodo en esta semana -> PE (Periodo)
-    // 4. Si sí le toca pago en esta semana -> RUTA (o clasificación asignada distinta de PE)
+    // 1. Si dio abono en la semana (pagoReal > 0), SIEMPRE es RUTA sin importar su etiqueta previa o PE o VD
+    // 2. Si no dio abono (pagoReal === 0):
+    //    a) Si saldoVencido > 0:
+    //       NUNCA puede ser AD ni PE. Si la cuenta tenía 'AD' o 'PE', se fuerza automáticamente a 'RUTA'.
+    //       Si tenía 'VD', 'K', 'IT', 'DL', etc., se respeta su clasificación.
+    //    b) Si saldoVencido <= 0 (cuenta al corriente / sin vencimiento):
+    //       - Si la clasificación es VD (nueva cuenta en verificación domiciliaria) -> 'VD'
+    //       - Si no le toca pago esta semana -> 'PE'
+    //       - Si tiene saldoActual > 0 -> 'AD' (Adelantado)
+    //         Asegurar cuotasAdelantadas >= 1 y montoAdelantado >= pagoSugerido si estaban en 0
     const leTocaPagoSemana =
       periodicidadesActivasNorm.length === 0 ||
       periodicidadesActivasNorm.includes(periodicidadMin);
 
+    const clasifActual = (c.clasificacionCobranza || "").toUpperCase().trim();
     let problema = "RUTA";
+
     if (pagoReal > 0) {
       problema = "RUTA";
-    } else if (cuotasAdelantadas >= 1 && saldoVencido <= 0) {
-      problema = "AD";
-    } else if (!leTocaPagoSemana) {
-      problema = "PE";
+    } else if (saldoVencido > 0) {
+      // Con saldo vencido > 0 NUNCA es AD ni PE
+      problema = (clasifActual && clasifActual !== "AD" && clasifActual !== "PE") ? clasifActual : "RUTA";
     } else {
-      const clasifActual = (c.clasificacionCobranza || "").toUpperCase().trim();
-      problema = (clasifActual && clasifActual !== "PE") ? clasifActual : "RUTA";
+      // saldoVencido <= 0 y pagoReal === 0
+      if (clasifActual === "VD") {
+        problema = "VD";
+      } else if (!leTocaPagoSemana) {
+        problema = "PE";
+      } else if (saldoActual > 0) {
+        problema = "AD";
+        if (cuotasAdelantadas === 0) cuotasAdelantadas = 1;
+        if (montoAdelantado === 0) montoAdelantado = pagoSugerido;
+      } else {
+        problema = (clasifActual && clasifActual !== "PE") ? clasifActual : "RUTA";
+      }
     }
 
     const diaAsignado = normalizarDiaSemana(c.diaPago || c.pagoAnalista);
@@ -660,17 +693,21 @@ export function calcularResumenCEJDesdeDetalles(detalles: (DetalleCalculadoCEJ |
     }
 
     // Clasificación Problema
-    const prob = (d.problema || "RUTA").toUpperCase().trim();
+    let prob = (d.problema || "RUTA").toUpperCase().trim();
+    if (saldoVencido > 0 && (prob === "AD" || prob === "PE")) {
+      prob = "RUTA";
+    }
+
     if (prob.includes("CAN") || prob === "K") {
       problemasAgg.canceladoK.cuentas++;
       problemasAgg.canceladoK.pesos += pagoSugerido;
     } else if (prob.includes("INT") || prob === "IT") {
       problemasAgg.intervencionIT.cuentas++;
       problemasAgg.intervencionIT.pesos += pagoSugerido;
-    } else if (prob.includes("AD") || prob === "ADELANTADO") {
+    } else if ((prob.includes("AD") || prob === "ADELANTADO") && saldoVencido <= 0) {
       problemasAgg.adelantadoAD.cuentas++;
       problemasAgg.adelantadoAD.pesos += pagoSugerido;
-    } else if (prob.includes("PE") || prob === "PERIODO") {
+    } else if ((prob.includes("PE") || prob === "PERIODO") && saldoVencido <= 0) {
       problemasAgg.periodoPE.cuentas++;
       problemasAgg.periodoPE.pesos += pagoSugerido;
     } else if (prob.includes("FU") || prob.includes("FUGA") || prob.includes("PS") || prob === "PAGO SEM") {

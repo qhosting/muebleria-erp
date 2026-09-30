@@ -91,6 +91,20 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     // Acción 1: Cambiar clasificación de problema de un cliente en el corte
     if (action === "actualizarProblema" && detalleId && nuevoProblema) {
       const probSanitized = nuevoProblema.toUpperCase().trim();
+      const detalleExistente = await prisma.corteCobranzaDetalle.findUnique({
+        where: { id: detalleId }
+      });
+
+      if (!detalleExistente) {
+        return NextResponse.json({ error: "Detalle no encontrado" }, { status: 404 });
+      }
+
+      if (probSanitized === "AD" && Number(detalleExistente.saldoVencido) > 0) {
+        return NextResponse.json({
+          error: `No se puede clasificar como AD (Adelantado) porque la cuenta tiene Saldo Vencido ($${Number(detalleExistente.saldoVencido).toFixed(2)}). Para ser AD, la columna VENCIMIENTO debe ser 0.`
+        }, { status: 400 });
+      }
+
       const detalleActualizado = await prisma.corteCobranzaDetalle.update({
         where: { id: detalleId },
         data: { problema: probSanitized }

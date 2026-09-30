@@ -482,6 +482,12 @@ export default function ListaCobranzaPage() {
 
   // Actualizar la columna PROBLEMA (en corte guardado oficial y/o en memoria)
   const handleCambiarProblema = async (detalleIdOrCodigo: string, nuevoProblema: string, nombreCliente?: string) => {
+    const cliEncontrado = clientes.find((cli) => cli.id === detalleIdOrCodigo || cli.codigoCliente === detalleIdOrCodigo);
+    if (nuevoProblema === "AD" && cliEncontrado && Number(cliEncontrado.saldoVencido || 0) > 0) {
+      toast.error(`No se puede marcar como AD: la cuenta tiene Saldo Vencido ($${formatCurrency(cliEncontrado.saldoVencido)}). Para ser AD, la columna VENCIMIENTO debe ser 0.`);
+      return;
+    }
+
     // Actualización reactiva inmediata en la tabla
     setClientes((prev) =>
       prev.map((cli) =>
@@ -781,15 +787,21 @@ export default function ListaCobranzaPage() {
   }, [clientesSinPago]);
 
   const totalMontoAdelantado = useMemo(() => {
-    return clientesFiltrados.reduce((acc, curr) => acc + (curr.montoAdelantado || 0), 0);
+    return clientesFiltrados
+      .filter((c) => Number(c.saldoVencido || 0) <= 0)
+      .reduce((acc, curr) => acc + (curr.montoAdelantado || 0), 0);
   }, [clientesFiltrados]);
 
   const totalCuentasAdelantadas = useMemo(() => {
-    return clientesFiltrados.filter((c) => (c.montoAdelantado || 0) > 0 || c.problema === "AD").length;
+    return clientesFiltrados.filter(
+      (c) => Number(c.saldoVencido || 0) <= 0 && ((c.montoAdelantado || 0) > 0 || c.problema === "AD")
+    ).length;
   }, [clientesFiltrados]);
 
   const clientesSinPagoAdelantados = useMemo(() => {
-    return clientesSinPago.filter((c) => (c.montoAdelantado || 0) > 0 || c.problema === "AD");
+    return clientesSinPago.filter(
+      (c) => Number(c.saldoVencido || 0) <= 0 && ((c.montoAdelantado || 0) > 0 || c.problema === "AD")
+    );
   }, [clientesSinPago]);
 
   // Clientes que sí dieron pago en la semana (pagoReal > 0 || moratorio > 0), ordenados por Código de Cliente A-Z
@@ -1400,7 +1412,7 @@ export default function ListaCobranzaPage() {
                               )}
                             </td>
                             <td className="px-2.5 py-1 text-center border border-gray-100 dark:border-slate-800">
-                              {c.montoAdelantado && c.montoAdelantado > 0 ? (
+                              {Number(c.saldoVencido || 0) <= 0 && c.montoAdelantado && c.montoAdelantado > 0 ? (
                                 <Badge
                                   variant="outline"
                                   className="bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 font-mono text-[10px] font-black px-1.5 py-0.5 whitespace-nowrap shadow-xs"
@@ -1792,7 +1804,7 @@ export default function ListaCobranzaPage() {
                                 </div>
                               </td>
                               <td className="px-2.5 py-1 text-center border border-gray-100 dark:border-slate-800">
-                                {c.montoAdelantado && c.montoAdelantado > 0 ? (
+                                {Number(c.saldoVencido || 0) <= 0 && c.montoAdelantado && c.montoAdelantado > 0 ? (
                                   <Badge
                                     variant="outline"
                                     className="bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 font-mono text-[10px] font-black px-1.5 py-0.5 whitespace-nowrap shadow-xs"

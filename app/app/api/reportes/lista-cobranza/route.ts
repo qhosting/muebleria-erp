@@ -111,6 +111,7 @@ export async function GET(request: NextRequest) {
           numeroExterior: true,
           colonia: true,
           ciudad: true,
+          clasificacionCobranza: true,
           cobradorAsignado: {
             select: { id: true, name: true, codigoGestor: true }
           }
@@ -154,14 +155,35 @@ export async function GET(request: NextRequest) {
           }
 
           const pagoSugeridoNum = parseFloat(d.pagoSugerido.toString());
+          const saldoVencidoNum = parseFloat(d.saldoVencido.toString());
           const totalAbonosHistoricos = d.clienteId ? (historicoClosedMap.get(d.clienteId) || 0) : 0;
           const calcAd = calcularAdelantoHistorico({
             fechaVenta: d.periodoInicial,
             periodicidad: d.periodicidad,
             montoPago: pagoSugeridoNum,
             totalAbonosHistoricos,
-            fechaInicioSemana: fechaInicio
+            fechaInicioSemana: fechaInicio,
+            saldoVencido: saldoVencidoNum
           });
+
+          let problema = (d.problema || "RUTA").toUpperCase().trim();
+          let montoAdelantado = calcAd.montoAdelantado;
+          let cuotasAdelantadas = calcAd.cuotasAdelantadas;
+
+          // REGLA ESTRICTA: Si la columna VENCIMIENTO > 0, NUNCA puede ser AD ni PE, y montoAdelantado = 0
+          if (saldoVencidoNum > 0) {
+            montoAdelantado = 0;
+            cuotasAdelantadas = 0;
+            if (problema === "AD" || problema === "PE") {
+              problema = "RUTA";
+            }
+          } else {
+            // saldoVencidoNum <= 0
+            if (parseFloat(d.pagoReal.toString()) <= 0 && problema === "AD") {
+              if (cuotasAdelantadas === 0) cuotasAdelantadas = 1;
+              if (montoAdelantado === 0) montoAdelantado = pagoSugeridoNum;
+            }
+          }
 
           return {
             id: d.id,
@@ -172,7 +194,7 @@ export async function GET(request: NextRequest) {
             nombreCompleto: d.nombreCliente,
             periodicidad: d.periodicidad,
             montoPago: pagoSugeridoNum,
-            saldoVencido: parseFloat(d.saldoVencido.toString()),
+            saldoVencido: saldoVencidoNum,
             pv: d.pv,
             saldoActual: parseFloat(d.saldoActual.toString()),
             gestor,
@@ -186,7 +208,7 @@ export async function GET(request: NextRequest) {
             telefonoTrabajo: d.telefono2 || "-",
             c: d.c,
             pagoAnalista: normalizarDiaSemana(d.diaPago || d.pagoAnalista),
-            problema: d.problema,
+            problema,
             pagoDoble: parseFloat(d.pagoDoble.toString()),
             numPagosDobles: d.numPagosDobles,
             recuperadoPv: parseFloat(d.recuperadoPv.toString()),
@@ -200,8 +222,8 @@ export async function GET(request: NextRequest) {
             montoBancosGestor: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "BANCOS_GESTOR" ? parseFloat(d.pagoReal.toString()) : 0,
             montoGestor: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "GESTOR" ? parseFloat(d.pagoReal.toString()) : 0,
             domicilio: dirMap.get(cod) || "-",
-            montoAdelantado: calcAd.montoAdelantado,
-            cuotasAdelantadas: calcAd.cuotasAdelantadas
+            montoAdelantado,
+            cuotasAdelantadas
           };
         });
 
@@ -493,10 +515,11 @@ export async function GET(request: NextRequest) {
           periodicidad: d.periodicidad,
           montoPago: pagoSugerido,
           totalAbonosHistoricos,
-          fechaInicioSemana: fInicioBusqueda
+          fechaInicioSemana: fInicioBusqueda,
+          saldoVencido
         });
-        const montoAdelantado = calcAd.montoAdelantado;
-        const cuotasAdelantadas = calcAd.cuotasAdelantadas;
+        let montoAdelantado = calcAd.montoAdelantado;
+        let cuotasAdelantadas = calcAd.cuotasAdelantadas;
 
         const pagoDoble = calcularPagoDoble(pagoReal, pagoSugerido, saldoVencido);
         const recuperadoPv = calcularRecuperadoPV(pagoReal, pagoSugerido, saldoVencido);
@@ -510,17 +533,40 @@ export async function GET(request: NextRequest) {
         const montoBancosGestor = pagoInfo ? pagoInfo.montoBancosGestor : 0;
         const montoGestor = pagoInfo ? pagoInfo.montoGestor : 0;
 
-        // Regla: si tenía 'PE' y pagó, asciende a 'RUTA'. Si tenía K, IT, DL, AD, se respeta estrictamente.
-        // Si no pagó en la semana pero tiene cuotas adelantadas y no tiene saldo vencido, se identifica automáticamente como AD.
+        // Determinar gestor: si es semana actual y se cambió el cobrador, reflejarlo
+        const cInfo = infoMap.get(cod);
+        const clasifCliente = (cInfo?.clasificacionCobranza || "").toUpperCase().trim();
         let problema = (d.problema || "RUTA").toUpperCase().trim();
-        if (pagoReal > 0 && problema === "PE") {
+
+        // REGLAS ESTRICTAS DE NEGOCIO:
+        // 1. Si pagó en la semana -> RUTA
+        // 2. Si tiene saldo vencido (saldoVencido > 0) -> NUNCA puede ser AD ni PE.
+        //    Monto adelantado debe ser 0. Si tenía AD o PE, se normaliza a RUTA o clasificación asignada.
+        // 3. Si saldoVencido <= 0 y pagoReal === 0:
+        //    - Si es VD -> 'VD'
+        //    - Si saldoActual > 0 -> 'AD' con cuotas cubiertas
+        if (pagoReal > 0) {
           problema = "RUTA";
-        } else if (pagoReal === 0 && cuotasAdelantadas >= 1 && saldoVencido <= 0 && (!d.problema || d.problema === "RUTA" || d.problema === "PE" || d.problema === "AD")) {
-          problema = "AD";
+        } else if (saldoVencido > 0) {
+          montoAdelantado = 0;
+          cuotasAdelantadas = 0;
+          if (problema === "AD" || problema === "PE") {
+            problema = (clasifCliente && clasifCliente !== "AD" && clasifCliente !== "PE") ? clasifCliente : "RUTA";
+          }
+        } else {
+          // saldoVencido <= 0 y pagoReal === 0
+          if (clasifCliente === "VD") {
+            problema = "VD";
+          } else if (problema === "AD" || cuotasAdelantadas >= 1 || problema === "RUTA") {
+            if (saldoActual > 0) {
+              problema = "AD";
+              if (cuotasAdelantadas === 0) cuotasAdelantadas = 1;
+              if (montoAdelantado === 0) montoAdelantado = pagoSugerido;
+            }
+          }
         }
 
         // Determinar gestor: si es semana actual y se cambió el cobrador, reflejarlo
-        const cInfo = infoMap.get(cod);
         let gestor = d.gestor || "-";
         if (esSemanaActual && cInfo?.cobradorAsignado) {
           gestor = cInfo.cobradorAsignado.codigoGestor || cInfo.cobradorAsignado.name || gestor;
@@ -620,10 +666,11 @@ export async function GET(request: NextRequest) {
           periodicidad: c.periodicidad || "SEMANAL",
           montoPago: montoPagoNum,
           totalAbonosHistoricos,
-          fechaInicioSemana: fInicioBusqueda
+          fechaInicioSemana: fInicioBusqueda,
+          saldoVencido: saldoVencidoNum
         });
-        const montoAdelantado = calcAd.montoAdelantado;
-        const cuotasAdelantadas = calcAd.cuotasAdelantadas;
+        let montoAdelantado = calcAd.montoAdelantado;
+        let cuotasAdelantadas = calcAd.cuotasAdelantadas;
 
         const pagoDoble = calcularPagoDoble(pagoReal, montoPagoNum, saldoVencidoNum);
         const recuperadoPv = calcularRecuperadoPV(pagoReal, montoPagoNum, saldoVencidoNum);
@@ -638,7 +685,27 @@ export async function GET(request: NextRequest) {
         const montoBot = pagoInfo?.montoBot || 0;
         const montoBancosGestor = pagoInfo?.montoBancosGestor || 0;
         const montoGestor = pagoInfo?.montoGestor || 0;
-        const problema = pagoReal > 0 ? "RUTA" : (cuotasAdelantadas >= 1 && saldoVencidoNum <= 0 ? "AD" : (c.clasificacionCobranza || "PE"));
+
+        const clasifCliente = (c.clasificacionCobranza || "").toUpperCase().trim();
+        let problema = "RUTA";
+        if (pagoReal > 0) {
+          problema = "RUTA";
+        } else if (saldoVencidoNum > 0) {
+          montoAdelantado = 0;
+          cuotasAdelantadas = 0;
+          problema = (clasifCliente && clasifCliente !== "AD" && clasifCliente !== "PE") ? clasifCliente : "RUTA";
+        } else {
+          // saldoVencidoNum <= 0 y pagoReal === 0
+          if (clasifCliente === "VD") {
+            problema = "VD";
+          } else if (saldoActualNum > 0) {
+            problema = "AD";
+            if (cuotasAdelantadas === 0) cuotasAdelantadas = 1;
+            if (montoAdelantado === 0) montoAdelantado = montoPagoNum;
+          } else {
+            problema = (clasifCliente && clasifCliente !== "PE") ? clasifCliente : "RUTA";
+          }
+        }
 
         const nuevoDetalle = {
           id: `new-${c.id || c.codigoCliente}`,
