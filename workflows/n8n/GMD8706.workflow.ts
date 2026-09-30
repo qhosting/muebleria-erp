@@ -358,6 +358,7 @@ if (!resultados || resultados.length === 0 || !resultados[0].folio) {
 mensajeCompleto = "🔎 *Resultados encontrados:*\\n\\n";
 
 for (const d of resultados) {
+    mensajeCompleto += \`🏢 Empresa: \${d.empresa || (d.no_contrato && d.no_contrato.startsWith('DP') ? 'DP' : 'DQ')}\\n\`;
     mensajeCompleto += \`📄 No. Contrato: \${d.no_contrato || 'N/A'}\\n\`;
     mensajeCompleto += \`📌 Folio: \${d.folio || 'N/A'}\\n\`;
     mensajeCompleto += \`👤 Cliente: \${d.nombre_cliente || 'N/A'}\\n\`;

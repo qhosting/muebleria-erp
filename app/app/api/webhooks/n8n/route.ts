@@ -435,6 +435,7 @@ export async function POST(req: Request) {
             const resultados = clientes.map(c => ({
                 folio: c.codigoCliente,
                 no_contrato: c.codigoCliente,
+                empresa: c.empresa,
                 nombre_cliente: c.nombreCliente,
                 calle: c.calle || '',
                 colonia: c.colonia || '',
