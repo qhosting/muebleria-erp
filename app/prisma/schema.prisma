@@ -1171,3 +1171,39 @@ model PermisoRol {
   @@unique([role, modulo])
   @@map("permisos_roles")
 }
+
+model ClienteConsultaBot {
+  id                  String   @id @default(cuid())
+  codigoCliente       String   // Folio / NoContrato ej. DP2608073, DQ2510106
+  empresa             String   // DP o DQ
+  nombreCliente       String
+  calle               String?
+  numeroExterior      String?
+  numeroInterior      String?
+  colonia             String?
+  municipio           String?
+  estado              String?
+  direccionCompleta   String?
+  telefono            String?
+  telefonoLimpio      String?  // Solo dígitos para búsqueda rápida
+  telefono2           String?
+  telefono2Limpio     String?
+  ref2                String?  // Aval / Referencia
+  tipoCliente         String?
+  estatus             String?
+  saldoActual         Decimal  @default(0) @db.Decimal(10, 2)
+  producto1           String?
+  producto2           String?
+  ultimaSincronizacion DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([empresa, codigoCliente])
+  @@index([codigoCliente])
+  @@index([empresa])
+  @@index([nombreCliente])
+  @@index([telefonoLimpio])
+  @@index([telefono2Limpio])
+  @@map("clientes_consulta_bot")
+}
+

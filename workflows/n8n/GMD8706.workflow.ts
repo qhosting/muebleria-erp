@@ -11,9 +11,9 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // RuteoPorTipo                       switch
 // ParsearDireccion                   code
 // FormatearRespuesta                 code
-// PorCliente1                        mySql                      [creds] [alwaysOutput]
-// Ubica                              mySql                      [creds] [alwaysOutput]
-// Tel                                mySql                      [creds] [alwaysOutput]
+// ConsultaClienteErp                 httpRequest                [retry]
+// ConsultaUbicaErp                   httpRequest                [retry]
+// ConsultaTelErp                     httpRequest                [retry]
 // Imagen                             convertToFile
 // AnalyzeImage                       openAi                     [creds]
 // ExtraeIne                          code
@@ -34,13 +34,13 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 //    → SoloGrupoGmd8706
 //      → Detectartipo
 //        → RuteoPorTipo
-//          → PorCliente1
+//          → ConsultaClienteErp
 //            → FormatearRespuesta
 //              → EnviarAlertaWaha2
 //         .out(1) → ParsearDireccion
-//            → Ubica
+//            → ConsultaUbicaErp
 //              → FormatearRespuesta (↩ loop)
-//         .out(2) → Tel
+//         .out(2) → ConsultaTelErp
 //            → FormatearRespuesta (↩ loop)
 //         .out(3) → ObtenerExistenciaDq
 //            → PrepararMensajeDq
@@ -307,48 +307,44 @@ return [{
         alwaysOutputData: false,
     })
     FormatearRespuesta = {
-        jsCode: `// 1. OBTENER TODOS LOS DATOS JUNTOS
-// Al estar en "Run Once for All Items", $input.all() trae todo el arreglo de resultados
-const resultados = $input.all();
+        jsCode: `// 1. OBTENER RESULTADOS
+const primerItem = $input.first()?.json;
+let resultados = [];
+
+if (primerItem && Array.isArray(primerItem.resultados)) {
+    resultados = primerItem.resultados;
+} else if (primerItem && Array.isArray(primerItem)) {
+    resultados = primerItem;
+} else {
+    resultados = $input.all().map(i => i.json).filter(Boolean);
+}
+
 let mensajeCompleto = "";
 
 // 2. RECUPERAR EL CHAT ID Y SESIÓN (CONTEXTO)
-// Necesitamos saber a quién responder. Buscamos en los nodos anteriores.
 let chatId = "";
 let session = "default";
 
 try {
-    // Intentamos tomar los datos del primer resultado de la búsqueda
-    const itemOrigen = resultados[0];
-    
-    // A veces n8n pasa los datos del nodo padre en el mismo objeto
-    if (itemOrigen.json.chatId) chatId = itemOrigen.json.chatId;
-    if (itemOrigen.json.session) session = itemOrigen.json.session;
-    
-    // Si no están ahí, buscamos explícitamente en el nodo donde detectamos el tipo (Texto)
-    if (!chatId) {
-        const rootData = $('DetectarTipo').first().json;
-        chatId = rootData.from;
-        session = rootData.session;
-    }
+    const rootData = $('DetectarTipo').first().json;
+    chatId = rootData.from;
+    session = rootData.session;
 } catch (e) {
-    // Si falla (quizás vino de imagen INE), buscamos en el nodo de INE
     try {
         const ineData = $('EXTRAE_INE').first().json;
         chatId = ineData.from;
         session = ineData.session;
     } catch (e2) {
-        // Último recurso: Webhook
         try {
-             const webhookData = $('Webhook WAHA').first().json.body.payload;
-             chatId = webhookData.from;
-             session = $('Webhook WAHA').first().json.body.session || "default";
+            const webhookData = $('Webhook WAHA').first().json.body.payload;
+            chatId = webhookData.from;
+            session = $('Webhook WAHA').first().json.body.session || "default";
         } catch(e3) {}
     }
 }
 
 // 3. VALIDACIÓN: ¿HAY RESULTADOS REALES?
-if (!resultados || resultados.length === 0 || !resultados[0].json.folio) {
+if (!resultados || resultados.length === 0 || !resultados[0].folio) {
     return [{
         json: {
             mensaje: "❌ No se encontró información con esos datos.",
@@ -361,15 +357,11 @@ if (!resultados || resultados.length === 0 || !resultados[0].json.folio) {
 // 4. CONSTRUIR EL MENSAJE UNIFICADO
 mensajeCompleto = "🔎 *Resultados encontrados:*\\n\\n";
 
-for (const fila of resultados) {
-    const d = fila.json;
-
+for (const d of resultados) {
     mensajeCompleto += \`📄 No. Contrato: \${d.no_contrato || 'N/A'}\\n\`;
     mensajeCompleto += \`📌 Folio: \${d.folio || 'N/A'}\\n\`;
     mensajeCompleto += \`👤 Cliente: \${d.nombre_cliente || 'N/A'}\\n\`;
-    
-    // (Dirección eliminada según tu solicitud anterior)
-
+    mensajeCompleto += \`💰 Saldo: $\${Number(d.saldo_actual || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}\\n\`;
     mensajeCompleto += \`📊 Estatus: \${d.estatus || 'N/A'}\\n\`;
     mensajeCompleto += \`🏷 Tipo: \${d.tipo_de_cliente || '(Ninguna)'}\\n\`;
     mensajeCompleto += \`👤 Aval: \${d.ref2 || '(Ninguno)'}\\n\`;
@@ -395,109 +387,97 @@ return [{
 
     @node({
         id: '95abc90c-7f59-464d-9b85-25b5013d0c90',
-        name: 'Por Cliente1',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.4,
+        name: 'Consulta Cliente ERP',
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
         position: [1856, 1072],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
-        alwaysOutputData: true,
+        retryOnFail: true,
+        maxTries: 2,
     })
-    PorCliente1 = {
-        operation: 'executeQuery',
-        query: `SELECT
-  folio,
-  nombre_cliente,
-  calle,
-  colonia,
-  municipio,
-  estado,
-  no_contrato,
-  telefono,
-  tipo_de_cliente,
-  estatus,
-  saldo_actual,
-  ref2,
-  producto_1,
-  producto_2
-FROM basescore
-WHERE MATCH(nombre_cliente) AGAINST('"{{ $json.valor }}"' IN BOOLEAN MODE)
-LIMIT 10`,
-        options: {
-            detailedOutput: false,
+    ConsultaClienteErp = {
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendHeaders: true,
+        headerParameters: {
+            parameters: [
+                {
+                    name: 'Content-Type',
+                    value: 'application/json',
+                },
+            ],
         },
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={
+  "action": "consulta_clientes_bot",
+  "tipo": "cliente",
+  "valor": {{ JSON.stringify($json.valor) }}
+}`,
+        options: {},
     };
 
     @node({
         id: '3da64513-01d7-49a8-9b50-31a7e63b1644',
-        name: 'UBICA',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.4,
+        name: 'Consulta Ubica ERP',
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
         position: [2064, 1232],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
-        alwaysOutputData: true,
+        retryOnFail: true,
+        maxTries: 2,
     })
-    Ubica = {
-        operation: 'executeQuery',
-        query: `SELECT
-  folio,
-  nombre_cliente,
-  calle,
-  colonia,
-  municipio,
-  estado,
-  no_contrato,
-  telefono,
-  tipo_de_cliente,
-  estatus,
-  saldo_actual,
-  ref2,
-  -- Creación del puntaje para ordenar por relevancia
-  (
-    (CASE WHEN calle LIKE CONCAT('%', '{{ $json.calle }}', '%') AND '{{ $json.calle }}' != '' THEN 3 ELSE 0 END) +
-    (CASE WHEN colonia LIKE CONCAT('%', '{{ $json.colonia }}', '%') AND '{{ $json.colonia }}' != '' THEN 2 ELSE 0 END) +
-    (CASE WHEN municipio LIKE CONCAT('%', '{{ $json.municipio }}', '%') AND '{{ $json.municipio }}' != '' THEN 1 ELSE 0 END)
-  ) AS score
-FROM basescore
-WHERE
-  -- La cláusula WHERE busca registros que coincidan con CUALQUIERA de los datos proporcionados
-  ('{{ $json.calle }}' != '' AND calle LIKE CONCAT('%', '{{ $json.calle }}', '%'))
-  OR ('{{ $json.colonia }}' != '' AND colonia LIKE CONCAT('%', '{{ $json.colonia }}', '%'))
-  OR ('{{ $json.municipio }}' != '' AND municipio LIKE CONCAT('%', '{{ $json.municipio }}', '%'))
--- Ordenamos por el puntaje de mayor a menor para mostrar primero los mejores resultados
-ORDER BY score DESC
-LIMIT 7;`,
+    ConsultaUbicaErp = {
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendHeaders: true,
+        headerParameters: {
+            parameters: [
+                {
+                    name: 'Content-Type',
+                    value: 'application/json',
+                },
+            ],
+        },
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={
+  "action": "consulta_clientes_bot",
+  "tipo": "ubica",
+  "valor": {{ JSON.stringify($json.calle + ' ' + $json.colonia + ' ' + $json.municipio) }},
+  "calle": {{ JSON.stringify($json.calle || '') }},
+  "colonia": {{ JSON.stringify($json.colonia || '') }},
+  "municipio": {{ JSON.stringify($json.municipio || '') }}
+}`,
         options: {},
     };
 
     @node({
         id: '892474a6-2d7a-41c8-a5b0-3380557ece4c',
-        name: 'TEL',
-        type: 'n8n-nodes-base.mySql',
-        version: 2.4,
+        name: 'Consulta Tel ERP',
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.2,
         position: [1856, 1392],
-        credentials: { mySql: { id: 'vULDWYns9EfnTizX', name: 'COB_GMD' } },
-        alwaysOutputData: true,
+        retryOnFail: true,
+        maxTries: 2,
     })
-    Tel = {
-        operation: 'executeQuery',
-        query: `SELECT
-  folio,
-  nombre_cliente,
-  calle,
-  colonia,
-  municipio,
-  estado,
-  no_contrato,
-  telefono,
-  tipo_de_cliente,
-  estatus,
-  saldo_actual,
-  ref2
-FROM basescore
-WHERE
-  REGEXP_REPLACE(telefono, '[^0-9]+', '') LIKE CONCAT('%', REGEXP_REPLACE('{{ $json.valor }}', '[^0-9]+', ''), '%') OR
-  REGEXP_REPLACE(ref1, '[^0-9]+', '') LIKE CONCAT('%', REGEXP_REPLACE('{{ $json.valor }}', '[^0-9]+', ''), '%')
-LIMIT 5`,
+    ConsultaTelErp = {
+        method: 'POST',
+        url: 'https://erp.mueblesdaso.com/api/webhooks/n8n',
+        sendHeaders: true,
+        headerParameters: {
+            parameters: [
+                {
+                    name: 'Content-Type',
+                    value: 'application/json',
+                },
+            ],
+        },
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={
+  "action": "consulta_clientes_bot",
+  "tipo": "tel",
+  "valor": {{ JSON.stringify($json.valor) }}
+}`,
         options: {},
     };
 
@@ -888,9 +868,9 @@ return [{
     @links()
     defineRouting() {
         this.Detectartipo.out(0).to(this.RuteoPorTipo.in(0));
-        this.RuteoPorTipo.out(0).to(this.PorCliente1.in(0));
+        this.RuteoPorTipo.out(0).to(this.ConsultaClienteErp.in(0));
         this.RuteoPorTipo.out(1).to(this.ParsearDireccion.in(0));
-        this.RuteoPorTipo.out(2).to(this.Tel.in(0));
+        this.RuteoPorTipo.out(2).to(this.ConsultaTelErp.in(0));
         this.RuteoPorTipo.out(3).to(this.ObtenerExistenciaDq.in(0));
         this.RuteoPorTipo.out(4).to(this.ObtenerExistenciaDp.in(0));
         this.ExistenciaCarteraDq.out(0).to(this.ObtenerExistenciaDq.in(0));
@@ -899,11 +879,11 @@ return [{
         this.ObtenerExistenciaDp.out(0).to(this.PrepararMensajeDp.in(0));
         this.PrepararMensajeDq.out(0).to(this.EnviarAlertaWaha2.in(0));
         this.PrepararMensajeDp.out(0).to(this.EnviarAlertaWaha2.in(0));
-        this.ParsearDireccion.out(0).to(this.Ubica.in(0));
+        this.ParsearDireccion.out(0).to(this.ConsultaUbicaErp.in(0));
+        this.ConsultaClienteErp.out(0).to(this.FormatearRespuesta.in(0));
+        this.ConsultaUbicaErp.out(0).to(this.FormatearRespuesta.in(0));
+        this.ConsultaTelErp.out(0).to(this.FormatearRespuesta.in(0));
         this.FormatearRespuesta.out(0).to(this.EnviarAlertaWaha2.in(0));
-        this.PorCliente1.out(0).to(this.FormatearRespuesta.in(0));
-        this.Ubica.out(0).to(this.FormatearRespuesta.in(0));
-        this.Tel.out(0).to(this.FormatearRespuesta.in(0));
         this.WebhookWaha.out(0).to(this.SoloGrupoGmd8706.in(0));
         this.SoloGrupoGmd8706.out(0).to(this.Detectartipo.in(0));
     }

@@ -344,7 +344,120 @@ export async function POST(req: Request) {
             });
         }
 
+        // --- ACCIÓN: CONSULTA DE CLIENTES BOT WHATSAPP (REEMPLAZO DIRECTO DE MYSQL BASESCORE) ---
+        if (action === "consulta_clientes_bot" || action === "buscar_cliente_bot") {
+            const tipo = (body.tipo || "cliente").trim().toLowerCase(); // "cliente", "ubica", "tel"
+            const valor = (body.valor || "").trim();
+            const limit = parseInt(String(body.limit || "10")) || 10;
+
+            let clientes: any[] = [];
+
+            if (tipo === "cliente") {
+                const valUpper = valor.toUpperCase();
+                if (valUpper.startsWith("DP") || valUpper.startsWith("DQ")) {
+                    const direct = await prisma.clienteConsultaBot.findFirst({
+                        where: { codigoCliente: { equals: valUpper } }
+                    });
+                    if (direct) clientes = [direct];
+                }
+
+                if (clientes.length === 0 && valor.length >= 2) {
+                    const palabras = valor.split(/\s+/).filter((p: string) => p.length >= 2);
+                    if (palabras.length > 1) {
+                        clientes = await prisma.clienteConsultaBot.findMany({
+                            where: {
+                                AND: palabras.map((p: string) => ({
+                                    nombreCliente: { contains: p, mode: 'insensitive' }
+                                }))
+                            },
+                            take: limit,
+                            orderBy: { ultimaSincronizacion: 'desc' }
+                        });
+                    }
+
+                    if (clientes.length === 0) {
+                        clientes = await prisma.clienteConsultaBot.findMany({
+                            where: {
+                                nombreCliente: { contains: valor, mode: 'insensitive' }
+                            },
+                            take: limit,
+                            orderBy: { ultimaSincronizacion: 'desc' }
+                        });
+                    }
+                }
+            } else if (tipo === "tel") {
+                const telLimpio = valor.replace(/\D/g, '');
+                if (telLimpio.length >= 4) {
+                    const snippet = telLimpio.slice(-10);
+                    clientes = await prisma.clienteConsultaBot.findMany({
+                        where: {
+                            OR: [
+                                { telefonoLimpio: { contains: snippet } },
+                                { telefono2Limpio: { contains: snippet } }
+                            ]
+                        },
+                        take: limit,
+                        orderBy: { ultimaSincronizacion: 'desc' }
+                    });
+                }
+            } else if (tipo === "ubica") {
+                const calle = (body.calle || '').trim();
+                const colonia = (body.colonia || '').trim();
+                const municipio = (body.municipio || '').trim();
+
+                const conditions: any[] = [];
+                if (calle) conditions.push({ calle: { contains: calle, mode: 'insensitive' } });
+                if (colonia) conditions.push({ colonia: { contains: colonia, mode: 'insensitive' } });
+                if (municipio) conditions.push({ municipio: { contains: municipio, mode: 'insensitive' } });
+
+                if (conditions.length > 0) {
+                    clientes = await prisma.clienteConsultaBot.findMany({
+                        where: { OR: conditions },
+                        take: limit,
+                        orderBy: { ultimaSincronizacion: 'desc' }
+                    });
+                } else if (valor) {
+                    clientes = await prisma.clienteConsultaBot.findMany({
+                        where: {
+                            OR: [
+                                { direccionCompleta: { contains: valor, mode: 'insensitive' } },
+                                { calle: { contains: valor, mode: 'insensitive' } },
+                                { colonia: { contains: valor, mode: 'insensitive' } },
+                                { municipio: { contains: valor, mode: 'insensitive' } }
+                            ]
+                        },
+                        take: limit,
+                        orderBy: { ultimaSincronizacion: 'desc' }
+                    });
+                }
+            }
+
+            const resultados = clientes.map(c => ({
+                folio: c.codigoCliente,
+                no_contrato: c.codigoCliente,
+                nombre_cliente: c.nombreCliente,
+                calle: c.calle || '',
+                colonia: c.colonia || '',
+                municipio: c.municipio || '',
+                estado: c.estado || '',
+                telefono: c.telefono || '',
+                tipo_de_cliente: c.tipoCliente || '(Ninguna)',
+                estatus: c.estatus || 'ACTIVO',
+                saldo_actual: parseFloat(c.saldoActual.toString()),
+                ref2: c.ref2 || '(Ninguno)',
+                producto_1: c.producto1 || null,
+                producto_2: c.producto2 || null
+            }));
+
+            return NextResponse.json({
+                success: true,
+                total: resultados.length,
+                resultados
+            });
+        }
+
         // --- ACCIÓN: EXISTENCIA DE CARTERA (MUEBLERIA-ERP) ---
+
         if (action === "existencia_cartera" || action === "existencia") {
             const cartera = (body.cartera || body.tipo || "DQ").trim().toUpperCase(); // "DQ" o "DP"
 
