@@ -402,15 +402,6 @@ export default function ClientesPage() {
                     <DollarSign className="h-4 w-4 mr-2 text-amber-600" />
                     Saldos
                   </Button>
-                  <Button
-                    variant="outline"
-                    className="border-red-400 text-red-700 hover:bg-red-50"
-                    disabled={inactivatingLiquidados}
-                    onClick={handleInactivarLiquidados}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2 text-red-500" />
-                    {inactivatingLiquidados ? 'Inactivando...' : 'Inactivar Liquidados ($0)'}
-                  </Button>
                 </>
               )}
               <Button onClick={handleCreateCliente}>
