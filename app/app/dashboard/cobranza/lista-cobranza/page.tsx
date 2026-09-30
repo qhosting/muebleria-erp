@@ -54,6 +54,9 @@ import {
 } from "@/lib/corte-cej-utils";
 import {
   descargarExcelCEJ,
+  descargarExcelCarteraEnRuta,
+  descargarExcelClientesSiPago,
+  descargarExcelClientesSinPago,
   imprimirPDFCEJ,
   imprimirPDFCarteraEnRuta,
   imprimirPDFClientesSiPago,
@@ -737,6 +740,128 @@ export default function ListaCobranzaPage() {
     }
   };
 
+  // Exportar Excel de Cartera en Ruta
+  const handleExportarExcelCartera = () => {
+    if (clientesFiltrados.length === 0) {
+      toast.error("No hay datos para exportar");
+      return;
+    }
+
+    const fInicio = calendario
+      ? new Date(calendario.fechaInicio).toLocaleDateString("es-MX")
+      : `Semana ${semana}`;
+    const fFin = calendario
+      ? new Date(calendario.fechaFin).toLocaleDateString("es-MX")
+      : `${anio}`;
+
+    descargarExcelCarteraEnRuta({
+      anio: parseInt(anio),
+      semana: parseInt(semana),
+      fechaInicioStr: fInicio,
+      fechaFinStr: fFin,
+      nombreGestor: getSelectedCobradorName(),
+      codigoGestor: getSelectedCobradorCodigo(),
+      filtroEmpresa: filtroEmpresa !== "TODAS" ? filtroEmpresa : undefined,
+      clientes: clientesFiltrados as any
+    });
+
+    toast.success("Descargando Excel de Cartera en Ruta");
+  };
+
+  // Exportar Excel de Clientes Sí Pago
+  const handleExportarExcelSiPago = () => {
+    if (clientesSiPago.length === 0) {
+      toast.info("No hay clientes con pago en este filtro");
+      return;
+    }
+
+    const fInicio = calendario
+      ? new Date(calendario.fechaInicio).toLocaleDateString("es-MX")
+      : `Semana ${semana}`;
+    const fFin = calendario
+      ? new Date(calendario.fechaFin).toLocaleDateString("es-MX")
+      : `${anio}`;
+
+    descargarExcelClientesSiPago({
+      anio: parseInt(anio),
+      semana: parseInt(semana),
+      fechaInicioStr: fInicio,
+      fechaFinStr: fFin,
+      nombreGestor: getSelectedCobradorName(),
+      codigoGestor: getSelectedCobradorCodigo(),
+      filtroEmpresa: filtroEmpresa !== "TODAS" ? filtroEmpresa : undefined,
+      clientes: clientesSiPago.map((c) => ({
+        codigoCliente: c.codigoCliente,
+        numContrato: c.numContrato,
+        nombreCompleto: c.nombreCompleto,
+        domicilio: c.domicilio || "-",
+        gestor: c.gestor || "-",
+        telefono: c.telefono || "-",
+        periodicidad: c.periodicidad,
+        pagoSugerido: c.montoPago || 0,
+        montoPago: c.montoPago || 0,
+        pagoReal: c.pagoReal || 0,
+        moratorio: c.moratorio || 0,
+        totalRecaudado: (c.pagoReal || 0) + (c.moratorio || 0),
+        tipoCobro: c.tipoCobro || "EFECTIVO",
+        canalCobro: c.canalCobro,
+        fechaPago: c.fechaPago,
+        diaPago: c.diaPago,
+        problema: c.problema || "RUTA",
+        pagoDoble: c.pagoDoble,
+        recuperadoPv: c.recuperadoPv
+      }))
+    });
+
+    toast.success("Descargando Excel de Clientes Sí Pago");
+  };
+
+  // Exportar Excel de Clientes Sin Pago
+  const handleExportarExcelSinPago = () => {
+    if (clientesSinPago.length === 0) {
+      toast.info("No hay clientes sin pago en este filtro");
+      return;
+    }
+
+    const fInicio = calendario
+      ? new Date(calendario.fechaInicio).toLocaleDateString("es-MX")
+      : `Semana ${semana}`;
+    const fFin = calendario
+      ? new Date(calendario.fechaFin).toLocaleDateString("es-MX")
+      : `${anio}`;
+
+    descargarExcelClientesSinPago({
+      anio: parseInt(anio),
+      semana: parseInt(semana),
+      fechaInicioStr: fInicio,
+      fechaFinStr: fFin,
+      nombreGestor: getSelectedCobradorName(),
+      codigoGestor: getSelectedCobradorCodigo(),
+      filtroEmpresa: filtroEmpresa !== "TODAS" ? filtroEmpresa : undefined,
+      clientes: clientesSinPago.map((c) => ({
+        codigoCliente: c.codigoCliente,
+        numContrato: c.numContrato,
+        nombreCompleto: c.nombreCompleto,
+        domicilio: c.domicilio || "-",
+        gestor: c.gestor || "-",
+        saldoVencido: c.saldoVencido || 0,
+        pv: c.pv || 0,
+        saldoActual: c.saldoActual || 0,
+        problema: c.problema || "RUTA",
+        pagoReal: c.pagoReal || 0,
+        telefono: c.telefono || "-",
+        periodicidad: c.periodicidad,
+        montoPago: c.montoPago || 0,
+        pagoSugerido: c.montoPago || 0,
+        diaPago: c.diaPago,
+        montoAdelantado: c.montoAdelantado || 0,
+        cuotasAdelantadas: c.cuotasAdelantadas || 0
+      }))
+    });
+
+    toast.success("Descargando Excel de Clientes Sin Pago");
+  };
+
   // Filtrado y ordenamiento en memoria de clientes (por Código de Cliente A-Z)
   const clientesFiltrados = useMemo(() => {
     return clientes
@@ -1282,7 +1407,14 @@ export default function ListaCobranzaPage() {
                       Formato oficial CEJ con 18 columnas analíticas, días supuestos y cruce de cobranza semanal.
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      onClick={handleExportarExcelCartera}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-sm h-8"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Descargar Excel Cartera en Ruta</span>
+                    </Button>
                     <Button
                       onClick={handleExportarPDFCartera}
                       className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs gap-1.5 shadow-sm h-8"
@@ -1506,6 +1638,13 @@ export default function ListaCobranzaPage() {
 
                   <div className="flex items-center gap-2 flex-wrap">
                     <Button
+                      onClick={handleExportarExcelSiPago}
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs gap-1.5 shadow-sm h-8"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Descargar Excel Sí Pago</span>
+                    </Button>
+                    <Button
                       onClick={handleExportarPDFSiPago}
                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-sm h-8"
                     >
@@ -1657,6 +1796,13 @@ export default function ListaCobranzaPage() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      onClick={handleExportarExcelSinPago}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-sm h-8"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Descargar Excel Sin Pago</span>
+                    </Button>
                     <Button
                       onClick={handleExportarPDFSinPago}
                       className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs gap-1.5 shadow-sm h-8"
@@ -1873,10 +2019,24 @@ export default function ListaCobranzaPage() {
                       Separación ejecutiva de cuentas para la Semana {semana} ({anio}) • Cobrador: {getSelectedCobradorName()}
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Badge variant="outline" className="text-[10px] font-bold text-slate-200 border-slate-700 bg-slate-800/80">
                       {esCorteGuardado ? "🔒 Corte Congelado" : "⚡ En Vivo"}
                     </Badge>
+                    <Button
+                      onClick={handleExportarExcelCEJ}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-sm h-8"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Descargar Excel Resumen de Corte</span>
+                    </Button>
+                    <Button
+                      onClick={handleExportarPDFCEJ}
+                      className="bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs gap-1.5 shadow-sm h-8"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Descargar PDF Resumen de Corte</span>
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">

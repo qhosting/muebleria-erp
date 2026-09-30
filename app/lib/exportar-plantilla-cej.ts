@@ -1926,3 +1926,421 @@ export function imprimirPDFCarteraEnRuta(datos: DatosExportacionCarteraPDF): { h
   return { html, blobUrl };
 }
 
+export interface DatosExportacionCarteraExcel {
+  anio: number;
+  semana: number;
+  fechaInicioStr: string;
+  fechaFinStr: string;
+  nombreGestor: string;
+  codigoGestor: string;
+  filtroEmpresa?: string;
+  clientes: Array<{
+    codigoCliente: string;
+    numContrato?: string;
+    periodoInicial?: string;
+    nombreCompleto?: string;
+    nombreCliente?: string;
+    domicilio?: string;
+    periodicidad?: string;
+    montoPago?: number;
+    pagoSugerido?: number;
+    saldoVencido?: number;
+    pv?: number;
+    saldoActual?: number;
+    gestor?: string;
+    sup?: number;
+    moratorio?: number;
+    problema?: string;
+    montoAdelantado?: number;
+    cuotasAdelantadas?: number;
+    pagoReal?: number;
+    pagoDoble?: number;
+    recuperadoPv?: number;
+    comisionAnalista?: number;
+    diaPago?: string;
+    telefono?: string;
+  }>;
+}
+
+/**
+ * Descarga archivo Excel individual para Cartera en Ruta
+ */
+export function descargarExcelCarteraEnRuta(datos: DatosExportacionCarteraExcel) {
+  const wb = XLSX.utils.book_new();
+
+  const filtroTexto = datos.filtroEmpresa && datos.filtroEmpresa !== "TODAS" ? ` • Filtro: ${datos.filtroEmpresa}` : "";
+  const filas: any[][] = [
+    ["GRUPO MUEBLERO DASO SA DE CV"],
+    ["LISTA DE COBRANZA — RUTA DETALLADA DE CARTERA (FORMATO OFICIAL CEJ)"],
+    [`Semana ${datos.semana} (${datos.anio}) • Ciclo: ${datos.fechaInicioStr} al ${datos.fechaFinStr} • Cobrador: ${datos.codigoGestor} - ${datos.nombreGestor}${filtroTexto} • Total: ${datos.clientes.length} cuentas`],
+    [],
+    [
+      "#",
+      "CODIGO",
+      "CONTRATO",
+      "INICIAL",
+      "CLIENTE",
+      "DOMICILIO",
+      "PERIODO",
+      "PAGO SUG.",
+      "VENCIDO",
+      "PV",
+      "SALDO ACT.",
+      "GESTOR",
+      "SUP",
+      "MORATORIO",
+      "PROBLEMA",
+      "ADELANTADO ($)",
+      "SEM ADELANTADAS",
+      "PAGO REAL",
+      "P. DOBLE",
+      "RECU PV",
+      "COMISIÓN",
+      "DIA PAGO",
+      "TELÉFONO"
+    ],
+    ...datos.clientes.map((c, idx) => [
+      idx + 1,
+      c.codigoCliente,
+      c.numContrato || "-",
+      c.periodoInicial || "-",
+      c.nombreCompleto || c.nombreCliente || "-",
+      c.domicilio || "-",
+      c.periodicidad || "-",
+      Number(c.montoPago ?? c.pagoSugerido ?? 0),
+      Number(c.saldoVencido ?? 0),
+      Number(c.pv ?? 0),
+      Number(c.saldoActual ?? 0),
+      c.gestor || datos.codigoGestor,
+      Number(c.sup ?? 0),
+      Number(c.moratorio ?? 0),
+      c.problema || "RUTA",
+      Number(c.montoAdelantado ?? 0),
+      Number(c.cuotasAdelantadas ?? 0),
+      Number(c.pagoReal ?? 0),
+      Number(c.pagoDoble ?? 0),
+      Number(c.recuperadoPv ?? 0),
+      Number(c.comisionAnalista ?? 0),
+      c.diaPago || "-",
+      c.telefono || "-"
+    ]),
+    [],
+    [
+      "TOTALES",
+      `${datos.clientes.length} cuentas`,
+      "",
+      "",
+      "",
+      "",
+      "",
+      datos.clientes.reduce((a, b) => a + Number(b.montoPago ?? b.pagoSugerido ?? 0), 0),
+      datos.clientes.reduce((a, b) => a + Number(b.saldoVencido ?? 0), 0),
+      "",
+      datos.clientes.reduce((a, b) => a + Number(b.saldoActual ?? 0), 0),
+      "",
+      "",
+      datos.clientes.reduce((a, b) => a + Number(b.moratorio ?? 0), 0),
+      "",
+      datos.clientes.reduce((a, b) => a + Number(b.montoAdelantado ?? 0), 0),
+      "",
+      datos.clientes.reduce((a, b) => a + Number(b.pagoReal ?? 0), 0),
+      datos.clientes.reduce((a, b) => a + Number(b.pagoDoble ?? 0), 0),
+      datos.clientes.reduce((a, b) => a + Number(b.recuperadoPv ?? 0), 0),
+      datos.clientes.reduce((a, b) => a + Number(b.comisionAnalista ?? 0), 0),
+      "",
+      ""
+    ]
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(filas);
+  ws['!cols'] = [
+    { wch: 6 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 32 },
+    { wch: 30 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 8 },
+    { wch: 16 },
+    { wch: 12 },
+    { wch: 8 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 14 }
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, "CARTERA EN RUTA");
+
+  const gestorClean = (datos.codigoGestor || datos.nombreGestor || "GESTOR").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const filtroSuffix = datos.filtroEmpresa && datos.filtroEmpresa !== "TODAS" ? `-${datos.filtroEmpresa}` : "";
+  const filename = `CARTERA-EN-RUTA-${gestorClean}-Semana${datos.semana}-${datos.anio}${filtroSuffix}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+export interface DatosExportacionSiPagoExcel {
+  anio: number;
+  semana: number;
+  fechaInicioStr: string;
+  fechaFinStr: string;
+  nombreGestor: string;
+  codigoGestor: string;
+  filtroEmpresa?: string;
+  clientes: Array<{
+    codigoCliente: string;
+    numContrato?: string;
+    nombreCompleto?: string;
+    nombreCliente?: string;
+    domicilio?: string;
+    telefono?: string;
+    gestor?: string;
+    periodicidad?: string;
+    pagoSugerido?: number;
+    montoPago?: number;
+    pagoReal: number;
+    moratorio?: number;
+    totalRecaudado?: number;
+    tipoCobro?: string;
+    canalCobro?: string;
+    diaPago?: string;
+    fechaPago?: string | null;
+    problema?: string;
+    pagoDoble?: number;
+    recuperadoPv?: number;
+  }>;
+}
+
+/**
+ * Descarga archivo Excel individual para Clientes Sí Pago
+ */
+export function descargarExcelClientesSiPago(datos: DatosExportacionSiPagoExcel) {
+  const wb = XLSX.utils.book_new();
+
+  const filtroTexto = datos.filtroEmpresa && datos.filtroEmpresa !== "TODAS" ? ` • Filtro: ${datos.filtroEmpresa}` : "";
+  const filas: any[][] = [
+    ["GRUPO MUEBLERO DASO SA DE CV"],
+    ["LISTA DE COBRANZA — CLIENTES CON PAGO (ABONOS RECIBIDOS)"],
+    [`Semana ${datos.semana} (${datos.anio}) • Ciclo: ${datos.fechaInicioStr} al ${datos.fechaFinStr} • Cobrador: ${datos.codigoGestor} - ${datos.nombreGestor}${filtroTexto} • Total: ${datos.clientes.length} cuentas`],
+    [],
+    [
+      "#",
+      "CODIGO",
+      "CONTRATO",
+      "NOMBRE CLIENTE",
+      "DOMICILIO",
+      "TELÉFONO",
+      "GESTOR",
+      "PERIODICIDAD",
+      "PAGO SUGERIDO",
+      "PAGO REAL (ABONO)",
+      "MORATORIO",
+      "TOTAL RECAUDADO",
+      "TIPO / CANAL",
+      "DIA PAGO",
+      "FECHA PAGO",
+      "PROBLEMA"
+    ],
+    ...datos.clientes.map((c, idx) => [
+      idx + 1,
+      c.codigoCliente,
+      c.numContrato || "-",
+      c.nombreCompleto || c.nombreCliente || "-",
+      c.domicilio || "-",
+      c.telefono || "-",
+      c.gestor || datos.codigoGestor,
+      c.periodicidad || "-",
+      Number(c.pagoSugerido ?? c.montoPago ?? 0),
+      Number(c.pagoReal ?? 0),
+      Number(c.moratorio ?? 0),
+      Number((c.pagoReal ?? 0) + (c.moratorio ?? 0)),
+      c.tipoCobro || c.canalCobro || "EFECTIVO",
+      c.diaPago || "-",
+      c.fechaPago ? (typeof c.fechaPago === 'string' && c.fechaPago.includes('T') ? new Date(c.fechaPago).toLocaleDateString("es-MX") : c.fechaPago) : "-",
+      c.problema || "RUTA"
+    ]),
+    [],
+    [
+      "TOTALES",
+      `${datos.clientes.length} cuentas`,
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      datos.clientes.reduce((a, b) => a + Number(b.pagoSugerido ?? b.montoPago ?? 0), 0),
+      datos.clientes.reduce((a, b) => a + Number(b.pagoReal ?? 0), 0),
+      datos.clientes.reduce((a, b) => a + Number(b.moratorio ?? 0), 0),
+      datos.clientes.reduce((a, b) => a + Number(b.pagoReal ?? 0) + Number(b.moratorio ?? 0), 0),
+      "",
+      "",
+      "",
+      ""
+    ]
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(filas);
+  ws['!cols'] = [
+    { wch: 6 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 32 },
+    { wch: 30 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 12 }
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, "CLIENTES SÍ PAGO");
+
+  const gestorClean = (datos.codigoGestor || datos.nombreGestor || "GESTOR").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const filtroSuffix = datos.filtroEmpresa && datos.filtroEmpresa !== "TODAS" ? `-${datos.filtroEmpresa}` : "";
+  const filename = `CLIENTES-SI-PAGO-${gestorClean}-Semana${datos.semana}-${datos.anio}${filtroSuffix}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+export interface DatosExportacionSinPagoExcel {
+  anio: number;
+  semana: number;
+  fechaInicioStr: string;
+  fechaFinStr: string;
+  nombreGestor: string;
+  codigoGestor: string;
+  filtroEmpresa?: string;
+  clientes: Array<{
+    codigoCliente: string;
+    numContrato?: string;
+    nombreCompleto?: string;
+    nombreCliente?: string;
+    domicilio?: string;
+    gestor?: string;
+    saldoVencido?: number;
+    pv?: number;
+    saldoActual?: number;
+    problema?: string;
+    pagoReal?: number;
+    telefono?: string;
+    periodicidad?: string;
+    montoPago?: number;
+    pagoSugerido?: number;
+    diaPago?: string;
+    montoAdelantado?: number;
+    cuotasAdelantadas?: number;
+  }>;
+}
+
+/**
+ * Descarga archivo Excel individual para Clientes Sin Pago
+ */
+export function descargarExcelClientesSinPago(datos: DatosExportacionSinPagoExcel) {
+  const wb = XLSX.utils.book_new();
+
+  const filtroTexto = datos.filtroEmpresa && datos.filtroEmpresa !== "TODAS" ? ` • Filtro: ${datos.filtroEmpresa}` : "";
+  const filas: any[][] = [
+    ["GRUPO MUEBLERO DASO SA DE CV"],
+    ["LISTA DE COBRANZA — CLIENTES SIN PAGO (CARTERA PENDIENTE)"],
+    [`Semana ${datos.semana} (${datos.anio}) • Ciclo: ${datos.fechaInicioStr} al ${datos.fechaFinStr} • Cobrador: ${datos.codigoGestor} - ${datos.nombreGestor}${filtroTexto} • Total: ${datos.clientes.length} cuentas`],
+    [],
+    [
+      "#",
+      "CODIGO",
+      "CONTRATO",
+      "NOMBRE CLIENTE",
+      "DOMICILIO",
+      "TELÉFONO",
+      "GESTOR",
+      "PERIODICIDAD",
+      "PAGO SUGERIDO",
+      "SALDO VENCIDO",
+      "PV",
+      "SALDO ACTUAL",
+      "PROBLEMA",
+      "MONTO ADELANTADO",
+      "SEMANAS ADELANTADAS",
+      "DIA PAGO"
+    ],
+    ...datos.clientes.map((c, idx) => [
+      idx + 1,
+      c.codigoCliente,
+      c.numContrato || "-",
+      c.nombreCompleto || c.nombreCliente || "-",
+      c.domicilio || "-",
+      c.telefono || "-",
+      c.gestor || datos.codigoGestor,
+      c.periodicidad || "-",
+      Number(c.pagoSugerido ?? c.montoPago ?? 0),
+      Number(c.saldoVencido ?? 0),
+      Number(c.pv ?? 0),
+      Number(c.saldoActual ?? 0),
+      c.problema || "RUTA",
+      Number((Number(c.saldoVencido) || 0) <= 0 ? (c.montoAdelantado || 0) : 0),
+      Number((Number(c.saldoVencido) || 0) <= 0 ? (c.cuotasAdelantadas || 0) : 0),
+      c.diaPago || "-"
+    ]),
+    [],
+    [
+      "TOTALES",
+      `${datos.clientes.length} cuentas`,
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      datos.clientes.reduce((a, b) => a + Number(b.pagoSugerido ?? b.montoPago ?? 0), 0),
+      datos.clientes.reduce((a, b) => a + Number(b.saldoVencido ?? 0), 0),
+      "",
+      datos.clientes.reduce((a, b) => a + Number(b.saldoActual ?? 0), 0),
+      "",
+      datos.clientes.reduce((a, b) => a + Number((Number(b.saldoVencido) || 0) <= 0 ? (b.montoAdelantado || 0) : 0), 0),
+      "",
+      ""
+    ]
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(filas);
+  ws['!cols'] = [
+    { wch: 6 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 32 },
+    { wch: 30 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 8 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 12 }
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, "CLIENTES SIN PAGO");
+
+  const gestorClean = (datos.codigoGestor || datos.nombreGestor || "GESTOR").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const filtroSuffix = datos.filtroEmpresa && datos.filtroEmpresa !== "TODAS" ? `-${datos.filtroEmpresa}` : "";
+  const filename = `CLIENTES-SIN-PAGO-${gestorClean}-Semana${datos.semana}-${datos.anio}${filtroSuffix}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+
