@@ -50,7 +50,7 @@ export function ImportarClienteContpaqiModal({
   const [selectedCobrador, setSelectedCobrador] = useState<string>('none');
   const [diaPago, setDiaPago] = useState<string>('1');
   const [periodicidad, setPeriodicidad] = useState<string>('semanal');
-  const [clasificacionCobranza, setClasificacionCobranza] = useState<string>('RUTA');
+  const [clasificacionCobranza, setClasificacionCobranza] = useState<string>('VD');
 
   const handleReset = () => {
     setCodigo('');
@@ -60,7 +60,7 @@ export function ImportarClienteContpaqiModal({
     setSelectedCobrador('none');
     setDiaPago('1');
     setPeriodicidad('semanal');
-    setClasificacionCobranza('RUTA');
+    setClasificacionCobranza('VD');
   };
 
   const handleBuscar = async (e?: React.FormEvent) => {

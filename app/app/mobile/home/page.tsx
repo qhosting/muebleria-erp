@@ -151,6 +151,19 @@ export default function MobileHome() {
                 const proximos = clientesPendientesLista
                     .sort((a, b) => (b.saldoVencido || 0) - (a.saldoVencido || 0));
 
+                // 4. Verificaciones VD pendientes en offline
+                const vdsOffline = clientesActivos.filter(c => 
+                    c.vdStatus === 'PENDIENTE' || (c.clasificacionCobranza === 'VD' && c.vdStatus !== 'REALIZADA')
+                );
+                const vdPendientes = vdsOffline.length;
+                const clientesVdPendientes = vdsOffline.slice(0, 5).map(c => ({
+                    id: c.id,
+                    nombre: c.nombreCompleto,
+                    codigo: c.numContrato || c.codigoCliente,
+                    direccion: c.direccion,
+                    telefono: c.telefono
+                }));
+
                 setData({
                     stats: {
                         totalCobrado,
@@ -158,7 +171,8 @@ export default function MobileHome() {
                         clientesPendientes,
                         efectividad: (cuentasCobradas + clientesPendientes) > 0 
                             ? Math.round((cuentasCobradas / (cuentasCobradas + clientesPendientes)) * 100) 
-                            : 100
+                            : 100,
+                        vdPendientes
                     },
                     proximosClientes: proximos.slice(0, 10).map(c => ({
                         id: c.id,
@@ -166,7 +180,8 @@ export default function MobileHome() {
                         direccion: c.direccion,
                         saldo: Number(c.saldoPendiente || 0),
                         vencido: Number(c.saldoVencido || 0)
-                    }))
+                    })),
+                    clientesVdPendientes
                 });
             } catch (err) {
                 console.error("Error loading offline dashboard:", err);
@@ -443,10 +458,10 @@ export default function MobileHome() {
                     </div>
                     <div className="flex items-center gap-3">
                         {stats.vdPendientes > 0 && (
-                            <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg">
-                                <ShieldAlert className="w-3 h-3 text-amber-400" />
+                            <Link href="/mobile/clientes?filtro=vd" className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg hover:bg-amber-500/20 active:scale-95 transition-all">
+                                <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
                                 <span className="text-xs font-bold text-amber-400">{stats.vdPendientes} VD</span>
-                            </div>
+                            </Link>
                         )}
                         <Link href="/mobile/mapa-ruta" className="bg-sky-600 hover:bg-sky-500 transition-colors text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg active:scale-95 transition-transform inline-block text-center">
                             Ver Ruta
@@ -464,10 +479,11 @@ export default function MobileHome() {
                             <span className="text-xs font-bold uppercase tracking-wider text-amber-400">VD Pendientes</span>
                         </div>
                         <Link
-                            href="/mobile/clientes"
-                            className="text-[10px] text-amber-400/70 font-bold uppercase hover:text-amber-300"
+                            href="/mobile/clientes?filtro=vd"
+                            className="text-[10px] text-amber-400 font-bold uppercase hover:text-amber-300 flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 active:scale-95 transition-all"
                         >
                             Ver todos ({stats.vdPendientes})
+                            <ChevronRight className="w-3 h-3" />
                         </Link>
                     </div>
 
@@ -475,7 +491,7 @@ export default function MobileHome() {
                         {clientesVdPendientes.map((c: any) => (
                             <Link
                                 key={c.id}
-                                href={`/mobile/clientes?id=${c.id}&search=${encodeURIComponent(c.nombre)}`}
+                                href={`/mobile/clientes?id=${c.id}&search=${encodeURIComponent(c.nombre || '')}&filtro=vd`}
                                 className="flex items-center justify-between px-5 py-3 active:bg-amber-900/20 transition-colors"
                             >
                                 <div className="flex-1 min-w-0">

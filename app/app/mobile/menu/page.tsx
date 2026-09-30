@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { 
     User, 
@@ -8,17 +9,36 @@ import {
     LogOut, 
     MessageSquare, 
     ShieldCheck, 
+    ShieldAlert,
     ChevronRight,
     Smartphone,
     Database,
     Trophy
 } from "lucide-react";
 import Link from "next/link";
+import { db } from "@/lib/offline-db";
 
 export default function MobileMenu() {
     const { data: session } = useSession();
     const userRole = (session?.user as any)?.role || (typeof window !== 'undefined' ? localStorage.getItem('last_cobrador_role') : null);
     const isVendedor = userRole === 'vendedor' || userRole === 'jefe_ventas';
+    const [vdCount, setVdCount] = useState(0);
+
+    useEffect(() => {
+        const getVdCount = async () => {
+            try {
+                const currentUserId = (session?.user as any)?.id;
+                const clientes = currentUserId
+                    ? await db.clientes.where('statusCuenta').equals('activo').filter(c => c.cobradorAsignadoId === currentUserId).toArray()
+                    : await db.clientes.where('statusCuenta').equals('activo').toArray();
+                const count = clientes.filter(c => c.vdStatus === 'PENDIENTE' || (c.clasificacionCobranza === 'VD' && c.vdStatus !== 'REALIZADA')).length;
+                setVdCount(count);
+            } catch (err) {
+                console.warn("Error getting VD count in menu:", err);
+            }
+        };
+        getVdCount();
+    }, [session]);
 
     const menuItems = [
         {
@@ -26,6 +46,13 @@ export default function MobileMenu() {
             items: [
                 { icon: <Trophy className="w-5 h-5" />, label: "Mis Metas y Logros", href: "/mobile/metas", color: "text-yellow-400" },
                 ...(isVendedor ? [] : [
+                    { 
+                        icon: <ShieldAlert className="w-5 h-5" />, 
+                        label: "Verificaciones Domiciliarias (VD)", 
+                        href: "/mobile/clientes?filtro=vd", 
+                        color: "text-amber-400",
+                        badge: vdCount > 0 ? `${vdCount} pendientes` : undefined
+                    },
                     { icon: <MessageSquare className="w-5 h-5" />, label: "Campaña SMS", href: "/mobile/sms", color: "text-sky-400" }
                 ]),
                 { icon: <Database className="w-5 h-5" />, label: "Estado de Sincronización", href: "/mobile/sync", color: "text-emerald-400" },
@@ -63,7 +90,7 @@ export default function MobileMenu() {
                     <div key={idx} className="space-y-2">
                         <h3 className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">{section.title}</h3>
                         <div className="bg-slate-900/50 border-y border-slate-800 divide-y divide-slate-800">
-                            {section.items.map((item, i) => (
+                            {section.items.map((item: any, i: number) => (
                                 <Link 
                                     key={i} 
                                     href={item.href}
@@ -73,7 +100,14 @@ export default function MobileMenu() {
                                         <div className={item.color}>{item.icon}</div>
                                         <span className="text-sm font-medium text-slate-200">{item.label}</span>
                                     </div>
-                                    <ChevronRight className="w-4 h-4 text-slate-600" />
+                                    <div className="flex items-center gap-2">
+                                        {item.badge && (
+                                            <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+                                                {item.badge}
+                                            </span>
+                                        )}
+                                        <ChevronRight className="w-4 h-4 text-slate-600" />
+                                    </div>
                                 </Link>
                             ))}
                         </div>

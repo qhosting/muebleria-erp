@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake, RefreshCw, Phone, Hash, Eye, Download, Copy } from "lucide-react";
+import { Search, MapPin, DollarSign, ChevronRight, X, Send, Printer, History, Calendar, CheckCircle2, Handshake, RefreshCw, Phone, Hash, Eye, Download, Copy, ShieldAlert, Camera } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { VisualizarTicketModal } from "@/components/mobile/visualizar-ticket-modal";
 import { useSearchParams } from "next/navigation";
@@ -34,6 +34,8 @@ function MobileClientes() {
     const { isConnected, printCollectionNotice, connectToPrinter, printTicket } = useBluetoothPrinter();
     const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
     const [idFromUrl, setIdFromUrl] = useState(searchParams.get("id"));
+    const filtroParam = searchParams.get("filtro");
+    const vdParam = searchParams.get("vd");
     const [selectedCliente, setSelectedCliente] = useState<any>(null);
     const [detailCliente, setDetailCliente] = useState<any>(null);
     const [montoCobrar, setMontoCobrar] = useState("");
@@ -42,7 +44,17 @@ function MobileClientes() {
     const [clientes, setClientes] = useState<any[]>([]);
     const [filtroCobro, setFiltroCobro] = useState<"todos" | "cobrados" | "nocobrados">("todos");
     const [filtroDia, setFiltroDia] = useState<string>("todos");
-    const [filtroVd, setFiltroVd] = useState<"todos" | "pendiente">("todos");
+    const [filtroVd, setFiltroVd] = useState<"todos" | "pendiente">(
+        filtroParam === "vd" || vdParam === "true" || vdParam === "pendiente" ? "pendiente" : "todos"
+    );
+
+    useEffect(() => {
+        const f = searchParams.get("filtro");
+        const v = searchParams.get("vd");
+        if (f === "vd" || v === "true" || v === "pendiente") {
+            setFiltroVd("pendiente");
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         const currentUserId = (session?.user as any)?.id;
@@ -384,6 +396,7 @@ function MobileClientes() {
                     return {
                         id: c.id,
                         codigoCliente: c.codigoCliente,
+                        numContrato: c.numContrato,
                         nombre: c.nombreCompleto,
                         direccion: c.direccion,
                         diaPago: c.diaPago,
@@ -393,7 +406,8 @@ function MobileClientes() {
                         pagoSemanal: Number(c.montoAcordado || 0),
                         telefono: c.telefono,
                         yaPagoEstaSemana: yaPago,
-                        vdStatus: c.vdStatus || 'REALIZADA',
+                        clasificacionCobranza: c.clasificacionCobranza,
+                        vdStatus: c.vdStatus || (c.clasificacionCobranza === 'VD' ? 'PENDIENTE' : 'REALIZADA'),
                         // Campos extendidos para perfil
                         descripcionProducto: c.descripcionProducto,
                         vendedorNombre: c.vendedorNombre,
@@ -420,6 +434,7 @@ function MobileClientes() {
                 const toPut = data.map(c => ({
                     id: c.id,
                     codigoCliente: c.codigoCliente,
+                    numContrato: c.numContrato,
                     nombreCompleto: c.nombre,
                     cobradorAsignadoId: c.cobradorAsignadoId || currentUserId,
                     direccion: c.direccion,
@@ -429,7 +444,8 @@ function MobileClientes() {
                     saldoVencido: c.saldoVencido,
                     montoAcordado: c.pagoSemanal,
                     telefono: c.telefono,
-                    vdStatus: c.vdStatus || 'REALIZADA',
+                    clasificacionCobranza: c.clasificacionCobranza,
+                    vdStatus: c.vdStatus || (c.clasificacionCobranza === 'VD' ? 'PENDIENTE' : 'REALIZADA'),
                     // Datos extendidos
                     descripcionProducto: c.descripcionProducto,
                     vendedorNombre: c.vendedorNombre,
@@ -833,6 +849,10 @@ function MobileClientes() {
         }
     };
 
+    const vdsPendientesCount = clientes.filter(c => 
+        c && (c.vdStatus === "PENDIENTE" || (c.clasificacionCobranza === "VD" && c.vdStatus !== "REALIZADA"))
+    ).length;
+
     const filteredClientes = clientes.filter(c => {
         if (!c) return false;
         
@@ -861,7 +881,7 @@ function MobileClientes() {
         // Filtro por Verificación Domiciliaria (VD) Pendiente
         let matchesVd = true;
         if (filtroVd === "pendiente") {
-            matchesVd = c.vdStatus === "PENDIENTE";
+            matchesVd = c.vdStatus === "PENDIENTE" || (c.clasificacionCobranza === "VD" && c.vdStatus !== "REALIZADA");
         }
 
         return matchesSearch && matchesDia && matchesCobro && matchesVd;
@@ -916,7 +936,7 @@ function MobileClientes() {
                     </div>
 
                     <div className="flex items-center justify-between px-1 gap-2">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <button
                                 onClick={() => {
                                     setFiltroCobro(prev =>
@@ -939,13 +959,23 @@ function MobileClientes() {
                                 onClick={() => {
                                     setFiltroVd(prev => prev === "todos" ? "pendiente" : "todos");
                                 }}
-                                className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase transition-all border ${
+                                className={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase transition-all border flex items-center gap-1.5 ${
                                     filtroVd === "pendiente"
-                                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                    ? 'bg-amber-500 text-slate-950 border-amber-400 font-black shadow-md'
+                                    : vdsPendientesCount > 0
+                                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
                                     : 'bg-slate-800 text-slate-400 border-transparent'
                                 }`}
                             >
-                                {filtroVd === "pendiente" ? '✓ Sin VD' : '· Todo VD'}
+                                <ShieldAlert className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span>{filtroVd === "pendiente" ? 'Filtro: VD Pendientes' : 'VD Pendientes'}</span>
+                                {vdsPendientesCount > 0 && (
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                                        filtroVd === "pendiente" ? 'bg-slate-950 text-amber-400' : 'bg-amber-500/25 text-amber-300'
+                                    }`}>
+                                        {vdsPendientesCount}
+                                    </span>
+                                )}
                             </button>
                         </div>
                         
@@ -958,10 +988,14 @@ function MobileClientes() {
 
             {/* LISTA DE CLIENTES */}
             <div className="space-y-3 select-text">
-                {filteredClientes.map((cliente) => (
+                {filteredClientes.map((cliente) => {
+                    const isVdPendiente = cliente.vdStatus === 'PENDIENTE' || (cliente.clasificacionCobranza === 'VD' && cliente.vdStatus !== 'REALIZADA');
+                    return (
                     <div
                         key={cliente.id}
-                        className="bg-slate-900 border border-slate-800 rounded-xl p-4 active:scale-[0.99] transition-transform select-text cursor-pointer"
+                        className={`bg-slate-900 border rounded-xl p-4 active:scale-[0.99] transition-transform select-text cursor-pointer ${
+                            isVdPendiente ? 'border-amber-500/40 bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/20 shadow-md shadow-amber-950/20' : 'border-slate-800'
+                        }`}
                         onClick={(e) => {
                             const selection = window.getSelection();
                             if (selection && selection.toString().length > 0) return;
@@ -1029,6 +1063,32 @@ function MobileClientes() {
                             </div>
                         </div>
 
+                        {/* BADGE Y BOTÓN DIRECTO DE VERIFICACIÓN DOMICILIARIA (VD) */}
+                        {isVdPendiente && (
+                            <div className="mt-3 bg-amber-500/15 border border-amber-500/40 rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-inner">
+                                <div className="flex items-center gap-1.5 text-amber-300 min-w-0">
+                                    <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 animate-pulse" />
+                                    <div className="truncate">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                                            Requiere Verificación (VD)
+                                        </p>
+                                        <p className="text-[9px] text-amber-300/80 truncate">Cuenta nueva pendiente de auditar</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDetailCliente(cliente);
+                                        setVerVerificacion(true);
+                                    }}
+                                    className="bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-black text-[10px] uppercase px-3 py-1.5 rounded-lg shadow-md flex items-center gap-1.5 flex-shrink-0 active:scale-95 transition-all"
+                                >
+                                    <Camera className="w-3.5 h-3.5" />
+                                    <span>Verificar</span>
+                                </button>
+                            </div>
+                        )}
+
                         <div className="mt-3 pt-3 border-t border-slate-800 flex justify-between items-end select-text">
                             <div className="flex gap-4">
                                 <div className="select-text">
@@ -1046,7 +1106,8 @@ function MobileClientes() {
                             </div>
                         </div>
                     </div>
-                ))}
+                    );
+                })}
 
                 {hasMore && (
                     <button

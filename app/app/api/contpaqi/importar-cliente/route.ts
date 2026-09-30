@@ -172,11 +172,13 @@ export async function POST(request: NextRequest) {
         })();
 
         const clasificacionCobranzaVal = (function() {
-            const c = String(body.clasificacionCobranza || 'RUTA').toUpperCase();
-            if (Object.values(ClasificacionCobranza).includes(c as any)) {
-                return c as ClasificacionCobranza;
+            if (body.clasificacionCobranza) {
+                const c = String(body.clasificacionCobranza).toUpperCase();
+                if (Object.values(ClasificacionCobranza).includes(c as any)) {
+                    return c as ClasificacionCobranza;
+                }
             }
-            return ClasificacionCobranza.RUTA;
+            return ClasificacionCobranza.VD;
         })();
 
         const diaPagoVal = String(body.diaPago || contpaqiClient.diaPago || '1');

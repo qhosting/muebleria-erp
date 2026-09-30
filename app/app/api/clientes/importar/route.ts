@@ -88,7 +88,7 @@ export async function POST(req: Request) {
                     create: {
                         ...data,
                         codigoCliente,
-                        clasificacionCobranza: clasificacion || ClasificacionCobranza.RUTA,
+                        clasificacionCobranza: clasificacion || ClasificacionCobranza.VD,
                     }
                 });
                 createdCount++;

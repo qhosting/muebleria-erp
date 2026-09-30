@@ -56,6 +56,12 @@ export async function GET(req: NextRequest) {
       ];
     }
 
+    const filtroVdParam = searchParams.get('filtro') || searchParams.get('vd');
+    if (filtroVdParam === 'vd' || filtroVdParam === 'true' || filtroVdParam === 'pendiente') {
+      where.clasificacionCobranza = 'VD';
+      where.verificaciones = { none: {} };
+    }
+
     const [total, clientes] = await Promise.all([
       prisma.cliente.count({ where }),
       prisma.cliente.findMany({
