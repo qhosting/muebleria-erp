@@ -134,7 +134,14 @@ export async function GET(req: NextRequest) {
             codigoCliente: true,
             numContrato: true,
             diaPago: true,
-            cobradorAsignadoId: true
+            cobradorAsignadoId: true,
+            cobradorAsignado: {
+              select: {
+                id: true,
+                name: true,
+                codigoGestor: true
+              }
+            }
           }
         },
         cobrador: {

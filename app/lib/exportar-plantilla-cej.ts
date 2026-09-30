@@ -79,7 +79,9 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
     "COMANALISTA",
     "FECHA DE PAGO",
     "SERIE ",
-    "TIP COB"
+    "TIP COB",
+    "MONTO ADELANTADO",
+    "SEMANAS ADELANTADAS"
   ];
 
   headersLeft.forEach((h, col) => setCell(7, col, h));
@@ -144,6 +146,8 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
     setCell(r, 27, d.fechaPago ? new Date(d.fechaPago).toLocaleDateString("es-MX") : "");
     setCell(r, 28, d.serie);
     setCell(r, 29, d.tipCob);
+    setCell(r, 30, d.montoAdelantado ?? 0, 'n');
+    setCell(r, 31, d.cuotasAdelantadas ?? 0, 'n');
   });
 
   // --- 3.1. FILAS DE COBROS Y ABONOS (Columna 32 en adelante) ---
@@ -382,7 +386,9 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
     { wch: 14 }, // COMANALISTA
     { wch: 14 }, // FECHA DE PAGO
     { wch: 10 }, // SERIE
-    { wch: 10 }  // TIP COB
+    { wch: 10 }, // TIP COB
+    { wch: 16 }, // MONTO ADELANTADO
+    { wch: 16 }  // SEMANAS ADELANTADAS
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, "LISTA");
@@ -529,7 +535,9 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
       "SALDO VENCIDO",
       "PV",
       "SALDO ACTUAL",
-      "PROBLEMA"
+      "PROBLEMA",
+      "MONTO ADELANTADO",
+      "SEMANAS ADELANTADAS"
     ],
     ...ctasSinPagoExcel.map((c, idx) => [
       idx + 1,
@@ -544,7 +552,9 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
       c.saldoVencido,
       c.pv,
       c.saldoActual,
-      c.problema || "RUTA"
+      c.problema || "RUTA",
+      c.montoAdelantado || 0,
+      c.cuotasAdelantadas || 0
     ]),
     [],
     [
@@ -560,6 +570,8 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
       ctasSinPagoExcel.reduce((a, b) => a + (b.saldoVencido || 0), 0),
       "",
       ctasSinPagoExcel.reduce((a, b) => a + (b.saldoActual || 0), 0),
+      "",
+      ctasSinPagoExcel.reduce((a, b) => a + (b.montoAdelantado || 0), 0),
       ""
     ]
   ];
@@ -567,7 +579,7 @@ export function generarExcelCEJ(datos: DatosExportacionCEJ): XLSX.WorkBook {
   wsSinPago['!cols'] = [
     { wch: 6 }, { wch: 14 }, { wch: 14 }, { wch: 32 }, { wch: 30 }, { wch: 14 },
     { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 8 }, { wch: 16 },
-    { wch: 14 }
+    { wch: 14 }, { wch: 16 }, { wch: 16 }
   ];
   XLSX.utils.book_append_sheet(wb, wsSinPago, "CLIENTES SIN PAGO");
 
@@ -1127,6 +1139,8 @@ export interface ClienteSinPagoItem {
   periodicidad?: string;
   montoPago?: number;
   diaPago?: string;
+  montoAdelantado?: number;
+  cuotasAdelantadas?: number;
 }
 
 export interface DatosExportacionSinPago {
@@ -1155,6 +1169,8 @@ export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): s
   const totalCuentas = clientesOrdenados.length;
   const totalSugerido = clientesOrdenados.reduce((acc, c) => acc + (c.montoPago || 0), 0);
   const totalVencido = clientesOrdenados.reduce((acc, c) => acc + (c.saldoVencido || 0), 0);
+  const totalAdelantado = clientesOrdenados.reduce((acc, c) => acc + (c.montoAdelantado || 0), 0);
+  const ctasAdelantadas = clientesOrdenados.filter((c) => (c.montoAdelantado || 0) > 0).length;
 
   // Dividir en páginas de aprox 24 clientes por página para impresión limpia
   const FILAS_POR_PAGINA = 24;
@@ -1195,6 +1211,7 @@ export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): s
             <div><span>TOTAL SIN PAGO:</span> <strong style="color: #b91c1c;">${totalCuentas} cuentas</strong></div>
             <div><span>PAGO SUG. TOTAL:</span> <strong style="color: #1d4ed8;">$${totalSugerido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong></div>
             <div><span>SALDO VENCIDO TOTAL:</span> <strong style="color: #b91c1c;">$${totalVencido.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</strong></div>
+            ${ctasAdelantadas > 0 ? `<div><span>ADELANTADOS (AD):</span> <strong style="color: #047857;">${ctasAdelantadas} ctas (+$${totalAdelantado.toLocaleString("es-MX", { minimumFractionDigits: 2 })})</strong></div>` : ''}
           </div>
 
           <!-- TABLA DE CLIENTES SIN PAGO -->
@@ -1238,6 +1255,9 @@ export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): s
                 } else if (prob === "PE") {
                   probColor = "#854d0e";
                   probBg = "#fef9c3";
+                } else if (prob === "AD") {
+                  probColor = "#047857";
+                  probBg = "#d1fae5";
                 }
 
                 return `
@@ -1258,6 +1278,7 @@ export function generarHTMLClientesSinPagoPDF(datos: DatosExportacionSinPago): s
                     </td>
                     <td class="text-center font-bold">
                       <span style="display: inline-block; padding: 1.5px 5px; border-radius: 3px; font-size: 7.5px; background: ${probBg}; color: ${probColor}; border: 0.5px solid ${probColor}40;">${prob}</span>
+                      ${(c.montoAdelantado || 0) > 0 ? `<br/><span style="color: #047857; font-size: 6.5px; font-weight: bold; white-space: nowrap;">+$${Number(c.montoAdelantado).toLocaleString("es-MX")} (${c.cuotasAdelantadas || 0}s)</span>` : ''}
                     </td>
                     <td style="border-bottom: 0.5px solid #cbd5e1; height: 18px;">
                       <div style="width: 100%; height: 12px; border-bottom: 0.5px dotted #94a3b8;"></div>
@@ -1770,7 +1791,8 @@ export function generarHTMLCarteraEnRutaPDF(datos: DatosExportacionCarteraPDF): 
                     <td class="text-center font-mono" style="font-size: 6.5px;">${c.diaPago || "-"}</td>
                     <td class="text-center font-mono" style="font-size: 6.5px;">${c.telefono || "-"}</td>
                     <td class="text-center font-bold">
-                      <span style="display: inline-block; padding: 1px 4px; border-radius: 2px; font-size: 7px; background: #f1f5f9; color: #334155;">${prob}</span>
+                      <span style="display: inline-block; padding: 1px 4px; border-radius: 2px; font-size: 7px; background: ${prob === 'AD' ? '#d1fae5' : '#f1f5f9'}; color: ${prob === 'AD' ? '#047857' : '#334155'}; font-weight: 800;">${prob}</span>
+                      ${(c.montoAdelantado || 0) > 0 ? `<br/><span style="color: #047857; font-size: 6px; font-weight: bold; white-space: nowrap;">+$${Number(c.montoAdelantado).toLocaleString("es-MX")}</span>` : ''}
                     </td>
                   </tr>
                 `;

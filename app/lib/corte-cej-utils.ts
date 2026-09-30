@@ -22,6 +22,9 @@ export interface ClienteCorteRaw {
   clasificacionCobranza?: string | null;
   pagoAnalista?: string | null;
   domicilio?: string | null;
+  totalAbonosHistoricos?: number;
+  montoAdelantado?: number;
+  cuotasAdelantadas?: number;
 }
 
 export interface PagoCorteRaw {
@@ -73,6 +76,8 @@ export interface DetalleCalculadoCEJ {
   montoBancosGestor?: number;
   montoGestor?: number;
   domicilio?: string;
+  montoAdelantado?: number;
+  cuotasAdelantadas?: number;
 }
 
 export interface ResumenProblemasCEJ {
@@ -279,15 +284,63 @@ export function clasificarCanalDesdeTipoCobro(tipoCobro: string = ""): "BANCOS_B
 }
 
 /**
+ * Calcula el monto y número de cuotas adelantadas evaluando exclusivamente
+ * los pagos históricos previos al inicio de la semana de cobranza (PC QUERETARO + PI),
+ * considerando 1 período de gracia comercial según la periodicidad.
+ */
+export function calcularAdelantoHistorico(params: {
+  fechaVenta: Date | string | null | undefined;
+  periodicidad: string;
+  montoPago: number;
+  totalAbonosHistoricos: number;
+  fechaInicioSemana: Date;
+}): { montoAdelantado: number; cuotasAdelantadas: number; cargoHistoricoExigible: number } {
+  const { fechaVenta, periodicidad, montoPago, totalAbonosHistoricos, fechaInicioSemana } = params;
+  if (!fechaVenta || montoPago <= 0) {
+    return { montoAdelantado: 0, cuotasAdelantadas: 0, cargoHistoricoExigible: 0 };
+  }
+
+  const fVenta = typeof fechaVenta === "string" ? new Date(fechaVenta) : fechaVenta;
+  if (isNaN(fVenta.getTime())) {
+    return { montoAdelantado: 0, cuotasAdelantadas: 0, cargoHistoricoExigible: 0 };
+  }
+
+  const p = (periodicidad || "semanal").toLowerCase().trim();
+  let diasPeriodo = 7;
+  if (p === "catorcenal") diasPeriodo = 14;
+  else if (p === "quincenal") diasPeriodo = 15;
+  else if (p === "mensual") diasPeriodo = 30;
+  else if (p === "diario") diasPeriodo = 1;
+
+  const msPorDia = 1000 * 60 * 60 * 24;
+  const diasTranscurridos = Math.max(0, Math.floor((fechaInicioSemana.getTime() - fVenta.getTime()) / msPorDia));
+  // 1 período de gracia: las cuotas comienzan a devengarse una vez cumplido el primer período
+  const cuotasExigibles = Math.floor(diasTranscurridos / diasPeriodo);
+  const cargoHistoricoExigible = cuotasExigibles * montoPago;
+
+  const diferencia = totalAbonosHistoricos - cargoHistoricoExigible;
+  const montoAdelantado = diferencia > 0 ? diferencia : 0;
+  const cuotasAdelantadas = montoPago > 0 ? Math.floor(montoAdelantado / montoPago) : 0;
+
+  return {
+    montoAdelantado,
+    cuotasAdelantadas,
+    cargoHistoricoExigible
+  };
+}
+
+/**
  * Genera el detalle calculado y los resúmenes ejecutivos para un conjunto de clientes y pagos
  */
 export function procesarDetallesYResumenCEJ(
   clientes: ClienteCorteRaw[],
   pagosSemana: PagoCorteRaw[] = [],
-  periodicidadesActivas: string[] = []
+  periodicidadesActivas: string[] = [],
+  fechaInicioSemana?: Date
 ): { detalles: DetalleCalculadoCEJ[]; resumen: ResumenCorteCEJ } {
   // Normalizar periodicidades activas a minúsculas
   const periodicidadesActivasNorm = (periodicidadesActivas || []).map((p) => p.toLowerCase().trim());
+  const fInicio = fechaInicioSemana || new Date();
 
   // Mapa de pagos acumulados por cliente con desglose por canal
   const pagosMap = new Map<
@@ -381,10 +434,27 @@ export function procesarDetallesYResumenCEJ(
     const pv = Number(c.pv) || 0;
     const sup = calcularSUP(periodicidad, pv);
 
+    // CÁLCULO DE ADELANTO COMERCIAL HISTÓRICO (PC QUERETARO + PI PREVIOS)
+    let montoAdelantado = c.montoAdelantado !== undefined ? Number(c.montoAdelantado) : 0;
+    let cuotasAdelantadas = c.cuotasAdelantadas !== undefined ? Number(c.cuotasAdelantadas) : 0;
+
+    if (c.montoAdelantado === undefined && c.totalAbonosHistoricos !== undefined) {
+      const calcAd = calcularAdelantoHistorico({
+        fechaVenta: c.fechaVenta,
+        periodicidad: periodicidadMin,
+        montoPago: pagoSugerido,
+        totalAbonosHistoricos: Number(c.totalAbonosHistoricos) || 0,
+        fechaInicioSemana: fInicio
+      });
+      montoAdelantado = calcAd.montoAdelantado;
+      cuotasAdelantadas = calcAd.cuotasAdelantadas;
+    }
+
     // DETERMINACIÓN AUTOMÁTICA DE PROBLEMA (REGLAS DE NEGOCIO):
     // 1. Si dio abono en la semana (pagoReal > 0), SIEMPRE es RUTA sin importar su etiqueta previa o PE
-    // 2. Si no dio abono y NO le toca pago su periodo en esta semana -> PE (Periodo)
-    // 3. Si sí le toca pago en esta semana -> RUTA (o clasificación asignada distinta de PE)
+    // 2. Si no dio abono y tiene cuotas adelantadas históricas (cuotasAdelantadas >= 1) y saldoVencido <= 0 -> AD (Adelantado)
+    // 3. Si no dio abono y NO le toca pago su periodo en esta semana -> PE (Periodo)
+    // 4. Si sí le toca pago en esta semana -> RUTA (o clasificación asignada distinta de PE)
     const leTocaPagoSemana =
       periodicidadesActivasNorm.length === 0 ||
       periodicidadesActivasNorm.includes(periodicidadMin);
@@ -392,6 +462,8 @@ export function procesarDetallesYResumenCEJ(
     let problema = "RUTA";
     if (pagoReal > 0) {
       problema = "RUTA";
+    } else if (cuotasAdelantadas >= 1 && saldoVencido <= 0) {
+      problema = "AD";
     } else if (!leTocaPagoSemana) {
       problema = "PE";
     } else {
@@ -460,7 +532,9 @@ export function procesarDetallesYResumenCEJ(
       fechaPago: pagoInfo.fechaPago,
       serie: pagoInfo.folio || "",
       tipCob: tipCob,
-      domicilio: c.domicilio || "-"
+      domicilio: c.domicilio || "-",
+      montoAdelantado,
+      cuotasAdelantadas
     };
   });
 

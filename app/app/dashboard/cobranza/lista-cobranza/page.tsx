@@ -103,6 +103,8 @@ interface ClienteCEJ {
   montoBancosGestor?: number;
   montoGestor?: number;
   domicilio?: string;
+  montoAdelantado?: number;
+  cuotasAdelantadas?: number;
 }
 
 const OPCIONES_PROBLEMA = [
@@ -638,7 +640,9 @@ export default function ListaCobranzaPage() {
         telefono: c.telefono || "-",
         periodicidad: c.periodicidad,
         montoPago: c.montoPago || 0,
-        diaPago: c.diaPago
+        diaPago: c.diaPago,
+        montoAdelantado: c.montoAdelantado || 0,
+        cuotasAdelantadas: c.cuotasAdelantadas || 0
       }))
     });
 
@@ -774,6 +778,18 @@ export default function ListaCobranzaPage() {
 
   const totalSugeridoSinPago = useMemo(() => {
     return clientesSinPago.reduce((acc, curr) => acc + (curr.montoPago || 0), 0);
+  }, [clientesSinPago]);
+
+  const totalMontoAdelantado = useMemo(() => {
+    return clientesFiltrados.reduce((acc, curr) => acc + (curr.montoAdelantado || 0), 0);
+  }, [clientesFiltrados]);
+
+  const totalCuentasAdelantadas = useMemo(() => {
+    return clientesFiltrados.filter((c) => (c.montoAdelantado || 0) > 0 || c.problema === "AD").length;
+  }, [clientesFiltrados]);
+
+  const clientesSinPagoAdelantados = useMemo(() => {
+    return clientesSinPago.filter((c) => (c.montoAdelantado || 0) > 0 || c.problema === "AD");
   }, [clientesSinPago]);
 
   // Clientes que sí dieron pago en la semana (pagoReal > 0 || moratorio > 0), ordenados por Código de Cliente A-Z
@@ -1286,6 +1302,9 @@ export default function ListaCobranzaPage() {
                               PROBLEMA {esCorteGuardado && <span className="text-[8px] bg-indigo-500/40 text-indigo-100 px-1 py-0.5 rounded font-bold tracking-tight">EDITABLE</span>}
                             </div>
                           </th>
+                          <th className="px-3 py-2.5 text-center border border-slate-700 bg-emerald-950/60 text-emerald-300" title="Monto y semanas cubiertas por anticipado en semanas históricas">
+                            ADELANTADO
+                          </th>
                           <th className="px-3 py-2.5 text-right border border-slate-700 bg-emerald-950/70 text-emerald-300">PAGO REAL</th>
                           <th className="px-3 py-2.5 text-right border border-slate-700">P. DOBLE</th>
                           <th className="px-3 py-2.5 text-right border border-slate-700">RECU PV</th>
@@ -1380,6 +1399,22 @@ export default function ListaCobranzaPage() {
                                 </Badge>
                               )}
                             </td>
+                            <td className="px-2.5 py-1 text-center border border-gray-100 dark:border-slate-800">
+                              {c.montoAdelantado && c.montoAdelantado > 0 ? (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 font-mono text-[10px] font-black px-1.5 py-0.5 whitespace-nowrap shadow-xs"
+                                  title={`Adelantado histórico: ${formatCurrency(c.montoAdelantado)} (${c.cuotasAdelantadas || 0} cuotas cubiertas)`}
+                                >
+                                  +{formatCurrency(c.montoAdelantado)}
+                                  <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 ml-1">
+                                    ({c.cuotasAdelantadas || 0} sem)
+                                  </span>
+                                </Badge>
+                              ) : (
+                                <span className="text-slate-400 font-mono text-[11px]">-</span>
+                              )}
+                            </td>
                             <td className="px-3 py-2 text-right font-mono font-black border border-gray-100 dark:border-slate-800 bg-emerald-50/40 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300">
                               {formatCurrency(c.pagoReal || 0)}
                             </td>
@@ -1421,6 +1456,9 @@ export default function ListaCobranzaPage() {
                             {formatCurrency(totalMoratorioReal)}
                           </td>
                           <td className="px-3 py-3 text-center border border-gray-200 dark:border-slate-700">-</td>
+                          <td className="px-2.5 py-3 text-center border border-gray-200 dark:border-slate-700 font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                            {totalMontoAdelantado > 0 ? `+${formatCurrency(totalMontoAdelantado)}` : "-"}
+                          </td>
                           <td className="px-3 py-3 text-right font-mono text-emerald-700 dark:text-emerald-300 border border-gray-200 dark:border-slate-700">
                             <div>{formatCurrency(totalCobradoReal)}</div>
                             {totalMoratorioReal > 0 && (
@@ -1618,7 +1656,7 @@ export default function ListaCobranzaPage() {
                 </CardHeader>
 
                 {/* Banner de Métricas Rápidas Sin Pago */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 bg-slate-50 dark:bg-slate-900/60 border-b border-gray-100 dark:border-slate-800 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 p-3 bg-slate-50 dark:bg-slate-900/60 border-b border-gray-100 dark:border-slate-800 text-xs">
                   <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
                     <span className="text-[10px] font-bold uppercase text-slate-500 block">Cuentas Sin Abono</span>
                     <strong className="text-base font-black text-rose-600 dark:text-rose-400 font-mono">{clientesSinPago.length} ctas</strong>
@@ -1630,6 +1668,15 @@ export default function ListaCobranzaPage() {
                   <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
                     <span className="text-[10px] font-bold uppercase text-slate-500 block">Pago Sugerido No Cobrado</span>
                     <strong className="text-base font-black text-blue-600 dark:text-blue-400 font-mono">{formatCurrency(totalSugeridoSinPago)}</strong>
+                  </div>
+                  <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/20">
+                    <span className="text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400 block">Adelantados (AD)</span>
+                    <strong className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                      {clientesSinPagoAdelantados.length} ctas
+                    </strong>
+                    <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-mono block mt-0.5">
+                      +{formatCurrency(clientesSinPagoAdelantados.reduce((acc, c) => acc + (c.montoAdelantado || 0), 0))}
+                    </span>
                   </div>
                   <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
                     <span className="text-[10px] font-bold uppercase text-slate-500 block">Distribución Cartera</span>
@@ -1657,6 +1704,7 @@ export default function ListaCobranzaPage() {
                               PROBLEMA <span className="text-[8px] bg-rose-500/40 text-rose-100 px-1 py-0.5 rounded font-bold">SELECCIÓN</span>
                             </div>
                           </th>
+                          <th className="px-3 py-2.5 text-center border border-slate-700 bg-emerald-950/80 text-emerald-300">ADELANTADO</th>
                           <th className="px-3 py-2.5 text-center border border-slate-700">TELÉFONO</th>
                           <th className="px-3 py-2.5 text-center border border-slate-700">DÍA PAGO</th>
                         </tr>
@@ -1664,7 +1712,7 @@ export default function ListaCobranzaPage() {
                       <tbody className="divide-y divide-gray-100 dark:divide-slate-800 bg-white dark:bg-slate-900 text-xs">
                         {clientesSinPago.length === 0 ? (
                           <tr>
-                            <td colSpan={11} className="text-center py-12 text-slate-500">
+                            <td colSpan={12} className="text-center py-12 text-slate-500">
                               <div className="flex flex-col items-center justify-center gap-2">
                                 <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                                 <p className="font-bold text-sm text-slate-700 dark:text-slate-200">
@@ -1743,6 +1791,22 @@ export default function ListaCobranzaPage() {
                                   </Select>
                                 </div>
                               </td>
+                              <td className="px-2.5 py-1 text-center border border-gray-100 dark:border-slate-800">
+                                {c.montoAdelantado && c.montoAdelantado > 0 ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 font-mono text-[10px] font-black px-1.5 py-0.5 whitespace-nowrap shadow-xs"
+                                    title={`Adelantado histórico: ${formatCurrency(c.montoAdelantado)} (${c.cuotasAdelantadas || 0} cuotas cubiertas)`}
+                                  >
+                                    +{formatCurrency(c.montoAdelantado)}
+                                    <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 ml-1">
+                                      ({c.cuotasAdelantadas || 0} sem)
+                                    </span>
+                                  </Badge>
+                                ) : (
+                                  <span className="text-slate-400 font-mono text-[11px]">-</span>
+                                )}
+                              </td>
                               <td className="px-3 py-2 text-center font-mono border border-gray-100 dark:border-slate-800 text-slate-600 whitespace-nowrap">
                                 {c.telefono || "-"}
                               </td>
@@ -1765,7 +1829,13 @@ export default function ListaCobranzaPage() {
                             <td className="px-3 py-3 text-right font-mono text-rose-700 dark:text-rose-300 border border-gray-200 dark:border-slate-700">
                               {formatCurrency(totalVencidoSinPago)}
                             </td>
-                            <td colSpan={4} className="px-3 py-3 text-center border border-gray-200 dark:border-slate-700">-</td>
+                            <td colSpan={2} className="px-3 py-3 text-center border border-gray-200 dark:border-slate-700">-</td>
+                            <td className="px-2.5 py-3 text-center border border-gray-200 dark:border-slate-700 font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                              {clientesSinPagoAdelantados.length > 0 ? (
+                                `+${formatCurrency(clientesSinPagoAdelantados.reduce((acc, c) => acc + (c.montoAdelantado || 0), 0))}`
+                              ) : "-"}
+                            </td>
+                            <td colSpan={2} className="px-3 py-3 text-center border border-gray-200 dark:border-slate-700">-</td>
                           </tr>
                         )}
                       </tbody>

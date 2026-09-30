@@ -156,7 +156,6 @@ export async function POST(req: Request) {
                         where: { id: { in: idsAEliminar } },
                         data: {
                             statusCuenta: StatusCuenta.inactivo,
-                            clasificacionCobranza: ClasificacionCobranza.K,
                             saldoActual: 0,
                             saldoVencido: 0,
                             montoPago: 0,

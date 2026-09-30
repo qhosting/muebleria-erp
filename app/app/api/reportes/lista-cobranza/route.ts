@@ -6,6 +6,7 @@ import { checkPermission } from "@/lib/permissions";
 import {
   procesarDetallesYResumenCEJ,
   separarYCalcularResumenesCEJ,
+  calcularAdelantoHistorico,
   ClienteCorteRaw,
   PagoCorteRaw,
   normalizarDiaSemana,
@@ -129,6 +130,20 @@ export async function GET(request: NextRequest) {
       );
 
       if (!debeRecalcular) {
+        // Cargar pagos históricos para corte cerrado para computar adelantos con fecha de inicio oficial
+        const clienteIdsClosed = Array.from(new Set(corteGuardado.detalles.map((d) => d.clienteId).filter(Boolean))) as string[];
+        const pagosHistoricosClosed = await prisma.pago.groupBy({
+          by: ["clienteId"],
+          where: {
+            clienteId: { in: clienteIdsClosed },
+            fechaPago: { lt: fechaInicio }
+          },
+          _sum: { monto: true }
+        });
+        const historicoClosedMap = new Map<string, number>(
+          pagosHistoricosClosed.map((p) => [p.clienteId, Number(p._sum.monto) || 0])
+        );
+
         // Corte cerrado y no forzado en vivo: devolver corte histórico estático
         const detallesSerializados = corteGuardado.detalles.map((d) => {
           const cod = d.codigoCliente.toUpperCase().trim();
@@ -138,6 +153,16 @@ export async function GET(request: NextRequest) {
             gestor = cInfo.cobradorAsignado.codigoGestor || cInfo.cobradorAsignado.name || gestor;
           }
 
+          const pagoSugeridoNum = parseFloat(d.pagoSugerido.toString());
+          const totalAbonosHistoricos = d.clienteId ? (historicoClosedMap.get(d.clienteId) || 0) : 0;
+          const calcAd = calcularAdelantoHistorico({
+            fechaVenta: d.periodoInicial,
+            periodicidad: d.periodicidad,
+            montoPago: pagoSugeridoNum,
+            totalAbonosHistoricos,
+            fechaInicioSemana: fechaInicio
+          });
+
           return {
             id: d.id,
             clienteId: d.clienteId,
@@ -146,7 +171,7 @@ export async function GET(request: NextRequest) {
             periodoInicial: d.periodoInicial ? d.periodoInicial.toISOString().split("T")[0] : "-",
             nombreCompleto: d.nombreCliente,
             periodicidad: d.periodicidad,
-            montoPago: parseFloat(d.pagoSugerido.toString()),
+            montoPago: pagoSugeridoNum,
             saldoVencido: parseFloat(d.saldoVencido.toString()),
             pv: d.pv,
             saldoActual: parseFloat(d.saldoActual.toString()),
@@ -174,7 +199,9 @@ export async function GET(request: NextRequest) {
             montoBot: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "BANCOS_BOT" ? parseFloat(d.pagoReal.toString()) : 0,
             montoBancosGestor: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "BANCOS_GESTOR" ? parseFloat(d.pagoReal.toString()) : 0,
             montoGestor: clasificarCanalDesdeTipoCobro(d.tipoCobro || "") === "GESTOR" ? parseFloat(d.pagoReal.toString()) : 0,
-            domicilio: dirMap.get(cod) || "-"
+            domicilio: dirMap.get(cod) || "-",
+            montoAdelantado: calcAd.montoAdelantado,
+            cuotasAdelantadas: calcAd.cuotasAdelantadas
           };
         });
 
@@ -430,6 +457,26 @@ export async function GET(request: NextRequest) {
         .filter((d) => !detallesValidosCorte.some((vd) => vd.id === d.id))
         .map((d) => d.id);
 
+      // Cargar pagos históricos acumulados previos a la semana de corte (PC QUERETARO + PI)
+      const clienteIdsCorte = Array.from(
+        new Set([
+          ...detallesValidosCorte.map((d) => d.clienteId).filter(Boolean),
+          ...clientesActivos.map((c) => c.id).filter(Boolean)
+        ])
+      ) as string[];
+
+      const pagosHistoricosCorte = await prisma.pago.groupBy({
+        by: ["clienteId"],
+        where: {
+          clienteId: { in: clienteIdsCorte },
+          fechaPago: { lt: fInicioBusqueda }
+        },
+        _sum: { monto: true }
+      });
+      const historicoCorteMap = new Map<string, number>(
+        pagosHistoricosCorte.map((p) => [p.clienteId, Number(p._sum.monto) || 0])
+      );
+
       const detallesModificadosParaBD: any[] = [];
       const detallesSerializados = detallesValidosCorte.map((d) => {
         const cod = d.codigoCliente.toUpperCase().trim();
@@ -439,6 +486,17 @@ export async function GET(request: NextRequest) {
         const pagoSugerido = parseFloat(d.pagoSugerido.toString());
         const saldoVencido = parseFloat(d.saldoVencido.toString());
         const saldoActual = parseFloat(d.saldoActual.toString());
+
+        const totalAbonosHistoricos = d.clienteId ? (historicoCorteMap.get(d.clienteId) || 0) : 0;
+        const calcAd = calcularAdelantoHistorico({
+          fechaVenta: d.periodoInicial,
+          periodicidad: d.periodicidad,
+          montoPago: pagoSugerido,
+          totalAbonosHistoricos,
+          fechaInicioSemana: fInicioBusqueda
+        });
+        const montoAdelantado = calcAd.montoAdelantado;
+        const cuotasAdelantadas = calcAd.cuotasAdelantadas;
 
         const pagoDoble = calcularPagoDoble(pagoReal, pagoSugerido, saldoVencido);
         const recuperadoPv = calcularRecuperadoPV(pagoReal, pagoSugerido, saldoVencido);
@@ -453,9 +511,12 @@ export async function GET(request: NextRequest) {
         const montoGestor = pagoInfo ? pagoInfo.montoGestor : 0;
 
         // Regla: si tenía 'PE' y pagó, asciende a 'RUTA'. Si tenía K, IT, DL, AD, se respeta estrictamente.
+        // Si no pagó en la semana pero tiene cuotas adelantadas y no tiene saldo vencido, se identifica automáticamente como AD.
         let problema = (d.problema || "RUTA").toUpperCase().trim();
         if (pagoReal > 0 && problema === "PE") {
           problema = "RUTA";
+        } else if (pagoReal === 0 && cuotasAdelantadas >= 1 && saldoVencido <= 0 && (!d.problema || d.problema === "RUTA" || d.problema === "PE" || d.problema === "AD")) {
+          problema = "AD";
         }
 
         // Determinar gestor: si es semana actual y se cambió el cobrador, reflejarlo
@@ -528,7 +589,9 @@ export async function GET(request: NextRequest) {
           montoBot,
           montoBancosGestor,
           montoGestor,
-          domicilio: dirMap.get(d.codigoCliente.toUpperCase().trim()) || "-"
+          domicilio: dirMap.get(d.codigoCliente.toUpperCase().trim()) || "-",
+          montoAdelantado,
+          cuotasAdelantadas
         };
       });
 
@@ -551,6 +614,17 @@ export async function GET(request: NextRequest) {
 
         const pagoReal = pagoInfo ? pagoInfo.monto : 0;
         const moratorio = pagoInfo ? pagoInfo.moratorio : 0;
+        const totalAbonosHistoricos = c.id ? (historicoCorteMap.get(c.id) || 0) : 0;
+        const calcAd = calcularAdelantoHistorico({
+          fechaVenta: c.fechaVenta,
+          periodicidad: c.periodicidad || "SEMANAL",
+          montoPago: montoPagoNum,
+          totalAbonosHistoricos,
+          fechaInicioSemana: fInicioBusqueda
+        });
+        const montoAdelantado = calcAd.montoAdelantado;
+        const cuotasAdelantadas = calcAd.cuotasAdelantadas;
+
         const pagoDoble = calcularPagoDoble(pagoReal, montoPagoNum, saldoVencidoNum);
         const recuperadoPv = calcularRecuperadoPV(pagoReal, montoPagoNum, saldoVencidoNum);
         const comisionAnalista = calcularComisionAnalista(pagoReal, c.diaPago);
@@ -564,7 +638,7 @@ export async function GET(request: NextRequest) {
         const montoBot = pagoInfo?.montoBot || 0;
         const montoBancosGestor = pagoInfo?.montoBancosGestor || 0;
         const montoGestor = pagoInfo?.montoGestor || 0;
-        const problema = pagoReal > 0 ? "RUTA" : (c.clasificacionCobranza || "PE");
+        const problema = pagoReal > 0 ? "RUTA" : (cuotasAdelantadas >= 1 && saldoVencidoNum <= 0 ? "AD" : (c.clasificacionCobranza || "PE"));
 
         const nuevoDetalle = {
           id: `new-${c.id || c.codigoCliente}`,
@@ -602,7 +676,9 @@ export async function GET(request: NextRequest) {
           montoBot,
           montoBancosGestor,
           montoGestor,
-          domicilio: c.direccionCompleta || [c.calle, c.numeroExterior, c.colonia, c.ciudad].filter(Boolean).join(" ") || "-"
+          domicilio: c.direccionCompleta || [c.calle, c.numeroExterior, c.colonia, c.ciudad].filter(Boolean).join(" ") || "-",
+          montoAdelantado,
+          cuotasAdelantadas
         };
 
         detallesSerializados.push(nuevoDetalle);
@@ -843,6 +919,19 @@ export async function GET(request: NextRequest) {
       concepto: p.concepto
     }));
 
+    const clienteIdsLive = clientes.map((c) => c.id);
+    const pagosHistoricosLive = await prisma.pago.groupBy({
+      by: ["clienteId"],
+      where: {
+        clienteId: { in: clienteIdsLive },
+        fechaPago: { lt: fInicioBusqueda }
+      },
+      _sum: { monto: true }
+    });
+    const historicoLiveMap = new Map<string, number>(
+      pagosHistoricosLive.map((p) => [p.clienteId, Number(p._sum.monto) || 0])
+    );
+
     const clientesRaw: ClienteCorteRaw[] = clientes.map((c: any) => {
       const montoPagoNum = parseFloat(c.montoPago.toString());
       const saldoVencidoNum = c.saldoVencido ? parseFloat(c.saldoVencido.toString()) : 0;
@@ -871,11 +960,12 @@ export async function GET(request: NextRequest) {
         telefonoTrabajo: c.telefonoTrabajo,
         clasificacionCobranza: c.clasificacionCobranza,
         pagoAnalista: c.diaPago,
-        domicilio: c.direccionCompleta || [c.calle, c.numeroExterior, c.colonia, c.ciudad].filter(Boolean).join(" ") || "-"
+        domicilio: c.direccionCompleta || [c.calle, c.numeroExterior, c.colonia, c.ciudad].filter(Boolean).join(" ") || "-",
+        totalAbonosHistoricos: historicoLiveMap.get(c.id) || 0
       };
     });
 
-    const { detalles, resumen } = procesarDetallesYResumenCEJ(clientesRaw, pagosRaw, periodicidadesPermitidas);
+    const { detalles, resumen } = procesarDetallesYResumenCEJ(clientesRaw, pagosRaw, periodicidadesPermitidas, fInicioBusqueda);
     const { dq: resumenDQ, dp: resumenDP } = separarYCalcularResumenesCEJ(detalles);
 
     return NextResponse.json({
@@ -891,7 +981,9 @@ export async function GET(request: NextRequest) {
         ...d,
         montoPago: d.pagoSugerido,
         nombreCompleto: d.nombreCliente,
-        telefonoTrabajo: d.telefono2
+        telefonoTrabajo: d.telefono2,
+        montoAdelantado: d.montoAdelantado || 0,
+        cuotasAdelantadas: d.cuotasAdelantadas || 0
       }))
     });
   } catch (error: any) {
