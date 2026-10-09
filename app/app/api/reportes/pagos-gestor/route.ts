@@ -62,7 +62,17 @@ export async function GET(request: NextRequest) {
                     select: { name: true, codigoGestor: true },
                 },
                 ticket: {
-                    select: { id: true, folio: true, referencia: true, claveRastreo: true }
+                    select: { 
+                        id: true, 
+                        folio: true, 
+                        referencia: true, 
+                        claveRastreo: true,
+                        conciliado: true,
+                        urlComprobante: true,
+                        movimientosBanorte0330253963: { select: { id: true } },
+                        movimientosSantander22001022837: { select: { id: true } },
+                        movimientosSantander65505732541: { select: { id: true } }
+                    }
                 }
             },
             orderBy: { fechaPago: 'desc' },
@@ -80,7 +90,11 @@ export async function GET(request: NextRequest) {
             montoPuroTotal: 0,
             cantidadDP: 0,
             cantidadDQ: 0,
-            totalCantidad: pagos.length
+            totalCantidad: pagos.length,
+            totalBot: 0,
+            totalBotSinComprobante: 0,
+            montoBotSinComprobante: 0,
+            totalBotConciliado: 0
         };
 
         const detallado = pagos.map(p => {
@@ -112,6 +126,41 @@ export async function GET(request: NextRequest) {
             resumen.totalMoratorio += interesMoratorio;
             resumen.montoPuroTotal += monto;
 
+            const isBot = Boolean(
+                p.ticketId || 
+                ['BANCOS BOT', 'BANCARIO_BOT', 'SPEI AUTO CONCILIADO', 'BOT', 'WHATSAPP'].includes((p.metodoPago || '').toUpperCase().trim())
+            );
+
+            const ticketMovsCount = p.ticket
+                ? ((p.ticket.movimientosBanorte0330253963?.length || 0) +
+                   (p.ticket.movimientosSantander22001022837?.length || 0) +
+                   (p.ticket.movimientosSantander65505732541?.length || 0))
+                : 0;
+
+            const tieneComprobanteBancario = Boolean(p.ticket?.conciliado || ticketMovsCount > 0);
+            const tieneImagenComprobante = Boolean(p.ticket?.urlComprobante);
+
+            let botComprobanteEstado: 'BOT_SIN_COMPROBANTE' | 'BOT_CONCILIADO' | 'BOT_SIN_TICKET' | 'NO_BOT' = 'NO_BOT';
+            if (isBot) {
+                if (!p.ticket) {
+                    botComprobanteEstado = 'BOT_SIN_TICKET';
+                } else if (!tieneComprobanteBancario) {
+                    botComprobanteEstado = 'BOT_SIN_COMPROBANTE';
+                } else {
+                    botComprobanteEstado = 'BOT_CONCILIADO';
+                }
+            }
+
+            if (isBot) {
+                resumen.totalBot++;
+                if (botComprobanteEstado === 'BOT_SIN_COMPROBANTE' || botComprobanteEstado === 'BOT_SIN_TICKET') {
+                    resumen.totalBotSinComprobante++;
+                    resumen.montoBotSinComprobante += totalPago;
+                } else if (botComprobanteEstado === 'BOT_CONCILIADO') {
+                    resumen.totalBotConciliado++;
+                }
+            }
+
             const folioTicket = (p.ticket?.folio || p.ticket?.referencia || '')?.toString().trim();
             let numSemana = p.semanaCobranza;
             if (!numSemana || isNaN(Number(numSemana))) {
@@ -128,7 +177,14 @@ export async function GET(request: NextRequest) {
                 interesMoratorio,
                 gastosCobranza,
                 totalPago,
-                referencia
+                referencia,
+                isBot,
+                tieneComprobanteBancario,
+                tieneImagenComprobante,
+                urlComprobante: p.ticket?.urlComprobante || null,
+                ticketFolio: p.ticket?.folio || null,
+                ticketId: p.ticket?.id || p.ticketId || null,
+                botComprobanteEstado
             };
         });
 

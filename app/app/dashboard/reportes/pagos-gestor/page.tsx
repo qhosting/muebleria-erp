@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Download, Filter, Receipt, Users, Banknote, Building2, Search, CalendarDays, BarChart3, CloudUpload, Check, CheckCircle2, AlertCircle } from "lucide-react";
+import { Download, Filter, Receipt, Users, Banknote, Building2, Search, CalendarDays, BarChart3, CloudUpload, Check, CheckCircle2, AlertCircle, AlertTriangle, Eye, Bot } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -85,6 +85,8 @@ export default function PagosGestorPage() {
     const [tipoFiltro, setTipoFiltro] = useState<string>("todos"); // 'todos', 'DQ', 'DP'
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [resumenTab, setResumenTab] = useState<string>("general"); // 'general', 'pordia'
+    const [filtroBotComprobante, setFiltroBotComprobante] = useState<'todos' | 'sin_comprobante'>('todos');
+    const [previewImage, setPreviewImage] = useState<{ url: string; cliente: string; folio?: string; monto?: number } | null>(null);
 
     const [semanaCobranza, setSemanaCobranza] = useState<string>(() => {
         return calcularSemanaCobranzaSabadoViernes(new Date()).semana.toString();
@@ -517,7 +519,13 @@ export default function PagosGestorPage() {
                 "Día Cobro": (p.cliente?.diaPago || "-").toUpperCase(),
                 "Teléfono": p.cliente?.telefono || "-",
                 "Moratorio": moratorioVal,
-                "Tipo": (p.metodoPago || "EFECTIVO").toUpperCase()
+                "Tipo": (p.metodoPago || "EFECTIVO").toUpperCase(),
+                "Comprobante Bot": p.isBot 
+                    ? ((p.botComprobanteEstado === 'BOT_SIN_COMPROBANTE' || p.botComprobanteEstado === 'BOT_SIN_TICKET') 
+                        ? 'SIN COMPROBANTE BANCARIO' 
+                        : 'BOT CONCILIADO') 
+                    : 'GESTOR (RUTA)',
+                "Foto Adjunta": p.urlComprobante ? 'SÍ' : 'NO'
             };
         });
 
@@ -929,20 +937,42 @@ export default function PagosGestorPage() {
 
                 {/* Tabla Analítica */}
                 <Card>
-                    <CardHeader className="bg-gray-50 border-b py-3 px-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <CardHeader className="bg-gray-50 border-b py-3 px-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
                         <div>
                             <CardTitle className="text-base text-gray-800">Explorador de Transacciones</CardTitle>
                             <p className="text-xs text-gray-500 mt-0.5">Mostrando pagos ordenados del más reciente al más antiguo</p>
                         </div>
-                        <div className="relative w-full sm:w-80">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                            <Input
-                                type="text"
-                                placeholder="Buscar por código (DQ/DP), cliente, folio..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-9 h-9 text-xs bg-white"
-                            />
+                        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                            <div className="flex items-center gap-1.5">
+                                <Button
+                                    size="sm"
+                                    variant={filtroBotComprobante === 'todos' ? 'default' : 'outline'}
+                                    onClick={() => setFiltroBotComprobante('todos')}
+                                    className="h-8 text-xs font-semibold"
+                                >
+                                    Todos ({detallado.length})
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant={filtroBotComprobante === 'sin_comprobante' ? 'destructive' : 'outline'}
+                                    onClick={() => setFiltroBotComprobante(filtroBotComprobante === 'sin_comprobante' ? 'todos' : 'sin_comprobante')}
+                                    className={`h-8 text-xs font-semibold gap-1.5 ${filtroBotComprobante !== 'sin_comprobante' && (resumen.totalBotSinComprobante || 0) > 0 ? 'border-rose-300 text-rose-700 bg-rose-50/50 hover:bg-rose-100' : ''}`}
+                                    title="Filtrar exclusivamente pagos registrados como Bot sin comprobante bancario o sin conciliar"
+                                >
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    Bot sin Comprobante ({resumen.totalBotSinComprobante || detallado.filter((p: any) => p.isBot && (p.botComprobanteEstado === 'BOT_SIN_COMPROBANTE' || p.botComprobanteEstado === 'BOT_SIN_TICKET')).length})
+                                </Button>
+                            </div>
+                            <div className="relative w-full sm:w-72">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                                <Input
+                                    type="text"
+                                    placeholder="Buscar código, cliente, folio..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-9 h-8 text-xs bg-white"
+                                />
+                            </div>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -963,35 +993,46 @@ export default function PagosGestorPage() {
                                         <th className="px-3 py-4">Teléfono</th>
                                         <th className="px-3 py-4 text-right">Moratorio</th>
                                         <th className="px-3 py-4">Tipo</th>
+                                        <th className="px-3 py-4 text-center">Bot / Comprobante</th>
                                         <th className="px-3 py-4 text-center">ContPAQi</th>
                                         <th className="px-3 py-4 text-center">Acción</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {loading ? (
-                                        <tr><td colSpan={15} className="py-8 text-center">Cargando pagos...</td></tr>
+                                        <tr><td colSpan={16} className="py-8 text-center">Cargando pagos...</td></tr>
                                     ) : detallado.filter((pago: any) => {
+                                        if (filtroBotComprobante === 'sin_comprobante') {
+                                            const esBotSinComp = pago.isBot && (pago.botComprobanteEstado === 'BOT_SIN_COMPROBANTE' || pago.botComprobanteEstado === 'BOT_SIN_TICKET');
+                                            if (!esBotSinComp) return false;
+                                        }
                                         if (!searchTerm.trim()) return true;
                                         const q = searchTerm.toLowerCase().trim();
                                         const cod = (pago.cliente?.codigoCliente || '').toLowerCase();
                                         const nom = (pago.cliente?.nombreCompleto || '').toLowerCase();
                                         const ref = getReferenciaPagoGestor(pago).toLowerCase();
                                         const id = (pago.id || '').toLowerCase();
-                                        return cod.includes(q) || nom.includes(q) || ref.includes(q) || id.includes(q);
+                                        const folio = (pago.ticketFolio || '').toLowerCase();
+                                        return cod.includes(q) || nom.includes(q) || ref.includes(q) || id.includes(q) || folio.includes(q);
                                     }).length === 0 ? (
                                         <tr>
-                                            <td colSpan={15} className="py-12 text-center text-gray-500">
+                                            <td colSpan={16} className="py-12 text-center text-gray-500">
                                                 No se encontraron pagos que coincidan con la búsqueda.
                                             </td>
                                         </tr>
                                     ) : detallado.filter((pago: any) => {
+                                        if (filtroBotComprobante === 'sin_comprobante') {
+                                            const esBotSinComp = pago.isBot && (pago.botComprobanteEstado === 'BOT_SIN_COMPROBANTE' || pago.botComprobanteEstado === 'BOT_SIN_TICKET');
+                                            if (!esBotSinComp) return false;
+                                        }
                                         if (!searchTerm.trim()) return true;
                                         const q = searchTerm.toLowerCase().trim();
                                         const cod = (pago.cliente?.codigoCliente || '').toLowerCase();
                                         const nom = (pago.cliente?.nombreCompleto || '').toLowerCase();
                                         const ref = getReferenciaPagoGestor(pago).toLowerCase();
                                         const id = (pago.id || '').toLowerCase();
-                                        return cod.includes(q) || nom.includes(q) || ref.includes(q) || id.includes(q);
+                                        const folio = (pago.ticketFolio || '').toLowerCase();
+                                        return cod.includes(q) || nom.includes(q) || ref.includes(q) || id.includes(q) || folio.includes(q);
                                     }).map((pago: any) => {
                                         const isDQ = pago.cliente?.codigoCliente?.startsWith('DQ');
                                         const isDP = pago.cliente?.codigoCliente?.startsWith('DP');
@@ -1038,6 +1079,68 @@ export default function PagosGestorPage() {
                                                     <Badge variant="outline" className="text-[9px] uppercase">
                                                         {pago.metodoPago || "EFECTIVO"}
                                                     </Badge>
+                                                </td>
+                                                {/* Estatus Comprobante / Bot */}
+                                                <td className="px-3 py-2 text-center whitespace-nowrap">
+                                                    {pago.isBot ? (
+                                                        (pago.botComprobanteEstado === 'BOT_SIN_COMPROBANTE' || pago.botComprobanteEstado === 'BOT_SIN_TICKET') ? (
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <Badge className="bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-100 text-[10px] font-bold flex items-center gap-1 mx-auto">
+                                                                    <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                                                    Sin Depósito Bancario
+                                                                </Badge>
+                                                                {pago.urlComprobante ? (
+                                                                    <Button
+                                                                        type="button"
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        onClick={() => setPreviewImage({
+                                                                            url: pago.urlComprobante,
+                                                                            cliente: pago.cliente?.codigoCliente,
+                                                                            folio: pago.ticketFolio || pago.ticketId,
+                                                                            monto: pago.monto
+                                                                        })}
+                                                                        className="h-5 text-[10px] text-indigo-700 hover:text-indigo-900 hover:bg-indigo-50 px-1.5 py-0 gap-1 font-semibold"
+                                                                        title="Ver foto del comprobante enviada por el cliente"
+                                                                    >
+                                                                        <Eye className="w-3 h-3 text-indigo-600" />
+                                                                        Ver Foto Adjunta
+                                                                    </Button>
+                                                                ) : (
+                                                                    <span className="text-[9px] text-rose-500 font-medium">Sin foto adjunta</span>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex flex-col items-center gap-0.5">
+                                                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-100 text-[10px] font-semibold flex items-center gap-1 mx-auto">
+                                                                    <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                                                    Bot Conciliado
+                                                                </Badge>
+                                                                {pago.urlComprobante && (
+                                                                    <Button
+                                                                        type="button"
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        onClick={() => setPreviewImage({
+                                                                            url: pago.urlComprobante,
+                                                                            cliente: pago.cliente?.codigoCliente,
+                                                                            folio: pago.ticketFolio || pago.ticketId,
+                                                                            monto: pago.monto
+                                                                        })}
+                                                                        className="h-4 text-[9px] text-gray-500 hover:text-indigo-600 px-1 py-0 gap-0.5"
+                                                                        title="Ver comprobante adjunto"
+                                                                    >
+                                                                        <Eye className="w-2.5 h-2.5" />
+                                                                        Ver Foto
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        )
+                                                    ) : (
+                                                        <Badge variant="outline" className="text-[9px] text-gray-500 border-gray-200 py-0">
+                                                            Gestor (Ruta)
+                                                        </Badge>
+                                                    )}
                                                 </td>
                                                 {/* Estatus ContPAQi */}
                                                 <td className="px-3 py-2 text-center whitespace-nowrap">
@@ -1180,6 +1283,46 @@ export default function PagosGestorPage() {
                         <Button size="sm" onClick={() => setResultModal(null)}>
                             Cerrar
                         </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal Vista Previa de Comprobante WhatsApp */}
+            <Dialog open={Boolean(previewImage)} onOpenChange={(open) => !open && setPreviewImage(null)}>
+                <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col p-5">
+                    <DialogHeader>
+                        <DialogTitle className="text-sm font-bold flex items-center gap-2 text-slate-900">
+                            <Bot className="w-4 h-4 text-indigo-600" />
+                            Comprobante de Pago WhatsApp · {previewImage?.cliente || ''}
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-gray-500">
+                            {previewImage?.folio ? `Folio: ${previewImage.folio} · ` : ''}
+                            {previewImage?.monto ? `Monto: ${formatCurrency(previewImage.monto)}` : ''}
+                        </DialogDescription>
+                    </DialogHeader>
+                    {previewImage?.url && (
+                        <div className="overflow-auto max-h-[70vh] flex items-center justify-center p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border my-2">
+                            <img 
+                                src={previewImage.url} 
+                                alt="Comprobante de pago" 
+                                className="max-w-full max-h-[65vh] object-contain rounded shadow" 
+                            />
+                        </div>
+                    )}
+                    <DialogFooter className="mt-2">
+                        <Button size="sm" variant="outline" onClick={() => setPreviewImage(null)}>
+                            Cerrar
+                        </Button>
+                        {previewImage?.url && (
+                            <Button 
+                                size="sm" 
+                                variant="secondary" 
+                                className="gap-1.5 text-xs"
+                                onClick={() => window.open(previewImage.url, '_blank')}
+                            >
+                                Abrir en pestaña nueva
+                            </Button>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
