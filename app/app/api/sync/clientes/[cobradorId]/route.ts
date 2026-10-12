@@ -21,22 +21,11 @@ export async function GET(
     const userRole = (session.user as any).role;
     const userId = (session.user as any).id;
 
-    // Verificar permisos - el cobrador solo puede ver sus clientes
-    if (userRole === 'cobrador' && userId !== params.cobradorId) {
+    const isAdminOrSupervisor = ['admin', 'gestor_cobranza', 'reporte_cobranza', 'direccion'].includes(userRole);
+
+    // Verificar permisos - el cobrador solo puede ver sus clientes (administradores y supervisores pueden ver cualquier cobrador)
+    if (!isAdminOrSupervisor && userRole === 'cobrador' && userId !== params.cobradorId) {
       return NextResponse.json({ error: 'No puedes sincronizar clientes de otros cobradores' }, { status: 403 });
-    }
-
-    // Managers pueden ver clientes de sus cobradores asignados
-    if (userRole === 'manager') {
-      const manager = await prisma.user.findUnique({
-        where: { id: userId },
-        include: { clientesAsignados: true }
-      });
-
-      const hasAccess = manager?.clientesAsignados.some((c: any) => c.cobradorAsignadoId === params.cobradorId);
-      if (!hasAccess) {
-        return NextResponse.json({ error: 'No puedes sincronizar clientes de este cobrador' }, { status: 403 });
-      }
     }
 
     const { searchParams } = new URL(request.url);
@@ -68,6 +57,8 @@ export async function GET(
         statusCuenta: true,
         clasificacionCobranza: true,
         cobradorAsignadoId: true,
+        latitud: true,
+        longitud: true,
         updatedAt: true,
         descripcionProducto: true,
         vendedor: true,
@@ -102,9 +93,9 @@ export async function GET(
       ]
     });
 
-    // Obtener sumas consolidadas por teléfono para estos clientes
-    const phones = clientes.map((c: any) => c.telefono).filter(Boolean);
-    const consolidadoSums = await prisma.cliente.groupBy({
+    // Obtener sumas consolidadas por teléfono para estos clientes (deduplicando teléfonos)
+    const phones = Array.from(new Set(clientes.map((c: any) => c.telefono).filter(Boolean)));
+    const consolidadoSums = phones.length > 0 ? await prisma.cliente.groupBy({
       by: ['telefono'],
       where: {
         telefono: { in: phones },
@@ -113,7 +104,7 @@ export async function GET(
       _sum: {
         saldoActual: true
       }
-    });
+    }) : [];
 
     const sumMap = new Map(consolidadoSums.map((s: any) => [s.telefono, parseFloat(s._sum.saldoActual?.toString() || '0')]));
 
@@ -132,18 +123,27 @@ export async function GET(
         }
       }
 
+      const latNum = cliente.latitud ? parseFloat(cliente.latitud) : null;
+      const lngNum = cliente.longitud ? parseFloat(cliente.longitud) : null;
+
       return {
         id: cliente.id,
         nombreCompleto: cliente.nombreCompleto || 'Sin nombre',
+        nombre: cliente.nombreCompleto || 'Sin nombre', // Alias compatibilidad
         telefono: cliente.telefono || '',
         direccion: cliente.direccionCompleta || 'Sin dirección',
+        direccionCompleta: cliente.direccionCompleta || 'Sin dirección', // Alias compatibilidad
         diaPago: cliente.diaPago || 'No especificado',
         montoAcordado: montoPago,
+        pagoSemanal: montoPago, // Alias compatibilidad
         saldoPendiente: saldoActual,
+        saldo: saldoActual, // Alias compatibilidad
         saldoConsolidado: (cliente.telefono ? sumMap.get(cliente.telefono) : null) || saldoActual,
         fechaUltimoPago,
         statusCuenta: cliente.statusCuenta || 'activo',
         cobradorAsignadoId: cliente.cobradorAsignadoId,
+        latitud: !isNaN(latNum as number) ? latNum : null,
+        longitud: !isNaN(lngNum as number) ? lngNum : null,
         notas: null,
         saldoVencido: saldoVencido,
         diasVencidos: cliente.diasVencidos || 0,

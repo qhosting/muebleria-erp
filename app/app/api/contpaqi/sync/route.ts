@@ -307,7 +307,9 @@ export async function GET(request: NextRequest) {
                 // 🚀 OBTENER SALDO REAL (Estado de Cuenta)
                 let saldoReal = parseFloat(c[m.saldoActual]) || 0;
                 try {
-                    const empresaAlias = empresaConfig?.baseDatos || searchParams.get('empresa');
+                    const empresaAlias = codigo.toUpperCase().startsWith('DP') 
+                        ? 'DP' 
+                        : (codigo.toUpperCase().startsWith('DQ') ? 'DQ' : (empresaConfig?.baseDatos || searchParams.get('empresa')));
                     const estadoCuenta = await service.getClienteEstadoCuenta(codigo, empresaAlias);
                     if (estadoCuenta && (estadoCuenta.saldoActual !== undefined || estadoCuenta.SaldoActual !== undefined || estadoCuenta.cSaldoActual !== undefined)) {
                         const parsedVal = parseFloat(estadoCuenta.saldoActual || estadoCuenta.SaldoActual || estadoCuenta.cSaldoActual);

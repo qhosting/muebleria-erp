@@ -127,25 +127,34 @@ export class SyncService {
   // Descargar clientes asignados al cobrador
   private async downloadClientes(cobradorId: string) {
     try {
-      const response = await apiFetch(`/api/sync/clientes/${cobradorId}?full=true`);
-      if (!response.ok) throw new Error('Error al descargar clientes');
+      // 🚀 TIMEOUT EXTENDIDO: 60s para descargar cartera completa en redes celulares
+      const response = await apiFetch(`/api/sync/clientes/${cobradorId}?full=true`, { timeout: 60000 } as any);
+      if (!response.ok) throw new Error(`Error al descargar clientes: status ${response.status}`);
 
       const clientesServidor = await response.json();
 
-      // Limpiar clientes locales y agregar/actualizar los del servidor
+      if (!Array.isArray(clientesServidor)) {
+        throw new Error('La respuesta del servidor no tiene un formato válido de clientes.');
+      }
+
+      // Preparar clientes para inserción masiva en IndexedDB
+      const toPut = clientesServidor.map((cliente: any) => ({
+        ...cliente,
+        cobradorAsignadoId: cliente.cobradorAsignadoId || cobradorId,
+        lastSync: Date.now(),
+        syncStatus: 'synced' as const
+      }));
+
+      // Limpiar clientes locales y agregar/actualizar los del servidor de forma transaccional y rápida
       await db.transaction('rw', db.clientes, async () => {
         // Eliminar clientes que pertenezcan a otros gestores o que no tengan cobradorAsignadoId
         await db.clientes.filter(c => !c.cobradorAsignadoId || c.cobradorAsignadoId !== cobradorId).delete();
         // Eliminar los anteriores de este cobrador para reescribirlos limpios
         await db.clientes.where('cobradorAsignadoId').equals(cobradorId).delete();
 
-        for (const cliente of clientesServidor) {
-          await db.clientes.put({
-            ...cliente,
-            cobradorAsignadoId: cliente.cobradorAsignadoId || cobradorId,
-            lastSync: Date.now(),
-            syncStatus: 'synced' as const
-          });
+        // 🚀 BULK PUT: Inserción atómica masiva para alta velocidad
+        if (toPut.length > 0) {
+          await db.clientes.bulkPut(toPut);
         }
       });
 
@@ -195,8 +204,9 @@ export class SyncService {
         const response = await apiFetch('/api/pagos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payloadPago)
-        });
+          body: JSON.stringify(payloadPago),
+          timeout: 20000
+        } as any);
  
         if (response.ok) {
           const pagoServidor = await response.json();
@@ -208,12 +218,16 @@ export class SyncService {
             syncStatus: 'synced',
             lastSync: Date.now()
           });
+
+          // 🚀 Marcar completado en la cola de sincronización (Dexie) para limpiar estadísticas de pendientes
+          await db.syncQueue.where('localId').equals(pago.localId).modify({ status: 'completed' });
         } else {
           const errorText = await response.text();
           console.error(`Error en respuesta del servidor para pago ${pago.localId}:`, response.status, errorText);
  
           // Marcar como fallido de forma segura por localId
           await db.pagos.where('localId').equals(pago.localId).modify({ syncStatus: 'failed' });
+          await db.syncQueue.where('localId').equals(pago.localId).modify({ status: 'failed', error: errorText });
         }
  
       } catch (error) {
