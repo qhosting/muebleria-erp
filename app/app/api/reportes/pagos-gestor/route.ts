@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { getCdmxDateRange } from '@/lib/utils';
-import { calcularSemanaCobranzaSabadoViernes } from '@/lib/calendario-cobranza-utils';
+import { calcularSemanaCobranzaSabadoViernes, calcularRangoSemanaSabadoViernes } from '@/lib/calendario-cobranza-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +25,15 @@ export async function GET(request: NextRequest) {
 
         if (fechaDesde && fechaHasta) {
             where.fechaPago = getCdmxDateRange(fechaDesde, fechaHasta);
+        } else if (fechaDesde) {
+            where.fechaPago = { gte: getCdmxDateRange(fechaDesde, fechaDesde).gte };
+        } else if (fechaHasta) {
+            where.fechaPago = { lte: getCdmxDateRange(fechaHasta, fechaHasta).lte };
+        } else {
+            // Si no se especifican fechas, por seguridad limitar a la semana actual de cobranza
+            const semActual = calcularSemanaCobranzaSabadoViernes(new Date());
+            const rango = calcularRangoSemanaSabadoViernes(semActual.semana, semActual.anio);
+            where.fechaPago = getCdmxDateRange(rango.inicioStr, rango.finStr);
         }
 
         // Gestor Cobranza y Admins pueden filtrar por cualquier cobrador. Cobradores solo a si mismos
@@ -169,8 +178,20 @@ export async function GET(request: NextRequest) {
             }
             const referencia = folioTicket || `semana${numSemana}`;
 
+            // Optimización: No enviar base64 gigante en el listado para no inflar la respuesta a decenas de MB
+            const { ticket, ...pRest } = p;
+            const directUrl = (ticket?.urlComprobante && !ticket.urlComprobante.startsWith('data:')) ? ticket.urlComprobante : null;
+            const sanitizedTicket = ticket ? {
+                id: ticket.id,
+                folio: ticket.folio,
+                referencia: ticket.referencia,
+                claveRastreo: ticket.claveRastreo,
+                conciliado: ticket.conciliado
+            } : null;
+
             return {
-                ...p,
+                ...pRest,
+                ticket: sanitizedTicket,
                 conceptoOriginal: p.concepto,
                 concepto: 'PC QUERETARO',
                 monto,
@@ -181,9 +202,9 @@ export async function GET(request: NextRequest) {
                 isBot,
                 tieneComprobanteBancario,
                 tieneImagenComprobante,
-                urlComprobante: p.ticket?.urlComprobante || null,
-                ticketFolio: p.ticket?.folio || null,
-                ticketId: p.ticket?.id || p.ticketId || null,
+                urlComprobante: directUrl,
+                ticketFolio: ticket?.folio || null,
+                ticketId: ticket?.id || p.ticketId || null,
                 botComprobanteEstado
             };
         });
@@ -193,10 +214,10 @@ export async function GET(request: NextRequest) {
             detallado
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error al cargar reporte pagos gestor:', error);
         return NextResponse.json(
-            { error: 'Error interno del servidor' },
+            { error: 'Error interno del servidor', details: error?.message || String(error) },
             { status: 500 }
         );
     }

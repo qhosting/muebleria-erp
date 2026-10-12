@@ -86,7 +86,8 @@ export default function PagosGestorPage() {
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [resumenTab, setResumenTab] = useState<string>("general"); // 'general', 'pordia'
     const [filtroBotComprobante, setFiltroBotComprobante] = useState<'todos' | 'sin_comprobante'>('todos');
-    const [previewImage, setPreviewImage] = useState<{ url: string; cliente: string; folio?: string; monto?: number } | null>(null);
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const [previewImage, setPreviewImage] = useState<{ url: string; cliente: string; folio?: string; monto?: number; loading?: boolean } | null>(null);
 
     const [semanaCobranza, setSemanaCobranza] = useState<string>(() => {
         return calcularSemanaCobranzaSabadoViernes(new Date()).semana.toString();
@@ -158,7 +159,7 @@ export default function PagosGestorPage() {
     const userRole = (session?.user as any)?.role;
 
     useEffect(() => {
-        if (userRole === "admin" || userRole === "gestor_cobranza" || userRole === "direccion") {
+        if (userRole === "admin" || userRole === "gestor_cobranza" || userRole === "direccion" || userRole === "reporte_cobranza") {
             fetchCobradores();
         }
     }, [userRole]);
@@ -190,11 +191,71 @@ export default function PagosGestorPage() {
                 const data = await res.json();
                 setResumen(data.resumen);
                 setDetallado(data.detallado || []);
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                console.error("Error al obtener pagos gestor:", res.status, errData);
+                toast.error(errData.error || `Error ${res.status} al cargar los pagos`);
             }
         } catch (error) {
+            console.error("Error de conexión al cargar pagos gestor:", error);
             toast.error("Error al cargar los pagos del gestor");
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Cargar comprobante bajo demanda (sin inflar la carga de la tabla principal)
+    const handleVerComprobante = async (pago: any) => {
+        if (pago.urlComprobante && !pago.urlComprobante.startsWith('data:')) {
+            setPreviewImage({
+                url: pago.urlComprobante,
+                cliente: pago.cliente?.codigoCliente || '',
+                folio: pago.ticketFolio || pago.ticketId,
+                monto: pago.monto
+            });
+            return;
+        }
+
+        const ticketId = pago.ticketId || pago.ticket?.id;
+        if (!ticketId) {
+            toast.error("No se encontró ticket o comprobante bancario asociado a este pago");
+            return;
+        }
+
+        setPreviewLoading(true);
+        setPreviewImage({
+            url: '',
+            cliente: pago.cliente?.codigoCliente || '',
+            folio: pago.ticketFolio || pago.ticketId,
+            monto: pago.monto,
+            loading: true
+        });
+
+        try {
+            const res = await fetch(`/api/tesoreria/tickets/${ticketId}/comprobante`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.found && (data.base64 || data.url)) {
+                    setPreviewImage({
+                        url: data.base64 || data.url,
+                        cliente: pago.cliente?.codigoCliente || '',
+                        folio: pago.ticketFolio || pago.ticketId,
+                        monto: pago.monto,
+                        loading: false
+                    });
+                } else {
+                    toast.error("No se encontró imagen adjunta para este comprobante");
+                    setPreviewImage(null);
+                }
+            } else {
+                toast.error("Error al obtener la imagen del comprobante");
+                setPreviewImage(null);
+            }
+        } catch {
+            toast.error("Error de red al consultar el comprobante");
+            setPreviewImage(null);
+        } finally {
+            setPreviewLoading(false);
         }
     };
 
@@ -525,7 +586,7 @@ export default function PagosGestorPage() {
                         ? 'SIN COMPROBANTE BANCARIO' 
                         : 'BOT CONCILIADO') 
                     : 'GESTOR (RUTA)',
-                "Foto Adjunta": p.urlComprobante ? 'SÍ' : 'NO'
+                "Foto Adjunta": (p.tieneImagenComprobante || p.urlComprobante) ? 'SÍ' : 'NO'
             };
         });
 
@@ -636,6 +697,24 @@ export default function PagosGestorPage() {
     const summaryDP = useMemo(() => getSummaryByPrefix('DP'), [detallado]);
     const totalsDQ = useMemo(() => calculateTotals(summaryDQ), [summaryDQ]);
     const totalsDP = useMemo(() => calculateTotals(summaryDP), [summaryDP]);
+
+    // Pagos filtrados memoizados para rendimiento y evitar cálculos duplicados
+    const pagosFiltrados = useMemo(() => {
+        return detallado.filter((pago: any) => {
+            if (filtroBotComprobante === 'sin_comprobante') {
+                const esBotSinComp = pago.isBot && (pago.botComprobanteEstado === 'BOT_SIN_COMPROBANTE' || pago.botComprobanteEstado === 'BOT_SIN_TICKET');
+                if (!esBotSinComp) return false;
+            }
+            if (!searchTerm.trim()) return true;
+            const q = searchTerm.toLowerCase().trim();
+            const cod = (pago.cliente?.codigoCliente || '').toLowerCase();
+            const nom = (pago.cliente?.nombreCompleto || '').toLowerCase();
+            const ref = (pago.referencia || getReferenciaPagoGestor(pago)).toLowerCase();
+            const id = (pago.id || '').toLowerCase();
+            const folio = (pago.ticketFolio || '').toLowerCase();
+            return cod.includes(q) || nom.includes(q) || ref.includes(q) || id.includes(q) || folio.includes(q);
+        });
+    }, [detallado, filtroBotComprobante, searchTerm]);
 
     // Totales calculados sumando estrictamente montos + moratorios
     const totalCobradoDQ = (totalsDQ.totalMonto + totalsDQ.totalMoratorio) || Number(resumen.totalDQ || 0);
@@ -1001,44 +1080,18 @@ export default function PagosGestorPage() {
                                 <tbody className="divide-y divide-gray-100">
                                     {loading ? (
                                         <tr><td colSpan={16} className="py-8 text-center">Cargando pagos...</td></tr>
-                                    ) : detallado.filter((pago: any) => {
-                                        if (filtroBotComprobante === 'sin_comprobante') {
-                                            const esBotSinComp = pago.isBot && (pago.botComprobanteEstado === 'BOT_SIN_COMPROBANTE' || pago.botComprobanteEstado === 'BOT_SIN_TICKET');
-                                            if (!esBotSinComp) return false;
-                                        }
-                                        if (!searchTerm.trim()) return true;
-                                        const q = searchTerm.toLowerCase().trim();
-                                        const cod = (pago.cliente?.codigoCliente || '').toLowerCase();
-                                        const nom = (pago.cliente?.nombreCompleto || '').toLowerCase();
-                                        const ref = getReferenciaPagoGestor(pago).toLowerCase();
-                                        const id = (pago.id || '').toLowerCase();
-                                        const folio = (pago.ticketFolio || '').toLowerCase();
-                                        return cod.includes(q) || nom.includes(q) || ref.includes(q) || id.includes(q) || folio.includes(q);
-                                    }).length === 0 ? (
+                                    ) : pagosFiltrados.length === 0 ? (
                                         <tr>
                                             <td colSpan={16} className="py-12 text-center text-gray-500">
                                                 No se encontraron pagos que coincidan con la búsqueda.
                                             </td>
                                         </tr>
-                                    ) : detallado.filter((pago: any) => {
-                                        if (filtroBotComprobante === 'sin_comprobante') {
-                                            const esBotSinComp = pago.isBot && (pago.botComprobanteEstado === 'BOT_SIN_COMPROBANTE' || pago.botComprobanteEstado === 'BOT_SIN_TICKET');
-                                            if (!esBotSinComp) return false;
-                                        }
-                                        if (!searchTerm.trim()) return true;
-                                        const q = searchTerm.toLowerCase().trim();
-                                        const cod = (pago.cliente?.codigoCliente || '').toLowerCase();
-                                        const nom = (pago.cliente?.nombreCompleto || '').toLowerCase();
-                                        const ref = getReferenciaPagoGestor(pago).toLowerCase();
-                                        const id = (pago.id || '').toLowerCase();
-                                        const folio = (pago.ticketFolio || '').toLowerCase();
-                                        return cod.includes(q) || nom.includes(q) || ref.includes(q) || id.includes(q) || folio.includes(q);
-                                    }).map((pago: any) => {
+                                    ) : pagosFiltrados.map((pago: any) => {
                                         const isDQ = pago.cliente?.codigoCliente?.startsWith('DQ');
                                         const isDP = pago.cliente?.codigoCliente?.startsWith('DP');
 
                                         // Formatear referencia: folio de ticket si proviene de ticket, sino semanaX
-                                        const referencia = getReferenciaPagoGestor(pago);
+                                        const referencia = pago.referencia || getReferenciaPagoGestor(pago);
 
                                         // Fecha y Hora formateada en Horario de México (CDMX)
                                         const fechaCompleta = formatDateTime(pago.fechaPago);
@@ -1049,7 +1102,7 @@ export default function PagosGestorPage() {
 
                                         return (
                                             <tr key={pago.id} className="hover:bg-gray-50 transition-colors text-[11px]">
-                                                <td className="px-3 py-2 text-gray-400 font-mono">{pago.id.substring(0, 8)}</td>
+                                                <td className="px-3 py-2 text-gray-400 font-mono">{(pago.id || '').substring(0, 8)}</td>
                                                 <td className="px-3 py-2 whitespace-nowrap">{fechaCompleta}</td>
                                                 <td className="px-3 py-2">
                                                     <Badge variant={isDQ ? 'success' : isDP ? 'default' : 'outline'} className="font-mono text-[9px] px-1 py-0">
@@ -1089,17 +1142,12 @@ export default function PagosGestorPage() {
                                                                     <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
                                                                     Sin Depósito Bancario
                                                                 </Badge>
-                                                                {pago.urlComprobante ? (
+                                                                {(pago.tieneImagenComprobante || pago.urlComprobante) ? (
                                                                     <Button
                                                                         type="button"
                                                                         size="sm"
                                                                         variant="ghost"
-                                                                        onClick={() => setPreviewImage({
-                                                                            url: pago.urlComprobante,
-                                                                            cliente: pago.cliente?.codigoCliente,
-                                                                            folio: pago.ticketFolio || pago.ticketId,
-                                                                            monto: pago.monto
-                                                                        })}
+                                                                        onClick={() => handleVerComprobante(pago)}
                                                                         className="h-5 text-[10px] text-indigo-700 hover:text-indigo-900 hover:bg-indigo-50 px-1.5 py-0 gap-1 font-semibold"
                                                                         title="Ver foto del comprobante enviada por el cliente"
                                                                     >
@@ -1116,17 +1164,12 @@ export default function PagosGestorPage() {
                                                                     <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
                                                                     Bot Conciliado
                                                                 </Badge>
-                                                                {pago.urlComprobante && (
+                                                                {(pago.tieneImagenComprobante || pago.urlComprobante) && (
                                                                     <Button
                                                                         type="button"
                                                                         size="sm"
                                                                         variant="ghost"
-                                                                        onClick={() => setPreviewImage({
-                                                                            url: pago.urlComprobante,
-                                                                            cliente: pago.cliente?.codigoCliente,
-                                                                            folio: pago.ticketFolio || pago.ticketId,
-                                                                            monto: pago.monto
-                                                                        })}
+                                                                        onClick={() => handleVerComprobante(pago)}
                                                                         className="h-4 text-[9px] text-gray-500 hover:text-indigo-600 px-1 py-0 gap-0.5"
                                                                         title="Ver comprobante adjunto"
                                                                     >
@@ -1300,7 +1343,12 @@ export default function PagosGestorPage() {
                             {previewImage?.monto ? `Monto: ${formatCurrency(previewImage.monto)}` : ''}
                         </DialogDescription>
                     </DialogHeader>
-                    {previewImage?.url && (
+                    {previewLoading ? (
+                        <div className="py-16 flex flex-col items-center justify-center text-slate-500 text-xs gap-3">
+                            <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                            <span>Cargando imagen del comprobante...</span>
+                        </div>
+                    ) : previewImage?.url ? (
                         <div className="overflow-auto max-h-[70vh] flex items-center justify-center p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border my-2">
                             <img 
                                 src={previewImage.url} 
@@ -1308,7 +1356,7 @@ export default function PagosGestorPage() {
                                 className="max-w-full max-h-[65vh] object-contain rounded shadow" 
                             />
                         </div>
-                    )}
+                    ) : null}
                     <DialogFooter className="mt-2">
                         <Button size="sm" variant="outline" onClick={() => setPreviewImage(null)}>
                             Cerrar
