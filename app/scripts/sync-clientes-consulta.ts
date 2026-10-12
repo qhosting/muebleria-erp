@@ -59,6 +59,8 @@ async function sincronizarArchivo(filePath: string, empresa: 'DP' | 'DQ') {
             if (!existing.producto1 && r.producto1) existing.producto1 = r.producto1;
             if (!existing.calle && r.calle) existing.calle = r.calle;
             if (!existing.telefono1 && r.telefono1) existing.telefono1 = r.telefono1;
+            if ((!existing.tipo || existing.tipo === '(Ninguna)') && r.tipo && r.tipo !== '(Ninguna)') existing.tipo = r.tipo;
+            if ((!existing.estatus || existing.estatus === 'ACTIVO') && r.estatus && r.estatus !== 'ACTIVO') existing.estatus = r.estatus;
             if ((!existing.saldoActual || existing.saldoActual === 0) && r.saldoActual) {
                 existing.saldoActual = r.saldoActual;
             }
@@ -97,8 +99,8 @@ async function sincronizarArchivo(filePath: string, empresa: 'DP' | 'DQ') {
             const tel2 = (c.telefono2 || '').trim().replace(/'/g, "''");
             const tel2Limpio = limpiarTelefono(c.telefono2);
             const aval = (c.aval || '').trim().replace(/'/g, "''");
-            const tipo = c.tipo === 1 ? 'COBRANZA NORMAL' : 'CREDITO';
-            const estatus = c.estatus === 1 ? 'ACTIVO' : 'INACTIVO';
+            const tipo = (typeof c.tipo === 'string' && c.tipo.trim()) ? c.tipo.trim().replace(/'/g, "''") : '(Ninguna)';
+            const estatus = (typeof c.estatus === 'string' && c.estatus.trim()) ? c.estatus.trim().replace(/'/g, "''") : 'ACTIVO';
             const saldo = parseFloat(String(c.saldoActual || 0)) || 0;
             const prod1 = (c.producto1 || '').trim().replace(/'/g, "''");
 
