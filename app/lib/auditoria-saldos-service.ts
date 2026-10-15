@@ -152,7 +152,7 @@ export async function auditarSaldosCliente(
     ? docs.filter((d: any) => {
         if (d.cancelado) return false;
         const c = String(d.codigoConcepto || d.Concepto || d.concepto || d.CCODIGOCONCEPTO || d.CIDCONCEPTO || '').trim();
-        return ['6', '7', '102', '103'].includes(c);
+        return ['6', '7', '8', '18', '45', '103'].includes(c);
       })
     : [];
   const totalNotasCreditoMonto = notasCreditoContpaqi.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);

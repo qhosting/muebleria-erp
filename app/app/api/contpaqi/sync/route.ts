@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
                     });
                     const notasCredito = documentos.filter((doc: any) => {
                         const c = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
-                        return ['6', '7', '102', '103'].includes(c) && !doc.cancelado;
+                        return ['6', '7', '8', '18', '45', '103'].includes(c) && !doc.cancelado;
                     });
                     const pagares = documentos.filter((doc: any) => {
                         const c = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
                     });
                     const abonos = documentos.filter((doc: any) => {
                         const c = String(doc.codigoConcepto || doc.Concepto || doc.concepto || doc.CCODIGOCONCEPTO || doc.CIDCONCEPTO || '').trim();
-                        return ['101'].includes(c) && !doc.cancelado;
+                        return ['101', '102'].includes(c) && !doc.cancelado;
                     });
 
                     const totalFacturas = facturas.reduce((acc: number, d: any) => acc + (parseFloat(d.total || d.cTotal || d.CTOTAL || 0) || 0), 0);
