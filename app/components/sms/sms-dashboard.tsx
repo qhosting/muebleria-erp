@@ -22,7 +22,10 @@ import {
   Sparkles,
   User,
   CheckSquare,
-  TrendingUp
+  TrendingUp,
+  Plus,
+  Trash2,
+  BookmarkPlus
 } from 'lucide-react';
 import { SmsProyeccionTab } from '@/components/sms/sms-proyeccion-tab';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -140,6 +143,22 @@ export function SmsDashboard() {
   const [sendMethod, setSendMethod] = useState<'labsmobile' | 'native'>('labsmobile');
   const [isSending, setIsSending] = useState(false);
   const [sendProgress, setSendProgress] = useState({ current: 0, total: 0 });
+
+  // Estados de gestión de plantillas
+  const [createTemplateModalOpen, setCreateTemplateModalOpen] = useState(false);
+  const [newTemplateForm, setNewTemplateForm] = useState({
+    name: '',
+    campaignKey: '',
+    description: '',
+    templateText: ''
+  });
+  const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
+  const [isDeletingTemplateId, setIsDeletingTemplateId] = useState<string | null>(null);
+
+  // Guardado rápido de plantilla desde el modal de confirmación
+  const [inlineSaveOpen, setInlineSaveOpen] = useState(false);
+  const [inlineTemplateName, setInlineTemplateName] = useState('');
+  const [isSavingInline, setIsSavingInline] = useState(false);
 
   // Carga inicial
   useEffect(() => {
@@ -295,6 +314,122 @@ export function SmsDashboard() {
     }));
   };
 
+  // Cálculo de segmentos SMS (160 caracteres estándar GSM por SMS)
+  const getSmsCharInfo = (text: string) => {
+    const len = (text || '').length;
+    // Estándar GSM: 160 caracteres para 1 mensaje SMS. Si supera 160, cada parte UDH es de 153 caracteres.
+    const segments = len === 0 ? 0 : len <= 160 ? 1 : Math.ceil(len / 153);
+    return {
+      len,
+      segments,
+      isOverSingle: len > 160,
+      charInCurrentSegment: len <= 160 ? len : ((len - 160) % 153 || 153)
+    };
+  };
+
+  const handleCreateTemplate = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newTemplateForm.name.trim() || !newTemplateForm.templateText.trim()) {
+      toast.error('Nombre y texto del mensaje son obligatorios');
+      return;
+    }
+
+    setIsCreatingTemplate(true);
+    try {
+      const res = await fetch('/api/sms/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTemplateForm)
+      });
+      if (res.ok) {
+        const created: Template = await res.json();
+        toast.success(`Plantilla "${created.name}" creada con éxito`);
+        await fetchTemplates();
+        setCreateTemplateModalOpen(false);
+        setNewTemplateForm({ name: '', campaignKey: '', description: '', templateText: '' });
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Error al crear la plantilla');
+      }
+    } catch {
+      toast.error('Error de conexión al crear la plantilla');
+    } finally {
+      setIsCreatingTemplate(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (template: Template) => {
+    if (template.campaignKey === 'inicio_semana' || template.campaignKey === 'no_pagos') {
+      toast.error('No se pueden eliminar las plantillas principales del sistema');
+      return;
+    }
+
+    if (!confirm(`¿Deseas eliminar la plantilla "${template.name}"?`)) {
+      return;
+    }
+
+    setIsDeletingTemplateId(template.id || template.campaignKey);
+    try {
+      const res = await fetch(`/api/sms/templates?id=${encodeURIComponent(template.id)}&campaignKey=${encodeURIComponent(template.campaignKey)}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        toast.success(`Plantilla "${template.name}" eliminada`);
+        setTemplates(prev => prev.filter(t => t.campaignKey !== template.campaignKey));
+        if (selectedTemplateKey === template.campaignKey) {
+          setSelectedTemplateKey('no_pagos');
+        }
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Error al eliminar la plantilla');
+      }
+    } catch {
+      toast.error('Error de red al eliminar la plantilla');
+    } finally {
+      setIsDeletingTemplateId(null);
+    }
+  };
+
+  const handleSaveInlineTemplate = async () => {
+    if (!inlineTemplateName.trim()) {
+      toast.error('Ingresa un nombre para la nueva plantilla');
+      return;
+    }
+    if (!activeCampaignToSend?.templateText.trim()) {
+      toast.error('El mensaje no puede estar vacío');
+      return;
+    }
+
+    setIsSavingInline(true);
+    try {
+      const res = await fetch('/api/sms/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: inlineTemplateName.trim(),
+          templateText: activeCampaignToSend.templateText.trim(),
+          description: 'Plantilla personalizada guardada desde campaña'
+        })
+      });
+      if (res.ok) {
+        const created: Template = await res.json();
+        toast.success(`Plantilla "${created.name}" guardada en la biblioteca`);
+        await fetchTemplates();
+        setActiveCampaignToSend(prev => prev ? { ...prev, key: created.campaignKey } : null);
+        setSelectedTemplateKey(created.campaignKey);
+        setInlineSaveOpen(false);
+        setInlineTemplateName('');
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Error al guardar la plantilla');
+      }
+    } catch {
+      toast.error('Error de conexión al guardar la plantilla');
+    } finally {
+      setIsSavingInline(false);
+    }
+  };
+
   // Lista de Cobradores disponibles (exclusivamente usuarios con rol cobrador)
   const cobradoresDisponibles = useMemo(() => {
     const map = new Map<string, string>();
@@ -376,11 +511,9 @@ export function SmsDashboard() {
       return;
     }
 
-    let templateKeyToUse = 'no_pagos';
-    if (modoEnvio === 'inicio_semana') {
-      templateKeyToUse = selectedTemplateKey.startsWith('inicio_semana') ? selectedTemplateKey : 'inicio_semana';
-    } else {
-      templateKeyToUse = 'no_pagos';
+    let templateKeyToUse = selectedTemplateKey;
+    if (!templateKeyToUse || templateKeyToUse === 'TODOS') {
+      templateKeyToUse = modoEnvio === 'inicio_semana' ? 'inicio_semana' : 'no_pagos';
     }
 
     const template = templates.find(t => t.campaignKey === templateKeyToUse) || templates[0] || {
@@ -408,6 +541,8 @@ export function SmsDashboard() {
       templateText: template.templateText,
       clients: clientsToSend
     });
+    setInlineSaveOpen(false);
+    setInlineTemplateName('');
     setSendDialogOpen(true);
   };
 
@@ -434,6 +569,11 @@ export function SmsDashboard() {
   // Ejecutar Envío Final
   const handleExecuteSend = async () => {
     if (!activeCampaignToSend) return;
+
+    if (!activeCampaignToSend.templateText?.trim()) {
+      toast.error('El mensaje de texto no puede estar vacío');
+      return;
+    }
 
     setIsSending(true);
     setSendProgress({ current: 0, total: activeCampaignToSend.clients.length });
@@ -778,6 +918,27 @@ export function SmsDashboard() {
                           </SelectContent>
                         </Select>
                       </div>
+
+                      <div className="space-y-1.5 flex-1 max-w-xs">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Plantilla de mensaje:
+                        </label>
+                        <Select 
+                          value={selectedTemplateKey} 
+                          onValueChange={setSelectedTemplateKey}
+                        >
+                          <SelectTrigger className="bg-white dark:bg-slate-900 text-xs font-medium">
+                            <SelectValue placeholder="Selecciona plantilla" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {templates.map(t => (
+                              <SelectItem key={t.campaignKey} value={t.campaignKey}>
+                                {t.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </>
                   )}
 
@@ -861,6 +1022,27 @@ export function SmsDashboard() {
                             <SelectItem value="VIERNES">Viernes</SelectItem>
                             <SelectItem value="SABADO">Sábado</SelectItem>
                             <SelectItem value="DOMINGO">Domingo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5 flex-1 max-w-xs">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Plantilla de mensaje:
+                        </label>
+                        <Select 
+                          value={selectedTemplateKey} 
+                          onValueChange={setSelectedTemplateKey}
+                        >
+                          <SelectTrigger className="bg-white dark:bg-slate-900 text-xs font-medium">
+                            <SelectValue placeholder="Selecciona plantilla" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {templates.map(t => (
+                              <SelectItem key={t.campaignKey} value={t.campaignKey}>
+                                {t.name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1150,11 +1332,34 @@ export function SmsDashboard() {
 
         {/* 2. PLANTILLAS DE MENSAJES & INICIO DE SEMANA */}
         <TabsContent value="plantillas" className="space-y-4 mt-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-blue-600" />
+                Biblioteca de Plantillas SMS
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Crea, edita y organiza tus plantillas de mensajes adaptadas al límite de 160 caracteres.
+              </p>
+            </div>
+            <Button
+              onClick={() => {
+                setNewTemplateForm({ name: '', campaignKey: '', description: '', templateText: '' });
+                setCreateTemplateModalOpen(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs gap-1.5 h-8 shrink-0"
+            >
+              <Plus className="h-4 w-4" />
+              Nueva Plantilla
+            </Button>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {templates.map(template => {
-              const charCount = template.templateText.length;
-              const isOverLimit = charCount > 160;
+              const charInfo = getSmsCharInfo(template.templateText);
               const isSaving = savingTemplateKey === template.campaignKey;
+              const isDeleting = isDeletingTemplateId === (template.id || template.campaignKey);
+              const isCoreTemplate = template.campaignKey === 'inicio_semana' || template.campaignKey === 'no_pagos';
 
               return (
                 <Card key={template.id || template.campaignKey} className="flex flex-col shadow-sm border-slate-200 dark:border-slate-800">
@@ -1168,9 +1373,23 @@ export function SmsDashboard() {
                           {template.description || `Clave: ${template.campaignKey}`}
                         </CardDescription>
                       </div>
-                      <Badge variant="secondary" className="text-[10px]">
-                        {template.campaignKey}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="secondary" className="text-[10px]">
+                          {template.campaignKey}
+                        </Badge>
+                        {!isCoreTemplate && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={isDeleting}
+                            onClick={() => handleDeleteTemplate(template)}
+                            className="h-6 w-6 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                            title="Eliminar plantilla"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
 
@@ -1192,7 +1411,10 @@ export function SmsDashboard() {
 
                       <Textarea 
                         rows={4}
-                        className="text-sm font-sans resize-none"
+                        className={cn(
+                          "text-sm font-sans resize-none",
+                          charInfo.isOverSingle ? "border-amber-400 focus-visible:ring-amber-400" : ""
+                        )}
                         value={template.templateText}
                         onChange={e => handleTemplateTextChange(template.campaignKey, e.target.value)}
                       />
@@ -1201,8 +1423,11 @@ export function SmsDashboard() {
                         <span className="text-muted-foreground text-[10px]">
                           Variable disponible: <code className="text-primary font-semibold">[nombre]</code>
                         </span>
-                        <span className={`font-mono font-bold ${isOverLimit ? 'text-rose-600' : 'text-slate-500'}`}>
-                          Caracteres: {charCount}/160 {isOverLimit && '(consumirá 2 SMS)'}
+                        <span className={cn(
+                          "font-mono font-bold text-[11px]",
+                          charInfo.isOverSingle ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500'
+                        )}>
+                          {charInfo.len}/160 car. {charInfo.isOverSingle && `(${charInfo.segments} SMS)`}
                         </span>
                       </div>
                     </div>
@@ -1427,90 +1652,246 @@ export function SmsDashboard() {
 
       {/* MODAL DE CONFIRMACIÓN Y ENVÍO */}
       <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
               <Send className="h-5 w-5 text-emerald-600" />
               Confirmar Envío de Campaña
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Por favor confirma los detalles antes de iniciar la emisión de mensajes.
+              Por favor confirma o personaliza los detalles antes de iniciar la emisión de mensajes.
             </DialogDescription>
           </DialogHeader>
 
-          {activeCampaignToSend && (
-            <div className="space-y-3 py-2 text-xs">
-              <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg space-y-2 border">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Campaña:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{activeCampaignToSend.name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Destinatarios válidos:</span>
-                  <span className="font-bold text-emerald-600">{activeCampaignToSend.clients.length} clientes</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Costo estimado:</span>
-                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                    ${(activeCampaignToSend.clients.length * 0.45).toFixed(2)} MXN
-                  </span>
-                </div>
-              </div>
+          {activeCampaignToSend && (() => {
+            const modalText = activeCampaignToSend.templateText || '';
+            const modalSmsInfo = getSmsCharInfo(modalText);
+            const numClients = activeCampaignToSend.clients.length;
+            const numSegments = Math.max(1, modalSmsInfo.segments);
+            const estimatedTotalCost = (numClients * numSegments * 0.45).toFixed(2);
 
-              {/* Vista previa del mensaje */}
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-700 dark:text-slate-300">Mensaje a emitir:</label>
-                <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded font-sans text-xs text-slate-800 dark:text-slate-200 border">
-                  {activeCampaignToSend.templateText}
+            return (
+              <div className="space-y-3 py-2 text-xs">
+                {/* Resumen de costos y destinatarios */}
+                <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg space-y-2 border">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Campaña:</span>
+                    <span className="font-bold text-slate-900 dark:text-white">{activeCampaignToSend.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Destinatarios válidos:</span>
+                    <span className="font-bold text-emerald-600">{numClients} clientes</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Costo estimado:</span>
+                    <div className="text-right">
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                        ${estimatedTotalCost} MXN
+                      </span>
+                      {modalSmsInfo.isOverSingle && (
+                        <span className="block text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                          ({numSegments} SMS × {numClients} = {numSegments * numClients} mensajes)
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Selector de Método de Envío (si es móvil nativo o LabsMobile) */}
-              {canUseNativeSms && (
-                <div className="space-y-1.5 pt-1">
-                  <label className="font-semibold text-slate-700 dark:text-slate-300">Vía de Envío:</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button 
+                {/* Editor y Selector de Mensaje */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                      Mensaje a emitir:
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[10px] px-2 gap-1 text-primary border-primary/30 hover:bg-primary/5"
+                        onClick={() => {
+                          setActiveCampaignToSend({
+                            ...activeCampaignToSend,
+                            templateText: `${activeCampaignToSend.templateText} [nombre]`.trim()
+                          });
+                        }}
+                        title="Insertar etiqueta [nombre] del cliente"
+                      >
+                        + [nombre]
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Selector de Plantilla dentro del Modal */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <Select 
+                        value={activeCampaignToSend.key} 
+                        onValueChange={(val) => {
+                          const found = templates.find(t => t.campaignKey === val);
+                          if (found) {
+                            setActiveCampaignToSend({
+                              ...activeCampaignToSend,
+                              key: found.campaignKey,
+                              templateText: found.templateText
+                            });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+                          <SelectValue placeholder="Elegir de las plantillas existentes..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {templates.map(t => (
+                            <SelectItem key={t.campaignKey} value={t.campaignKey} className="text-xs">
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <Button
                       type="button"
-                      variant={sendMethod === 'labsmobile' ? 'default' : 'outline'}
-                      className="h-9 text-xs gap-1.5"
-                      onClick={() => setSendMethod('labsmobile')}
-                      disabled={isSending}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs gap-1 px-2.5 shrink-0"
+                      onClick={() => setInlineSaveOpen(prev => !prev)}
+                      title="Guardar este mensaje como una nueva plantilla"
                     >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      SMS Masivo (Servidor)
-                    </Button>
-                    <Button 
-                      type="button"
-                      variant={sendMethod === 'native' ? 'default' : 'outline'}
-                      className="h-9 text-xs gap-1.5"
-                      onClick={() => setSendMethod('native')}
-                      disabled={isSending}
-                    >
-                      <Smartphone className="h-3.5 w-3.5" />
-                      SMS Nativo
+                      <Plus className="h-3.5 w-3.5" />
+                      Nueva Plantilla
                     </Button>
                   </div>
-                </div>
-              )}
 
-              {/* Barra de Progreso durante el envío */}
-              {isSending && (
-                <div className="space-y-2 pt-2">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span>Enviando mensajes...</span>
-                    <span>{sendProgress.current} de {sendProgress.total}</span>
-                  </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-emerald-600 h-full transition-all duration-300"
-                      style={{ width: `${(sendProgress.current / (sendProgress.total || 1)) * 100}%` }}
-                    />
+                  {/* Formulario rápido para guardar como plantilla */}
+                  {inlineSaveOpen && (
+                    <div className="p-2.5 bg-blue-50/80 dark:bg-blue-950/40 rounded-lg border border-blue-200 dark:border-blue-800 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-1">
+                          <BookmarkPlus className="h-3.5 w-3.5 text-blue-600" />
+                          Guardar texto como nueva plantilla
+                        </span>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-5 w-5 p-0 text-slate-500" 
+                          onClick={() => setInlineSaveOpen(false)}
+                        >
+                          ✕
+                        </Button>
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Nombre de la nueva plantilla..."
+                          value={inlineTemplateName}
+                          onChange={e => setInlineTemplateName(e.target.value)}
+                          className="h-7 text-xs bg-white dark:bg-slate-900"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white shrink-0"
+                          onClick={handleSaveInlineTemplate}
+                          disabled={isSavingInline || !inlineTemplateName.trim()}
+                        >
+                          {isSavingInline ? 'Guardando...' : 'Guardar'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Textarea editable del mensaje */}
+                  <Textarea
+                    rows={4}
+                    className={cn(
+                      "text-xs font-sans resize-none transition-all",
+                      modalSmsInfo.isOverSingle 
+                        ? "border-amber-400 focus-visible:ring-amber-400" 
+                        : "border-slate-300 dark:border-slate-700"
+                    )}
+                    value={activeCampaignToSend.templateText}
+                    onChange={e => setActiveCampaignToSend({
+                      ...activeCampaignToSend,
+                      templateText: e.target.value
+                    })}
+                    placeholder="Escribe el mensaje de texto para la campaña SMS..."
+                  />
+
+                  {/* Contador de caracteres adaptado a 160 caracteres y segmentos */}
+                  <div className="flex justify-between items-center text-[11px] pt-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className={cn(
+                        "font-mono font-bold px-1.5 py-0.5 rounded text-[10px]",
+                        modalSmsInfo.isOverSingle 
+                          ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                          : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                      )}>
+                        {modalSmsInfo.len}/160 caracteres
+                      </span>
+                      <span className="text-muted-foreground text-[10px]">
+                        {modalSmsInfo.segments <= 1 
+                          ? '• 1 SMS estándar' 
+                          : `• ${modalSmsInfo.segments} SMS por cliente`}
+                      </span>
+                    </div>
+                    {modalSmsInfo.isOverSingle && (
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                        Excede 160 car. (consumirá {modalSmsInfo.segments} créditos)
+                      </span>
+                    )}
                   </div>
                 </div>
-              )}
-            </div>
-          )}
+
+                {/* Selector de Método de Envío (si es móvil nativo o LabsMobile) */}
+                {canUseNativeSms && (
+                  <div className="space-y-1.5 pt-1">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">Vía de Envío:</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button 
+                        type="button"
+                        variant={sendMethod === 'labsmobile' ? 'default' : 'outline'}
+                        className="h-9 text-xs gap-1.5"
+                        onClick={() => setSendMethod('labsmobile')}
+                        disabled={isSending}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        SMS Masivo (Servidor)
+                      </Button>
+                      <Button 
+                        type="button"
+                        variant={sendMethod === 'native' ? 'default' : 'outline'}
+                        className="h-9 text-xs gap-1.5"
+                        onClick={() => setSendMethod('native')}
+                        disabled={isSending}
+                      >
+                        <Smartphone className="h-3.5 w-3.5" />
+                        SMS Nativo
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Barra de Progreso durante el envío */}
+                {isSending && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span>Enviando mensajes...</span>
+                      <span>{sendProgress.current} de {sendProgress.total}</span>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden">
+                      <div 
+                        className="bg-emerald-600 h-full transition-all duration-300"
+                        style={{ width: `${(sendProgress.current / (sendProgress.total || 1)) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button 
@@ -1530,6 +1911,114 @@ export function SmsDashboard() {
               {isSending ? 'Emitiendo campaña...' : 'Confirmar y Enviar'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL PARA CREAR NUEVA PLANTILLA DESDE TAB 2 */}
+      <Dialog open={createTemplateModalOpen} onOpenChange={setCreateTemplateModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
+              <Plus className="h-5 w-5 text-blue-600" />
+              Nueva Plantilla SMS
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Registra una nueva plantilla para tus recordatorios adaptada al límite de 160 caracteres.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateTemplate} className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <label className="font-semibold text-slate-700 dark:text-slate-300">
+                Nombre de la Plantilla:
+              </label>
+              <Input
+                placeholder="Ej: Recordatorio Fin de Mes"
+                value={newTemplateForm.name}
+                onChange={e => setNewTemplateForm({ ...newTemplateForm, name: e.target.value })}
+                className="h-8 text-xs"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-slate-700 dark:text-slate-300">
+                Descripción (opcional):
+              </label>
+              <Input
+                placeholder="Ej: Mensaje enviado a clientes con atraso ligero"
+                value={newTemplateForm.description}
+                onChange={e => setNewTemplateForm({ ...newTemplateForm, description: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="font-semibold text-slate-700 dark:text-slate-300">
+                  Texto del Mensaje:
+                </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-[10px] px-2 gap-1 text-primary border-primary/30"
+                  onClick={() => setNewTemplateForm({
+                    ...newTemplateForm,
+                    templateText: `${newTemplateForm.templateText} [nombre]`.trim()
+                  })}
+                >
+                  + [nombre]
+                </Button>
+              </div>
+
+              <Textarea
+                rows={4}
+                placeholder="Escribe el mensaje de la plantilla..."
+                value={newTemplateForm.templateText}
+                onChange={e => setNewTemplateForm({ ...newTemplateForm, templateText: e.target.value })}
+                className="text-xs font-sans resize-none"
+                required
+              />
+
+              {(() => {
+                const info = getSmsCharInfo(newTemplateForm.templateText);
+                return (
+                  <div className="flex justify-between items-center text-[11px] pt-0.5">
+                    <span className={cn(
+                      "font-mono font-bold text-[10px]",
+                      info.isOverSingle ? "text-amber-600" : "text-slate-500"
+                    )}>
+                      {info.len}/160 caracteres {info.isOverSingle && `(${info.segments} SMS)`}
+                    </span>
+                    <span className="text-muted-foreground text-[10px]">
+                      Usa <code className="text-primary font-semibold">[nombre]</code> para personalizar
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateTemplateModalOpen(false)}
+                disabled={isCreatingTemplate}
+                className="text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isCreatingTemplate || !newTemplateForm.name.trim() || !newTemplateForm.templateText.trim()}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs gap-1.5"
+              >
+                <Save className={`h-3.5 w-3.5 ${isCreatingTemplate ? 'animate-spin' : ''}`} />
+                {isCreatingTemplate ? 'Guardando...' : 'Crear Plantilla'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

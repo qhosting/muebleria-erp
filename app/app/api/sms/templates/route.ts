@@ -51,7 +51,17 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { campaignKey, name, templateText, description } = await req.json();
+    let { campaignKey, name, templateText, description } = await req.json();
+
+    if (!name || !templateText) {
+      return NextResponse.json({ error: 'El nombre y el texto son obligatorios' }, { status: 400 });
+    }
+
+    if (!campaignKey) {
+      // Generar clave única legible o aleatoria
+      const sanitized = name.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20);
+      campaignKey = `${sanitized}_${Date.now().toString(36)}`;
+    }
 
     const template = await prisma.smsTemplate.upsert({
       where: { campaignKey },
@@ -62,5 +72,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(template);
   } catch (error) {
     return NextResponse.json({ error: 'Error saving template' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  const userRole = (session?.user as any)?.role;
+  const allowedRoles = ['admin', 'gestor_cobranza', 'direccion', 'cobrador', 'reporte_cobranza'];
+  if (!session || !allowedRoles.includes(userRole)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const campaignKey = searchParams.get('campaignKey');
+    const id = searchParams.get('id');
+
+    if (!campaignKey && !id) {
+      return NextResponse.json({ error: 'Falta identificador de la plantilla' }, { status: 400 });
+    }
+
+    // Proteger plantillas predeterminadas del sistema
+    if (campaignKey === 'inicio_semana' || campaignKey === 'no_pagos') {
+      return NextResponse.json({ error: 'No se pueden eliminar las plantillas principales del sistema' }, { status: 400 });
+    }
+
+    if (id) {
+      await prisma.smsTemplate.delete({ where: { id } });
+    } else if (campaignKey) {
+      await prisma.smsTemplate.delete({ where: { campaignKey } });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: 'Error deleting template' }, { status: 500 });
   }
 }
